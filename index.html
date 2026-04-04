@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מערכת מבצעים v5 // כוננות מחוזית ת"א</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{--r:6px;--font:'Heebo',sans-serif;--font2:'Assistant',sans-serif;--trans:0.25s ease}
+body.night{--bg:#07090a;--panel:#0d1014;--panel2:#121620;--panel3:#18202e;--panel4:#1e2838;--accent:#3dff52;--accent2:#a8e800;--warn:#ffc107;--danger:#ff3333;--blue:#29c5f6;--purple:#b06cf0;--orange:#ff7a1a;--teal:#00e8b8;--pink:#ff4aaa;--text:#9ab8c8;--text2:#5a7a90;--text3:#344858;--texthi:#d8eef8;--border:#1a2838;--border2:#243448;--border3:#2e4460;--glow:rgba(61,255,82,0.12);--glow2:rgba(61,255,82,0.06);--popup-bg:rgba(8,12,18,0.97)}
+body.day{--bg:#f0f4f8;--panel:#ffffff;--panel2:#f4f8fc;--panel3:#eaf0f8;--panel4:#e0eaf4;--accent:#1a8c2e;--accent2:#4a9e00;--warn:#d47800;--danger:#cc1111;--blue:#0a7cb8;--purple:#6040b8;--orange:#b84800;--teal:#008870;--pink:#c8006a;--text:#2a3e54;--text2:#4a6070;--text3:#7a94a8;--texthi:#0a1e30;--border:#c8dcea;--border2:#b0c8da;--border3:#88a8c0;--glow:rgba(26,140,46,0.08);--glow2:rgba(26,140,46,0.04);--popup-bg:rgba(255,255,255,0.98)}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--text);direction:rtl;transition:background var(--trans),color var(--trans)}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--panel)}::-webkit-scrollbar-thumb{background:var(--border3);border-radius:2px}
+#app{display:flex;flex-direction:column;height:100%;overflow:hidden}
+#topbar{background:var(--panel);border-bottom:1px solid var(--border2);height:46px;display:flex;align-items:center;gap:6px;padding:0 10px;flex-shrink:0;z-index:100}
+#topbar-logo{font-family:var(--font2);font-weight:900;font-size:13px;color:var(--accent);letter-spacing:0.04em;white-space:nowrap;display:flex;align-items:center;gap:6px}
+#topbar-logo span{color:var(--text3);font-weight:400;font-size:11px}
+#sys-clock{font-family:var(--font2);font-size:13px;font-weight:700;color:var(--accent2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:3px 9px;cursor:default;white-space:nowrap}
+.tb-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 10px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.tb-btn:hover{border-color:var(--border3);color:var(--texthi)}
+.tb-btn.tbdanger{border-color:rgba(255,51,51,0.5);color:var(--danger)}
+.tpill{display:flex;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:2px;gap:2px;flex-shrink:0}
+.tpill-btn{background:none;border:none;border-radius:16px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text3);font-family:var(--font);transition:all 0.15s}
+.tpill-btn.active{background:var(--panel3);color:var(--texthi)}
+.tb-spacer{flex:1}
+.nav-tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;overflow-x:auto;flex-shrink:0}
+.nav-tab{background:none;border:none;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:4px;font-family:var(--font);white-space:nowrap;transition:all 0.12s;position:relative}
+.nav-tab.active,.nav-tab:hover{background:var(--panel3);color:var(--texthi)}
+.nav-tab.active{color:var(--accent)}
+#main{display:flex;flex:1;overflow:hidden;position:relative}
+#map-wrap{flex:1;position:relative;overflow:hidden}
+#gmap{position:absolute;inset:0;width:100%;height:100%}
+#statusbar{position:absolute;bottom:0;left:0;right:0;height:22px;background:rgba(7,9,10,0.88);backdrop-filter:blur(4px);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:10px;font-weight:600;color:var(--text3);z-index:200;direction:rtl;border-top:1px solid var(--border)}
+body.day #statusbar{background:rgba(240,244,248,0.9)}
+.sb-item{display:flex;align-items:center;gap:4px;color:var(--text3)}
+.sb-item strong{color:var(--accent2)}
+#map-overlay-btns{position:absolute;top:10px;left:10px;z-index:200;display:flex;flex-direction:column;gap:5px}
+.mp-btn{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all 0.12s;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.mp-btn:hover{border-color:var(--accent);background:var(--panel2)}
+#search-wrap{position:absolute;top:10px;left:55px;right:10px;z-index:200;max-width:340px}
+#search-input{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:8px 14px;font-size:13px;font-family:var(--font);color:var(--texthi);outline:none;direction:rtl;box-shadow:0 2px 10px rgba(0,0,0,0.25)}
+#search-results{position:absolute;top:100%;right:0;left:0;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);z-index:9999;display:none;max-height:220px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-top:3px}
+.sr-item{padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);direction:rtl;color:var(--text)}
+.sr-item:hover{background:var(--panel2);color:var(--accent)}
+#map-type-btns{position:absolute;bottom:28px;left:10px;z-index:200;display:flex;gap:4px}
+.mtype-btn{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:4px 9px;font-size:10px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s}
+.mtype-btn:hover,.mtype-btn.active{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+#zoom-btns{position:absolute;bottom:60px;left:10px;z-index:200;display:flex;flex-direction:column;gap:3px}
+.zoom-btn{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-weight:700;color:var(--text2);transition:all 0.12s;box-shadow:0 2px 6px rgba(0,0,0,0.25)}
+.zoom-btn:hover{border-color:var(--accent);color:var(--accent)}
+#sos-flash{position:fixed;inset:0;background:rgba(255,0,0,0.15);pointer-events:none;z-index:9997;display:none;animation:sos-anim 0.5s ease-in-out infinite}
+@keyframes sos-anim{0%,100%{opacity:0}50%{opacity:1}}
+#toast-container{position:fixed;bottom:60px;left:16px;z-index:9990;display:flex;flex-direction:column;gap:6px;pointer-events:none;direction:rtl}
+.toast{background:var(--panel);border:1px solid var(--border3);border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--texthi);box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:all;display:flex;align-items:center;gap:9px;min-width:220px;max-width:320px;direction:rtl;animation:toastIn 0.3s ease}
+.toast.fadeout{animation:toastOut 0.3s ease forwards}
+.t-success{border-color:var(--accent)}.t-danger{border-color:var(--danger)}.t-warn{border-color:var(--warn)}.t-info{border-color:var(--blue)}
+.toast-icon{font-size:18px;flex-shrink:0}.toast-body{flex:1}.toast-title{font-weight:700;margin-bottom:1px}.toast-sub{font-size:11px;color:var(--text2)}.toast-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;flex-shrink:0;padding:0}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-4px)}}
+#right-panel{width:310px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s;z-index:100;position:relative}
+#right-panel.hidden{width:0;overflow:hidden;border:none}
+#rp-header{padding:10px 12px 0;border-bottom:1px solid var(--border);flex-shrink:0}
+#rp-title{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+#rp-body{flex:1;overflow-y:auto;padding:10px 12px;direction:rtl}
+.rp-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;margin-right:auto}
+.sec-hd{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:10px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.btn-pri{width:100%;background:var(--glow);border:1px solid var(--accent);border-radius:var(--r);padding:8px;font-size:13px;font-weight:700;color:var(--accent);cursor:pointer;font-family:var(--font);transition:all 0.12s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-pri:hover{background:rgba(61,255,82,0.2)}
+.btn-sec{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;margin-top:5px;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn-sec:hover{border-color:var(--border3);color:var(--texthi)}
+.form-g{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.form-g label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em}
+.form-g input,.form-g select,.form-g textarea{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;width:100%;transition:border-color 0.12s;direction:rtl}
+.form-g input:focus,.form-g select:focus,.form-g textarea:focus{border-color:var(--accent)}
+.form-g textarea{resize:vertical;min-height:60px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.02em;white-space:nowrap}
+.b-urgent{background:rgba(255,51,51,0.12);color:var(--danger)}.b-active{background:rgba(61,255,82,0.1);color:var(--accent)}.b-pending{background:rgba(255,193,7,0.1);color:var(--warn)}.b-completed{background:rgba(41,197,246,0.1);color:var(--blue)}.b-briefing{background:rgba(176,108,240,0.1);color:var(--purple)}.b-draft{background:rgba(90,122,144,0.1);color:var(--text2)}.b-unavail{background:rgba(255,51,51,0.08);color:var(--danger)}.b-deployed{background:rgba(61,255,82,0.1);color:var(--accent)}.b-onduty{background:rgba(168,232,0,0.1);color:var(--accent2)}.b-offduty{background:rgba(90,122,144,0.1);color:var(--text3)}
+.act-btn{background:var(--panel3);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s}
+.act-btn:hover{border-color:var(--border3);color:var(--texthi)}.act-btn.del:hover{border-color:var(--danger);color:var(--danger)}
+.msn-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px;cursor:pointer;transition:all 0.12s;border-right:3px solid var(--border2)}
+.msn-card:hover{border-color:var(--border3);background:var(--panel3)}
+.msn-card.u-urgent{border-right-color:var(--danger)}.msn-card.u-active{border-right-color:var(--accent)}.msn-card.u-pending{border-right-color:var(--warn)}.msn-card.u-completed{border-right-color:var(--blue)}.msn-card.u-briefing{border-right-color:var(--purple)}
+.msn-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.msn-id{font-size:10px;font-weight:800;color:var(--text3)}.msn-title{font-size:13px;font-weight:700;color:var(--texthi);margin-bottom:4px}
+.msn-meta{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--text3);flex-wrap:wrap}
+.prog-bar{height:3px;background:var(--border);border-radius:2px;margin-top:6px}.prog-fill{height:100%;border-radius:2px;transition:width 0.3s}
+.filter-bar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px}
+.f-btn{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;font-family:var(--font)}
+.f-btn.active{border-color:var(--accent);color:var(--accent);background:var(--glow2)}
+.u-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:9px;margin-bottom:5px;display:flex;gap:8px;align-items:flex-start}
+.u-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.u-name{font-size:13px;font-weight:700;color:var(--texthi)}.u-meta{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--text3);flex-wrap:wrap;margin-top:3px}
+.kpi-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;text-align:center}
+.kpi-num{font-family:var(--font2);font-size:26px;font-weight:900;line-height:1}.kpi-lbl{font-size:9px;font-weight:700;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:0.04em}
+.bc-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}.bc-lbl{font-size:11px;color:var(--text2);width:60px;flex-shrink:0}.bc-track{flex:1;height:6px;background:var(--border);border-radius:3px}.bc-fill{height:100%;border-radius:3px;transition:width 0.3s}.bc-val{font-size:11px;font-weight:700;color:var(--accent2);min-width:16px;text-align:center}
+.act-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)}.act-time{font-size:10px;font-weight:700;color:var(--text3);min-width:40px}.act-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.act-txt{font-size:11px;color:var(--text2);flex:1}
+.msg-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px}
+.msg-from{font-size:11px;font-weight:700;color:var(--accent2)}.msg-body{font-size:12px;color:var(--text);margin:2px 0}.msg-meta{font-size:10px;color:var(--text3);display:flex;justify-content:space-between}
+.ch-tab{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:3px 8px;font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;font-family:var(--font)}
+.ch-tab.active{border-color:var(--blue);color:var(--blue);background:rgba(41,197,246,0.08)}
+#modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;display:none;align-items:center;justify-content:center}
+#modal-box{background:var(--panel);border:1px solid var(--border3);border-radius:10px;padding:20px;min-width:300px;max-width:640px;width:96%;max-height:92vh;overflow-y:auto;position:relative;direction:rtl;box-shadow:0 16px 48px rgba(0,0,0,0.6)}
+#modal-box::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px 10px 0 0}
+#modal-ttl{font-size:16px;font-weight:800;color:var(--texthi);margin-bottom:14px}
+.modal-acts{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+.modal-acts button{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font)}
+#modal-ok{background:var(--glow);color:var(--accent);border-color:var(--accent)}
+#modal-cancel:hover{border-color:var(--danger);color:var(--danger)}
+#bo-wrap{position:fixed;inset:0;z-index:8000;background:var(--bg);display:none;flex-direction:column;direction:rtl}
+#bo-wrap.show{display:flex}
+#bo-topbar{background:var(--panel);border-bottom:1px solid var(--border2);padding:0 16px;height:50px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.bo-logo{font-family:var(--font2);font-size:14px;font-weight:800;color:var(--accent);white-space:nowrap}
+.bo-tabs{display:flex;gap:2px;flex:1;overflow-x:auto}
+.bo-tab{background:none;border:none;padding:6px 12px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:var(--r);font-family:var(--font);white-space:nowrap}
+.bo-tab.active{background:var(--panel2);color:var(--accent)}
+.bo-back{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);white-space:nowrap}
+#bo-content{flex:1;overflow-y:auto;padding:20px;direction:rtl}
+.bo-inner{max-width:1200px;margin:0 auto}
+.bo-section{margin-bottom:28px}
+.bo-hd{font-size:18px;font-weight:800;color:var(--texthi);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bo-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.bo-stat{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center}
+.bo-stat-n{font-family:var(--font2);font-size:30px;font-weight:900;line-height:1}.bo-stat-l{font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;text-transform:uppercase}
+.bo-table{width:100%;border-collapse:collapse;font-size:13px;direction:rtl}
+.bo-table th{background:var(--panel2);color:var(--text2);font-weight:700;padding:10px 12px;text-align:right;border-bottom:2px solid var(--border2)}
+.bo-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+.bo-table tr:hover td{background:var(--panel2)}
+.pers-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:11px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;transition:all 0.15s;cursor:grab}
+.pers-card:hover{background:var(--panel3);border-color:var(--border3)}
+.pers-card.selected{border-color:var(--accent)!important;background:var(--glow2)!important}
+.pers-avatar{width:44px;height:44px;border-radius:50%;flex-shrink:0;border:2px solid var(--border2);background:var(--panel3);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;font-family:var(--font2);overflow:hidden;position:relative}
+.pers-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pers-info{flex:1;min-width:0}.pers-name{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:2px}
+.pers-sub{font-size:11px;color:var(--text3);margin-bottom:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pers-avail{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;border:1px solid}
+.avail-yes{background:rgba(61,255,82,0.1);color:var(--accent);border-color:rgba(61,255,82,0.3)}.avail-no{background:rgba(255,51,51,0.08);color:var(--danger);border-color:rgba(255,51,51,0.25)}
+.pers-dial{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--blue);text-decoration:none;font-weight:600;padding:2px 8px;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);transition:all 0.12s;margin-top:3px}
+.pers-expand{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:1px 4px;font-weight:700;font-family:var(--font)}
+.pers-detail{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);line-height:1.8}
+.pers-detail.open{display:block}
+.pers-actions-col{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.drag-handle{cursor:grab;color:var(--text3);font-size:14px;padding:0 3px;user-select:none;flex-shrink:0}
+.pers-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin-top:2px}
+.multi-sel-bar{display:none;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;align-items:center;gap:8px;direction:rtl}
+.multi-sel-bar.visible{display:flex}
+.skill-tag-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.team-card-v2{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.team-topbar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+.team-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.team-topbar-name{font-size:14px;font-weight:800;color:var(--texthi);flex:1}
+.team-topbar-count{font-size:11px;font-weight:600;color:var(--text3);background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:2px 8px}
+.team-collapse-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;transition:transform 0.2s}
+.team-collapse-btn.open{transform:rotate(180deg)}
+.team-del-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 5px;border-radius:var(--r)}
+.team-del-btn:hover{color:var(--danger)}
+.team-body{padding:12px;display:none;flex-direction:column;gap:8px}
+.team-body.open{display:flex}
+.team-field{display:flex;flex-direction:column;gap:3px}
+.team-field label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
+.team-field input{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:6px 9px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;width:100%}
+.team-members-area{border:1px solid var(--border);border-radius:var(--r);background:var(--panel);padding:8px;min-height:38px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.team-member-chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--text)}
+.team-member-chip button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 2px;line-height:1}
+.team-member-chip button:hover{color:var(--danger)}
+.team-action-row{display:flex;gap:6px;flex-wrap:wrap}
+.team-act-btn{display:flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:6px 11px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap}
+.team-act-btn:hover{border-color:var(--border3);color:var(--texthi)}
+.team-act-btn.primary{background:var(--glow);border-color:var(--accent);color:var(--accent)}
+.team-save-bar{padding:10px 12px;border-top:1px solid var(--border);background:var(--panel);display:flex;gap:8px;justify-content:flex-end}
+.skills-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:5px}
+.skill-cb{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r);background:var(--panel3);transition:all 0.12s;user-select:none}
+.skill-cb:hover{border-color:var(--border3);background:var(--panel2)}.skill-cb.checked{background:var(--glow);border-color:var(--accent);color:var(--accent)}
+.skill-cb input{accent-color:var(--accent);width:13px;height:13px;cursor:pointer;flex-shrink:0}
+.skills-req-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:5px}
+.skill-req-cb{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text);cursor:pointer;padding:3px 5px;border:1px solid var(--border);border-radius:var(--r);background:var(--panel3);transition:all 0.12s;user-select:none}
+.skill-req-cb.checked{background:var(--glow);border-color:var(--accent);color:var(--accent)}
+.skill-req-cb input{accent-color:var(--accent);width:12px;height:12px;cursor:pointer;flex-shrink:0}
+.addr-wrap{position:relative}.addr-sugs{position:absolute;top:100%;right:0;left:0;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);z-index:9999;max-height:140px;overflow-y:auto;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.addr-sug{padding:6px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);color:var(--text)}.addr-sug:hover{background:var(--panel3);color:var(--accent)}
+.addr-row{display:flex;gap:6px;align-items:stretch}
+.addr-locate-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 11px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:var(--font);display:flex;align-items:center;gap:5px}
+.photo-up{width:72px;height:72px;border-radius:50%;border:2px dashed var(--border3);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;background:var(--panel3);transition:all 0.15s;position:relative;font-size:22px}
+.photo-up:hover{border-color:var(--accent)}.photo-up img{position:absolute;width:100%;height:100%;object-fit:cover;border-radius:50%}.photo-up input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.csv-drop{border:2px dashed var(--border3);border-radius:var(--r);padding:16px;text-align:center;font-size:12px;color:var(--text3);cursor:pointer;transition:all 0.15s;position:relative;margin-top:8px}
+.csv-drop:hover{border-color:var(--accent);color:var(--accent);background:var(--glow2)}.csv-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.clr-row{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0}.clr-dot{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.12s}.clr-dot.sel,.clr-dot:hover{border-color:var(--texthi);transform:scale(1.15)}
+.msn-modal-section{margin-bottom:14px}.msn-modal-section-hd{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.msn-modal-section-hd::after{content:'';flex:1;height:1px;background:var(--border)}
+.team-suggest-wrap{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.team-suggest-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.team-suggest-card:hover{border-color:var(--border3);background:var(--panel3)}.team-suggest-card.selected{border-color:var(--accent);background:var(--glow)}
+.tsc-check{width:20px;height:20px;border-radius:4px;border:2px solid var(--border3);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;font-size:12px}
+.team-suggest-card.selected .tsc-check{background:var(--accent);border-color:var(--accent);color:#07090a}
+.tsc-name{font-size:13px;font-weight:700;color:var(--texthi);flex:1}.tsc-meta{font-size:11px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:6px}.tsc-dist{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:3px;flex-shrink:0}.tsc-avail{font-size:10px;padding:2px 7px;border-radius:10px;flex-shrink:0}
+.tsc-plus{background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;font-weight:700;color:var(--text2);flex-shrink:0}
+.tsc-plus:hover{border-color:var(--accent);color:var(--accent)}
+.tsc-spinner{width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.teams-assigned-wrap{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;min-height:24px}
+.team-assigned-tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--text)}
+.team-assigned-tag button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 2px;line-height:1}
+.roles-row{display:flex;gap:5px;align-items:center;margin-bottom:5px}
+.shift-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px;border-right:4px solid var(--border2)}
+.shift-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.shift-time{font-family:var(--font2);font-size:12px;font-weight:700;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:3px 9px;color:var(--accent2);white-space:nowrap}
+.shift-members-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.shift-member{display:inline-flex;align-items:center;gap:4px;background:var(--panel3);border:1px solid var(--border2);border-radius:12px;padding:2px 8px;font-size:11px;color:var(--text);cursor:pointer}
+.shift-member.add-btn{border-style:dashed;color:var(--text3)}.shift-member.add-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.cov-bar{height:6px;background:var(--border);border-radius:3px;flex:1}.cov-fill{height:100%;border-radius:3px;transition:width 0.5s}
+.dept-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:8px;border-right:4px solid var(--border2);transition:all 0.15s}
+.dept-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px}.dept-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}.dept-name{font-size:15px;font-weight:800;color:var(--texthi);flex:1}.dept-badge{font-size:10px;background:var(--panel3);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;color:var(--text3);font-weight:600}
+.dept-meta{font-size:11px;color:var(--text3);margin-bottom:6px;display:flex;flex-direction:column;gap:2px}
+.dept-members{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.dept-member-chip{display:inline-flex;align-items:center;gap:4px;background:var(--panel3);border:1px solid var(--border2);border-radius:12px;padding:2px 8px;font-size:11px;font-weight:600;color:var(--text)}
+.bo-drag-row{cursor:grab;user-select:none}.bo-drag-row.dragging{opacity:0.4;background:var(--glow2)!important}.bo-drag-row.drag-over{border-top:3px solid var(--accent)!important}
+.draw-mode-badge{position:absolute;top:55px;left:50%;transform:translateX(-50%);background:rgba(41,197,246,0.9);color:#07090a;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;font-family:Heebo,sans-serif;z-index:300;backdrop-filter:blur(4px);box-shadow:0 4px 12px rgba(0,0,0,0.3);display:none;white-space:nowrap;pointer-events:none}
+.draw-mode-badge.visible{display:block}
+@keyframes lpulse{0%,100%{opacity:1}50%{opacity:0.3}}
+#gps-widget{position:absolute;bottom:30px;right:14px;z-index:200;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;font-size:11px;font-weight:600;display:none;min-width:178px;direction:rtl;box-shadow:0 4px 14px rgba(0,0,0,0.3)}
+#gps-widget.on{display:block}.gps-row{display:flex;justify-content:space-between;margin-bottom:3px}.gps-lbl{color:var(--text3);font-size:10px}.gps-val{color:var(--accent2);font-weight:700}
+</style>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
+</head>
+<body class="night">
+<div id="app">
+  <div id="topbar">
+    <div id="topbar-logo">⬡ מערכת מבצעים v5 <span>כוננות מחוזית ת"א</span></div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="goView('map')">🗺️ מפה</button>
+      <button class="nav-tab" onclick="goView('missions')">📋 משימות</button>
+      <button class="nav-tab" onclick="goView('units')">👥 כוחות</button>
+      <button class="nav-tab" onclick="goView('comms')">📡 תקשורת</button>
+      <button class="nav-tab" onclick="goView('incidents')">🗂️ יומן</button>
+      <button class="nav-tab" onclick="goView('analytics')">📈 אנליטיקה</button>
+      <button class="nav-tab" onclick="goView('ai')">🤖 AI</button>
+      <button class="nav-tab" onclick="goView('teams')">🏢 צוותים</button>
+      <button class="nav-tab" onclick="goView('personnel')">👤 כוח אדם</button>
+      <button class="nav-tab" onclick="goView('navigation')">🧭 ניווט</button>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️</button></div>
+    <button class="tb-btn tbdanger" onclick="triggerSOS()">🆘 SOS</button>
+    <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
+    <button class="tb-btn" onclick="openBO()">⚙ ניהול</button>
+    <div id="sys-clock">00:00:00</div>
+  </div>
+  <div id="main">
+    <div id="map-wrap">
+      <div id="gmap"></div>
+      <div class="draw-mode-badge" id="draw-mode-badge">✏️ מצב ציור גבול — לחץ נקודות | כפל-לחיצה לסיום</div>
+      <div id="map-overlay-btns">
+        <button class="mp-btn" onclick="locateMe()" title="מיקומי">📍</button>
+        <button class="mp-btn" onclick="map.setCenter({lat:32.0667,lng:34.7818});map.setZoom(17)" title="תל אביב">🏙️</button>
+        <button class="mp-btn" onclick="map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})" title="כל ישראל">🇮🇱</button>
+        <button class="mp-btn" onclick="toggleGPS()" id="gps-btn" title="GPS מעקב">🛰️</button>
+        <button class="mp-btn" onclick="triggerSOS()" title="SOS">🆘</button>
+      </div>
+      <div id="search-wrap">
+        <input type="text" id="search-input" placeholder="🔍 חפש מיקום בישראל..." autocomplete="off" oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')doSearch(this.value)"/>
+        <div id="search-results"></div>
+      </div>
+      <div id="map-type-btns">
+        <button class="mtype-btn active" id="mtype-roadmap" onclick="setMapType('roadmap')">🏘️ רחובות</button>
+        <button class="mtype-btn" id="mtype-satellite" onclick="setMapType('satellite')">🛰️ לוויין</button>
+        <button class="mtype-btn" id="mtype-hybrid" onclick="setMapType('hybrid')">🔀 היברידי</button>
+      </div>
+      <div id="zoom-btns">
+        <button class="zoom-btn" onclick="map.setZoom(map.getZoom()+1)">+</button>
+        <button class="zoom-btn" onclick="map.setZoom(map.getZoom()-1)">−</button>
+      </div>
+      <div id="gps-widget">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;color:var(--accent2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;animation:lpulse 1.5s infinite"></span>GPS פעיל</div>
+        <div class="gps-row"><span class="gps-lbl">קו רוחב</span><span class="gps-val" id="gw-lat">--</span></div>
+        <div class="gps-row"><span class="gps-lbl">קו אורך</span><span class="gps-val" id="gw-lng">--</span></div>
+        <div class="gps-row"><span class="gps-lbl">דיוק</span><span class="gps-val" id="gw-acc">--</span></div>
+      </div>
+      <div id="statusbar">
+        <div class="sb-item">● <span id="sb-conn" style="color:var(--accent)">מחובר</span></div>
+        <div class="sb-item">משימות: <strong id="s-msn">0</strong></div>
+        <div class="sb-item">יחידות: <strong id="s-units">0</strong></div>
+        <div class="sb-item">קואורד: <strong id="s-coord">--</strong></div>
+        <div class="sb-item">זום: <strong id="s-zoom">17</strong></div>
+      </div>
+    </div>
+    <div id="right-panel">
+      <div id="rp-header">
+        <div id="rp-title">
+          <span id="rp-title-txt">כלי ציור</span>
+          <button class="rp-close" onclick="closePanel()">✕</button>
+        </div>
+      </div>
+      <div id="rp-body"></div>
+    </div>
+  </div>
+</div>
+<div id="modal-wrap"><div id="modal-box"><div id="modal-ttl"></div><div id="modal-body"></div><div class="modal-acts"><button id="modal-ok" onclick="modalConfirm()">✓ אישור</button><button id="modal-cancel" onclick="closeModal()">✕ ביטול</button></div></div></div>
+<div id="sos-flash"></div>
+<div id="toast-container"></div>
+<div id="bo-wrap">
+  <div id="bo-topbar">
+    <div class="bo-logo">⚙ פאנל ניהול</div>
+    <div class="bo-tabs">
+      <button class="bo-tab active" onclick="boTab('overview')">📊 סקירה</button>
+      <button class="bo-tab" onclick="boTab('missions-bo')">📋 משימות</button>
+      <button class="bo-tab" onclick="boTab('units-bo')">👥 כוח אדם</button>
+      <button class="bo-tab" onclick="boTab('personnel-bo')">👤 אנשי צוות</button>
+      <button class="bo-tab" onclick="boTab('teams-bo')">🏢 צוותים</button>
+      <button class="bo-tab" onclick="boTab('geofences-bo')">⬡ גיאופנסים</button>
+      <button class="bo-tab" onclick="boTab('incidents-bo')">🗂️ אירועים</button>
+      <button class="bo-tab" onclick="boTab('shifts-bo')">🕐 משמרות</button>
+      <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
+      <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
+      <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
+    </div>
+    <button class="bo-back" onclick="closeBO()">← חזרה למפה</button>
+  </div>
+  <div id="bo-content"><div class="bo-inner"></div></div>
+</div>
+
+
+<style>
+/* Right panel extras */
+.panel-scroll{flex:1;overflow-y:auto;padding:0}
+.person-card{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.1s}
+.person-card:hover{background:var(--panel2)}
+.pc-badge{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#07090a;flex-shrink:0}
+.pc-info{flex:1;min-width:0}
+.pc-name{font-size:13px;font-weight:700;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-sub{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pc-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;border:1px solid;white-space:nowrap;flex-shrink:0}
+.mission-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px;cursor:pointer;transition:border-color 0.1s}
+.mission-card:hover{border-color:var(--border3)}
+.unit-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px}
+.modal-field{display:flex;flex-direction:column;gap:4px}
+.modal-field label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em}
+.chat-msg{display:flex;margin-bottom:4px}
+.chat-user{justify-content:flex-end}
+.chat-assistant{justify-content:flex-start}
+.chat-bubble{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:7px 11px;font-size:12px;color:var(--text);max-width:88%;direction:rtl;line-height:1.5}
+.chat-user .chat-bubble{background:var(--glow);border-color:var(--accent)40;color:var(--texthi)}
+/* BO extras */
+.bo-section-title{font-size:16px;font-weight:800;color:var(--texthi);margin-bottom:14px}
+.bo-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.bo-stat{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:14px;text-align:center}
+.bo-stat-val{font-family:var(--font2);font-size:28px;font-weight:900;line-height:1}
+.bo-stat-lbl{font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;text-transform:uppercase}
+.bo-table-wrap{overflow-x:auto}
+.bo-placeholder{text-align:center;color:var(--text3);padding:40px;font-size:14px}
+/* Toast */
+.toast{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:9px 14px;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;opacity:0;transform:translateY(6px);transition:all 0.25s;direction:rtl;box-shadow:0 4px 16px rgba(0,0,0,0.3)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{border-color:var(--accent);color:var(--accent)}
+.toast-error,.toast-warning{border-color:var(--danger);color:var(--danger)}
+.toast-warning{border-color:var(--warn);color:var(--warn)}
+/* SOS flash */
+#sos-flash{position:fixed;inset:0;background:rgba(255,30,30,0.18);z-index:9999;display:none;align-items:center;justify-content:center;animation:sosblink 0.4s infinite alternate;pointer-events:none}
+@keyframes sosblink{from{background:rgba(255,30,30,0.1)}to{background:rgba(255,30,30,0.3)}}
+#toast-container{position:fixed;bottom:30px;left:16px;z-index:10000;direction:rtl}
+</style>
+<script>
+// ===== DATA =====
+let THEME = localStorage.getItem('tac_theme') || 'night';
+document.body.className = THEME;
+
+const MISSIONS = [
+  {id:1, code:'מבצע שחר', type:'סיור', status:'פעיל', priority:'גבוה', unit:'יחידה א', time:'06:00', desc:'סיור אבטחה בצפון המחוז', lat:32.09, lng:34.78},
+  {id:2, code:'מבצע ערב', type:'תגובה', status:'המתנה', priority:'בינוני', unit:'יחידה ב', time:'18:00', desc:'כוננות תגובה מהירה', lat:32.06, lng:34.77},
+  {id:3, code:'מבצע לילה', type:'חקירה', status:'הושלם', priority:'נמוך', unit:'יחידה ג', time:'22:00', desc:'חקירת אירוע מאתמול', lat:32.08, lng:34.80},
+];
+const UNITS = [
+  {id:1, name:'יחידה א - צפון', commander:'רס"ב כהן', strength:12, status:'פעיל'},
+  {id:2, name:'יחידה ב - מרכז', commander:'רס"ב לוי', strength:9, status:'כוננות'},
+  {id:3, name:'יחידה ג - דרום', commander:'רס"ב מזרחי', strength:7, status:'מנוחה'},
+  {id:4, name:'יחידה ד - ים', commander:'רס"ב אברהם', strength:11, status:'פעיל'},
+];
+let PERSONNEL = JSON.parse(localStorage.getItem('tac_personnel') || 'null') || [
+  {id:1,  name:'רס"ב דוד כהן',     rank:'רס"ב', role:'מפקד יחידה א',    phone:'052-1001001',team:1,shift:1,status:'פעיל',  lat:32.0920,lng:34.7820,badge:'#3dff52'},
+  {id:2,  name:'רב"ט מיכל לוי',    rank:'רב"ט', role:'לוחמת',           phone:'052-1001002',team:1,shift:1,status:'פעיל',  lat:32.0910,lng:34.7840,badge:'#3dff52'},
+  {id:3,  name:'סמ"ר אלי מזרחי',   rank:'סמ"ר', role:'נהג',             phone:'052-1001003',team:1,shift:2,status:'פעיל',  lat:32.0930,lng:34.7800,badge:'#3dff52'},
+  {id:4,  name:'טור עמית אברהם',   rank:'טוראי',role:'חוקר',            phone:'052-1001004',team:2,shift:1,status:'פעיל',  lat:32.0870,lng:34.7780,badge:'#ffc107'},
+  {id:5,  name:'רס"ל שרה בן-דוד',  rank:'רס"ל', role:'קצינת מבצעים',   phone:'052-1001005',team:2,shift:1,status:'כוננות',lat:32.0850,lng:34.7760,badge:'#ffc107'},
+  {id:6,  name:'סמ"ר יוסי גבאי',   rank:'סמ"ר', role:'לוחם',           phone:'052-1001006',team:2,shift:2,status:'פעיל',  lat:32.0860,lng:34.7800,badge:'#ffc107'},
+  {id:7,  name:'רב"ט נועה שפירא',  rank:'רב"ט', role:'פרמדיק',         phone:'052-1001007',team:3,shift:1,status:'פעיל',  lat:32.0780,lng:34.7820,badge:'#29c5f6'},
+  {id:8,  name:'טור דניאל ביטון',  rank:'טוראי',role:'לוחם',           phone:'052-1001008',team:3,shift:2,status:'מנוחה', lat:32.0760,lng:34.7840,badge:'#29c5f6'},
+  {id:9,  name:'רס"ב אורית פרץ',   rank:'רס"ב', role:'קצינה',          phone:'052-1001009',team:3,shift:1,status:'פעיל',  lat:32.0770,lng:34.7800,badge:'#29c5f6'},
+  {id:10, name:'סמ"ר רני חיים',    rank:'סמ"ר', role:'נהג',            phone:'052-1001010',team:4,shift:2,status:'פעיל',  lat:32.0820,lng:34.7900,badge:'#b06cf0'},
+  {id:11, name:'רב"ט תמר כץ',      rank:'רב"ט', role:'לוחמת',          phone:'052-1001011',team:4,shift:1,status:'כוננות',lat:32.0840,lng:34.7920,badge:'#b06cf0'},
+  {id:12, name:'טור משה אלוני',    rank:'טוראי',role:'לוחם',           phone:'052-1001012',team:4,shift:2,status:'פעיל',  lat:32.0830,lng:34.7880,badge:'#b06cf0'},
+  {id:13, name:'רס"ל גיא שמש',     rank:'רס"ל', role:'מפקד כיתה',      phone:'052-1001013',team:1,shift:2,status:'פעיל',  lat:32.0940,lng:34.7810,badge:'#3dff52'},
+  {id:14, name:'סמ"ר ליאת גרין',   rank:'סמ"ר', role:'קשרית',          phone:'052-1001014',team:1,shift:1,status:'פעיל',  lat:32.0950,lng:34.7790,badge:'#3dff52'},
+  {id:15, name:'רב"ט ידיד נוי',    rank:'רב"ט', role:'לוחם',           phone:'052-1001015',team:2,shift:2,status:'פעיל',  lat:32.0880,lng:34.7770,badge:'#ffc107'},
+  {id:16, name:'טור רינה שי',      rank:'טוראי',role:'עזרה ראשונה',    phone:'052-1001016',team:2,shift:1,status:'פעיל',  lat:32.0890,lng:34.7750,badge:'#ffc107'},
+  {id:17, name:'רס"ב עמוס טל',     rank:'רס"ב', role:'קצין בטחון שטח', phone:'052-1001017',team:3,shift:1,status:'פעיל',  lat:32.0750,lng:34.7830,badge:'#29c5f6'},
+  {id:18, name:'סמ"ר ורד חן',      rank:'סמ"ר', role:'לוחמת',          phone:'052-1001018',team:3,shift:2,status:'מנוחה', lat:32.0740,lng:34.7850,badge:'#29c5f6'},
+  {id:19, name:'רב"ט ניר ברק',     rank:'רב"ט', role:'נהג',            phone:'052-1001019',team:4,shift:1,status:'פעיל',  lat:32.0810,lng:34.7910,badge:'#b06cf0'},
+  {id:20, name:'טור שיר אלדד',     rank:'טוראי',role:'לוחמת',          phone:'052-1001020',team:4,shift:2,status:'פעיל',  lat:32.0800,lng:34.7930,badge:'#b06cf0'},
+  {id:21, name:'רס"ל אבי קרן',     rank:'רס"ל', role:'מפקד צוות',      phone:'052-1001021',team:1,shift:1,status:'פעיל',  lat:32.0960,lng:34.7780,badge:'#3dff52'},
+  {id:22, name:'סמ"ר מאיה גל',     rank:'סמ"ר', role:'קשרית',          phone:'052-1001022',team:1,shift:2,status:'כוננות',lat:32.0970,lng:34.7760,badge:'#3dff52'},
+  {id:23, name:'רב"ט רון שלו',     rank:'רב"ט', role:'לוחם',           phone:'052-1001023',team:2,shift:1,status:'פעיל',  lat:32.0900,lng:34.7740,badge:'#ffc107'},
+  {id:24, name:'טור ענת פלד',      rank:'טוראי',role:'פרמדיקית',       phone:'052-1001024',team:2,shift:2,status:'פעיל',  lat:32.0910,lng:34.7720,badge:'#ffc107'},
+  {id:25, name:'רס"ב נחום זיו',    rank:'רס"ב', role:'קצין ביון',      phone:'052-1001025',team:3,shift:2,status:'פעיל',  lat:32.0730,lng:34.7860,badge:'#29c5f6'},
+  {id:26, name:'סמ"ר הדר ים',      rank:'סמ"ר', role:'לוחמת',          phone:'052-1001026',team:3,shift:1,status:'פעיל',  lat:32.0720,lng:34.7880,badge:'#29c5f6'},
+  {id:27, name:'רב"ט גל ניר',      rank:'רב"ט', role:'נהג',            phone:'052-1001027',team:4,shift:1,status:'פעיל',  lat:32.0790,lng:34.7940,badge:'#b06cf0'},
+  {id:28, name:'טור לירן אוז',     rank:'טוראי',role:'לוחם',           phone:'052-1001028',team:4,shift:2,status:'מנוחה', lat:32.0780,lng:34.7960,badge:'#b06cf0'},
+  {id:29, name:'רס"ל ליאור בז',    rank:'רס"ל', role:'מפקד כיתה',      phone:'052-1001029',team:1,shift:2,status:'פעיל',  lat:32.0980,lng:34.7750,badge:'#3dff52'},
+  {id:30, name:'סמ"ר ימית רז',     rank:'סמ"ר', role:'קשרית',          phone:'052-1001030',team:1,shift:1,status:'פעיל',  lat:32.0990,lng:34.7730,badge:'#3dff52'},
+  {id:31, name:'רב"ט עידן שן',     rank:'רב"ט', role:'לוחם',           phone:'052-1001031',team:2,shift:2,status:'פעיל',  lat:32.0920,lng:34.7710,badge:'#ffc107'},
+  {id:32, name:'טור מיה טוב',      rank:'טוראי',role:'לוחמת',          phone:'052-1001032',team:2,shift:1,status:'פעיל',  lat:32.0930,lng:34.7690,badge:'#ffc107'},
+  {id:33, name:'רס"ב שלום עמי',    rank:'רס"ב', role:'קצין מבצעים',    phone:'052-1001033',team:3,shift:1,status:'פעיל',  lat:32.0710,lng:34.7900,badge:'#29c5f6'},
+  {id:34, name:'סמ"ר זיו כור',     rank:'סמ"ר', role:'נהג קרבי',       phone:'052-1001034',team:3,shift:2,status:'כוננות',lat:32.0700,lng:34.7920,badge:'#29c5f6'},
+  {id:35, name:'רב"ט דנה לם',      rank:'רב"ט', role:'פרמדיקית',       phone:'052-1001035',team:4,shift:1,status:'פעיל',  lat:32.0770,lng:34.7970,badge:'#b06cf0'},
+  {id:36, name:'טור בן אדן',       rank:'טוראי',role:'לוחם',           phone:'052-1001036',team:4,shift:2,status:'פעיל',  lat:32.0760,lng:34.7990,badge:'#b06cf0'},
+  {id:37, name:'רס"ל תום גד',      rank:'רס"ל', role:'מפקד צוות',      phone:'052-1001037',team:1,shift:1,status:'פעיל',  lat:32.1000,lng:34.7720,badge:'#3dff52'},
+  {id:38, name:'סמ"ר כרם יה',      rank:'סמ"ר', role:'קשרית',          phone:'052-1001038',team:1,shift:2,status:'פעיל',  lat:32.1010,lng:34.7700,badge:'#3dff52'},
+  {id:39, name:'רב"ט ים חי',       rank:'רב"ט', role:'לוחם',           phone:'052-1001039',team:2,shift:1,status:'מנוחה', lat:32.0940,lng:34.7680,badge:'#ffc107'},
+];
+let TEAMS = JSON.parse(localStorage.getItem('tac_teams') || 'null') || [
+  {id:1,name:'צוות צפון', color:'#3dff52',commander:'רס"ב כהן',   dept:'מחוז ת"א'},
+  {id:2,name:'צוות מרכז', color:'#ffc107',commander:'רס"ב לוי',   dept:'מחוז ת"א'},
+  {id:3,name:'צוות דרום', color:'#29c5f6',commander:'רס"ב מזרחי', dept:'מחוז ת"א'},
+  {id:4,name:'צוות ים',   color:'#b06cf0',commander:'רס"ב אברהם', dept:'מחוז ת"א'},
+];
+let GEOFENCES = JSON.parse(localStorage.getItem('tac_geofences') || 'null') || [
+  {id:1,name:'אזור צפון', color:'#3dff52',center:{lat:32.095,lng:34.782},radius:800},
+  {id:2,name:'אזור מרכז', color:'#ffc107',center:{lat:32.086,lng:34.778},radius:600},
+  {id:3,name:'אזור דרום', color:'#29c5f6',center:{lat:32.075,lng:34.785},radius:700},
+];
+let SHIFTS = JSON.parse(localStorage.getItem('tac_shifts') || 'null') || [
+  {id:1,name:'משמרת בוקר',start:'06:00',end:'14:00',color:'#ffc107'},
+  {id:2,name:'משמרת לילה',start:'22:00',end:'06:00',color:'#29c5f6'},
+];
+const INCIDENTS = [
+  {id:1,type:'תאונה', location:'רחוב דיזנגוף', time:'08:23',status:'פתוח',  priority:'גבוה'},
+  {id:2,type:'מריבה', location:'שוק הכרמל',    time:'10:45',status:'בטיפול',priority:'בינוני'},
+  {id:3,type:'שוד',   location:'נמל תל אביב',  time:'14:12',status:'הושלם', priority:'גבוה'},
+];
+let chatHistory = [];
+let map, markers = {}, geofenceCircles = [];
+let activePanel = 'personnel';
+let personnelFilter = 'all';
+let gpsWatchId = null;
+
+// ===== UTILS =====
+function saveData() {
+  localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL));
+  localStorage.setItem('tac_teams', JSON.stringify(TEAMS));
+  localStorage.setItem('tac_geofences', JSON.stringify(GEOFENCES));
+  localStorage.setItem('tac_shifts', JSON.stringify(SHIFTS));
+}
+function toast(msg, type) {
+  type = type || 'info';
+  const c = document.getElementById('toast-container');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(function(){t.classList.add('show');}, 10);
+  setTimeout(function(){t.classList.remove('show'); setTimeout(function(){t.remove();},300);}, 3000);
+}
+function statusColor(s) {
+  if (s === 'פעיל') return 'var(--accent)';
+  if (s === 'כוננות') return 'var(--warn)';
+  if (s === 'מנוחה') return 'var(--blue)';
+  return 'var(--text3)';
+}
+function getTeamName(id) {
+  var t = TEAMS.find(function(x){return x.id == id;});
+  return t ? t.name : 'ללא צוות';
+}
+function getTeamColor(id) {
+  var t = TEAMS.find(function(x){return x.id == id;});
+  return t ? t.color : '#888';
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== CLOCK =====
+function updateClock() {
+  var el = document.getElementById('sys-clock');
+  if (!el) return;
+  var now = new Date();
+  var h = String(now.getHours()).padStart(2,'0');
+  var m = String(now.getMinutes()).padStart(2,'0');
+  var s = String(now.getSeconds()).padStart(2,'0');
+  el.textContent = h + ':' + m + ':' + s;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== THEME =====
+function setTheme(t) {
+  THEME = t;
+  document.body.className = t;
+  localStorage.setItem('tac_theme', t);
+  document.querySelectorAll('.tpill-btn').forEach(function(b){
+    b.classList.toggle('active', b.id === 'btn-' + t);
+  });
+  if (map) applyMapStyle();
+}
+
+function applyMapStyle() {
+  if (!map) return;
+  var nightStyle = [
+    {elementType:'geometry',stylers:[{color:'#0d1117'}]},
+    {elementType:'labels.text.stroke',stylers:[{color:'#0d1117'}]},
+    {elementType:'labels.text.fill',stylers:[{color:'#4a6070'}]},
+    {featureType:'road',elementType:'geometry',stylers:[{color:'#1a2838'}]},
+    {featureType:'road',elementType:'labels.text.fill',stylers:[{color:'#3a5068'}]},
+    {featureType:'water',elementType:'geometry',stylers:[{color:'#071018'}]},
+    {featureType:'poi',elementType:'geometry',stylers:[{color:'#111820'}]},
+    {featureType:'poi.park',elementType:'geometry',stylers:[{color:'#0d1a12'}]},
+    {featureType:'transit',elementType:'geometry',stylers:[{color:'#101820'}]},
+    {featureType:'administrative',elementType:'geometry.stroke',stylers:[{color:'#253848'}]},
+    {featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#3dff52'}]},
+  ];
+  map.setOptions({styles: THEME === 'night' ? nightStyle : []});
+}
+
+// ===== NAV TABS =====
+function goView(view) {
+  document.querySelectorAll('.nav-tab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + view + "'"));
+  });
+  // Map right-panel content to view
+  var panelMap = {
+    'personnel':'personnel', 'missions':'missions', 'units':'units',
+    'ai':'chat', 'incidents':'incidents', 'teams':'units',
+    'comms':'missions', 'analytics':'units', 'navigation':'personnel',
+    'map': null
+  };
+  var panelName = panelMap[view] || view;
+  if (view === 'map') {
+    document.getElementById('right-panel').classList.add('hidden');
+    return;
+  }
+  document.getElementById('right-panel').classList.remove('hidden');
+  activePanel = panelName;
+  renderPanel();
+  // Update title
+  var titles = {
+    personnel:'כוח אדם', missions:'משימות', units:'יחידות', chat:'AI סייע',
+    incidents:'אירועים', comms:'תקשורת', analytics:'אנליטיקה'
+  };
+  var tt = document.getElementById('rp-title-txt');
+  if (tt) tt.textContent = titles[panelName] || panelName;
+}
+function goPanel(p) { goView(p); }
+function closePanel() {
+  document.getElementById('right-panel').classList.add('hidden');
+}
+
+// ===== GOOGLE MAPS =====
+window.onGoogleMapsReady = function() {
+  map = new google.maps.Map(document.getElementById('gmap'), {
+    center: {lat:32.085, lng:34.781},
+    zoom: 13,
+    disableDefaultUI: true,
+    gestureHandling: 'greedy',
+    clickableIcons: false,
+  });
+  applyMapStyle();
+  renderMarkers();
+  renderGeofences();
+  // coord display
+  map.addListener('mousemove', function(e) {
+    var el = document.getElementById('s-coord');
+    if (el) el.textContent = e.latLng.lat().toFixed(5) + ', ' + e.latLng.lng().toFixed(5);
+  });
+  map.addListener('zoom_changed', function() {
+    var el = document.getElementById('s-zoom');
+    if (el) el.textContent = map.getZoom();
+  });
+};
+
+function renderMarkers() {
+  Object.values(markers).forEach(function(m){m.setMap(null);});
+  markers = {};
+  PERSONNEL.forEach(function(p) {
+    var color = p.badge || getTeamColor(p.team);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="30" viewBox="0 0 26 30">'
+      + '<circle cx="13" cy="13" r="11" fill="' + color + '" fill-opacity="0.2" stroke="' + color + '" stroke-width="2"/>'
+      + '<circle cx="13" cy="13" r="5" fill="' + color + '"/>'
+      + '<line x1="13" y1="24" x2="13" y2="28" stroke="' + color + '" stroke-width="2"/>'
+      + '</svg>';
+    var icon = {
+      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(26, 30),
+      anchor: new google.maps.Point(13, 28),
+    };
+    var marker = new google.maps.Marker({
+      position: {lat:p.lat, lng:p.lng},
+      map: map,
+      icon: icon,
+      title: p.name,
+    });
+    (function(pid){
+      marker.addListener('click', function(){openPersonnelModal(pid);});
+    })(p.id);
+    markers[p.id] = marker;
+  });
+}
+
+function renderGeofences() {
+  geofenceCircles.forEach(function(c){c.setMap(null);});
+  geofenceCircles = [];
+  GEOFENCES.forEach(function(g) {
+    var circle = new google.maps.Circle({
+      map: map,
+      center: g.center,
+      radius: g.radius,
+      fillColor: g.color,
+      fillOpacity: 0.07,
+      strokeColor: g.color,
+      strokeOpacity: 0.5,
+      strokeWeight: 2,
+    });
+    geofenceCircles.push(circle);
+  });
+}
+
+// ===== MAP CONTROLS =====
+function setMapType(type) {
+  if (!map) return;
+  var ids = ['mtype-roadmap','mtype-satellite','mtype-hybrid'];
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.classList.toggle('active', id === 'mtype-' + type);
+  });
+  var tm = {
+    roadmap: google.maps.MapTypeId.ROADMAP,
+    satellite: google.maps.MapTypeId.SATELLITE,
+    hybrid: google.maps.MapTypeId.HYBRID,
+    terrain: google.maps.MapTypeId.TERRAIN
+  };
+  map.setMapTypeId(tm[type] || google.maps.MapTypeId.ROADMAP);
+}
+
+function locateMe() {
+  if (!navigator.geolocation) { toast('GPS לא נתמך', 'error'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    var ll = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+    if (map) { map.setCenter(ll); map.setZoom(16); }
+    toast('מוקם!', 'success');
+  }, function() { toast('שגיאת GPS', 'error'); });
+}
+
+function toggleGPS() {
+  var btn = document.getElementById('gps-btn');
+  var widget = document.getElementById('gps-widget');
+  if (gpsWatchId) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+    if (widget) widget.classList.remove('on');
+    if (btn) btn.style.borderColor = '';
+    return;
+  }
+  if (!navigator.geolocation) { toast('GPS לא נתמך', 'error'); return; }
+  if (widget) widget.classList.add('on');
+  if (btn) btn.style.borderColor = 'var(--accent)';
+  gpsWatchId = navigator.geolocation.watchPosition(function(pos) {
+    var la = pos.coords.latitude, lo = pos.coords.longitude, ac = Math.round(pos.coords.accuracy);
+    var lel = document.getElementById('gw-lat');
+    var lol = document.getElementById('gw-lng');
+    var ael = document.getElementById('gw-acc');
+    if (lel) lel.textContent = la.toFixed(6);
+    if (lol) lol.textContent = lo.toFixed(6);
+    if (ael) ael.textContent = ac + 'מ';
+  }, function(){toast('שגיאת GPS', 'error');});
+}
+
+// ===== SEARCH =====
+function doSearch(val) {
+  var sr = document.getElementById('search-results');
+  if (!sr) return;
+  var q = (val || '').trim().toLowerCase();
+  if (!q) { sr.style.display = 'none'; return; }
+  var results = PERSONNEL.filter(function(p){
+    return p.name.toLowerCase().includes(q) || p.role.toLowerCase().includes(q) || p.rank.toLowerCase().includes(q);
+  }).slice(0, 8);
+  if (!results.length) { sr.style.display = 'none'; return; }
+  sr.innerHTML = results.map(function(p){
+    return '<div class="sr-item" onclick="focusPerson(' + p.id + ')">' + p.rank + ' ' + p.name + ' — ' + p.role + '</div>';
+  }).join('');
+  sr.style.display = 'block';
+}
+
+function focusPerson(id) {
+  var p = PERSONNEL.find(function(x){return x.id == id;});
+  if (!p || !map) return;
+  map.setCenter({lat: p.lat, lng: p.lng});
+  map.setZoom(16);
+  var sr = document.getElementById('search-results');
+  if (sr) sr.style.display = 'none';
+  var si = document.getElementById('search-input');
+  if (si) si.value = '';
+  openPersonnelModal(id);
+}
+
+// ===== RIGHT PANEL =====
+function renderPanel() {
+  var el = document.getElementById('rp-body');
+  if (!el) return;
+  if (activePanel === 'personnel') renderPersonnelPanel(el);
+  else if (activePanel === 'missions') renderMissionsPanel(el);
+  else if (activePanel === 'units') renderUnitsPanel(el);
+  else if (activePanel === 'chat') renderChatPanel(el);
+  else if (activePanel === 'incidents') renderIncidentsPanel(el);
+}
+
+function renderPersonnelPanel(el) {
+  var statuses = ['all','פעיל','כוננות','מנוחה'];
+  var filter = personnelFilter;
+  var filtered = filter === 'all' ? PERSONNEL : PERSONNEL.filter(function(p){return p.status === filter;});
+  var html = '<div style="padding:8px 10px 4px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border)">';
+  statuses.forEach(function(s){
+    var count = s === 'all' ? PERSONNEL.length : PERSONNEL.filter(function(p){return p.status === s;}).length;
+    var lbl = s === 'all' ? 'הכל (' + count + ')' : s + ' (' + count + ')';
+    html += '<button class="tpill-btn ' + (filter===s?'active':'') + '" onclick="filterPersonnel(\'' + s + '\')">' + lbl + '</button>';
+  });
+  html += '</div><div class="panel-scroll">';
+  filtered.forEach(function(p){
+    var tc = p.badge || getTeamColor(p.team);
+    html += '<div class="person-card" onclick="openPersonnelModal(' + p.id + ')">'
+      + '<div class="pc-badge" style="background:' + tc + '22;border:2px solid ' + tc + ';color:' + tc + '">' + p.rank.charAt(0) + '</div>'
+      + '<div class="pc-info"><div class="pc-name">' + p.name + '</div><div class="pc-sub">' + p.role + ' · ' + getTeamName(p.team) + '</div></div>'
+      + '<div class="pc-status" style="color:' + statusColor(p.status) + ';border-color:' + statusColor(p.status) + '40">' + p.status + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function filterPersonnel(s) {
+  personnelFilter = s;
+  var el = document.getElementById('rp-body');
+  if (el) renderPersonnelPanel(el);
+}
+
+function renderMissionsPanel(el) {
+  var html = '<div class="panel-scroll">';
+  MISSIONS.forEach(function(m){
+    var sc = m.status==='פעיל'?'var(--accent)':m.status==='המתנה'?'var(--warn)':'var(--text3)';
+    var pc = m.priority==='גבוה'?'var(--danger)':m.priority==='בינוני'?'var(--warn)':'var(--text3)';
+    html += '<div class="mission-card" onclick="focusMission(' + m.id + ')">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+      + '<span style="font-weight:700;font-size:13px;color:var(--texthi)">' + m.code + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:' + sc + ';border:1px solid ' + sc + '40;border-radius:4px;padding:1px 6px">' + m.status + '</span>'
+      + '</div><div style="font-size:11px;color:var(--text2);margin-bottom:3px">' + m.type + ' · ' + m.unit + ' · ' + m.time + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">' + m.desc + '</div>'
+      + '<div style="font-size:10px;color:' + pc + ';margin-top:4px;font-weight:700">עדיפות: ' + m.priority + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+function focusMission(id) {
+  var m = MISSIONS.find(function(x){return x.id==id;});
+  if (!m || !map) return;
+  map.setCenter({lat:m.lat, lng:m.lng});
+  map.setZoom(15);
+}
+
+function renderUnitsPanel(el) {
+  var html = '<div class="panel-scroll">';
+  UNITS.forEach(function(u){
+    var sc = u.status==='פעיל'?'var(--accent)':u.status==='כוננות'?'var(--warn)':'var(--blue)';
+    html += '<div class="unit-card">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+      + '<span style="font-weight:700;font-size:13px;color:var(--texthi)">' + u.name + '</span>'
+      + '<span style="font-size:11px;color:' + sc + ';border:1px solid ' + sc + '40;border-radius:4px;padding:1px 6px">' + u.status + '</span>'
+      + '</div><div style="font-size:11px;color:var(--text2);margin-bottom:3px">מפקד: ' + u.commander + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">עוצמה: <strong style="color:var(--texthi)">' + u.strength + '</strong> לוחמים</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderIncidentsPanel(el) {
+  var html = '<div class="panel-scroll">';
+  INCIDENTS.forEach(function(i){
+    var pc = i.priority==='גבוה'?'var(--danger)':'var(--warn)';
+    html += '<div class="mission-card">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+      + '<span style="font-weight:700;font-size:13px;color:var(--texthi)">' + i.type + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:' + pc + '">' + i.priority + '</span>'
+      + '</div><div style="font-size:11px;color:var(--text2)">' + i.location + ' · ' + i.time + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:3px">סטטוס: ' + i.status + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ===== CHAT =====
+function renderChatPanel(el) {
+  var msgs = chatHistory.map(function(m){
+    return '<div class="chat-msg chat-' + m.role + '"><span class="chat-bubble">' + m.content + '</span></div>';
+  }).join('');
+  el.innerHTML = '<div style="display:flex;flex-direction:column;height:100%">'
+    + '<div id="chat-messages" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0">' + msgs + '</div>'
+    + '<div style="padding:8px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0">'
+    + '<input id="chat-input" type="text" placeholder="שאל את ה-AI..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;font-family:var(--font);font-size:12px;color:var(--texthi);outline:none;direction:rtl" onkeydown="if(event.key===\'Enter\')sendChat()"/>'
+    + '<button onclick="sendChat()" class="tb-btn" style="flex-shrink:0">שלח</button>'
+    + '</div></div>';
+  var cm = document.getElementById('chat-messages');
+  if (cm) cm.scrollTop = cm.scrollHeight;
+}
+
+async function sendChat() {
+  var inp = document.getElementById('chat-input');
+  if (!inp) return;
+  var msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  chatHistory.push({role:'user', content: escapeHtml(msg)});
+  renderChatPanel(document.getElementById('rp-body'));
+  var systemContext = 'אתה סייע AI למרכז פיקוד טקטי. '
+    + PERSONNEL.length + ' אנשי צוות. '
+    + 'פעיל: ' + PERSONNEL.filter(function(p){return p.status==='פעיל';}).length
+    + ' | כוננות: ' + PERSONNEL.filter(function(p){return p.status==='כוננות';}).length
+    + ' | מנוחה: ' + PERSONNEL.filter(function(p){return p.status==='מנוחה';}).length
+    + '. ענה בעברית קצר ומקצועי.';
+  try {
+    var res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':'YOUR_ANTHROPIC_API_KEY',
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-calls':'true',
+      },
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:512,
+        system: systemContext,
+        messages:[{role:'user',content:msg}],
+      }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    var data = await res.json();
+    var reply = data.content && data.content[0] ? data.content[0].text : 'שגיאה';
+    chatHistory.push({role:'assistant', content: escapeHtml(reply)});
+  } catch(e) {
+    chatHistory.push({role:'assistant', content: 'שגיאה בחיבור ל-AI. בדוק מפתח API.'});
+  }
+  renderChatPanel(document.getElementById('rp-body'));
+}
+
+// ===== MODAL =====
+function openModal(title, html) {
+  var ttl = document.getElementById('modal-ttl');
+  var body = document.getElementById('modal-body');
+  var wrap = document.getElementById('modal-wrap');
+  var acts = document.querySelector('.modal-acts');
+  if (ttl) ttl.textContent = title;
+  if (body) body.innerHTML = html;
+  if (acts) acts.style.display = 'none';
+  if (wrap) wrap.style.display = 'flex';
+}
+function closeModal() {
+  var wrap = document.getElementById('modal-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+function modalConfirm() { closeModal(); }
+
+function openPersonnelModal(id) {
+  var p = PERSONNEL.find(function(x){return x.id == id;});
+  if (!p) return;
+  var tc = p.badge || getTeamColor(p.team);
+  var ttl = document.getElementById('modal-ttl');
+  var body = document.getElementById('modal-body');
+  var wrap = document.getElementById('modal-wrap');
+  var acts = document.querySelector('.modal-acts');
+  if (ttl) ttl.innerHTML = '<div style="display:flex;align-items:center;gap:12px">'
+    + '<div style="width:44px;height:44px;border-radius:50%;background:' + tc + '22;border:2px solid ' + tc
+    + ';display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:' + tc + '">' + p.rank.charAt(0) + '</div>'
+    + '<div><div style="font-size:15px;font-weight:800;color:var(--texthi)">' + p.name + '</div>'
+    + '<div style="font-size:11px;color:var(--text2)">' + p.rank + ' · ' + p.role + '</div></div></div>';
+  var selStyle = 'background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--texthi);font-family:var(--font);font-size:12px;width:100%';
+  var inputStyle = selStyle + ';outline:none';
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    + '<div class="modal-field"><label>סטטוס</label><select id="edit-status" style="' + selStyle + '">'
+    + ['פעיל','כוננות','מנוחה'].map(function(s){return '<option' + (p.status===s?' selected':'') + '>' + s + '</option>';}).join('')
+    + '</select></div>'
+    + '<div class="modal-field"><label>צוות</label><select id="edit-team" style="' + selStyle + '">'
+    + TEAMS.map(function(t){return '<option value="' + t.id + '"' + (p.team===t.id?' selected':'') + '>' + t.name + '</option>';}).join('')
+    + '</select></div>'
+    + '<div class="modal-field"><label>טלפון</label><input id="edit-phone" type="text" value="' + p.phone + '" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>משמרת</label><select id="edit-shift" style="' + selStyle + '">'
+    + SHIFTS.map(function(s){return '<option value="' + s.id + '"' + (p.shift===s.id?' selected':'') + '>' + s.name + '</option>';}).join('')
+    + '</select></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'
+    + '<button onclick="locatePerson(' + id + ')" class="tb-btn">📍 מצא</button>'
+    + '<button onclick="savePersonnel(' + id + ')" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">💾 שמור</button>'
+    + '<button onclick="deletePerson(' + id + ')" class="tb-btn tbdanger">🗑 מחק</button>'
+    + '</div>';
+  if (body) body.innerHTML = html;
+  if (acts) acts.style.display = 'none';
+  if (wrap) wrap.style.display = 'flex';
+}
+
+function savePersonnel(id) {
+  var p = PERSONNEL.find(function(x){return x.id == id;});
+  if (!p) return;
+  p.status = document.getElementById('edit-status').value;
+  p.team = parseInt(document.getElementById('edit-team').value);
+  p.phone = document.getElementById('edit-phone').value;
+  p.shift = parseInt(document.getElementById('edit-shift').value);
+  p.badge = getTeamColor(p.team);
+  saveData(); renderMarkers(); renderPanel();
+  toast('נשמר', 'success'); closeModal();
+}
+function deletePerson(id) {
+  if (!confirm('מחיקת איש צוות?')) return;
+  PERSONNEL = PERSONNEL.filter(function(x){return x.id != id;});
+  saveData(); renderMarkers(); renderPanel();
+  toast('נמחק', 'warning'); closeModal();
+}
+function locatePerson(id) {
+  var p = PERSONNEL.find(function(x){return x.id == id;});
+  if (!p || !map) return;
+  map.setCenter({lat:p.lat, lng:p.lng}); map.setZoom(16); closeModal();
+}
+
+function openAddPersonnel() {
+  var selStyle = 'background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--texthi);font-family:var(--font);font-size:12px;width:100%';
+  var inputStyle = selStyle + ';outline:none';
+  var ttl = document.getElementById('modal-ttl');
+  var body = document.getElementById('modal-body');
+  var wrap = document.getElementById('modal-wrap');
+  var acts = document.querySelector('.modal-acts');
+  if (ttl) ttl.textContent = 'הוספת איש צוות חדש';
+  if (body) body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    + '<div class="modal-field"><label>שם מלא</label><input id="add-name" type="text" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>דרגה</label><input id="add-rank" type="text" placeholder="רס&quot;ב" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>תפקיד</label><input id="add-role" type="text" placeholder="לוחם" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>טלפון</label><input id="add-phone" type="text" placeholder="052-" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>סטטוס</label><select id="add-status" style="' + selStyle + '">'
+    + '<option>פעיל</option><option>כוננות</option><option>מנוחה</option></select></div>'
+    + '<div class="modal-field"><label>צוות</label><select id="add-team" style="' + selStyle + '">'
+    + TEAMS.map(function(t){return '<option value="' + t.id + '">' + t.name + '</option>';}).join('')
+    + '</select></div></div>'
+    + '<div style="display:flex;justify-content:flex-end"><button onclick="confirmAddPersonnel()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>';
+  if (acts) acts.style.display = 'none';
+  if (wrap) wrap.style.display = 'flex';
+}
+function confirmAddPersonnel() {
+  var name = document.getElementById('add-name').value.trim();
+  if (!name) { toast('נא להזין שם', 'error'); return; }
+  var newId = Math.max.apply(null, [0].concat(PERSONNEL.map(function(p){return p.id;}))) + 1;
+  var teamId = parseInt(document.getElementById('add-team').value);
+  PERSONNEL.push({
+    id:newId, name:name,
+    rank:document.getElementById('add-rank').value || 'טוראי',
+    role:document.getElementById('add-role').value || 'לוחם',
+    phone:document.getElementById('add-phone').value || '',
+    team:teamId, shift:1,
+    status:document.getElementById('add-status').value,
+    lat:32.085 + (Math.random()-0.5)*0.02,
+    lng:34.781 + (Math.random()-0.5)*0.02,
+    badge:getTeamColor(teamId),
+  });
+  saveData(); renderMarkers(); renderPanel();
+  toast('נוסף', 'success'); closeModal();
+}
+
+// ===== SOS =====
+function triggerSOS() {
+  var flash = document.getElementById('sos-flash');
+  if (flash) { flash.style.display = 'flex'; setTimeout(function(){flash.style.display='none';}, 4000); }
+  toast('SOS הופעל! כל הכוחות לכוננות', 'error');
+}
+
+// ===== BACK OFFICE =====
+function openBO() {
+  var bo = document.getElementById('bo-wrap');
+  if (bo) { bo.classList.add('show'); boTab('overview'); }
+}
+function closeBO() {
+  var bo = document.getElementById('bo-wrap');
+  if (bo) bo.classList.remove('show');
+}
+function boTab(tab) {
+  document.querySelectorAll('.bo-tab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + tab + "'"));
+  });
+  var inner = document.querySelector('#bo-content .bo-inner');
+  if (!inner) return;
+  if (tab==='overview') renderBOOverview(inner);
+  else if (tab==='missions-bo') renderBOMissions(inner);
+  else if (tab==='units-bo') renderBOUnits(inner);
+  else if (tab==='personnel-bo') renderBOPersonnel(inner);
+  else if (tab==='teams-bo') renderBOTeams(inner);
+  else if (tab==='geofences-bo') renderBOGeofences(inner);
+  else if (tab==='incidents-bo') renderBOIncidents(inner);
+  else if (tab==='shifts-bo') renderBOShifts(inner);
+  else if (tab==='audit-bo') renderBOAudit(inner);
+  else if (tab==='settings-bo') renderBOSettings(inner);
+  else inner.innerHTML = '<div class="bo-placeholder">בפיתוח</div>';
+}
+
+function renderBOOverview(el) {
+  var active=PERSONNEL.filter(function(p){return p.status==='פעיל';}).length;
+  var standby=PERSONNEL.filter(function(p){return p.status==='כוננות';}).length;
+  var rest=PERSONNEL.filter(function(p){return p.status==='מנוחה';}).length;
+  el.innerHTML = '<h2 class="bo-section-title">סקירה כללית</h2>'
+    + '<div class="bo-stats-grid">'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--accent)">' + PERSONNEL.length + '</div><div class="bo-stat-lbl">כוח אדם</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--accent)">' + active + '</div><div class="bo-stat-lbl">פעיל</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--warn)">' + standby + '</div><div class="bo-stat-lbl">כוננות</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--blue)">' + rest + '</div><div class="bo-stat-lbl">מנוחה</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--orange)">' + MISSIONS.length + '</div><div class="bo-stat-lbl">משימות</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--purple)">' + TEAMS.length + '</div><div class="bo-stat-lbl">צוותים</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--teal)">' + GEOFENCES.length + '</div><div class="bo-stat-lbl">גיאופנסים</div></div>'
+    + '<div class="bo-stat"><div class="bo-stat-val" style="color:var(--pink)">' + INCIDENTS.length + '</div><div class="bo-stat-lbl">אירועים</div></div>'
+    + '</div><h3 class="bo-section-title">התפלגות צוותים</h3>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>צוות</th><th>מפקד</th><th>כוח אדם</th><th>פעילים</th></tr></thead><tbody>'
+    + TEAMS.map(function(t){
+        var members=PERSONNEL.filter(function(p){return p.team===t.id;});
+        var actv=members.filter(function(p){return p.status==='פעיל';}).length;
+        return '<tr><td><span style="color:' + t.color + ';font-weight:700">' + t.name + '</span></td><td>' + t.commander + '</td><td>' + members.length + '</td><td style="color:var(--accent)">' + actv + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOPersonnel(el) {
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    + '<h2 class="bo-section-title" style="margin:0">ניהול כוח אדם</h2>'
+    + '<button onclick="openAddPersonnel()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>שם</th><th>דרגה</th><th>תפקיד</th><th>צוות</th><th>סטטוס</th><th>עריכה</th></tr></thead><tbody>'
+    + PERSONNEL.map(function(p){
+        return '<tr>'
+          + '<td style="color:var(--texthi);font-weight:600">' + p.name + '</td>'
+          + '<td>' + p.rank + '</td><td>' + p.role + '</td>'
+          + '<td><span style="color:' + getTeamColor(p.team) + '">' + getTeamName(p.team) + '</span></td>'
+          + '<td><span style="color:' + statusColor(p.status) + '">' + p.status + '</span></td>'
+          + '<td><button onclick="openPersonnelModal(' + p.id + ')" class="tb-btn" style="padding:2px 8px;font-size:11px">ערוך</button></td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOTeams(el) {
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    + '<h2 class="bo-section-title" style="margin:0">ניהול צוותים</h2>'
+    + '<button onclick="openAddTeam()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>שם</th><th>מפקד</th><th>כוח אדם</th><th></th></tr></thead><tbody>'
+    + TEAMS.map(function(t){
+        return '<tr>'
+          + '<td><span style="color:' + t.color + ';font-weight:700">' + t.name + '</span></td>'
+          + '<td>' + t.commander + '</td>'
+          + '<td>' + PERSONNEL.filter(function(p){return p.team===t.id;}).length + '</td>'
+          + '<td><button onclick="deleteTeam(' + t.id + ')" class="tb-btn tbdanger" style="padding:2px 8px;font-size:11px">מחק</button></td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function openAddTeam() {
+  var inputStyle = 'background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--texthi);font-family:var(--font);font-size:12px;width:100%;outline:none';
+  var ttl = document.getElementById('modal-ttl');
+  var body = document.getElementById('modal-body');
+  var wrap = document.getElementById('modal-wrap');
+  var acts = document.querySelector('.modal-acts');
+  if (ttl) ttl.textContent = 'הוספת צוות חדש';
+  if (body) body.innerHTML = '<div style="display:grid;gap:10px;margin-bottom:14px">'
+    + '<div class="modal-field"><label>שם הצוות</label><input id="nt-name" type="text" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>מפקד</label><input id="nt-cmd" type="text" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>צבע</label><input id="nt-color" type="color" value="#3dff52" style="width:60px;height:32px;border:1px solid var(--border2);border-radius:var(--r);cursor:pointer"/></div>'
+    + '</div><div style="display:flex;justify-content:flex-end">'
+    + '<button onclick="confirmAddTeam()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>';
+  if (acts) acts.style.display = 'none';
+  if (wrap) wrap.style.display = 'flex';
+}
+function confirmAddTeam() {
+  var name = document.getElementById('nt-name').value.trim();
+  if (!name) { toast('נא להזין שם', 'error'); return; }
+  var newId = Math.max.apply(null, [0].concat(TEAMS.map(function(t){return t.id;}))) + 1;
+  TEAMS.push({id:newId, name:name, commander:document.getElementById('nt-cmd').value||'ללא מפקד', color:document.getElementById('nt-color').value, dept:'מחוז ת"א'});
+  saveData(); toast('נוסף', 'success'); closeModal(); boTab('teams-bo');
+}
+function deleteTeam(id) {
+  if (!confirm('מחיקת צוות?')) return;
+  TEAMS = TEAMS.filter(function(t){return t.id != id;});
+  saveData(); toast('נמחק', 'warning'); boTab('teams-bo');
+}
+
+function renderBOGeofences(el) {
+  el.innerHTML = '<h2 class="bo-section-title">גיאופנסים</h2>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>שם</th><th>רדיוס</th><th>מרכז</th><th></th></tr></thead><tbody>'
+    + GEOFENCES.map(function(g){
+        return '<tr>'
+          + '<td><span style="color:' + g.color + ';font-weight:700">' + g.name + '</span></td>'
+          + '<td>' + g.radius + "מ'" + '</td>'
+          + '<td style="font-size:11px">' + g.center.lat.toFixed(4) + ', ' + g.center.lng.toFixed(4) + '</td>'
+          + '<td style="display:flex;gap:4px">'
+          + '<button onclick="focusGeofence(' + g.id + ')" class="tb-btn" style="padding:2px 8px;font-size:11px">מצא</button>'
+          + '<button onclick="deleteGeofence(' + g.id + ')" class="tb-btn tbdanger" style="padding:2px 8px;font-size:11px">מחק</button>'
+          + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+function focusGeofence(id) {
+  var g = GEOFENCES.find(function(x){return x.id==id;});
+  if (!g || !map) return;
+  map.setCenter(g.center); map.setZoom(14); closeBO();
+  toast('ממוקד: ' + g.name, 'info');
+}
+function deleteGeofence(id) {
+  if (!confirm('מחיקת גיאופנס?')) return;
+  GEOFENCES = GEOFENCES.filter(function(g){return g.id!=id;});
+  saveData(); renderGeofences(); toast('נמחק','warning'); boTab('geofences-bo');
+}
+
+function renderBOMissions(el) {
+  el.innerHTML = '<h2 class="bo-section-title">משימות</h2>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>קוד</th><th>סוג</th><th>יחידה</th><th>סטטוס</th><th>עדיפות</th></tr></thead><tbody>'
+    + MISSIONS.map(function(m){
+        return '<tr><td style="color:var(--texthi);font-weight:700">' + m.code + '</td><td>' + m.type + '</td><td>' + m.unit + '</td>'
+          + '<td style="color:' + (m.status==='פעיל'?'var(--accent)':m.status==='המתנה'?'var(--warn)':'var(--text3)') + '">' + m.status + '</td>'
+          + '<td style="color:' + (m.priority==='גבוה'?'var(--danger)':m.priority==='בינוני'?'var(--warn)':'var(--text3)') + '">' + m.priority + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOUnits(el) {
+  el.innerHTML = '<h2 class="bo-section-title">יחידות</h2>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>יחידה</th><th>מפקד</th><th>עוצמה</th><th>סטטוס</th></tr></thead><tbody>'
+    + UNITS.map(function(u){
+        return '<tr><td style="color:var(--texthi);font-weight:700">' + u.name + '</td><td>' + u.commander + '</td><td>' + u.strength + '</td>'
+          + '<td style="color:' + (u.status==='פעיל'?'var(--accent)':u.status==='כוננות'?'var(--warn)':'var(--blue)') + '">' + u.status + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOIncidents(el) {
+  el.innerHTML = '<h2 class="bo-section-title">אירועים</h2>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>סוג</th><th>מיקום</th><th>שעה</th><th>סטטוס</th><th>עדיפות</th></tr></thead><tbody>'
+    + INCIDENTS.map(function(i){
+        return '<tr><td style="color:var(--texthi);font-weight:700">' + i.type + '</td><td>' + i.location + '</td><td>' + i.time + '</td><td>' + i.status + '</td>'
+          + '<td style="color:' + (i.priority==='גבוה'?'var(--danger)':'var(--warn)') + '">' + i.priority + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOShifts(el) {
+  var inputStyle = 'background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--texthi);font-family:var(--font);font-size:12px;width:100%;outline:none';
+  el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    + '<h2 class="bo-section-title" style="margin:0">ניהול משמרות</h2>'
+    + '<button onclick="openAddShift()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>שם</th><th>התחלה</th><th>סיום</th><th>כוח אדם</th><th></th></tr></thead><tbody>'
+    + SHIFTS.map(function(s){
+        return '<tr><td><span style="color:' + s.color + ';font-weight:700">' + s.name + '</span></td><td>' + s.start + '</td><td>' + s.end + '</td>'
+          + '<td>' + PERSONNEL.filter(function(p){return p.shift===s.id;}).length + '</td>'
+          + '<td><button onclick="deleteShift(' + s.id + ')" class="tb-btn tbdanger" style="padding:2px 8px;font-size:11px">מחק</button></td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+function openAddShift() {
+  var inputStyle = 'background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--texthi);font-family:var(--font);font-size:12px;width:100%;outline:none';
+  var ttl = document.getElementById('modal-ttl');
+  var body = document.getElementById('modal-body');
+  var wrap = document.getElementById('modal-wrap');
+  var acts = document.querySelector('.modal-acts');
+  if (ttl) ttl.textContent = 'הוספת משמרת';
+  if (body) body.innerHTML = '<div style="display:grid;gap:10px;margin-bottom:14px">'
+    + '<div class="modal-field"><label>שם המשמרת</label><input id="ns-name" type="text" style="' + inputStyle + '"/></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    + '<div class="modal-field"><label>התחלה</label><input id="ns-start" type="time" value="06:00" style="' + inputStyle + '"/></div>'
+    + '<div class="modal-field"><label>סיום</label><input id="ns-end" type="time" value="14:00" style="' + inputStyle + '"/></div></div></div>'
+    + '<div style="display:flex;justify-content:flex-end">'
+    + '<button onclick="confirmAddShift()" class="tb-btn" style="border-color:var(--accent);color:var(--accent)">➕ הוסף</button></div>';
+  if (acts) acts.style.display = 'none';
+  if (wrap) wrap.style.display = 'flex';
+}
+function confirmAddShift() {
+  var name = document.getElementById('ns-name').value.trim();
+  if (!name) { toast('נא להזין שם','error'); return; }
+  var newId = Math.max.apply(null,[0].concat(SHIFTS.map(function(s){return s.id;}))) + 1;
+  SHIFTS.push({id:newId, name:name, start:document.getElementById('ns-start').value, end:document.getElementById('ns-end').value, color:'#'+Math.floor(Math.random()*16777215).toString(16).padStart(6,'0')});
+  saveData(); toast('נוספה','success'); closeModal(); boTab('shifts-bo');
+}
+function deleteShift(id) {
+  if (!confirm('מחיקת משמרת?')) return;
+  SHIFTS = SHIFTS.filter(function(s){return s.id!=id;});
+  saveData(); toast('נמחקה','warning'); boTab('shifts-bo');
+}
+
+function renderBOAudit(el) {
+  var log = [
+    {time:'10:32:14', user:'מפקד כהן', action:'עדכן סטטוס - מיכל לוי → פעיל'},
+    {time:'09:55:02', user:'מערכת',    action:'SOS הופעל - כל הכוחות לכוננות'},
+    {time:'09:12:44', user:'מפקד לוי', action:'הוסיף איש צוות - עמית כהן'},
+    {time:'08:30:00', user:'מערכת',    action:'משמרת בוקר החלה'},
+    {time:'07:45:22', user:'מפקד מזרחי',action:'עדכן גיאופנס - אזור צפון'},
+  ];
+  el.innerHTML = '<h2 class="bo-section-title">יומן ביקורת</h2>'
+    + '<div class="bo-table-wrap"><table class="bo-table"><thead><tr><th>שעה</th><th>משתמש</th><th>פעולה</th></tr></thead><tbody>'
+    + log.map(function(l){
+        return '<tr><td style="color:var(--accent2);font-family:monospace">' + l.time + '</td>'
+          + '<td style="color:var(--texthi)">' + l.user + '</td><td>' + l.action + '</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function renderBOSettings(el) {
+  el.innerHTML = '<h2 class="bo-section-title">הגדרות מערכת</h2>'
+    + '<div style="display:grid;gap:14px;max-width:420px">'
+    + '<div class="modal-field"><label>ערכת נושא</label>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button onclick="setTheme(\'night\')" class="tb-btn" style="' + (THEME==='night'?'border-color:var(--accent);color:var(--accent)':'') + '">🌙 לילה</button>'
+    + '<button onclick="setTheme(\'day\')" class="tb-btn" style="' + (THEME==='day'?'border-color:var(--accent);color:var(--accent)':'') + '">☀ יום</button>'
+    + '</div></div>'
+    + '<div class="modal-field"><label>איפוס נתונים</label>'
+    + '<button onclick="resetData()" class="tb-btn tbdanger">🗑 איפוס לברירת מחדל</button></div>'
+    + '</div>';
+}
+function resetData() {
+  if (!confirm('איפוס כל הנתונים? פעולה זו בלתי הפיכה.')) return;
+  ['tac_personnel','tac_teams','tac_geofences','tac_shifts'].forEach(function(k){localStorage.removeItem(k);});
+  location.reload();
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', function() {
+  // Theme buttons
+  setTheme(THEME);
+  // Close search on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#search-wrap')) {
+      var sr = document.getElementById('search-results');
+      if (sr) sr.style.display = 'none';
+    }
+  });
+  // Modal close on overlay click
+  var wrap = document.getElementById('modal-wrap');
+  if (wrap) wrap.addEventListener('click', function(e){if(e.target===wrap) closeModal();});
+  // ESC key
+  document.addEventListener('keydown', function(e){
+    if (e.key==='Escape') { closeModal(); }
+  });
+  // Open personnel panel by default
+  goView('personnel');
+});
+</script>
+</body>
+</html>
