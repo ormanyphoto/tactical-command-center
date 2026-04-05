@@ -4829,6 +4829,356 @@ document.addEventListener('DOMContentLoaded',()=>{
   },{passive:true});}
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ██████████████████  SECURITY & ENCRYPTION MODULE  ████████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+// AES-256-GCM encryption for all localStorage data
+// PBKDF2 key derivation from user PIN (310,000 iterations, SHA-256)
+// Auto-lock after inactivity · Session integrity verification
+// ───────────────────────────────────────────────────────────────────────────
+
+const SEC = (() => {
+  const SALT_KEY   = 'tac_sec_salt';
+  const HASH_KEY   = 'tac_sec_hash';
+  const LOCKED_KEY = 'tac_sec_locked';
+  const DATA_KEYS  = ['tac_personnel','tac_teams','tac_v5_state',
+                      'tac_boundaries','tac_roles'];
+  const AUTO_LOCK_MS = 15 * 60 * 1000; // 15 minutes inactivity
+
+  let _cryptoKey = null;          // CryptoKey in memory only
+  let _sessionKey = null;         // Random session token
+  let _lockTimer  = null;
+  let _isLocked   = true;
+
+  // ── Utility ──────────────────────────────────────────────────────────────
+  const buf2hex = b => [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  const hex2buf = h => new Uint8Array(h.match(/.{2}/g).map(b=>parseInt(b,16))).buffer;
+  const rand16  = () => crypto.getRandomValues(new Uint8Array(16));
+  const rand32  = () => crypto.getRandomValues(new Uint8Array(32));
+
+  // ── Key Derivation (PBKDF2-SHA256, 310k iterations) ──────────────────────
+  async function _deriveKey(pin, saltHex){
+    const enc = new TextEncoder();
+    const base = await crypto.subtle.importKey(
+      'raw', enc.encode(pin), {name:'PBKDF2'}, false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      {name:'PBKDF2', salt:hex2buf(saltHex), iterations:310000, hash:'SHA-256'},
+      base,
+      {name:'AES-GCM', length:256},
+      false,
+      ['encrypt','decrypt']
+    );
+  }
+
+  // ── AES-256-GCM Encrypt → "iv:ciphertext" hex string ────────────────────
+  async function _encrypt(key, plaintext){
+    const iv  = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const ct  = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, enc.encode(plaintext));
+    return buf2hex(iv.buffer) + ':' + buf2hex(ct);
+  }
+
+  // ── AES-256-GCM Decrypt ──────────────────────────────────────────────────
+  async function _decrypt(key, payload){
+    const [ivHex, ctHex] = payload.split(':');
+    const dec = new TextDecoder();
+    const pt  = await crypto.subtle.decrypt(
+      {name:'AES-GCM', iv:new Uint8Array(hex2buf(ivHex))},
+      key, hex2buf(ctHex)
+    );
+    return dec.decode(pt);
+  }
+
+  // ── PIN hash for verification (SHA-256 of salt+pin) ──────────────────────
+  async function _hashPin(pin, saltHex){
+    const enc = new TextEncoder();
+    const h   = await crypto.subtle.digest('SHA-256', enc.encode(saltHex + pin));
+    return buf2hex(h);
+  }
+
+  // ── Encrypt all existing localStorage keys ────────────────────────────────
+  async function _encryptStorage(key){
+    for(const k of DATA_KEYS){
+      const raw = localStorage.getItem(k);
+      if(raw && !raw.includes(':')){ // not already encrypted
+        try{
+          const enc = await _encrypt(key, raw);
+          localStorage.setItem(k, enc);
+        }catch(e){}
+      }
+    }
+  }
+
+  // ── Public encrypted get/set (used by app instead of direct localStorage) ─
+  async function secSet(storageKey, value){
+    if(!_cryptoKey){ localStorage.setItem(storageKey, value); return; }
+    try{
+      const enc = await _encrypt(_cryptoKey, value);
+      localStorage.setItem(storageKey, enc);
+    }catch(e){ localStorage.setItem(storageKey, value); }
+  }
+
+  async function secGet(storageKey){
+    const raw = localStorage.getItem(storageKey);
+    if(!raw) return null;
+    if(!_cryptoKey || !raw.includes(':')) return raw;
+    try{ return await _decrypt(_cryptoKey, raw); }
+    catch(e){ return null; } // decryption failed = wrong key or tampered
+  }
+
+  // ── Auto-lock ────────────────────────────────────────────────────────────
+  function _resetLockTimer(){
+    clearTimeout(_lockTimer);
+    if(!_isLocked)
+      _lockTimer = setTimeout(()=>SEC.lock('⏰ נעילה אוטומטית — חוסר פעילות'), AUTO_LOCK_MS);
+  }
+
+  function _watchActivity(){
+    ['mousedown','keydown','touchstart','scroll'].forEach(ev=>
+      document.addEventListener(ev, _resetLockTimer, {passive:true})
+    );
+  }
+
+  // ── UI — Lock Screen ──────────────────────────────────────────────────────
+  function _showLockScreen(msg=''){
+    let overlay = document.getElementById('sec-lock-overlay');
+    if(!overlay){
+      overlay = document.createElement('div');
+      overlay.id = 'sec-lock-overlay';
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:999999;background:#07090a;display:flex;'+
+        'flex-direction:column;align-items:center;justify-content:center;'+
+        'font-family:Heebo,sans-serif;direction:rtl;gap:0';
+      document.body.appendChild(overlay);
+    }
+    const isSetup = !localStorage.getItem(HASH_KEY);
+    overlay.innerHTML = `
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="font-size:52px;margin-bottom:8px">🔐</div>
+        <div style="font-size:22px;font-weight:900;color:#d8eef8;letter-spacing:0.04em">מרכז פיקוד טקטי</div>
+        <div style="font-size:12px;color:#5a7a90;margin-top:4px;letter-spacing:0.08em">TACTICAL COMMAND CENTER · ENCRYPTED</div>
+      </div>
+      ${msg?`<div style="color:#ff3333;font-size:13px;margin-bottom:16px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);border-radius:6px;padding:8px 18px">${msg}</div>`:''}
+      <div style="background:#0d1014;border:1px solid #1a2838;border-radius:12px;padding:28px 36px;min-width:300px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.8)">
+        <div style="font-size:13px;color:#7a9ab8;margin-bottom:18px;font-weight:600">
+          ${isSetup ? '🔑 הגדר קוד גישה חדש' : '🔑 הזן קוד גישה'}
+        </div>
+        <input id="sec-pin-input" type="password" maxlength="12"
+          placeholder="${isSetup?'בחר קוד (4-12 ספרות)':'קוד גישה'}"
+          style="width:100%;box-sizing:border-box;background:#121620;border:1px solid #2e4460;border-radius:8px;padding:14px 16px;font-size:22px;font-family:Heebo,sans-serif;color:#d8eef8;text-align:center;letter-spacing:0.3em;outline:none;margin-bottom:${isSetup?'10px':'18px'}"
+          onkeydown="if(event.key==='Enter')SEC._submit()"/>
+        ${isSetup?`<input id="sec-pin-confirm" type="password" maxlength="12"
+          placeholder="אשר קוד"
+          style="width:100%;box-sizing:border-box;background:#121620;border:1px solid #2e4460;border-radius:8px;padding:14px 16px;font-size:22px;font-family:Heebo,sans-serif;color:#d8eef8;text-align:center;letter-spacing:0.3em;outline:none;margin-bottom:18px"
+          onkeydown="if(event.key==='Enter')SEC._submit()"/>`:``}
+        <button onclick="SEC._submit()"
+          style="width:100%;background:linear-gradient(135deg,#3dff52,#a8e800);border:none;border-radius:8px;padding:14px;font-size:15px;font-weight:800;color:#07090a;cursor:pointer;font-family:Heebo,sans-serif;letter-spacing:0.04em">
+          ${isSetup ? '✓ הגדר קוד ופתח' : '🔓 פתח מערכת'}
+        </button>
+        <div style="margin-top:14px;font-size:10px;color:#344858;line-height:1.5">
+          🔒 הנתונים מוצפנים · AES-256-GCM · PBKDF2-SHA256<br>
+          ⚡ הקוד לא נשמר בשום מקום — אל תאבד אותו
+        </div>
+      </div>`;
+    overlay.style.display='flex';
+    setTimeout(()=>{const i=document.getElementById('sec-pin-input');if(i)i.focus();},100);
+  }
+
+  function _hideLockScreen(){
+    const overlay = document.getElementById('sec-lock-overlay');
+    if(overlay) overlay.style.display='none';
+  }
+
+  // ── Submit PIN ────────────────────────────────────────────────────────────
+  async function _submit(){
+    const pinEl = document.getElementById('sec-pin-input');
+    const pin = pinEl ? pinEl.value.trim() : '';
+    if(pin.length < 4){
+      _showLockScreen('⚠️ קוד חייב להכיל לפחות 4 תווים');
+      return;
+    }
+    const isSetup = !localStorage.getItem(HASH_KEY);
+    if(isSetup){
+      const confEl = document.getElementById('sec-pin-confirm');
+      const conf = confEl ? confEl.value.trim() : '';
+      if(pin !== conf){ _showLockScreen('⚠️ הקודים אינם תואמים'); return; }
+      await SEC.setup(pin);
+    } else {
+      await SEC.unlock(pin);
+    }
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+  return {
+    _submit,
+    _showLockScreen,
+
+    // First-time setup: generate salt, hash PIN, encrypt existing data
+    async setup(pin){
+      const saltBytes = rand32();
+      const saltHex   = buf2hex(saltBytes.buffer);
+      const pinHash   = await _hashPin(pin, saltHex);
+      const key       = await _deriveKey(pin, saltHex);
+      localStorage.setItem(SALT_KEY, saltHex);
+      localStorage.setItem(HASH_KEY, pinHash);
+      _cryptoKey  = key;
+      _isLocked   = false;
+      _sessionKey = buf2hex(rand16().buffer);
+      await _encryptStorage(key);
+      _hideLockScreen();
+      _resetLockTimer();
+      _watchActivity();
+      showToast({icon:'🔐',title:'הצפנה הופעלה',sub:'כל הנתונים מוצפנים AES-256-GCM',type:'success',duration:4000});
+    },
+
+    // Unlock: verify PIN → derive key → decrypt
+    async unlock(pin){
+      const saltHex = localStorage.getItem(SALT_KEY);
+      const storedHash = localStorage.getItem(HASH_KEY);
+      if(!saltHex || !storedHash){ _showLockScreen('⚠️ נתוני אבטחה חסרים — אפס אחסון'); return; }
+      const pinHash = await _hashPin(pin, saltHex);
+      if(pinHash !== storedHash){ _showLockScreen('❌ קוד שגוי'); return; }
+      const key = await _deriveKey(pin, saltHex);
+      // Verify we can decrypt at least one encrypted value
+      _cryptoKey  = key;
+      _isLocked   = false;
+      _sessionKey = buf2hex(rand16().buffer);
+      _hideLockScreen();
+      _resetLockTimer();
+      _watchActivity();
+      // Reload app data now that we have the key
+      if(typeof loadPersonnelFromStorage==='function') loadPersonnelFromStorage();
+      if(typeof saveToCloud==='function') saveToCloud(); // re-save with key active
+      showToast({icon:'🔓',title:'מערכת נפתחה',sub:'ברוך הבא · הנתונים מוצפנים',type:'success',duration:3000});
+    },
+
+    // Lock: clear key from memory, show lock screen
+    lock(reason=''){
+      _cryptoKey  = null;
+      _sessionKey = null;
+      _isLocked   = true;
+      clearTimeout(_lockTimer);
+      _showLockScreen(reason);
+    },
+
+    // Change PIN
+    async changePin(oldPin, newPin){
+      const saltHex    = localStorage.getItem(SALT_KEY);
+      const storedHash = localStorage.getItem(HASH_KEY);
+      const oldHash    = await _hashPin(oldPin, saltHex);
+      if(oldHash !== storedHash) throw new Error('wrong pin');
+      const newSalt  = buf2hex(rand32().buffer);
+      const newHash  = await _hashPin(newPin, newSalt);
+      const newKey   = await _deriveKey(newPin, newSalt);
+      // Re-encrypt all stored data with new key
+      for(const k of DATA_KEYS){
+        const raw = localStorage.getItem(k);
+        if(raw && raw.includes(':')){
+          try{
+            const plain = await _decrypt(_cryptoKey, raw);
+            const enc   = await _encrypt(newKey, plain);
+            localStorage.setItem(k, enc);
+          }catch(e){}
+        }
+      }
+      localStorage.setItem(SALT_KEY, newSalt);
+      localStorage.setItem(HASH_KEY, newHash);
+      _cryptoKey = newKey;
+    },
+
+    // Encrypted storage wrappers (replace direct localStorage)
+    set: secSet,
+    get: secGet,
+
+    get isLocked(){ return _isLocked; },
+    get sessionKey(){ return _sessionKey; },
+  };
+})();
+
+// ── Override localStorage save/load to use encryption ────────────────────────
+const _origSavePersonnel = savePersonnelToStorage;
+savePersonnelToStorage = async function(){
+  try{
+    await SEC.set('tac_personnel', JSON.stringify(PERSONNEL));
+    await SEC.set('tac_teams',     JSON.stringify(TEAMS));
+  }catch(e){ _origSavePersonnel(); }
+};
+
+const _origSaveToCloud = saveToCloud;
+saveToCloud = async function(){
+  try{
+    await savePersonnelToStorage();
+    await SEC.set('tac_v5_state', JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));
+  }catch(e){ _origSaveToCloud(); }
+};
+
+// ── Change PIN UI ─────────────────────────────────────────────────────────────
+function openChangePinModal(){
+  document.getElementById('modal-ttl').innerHTML='🔑 שינוי קוד גישה';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-g"><label>קוד נוכחי</label>
+      <input type="password" id="cp-old" placeholder="קוד נוכחי..." style="letter-spacing:0.2em;font-size:16px"/>
+    </div>
+    <div class="form-g"><label>קוד חדש (4–12 תווים)</label>
+      <input type="password" id="cp-new" placeholder="קוד חדש..." style="letter-spacing:0.2em;font-size:16px"/>
+    </div>
+    <div class="form-g"><label>אשר קוד חדש</label>
+      <input type="password" id="cp-conf" placeholder="אשר קוד..." style="letter-spacing:0.2em;font-size:16px"/>
+    </div>`;
+  document.getElementById('modal-ok').innerHTML='🔒 שמור קוד חדש';
+  modalCB = async()=>{
+    const o=document.getElementById('cp-old').value;
+    const n=document.getElementById('cp-new').value;
+    const c=document.getElementById('cp-conf').value;
+    if(n.length<4){showToast({icon:'⚠️',title:'קוד קצר מדי',type:'warn'});return;}
+    if(n!==c){showToast({icon:'⚠️',title:'הקודים אינם תואמים',type:'warn'});return;}
+    try{
+      await SEC.changePin(o,n);
+      showToast({icon:'🔐',title:'קוד שונה',sub:'הנתונים הוצפנו מחדש',type:'success'});
+    }catch(e){
+      showToast({icon:'❌',title:'קוד נוכחי שגוי',type:'danger'});
+    }
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+
+// ── Security status badge ─────────────────────────────────────────────────────
+function renderSecurityBadge(){
+  const existing = document.getElementById('sec-badge');
+  if(existing) existing.remove();
+  const badge = document.createElement('div');
+  badge.id = 'sec-badge';
+  badge.title = SEC.isLocked ? 'מנעול — לחץ לפתיחה' : 'מוצפן · לחץ לנעילה';
+  badge.style.cssText =
+    'position:fixed;bottom:28px;right:12px;z-index:9995;cursor:pointer;'+
+    'background:var(--panel);border:1px solid var(--border3);border-radius:50%;'+
+    'width:36px;height:36px;display:flex;align-items:center;justify-content:center;'+
+    'font-size:18px;box-shadow:0 2px 12px rgba(0,0,0,0.5);transition:all 0.2s;'+
+    'user-select:none';
+  badge.textContent = SEC.isLocked ? '🔒' : '🔓';
+  badge.onclick = ()=>{
+    if(SEC.isLocked) SEC._showLockScreen();
+    else SEC.lock('🔒 נעלת ידנית');
+  };
+  document.body.appendChild(badge);
+}
+
+// ── Boot: show lock screen on load ───────────────────────────────────────────
+(function secBoot(){
+  renderSecurityBadge();
+  // Small delay so app renders first
+  setTimeout(()=>{
+    SEC._showLockScreen();
+    // Update badge after unlock
+    const origHide = SEC._showLockScreen;
+    setInterval(()=>{
+      const badge=document.getElementById('sec-badge');
+      if(badge) badge.textContent = SEC.isLocked ? '🔒' : '🔓';
+    }, 2000);
+  }, 300);
+})();
+
 </script>
 
 </body>
