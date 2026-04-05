@@ -36,12 +36,14 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 /* ── MAP ── */
 
 /* ── MAP OVERLAY SIDEBAR ── */
-#map-overlay-btns{position:absolute;top:10px;left:10px;z-index:200;display:flex;flex-direction:column;gap:3px;align-items:center}
-.mp-group-label{font-size:8px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;text-align:center;width:100%}
-.mp-divider{width:28px;height:1px;background:var(--border2);margin:3px 0}
-.mp-btn{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all 0.12s;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-.mp-btn:hover{border-color:var(--accent);background:var(--panel2);transform:scale(1.08)}
+#map-overlay-btns{display:none}
+.mp-group-label{font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin:10px 0 5px}
+.mp-divider{display:none}
+.mp-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);width:100%;height:36px;display:flex;align-items:center;justify-content:flex-start;gap:9px;padding:0 11px;cursor:pointer;font-size:14px;transition:all 0.12s;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text2)}
+.mp-btn:hover{border-color:var(--border3);color:var(--texthi);background:var(--panel3)}
 .mp-btn.mp-active{border-color:var(--accent);background:var(--glow);color:var(--accent)}
+.mp-btn-label{font-size:12px;font-weight:600}
+.mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
 
 #map-wrap{flex:1;position:relative;overflow:hidden}
 #gmap{position:absolute;inset:0;width:100%;height:100%}
@@ -49,10 +51,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--border2)}
 .sb-item{display:flex;align-items:center;gap:4px;color:var(--text3)}
 .sb-item strong{color:var(--accent2)}
-#map-overlay-btns{position:absolute;top:10px;left:10px;z-index:200;display:flex;flex-direction:column;gap:5px}
-.mp-btn{background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all 0.12s;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-.mp-btn:hover{border-color:var(--accent);background:var(--panel2)}
-#search-wrap{position:absolute;top:10px;left:55px;right:10px;z-index:200;max-width:340px}
+/* map-overlay-btns moved to sidebar panel */
+#search-wrap{position:absolute;top:10px;left:10px;right:10px;z-index:200;max-width:360px}
 #search-input{width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:8px 14px;font-size:13px;font-family:var(--font);color:var(--texthi);outline:none;direction:rtl;box-shadow:0 2px 10px rgba(0,0,0,0.25)}
 #search-input:focus{border-color:var(--accent)}
 #search-results{position:absolute;top:100%;right:0;left:0;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);z-index:9999;display:none;max-height:220px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-top:3px}
@@ -406,7 +406,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #statusbar{display:none}
   #map-overlay-btns{top:8px;left:6px}
   .mp-btn{width:38px;height:38px;font-size:17px}
-  #search-wrap{top:8px;left:54px;right:6px;max-width:none}
+  #search-wrap{top:8px;left:6px;right:6px;max-width:none}
   #bo-topbar{height:auto;flex-wrap:wrap;padding:8px}
   .bo-tabs{flex-wrap:wrap;gap:3px}
   .bo-tab{padding:5px 10px;font-size:11px}
@@ -1422,7 +1422,7 @@ function modalConfirm(){if(modalCB){modalCB();closeModal();}}
 function closeModal(){document.getElementById('modal-wrap').style.display='none';modalCB=null;const ok=document.getElementById('modal-ok');if(ok)ok.style.display='';}
 
 // ── PANEL ──
-const PANEL_TITLES={draw:'כלי ציור',dashboard:'לוח בקרה',missions:'יומן משימות',units:'כוח אדם',comms:'תקשורת',analytics:'אנליטיקה',incidents:'יומן אירועים',ai:'עוזר AI',teams:'ניהול צוותים',personnel:'אנשי צוות',navigation:'ניווט Google',alerts:'התראות',geofence:'גיאופנסים',layers:'שכבות'};
+const PANEL_TITLES={draw:'מפה וכלים',dashboard:'לוח בקרה',missions:'יומן משימות',units:'כוח אדם',comms:'תקשורת',analytics:'אנליטיקה',incidents:'יומן אירועים',ai:'עוזר AI',teams:'ניהול צוותים',personnel:'אנשי צוות',navigation:'ניווט Google',alerts:'התראות',geofence:'גיאופנסים',layers:'שכבות'};
 function goPanel(name){
   currentPanel=name;
   const t=document.getElementById('rp-title-txt');if(t)t.textContent=PANEL_TITLES[name]||name;
@@ -1440,36 +1440,83 @@ function goView(v){
   if(panelMap[v])goPanel(panelMap[v]);
 }
 
-// ── DRAW PANEL ──
+// ── DRAW / MAP PANEL ──
 function renderDrawP(c){
   c.innerHTML=`
-  <div class="sec-hd">כלי ציור</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
-    <button class="btn-sec" style="margin:0" onclick="activateTool('point')">📍 סימן</button>
-    <button class="btn-sec" style="margin:0" onclick="activateTool('circle')">⭕ מעגל</button>
-    <button class="btn-sec" style="margin:0" onclick="activateTool('route')">🛣️ מסלול</button>
-    <button class="btn-sec" style="margin:0" onclick="clearAll()">🗑️ נקה</button>
+  <!-- ── מיקום ── -->
+  <div class="sec-hd">📍 מיקום</div>
+  <div class="mp-grid">
+    <button class="mp-btn" onclick="locateMe()"><span>📍</span><span class="mp-btn-label">מיקומי</span></button>
+    <button class="mp-btn" id="rp-gps-btn" onclick="toggleGPS()" title="GPS מעקב רציף"><span>🛰️</span><span class="mp-btn-label">GPS</span></button>
+  </div>
+
+  <!-- ── תצוגת מפה ── -->
+  <div class="sec-hd">🗺️ סוג מפה</div>
+  <div class="mp-grid">
+    <button class="mp-btn mp-active" id="rp-mtype-road" onclick="setMapType('roadmap');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
+    <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰</span><span class="mp-btn-label">לוויין</span></button>
+    <button class="mp-btn" id="rp-mtype-hyb" onclick="setMapType('hybrid');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🔀</span><span class="mp-btn-label">היברידי</span></button>
+    <button class="mp-btn" id="rp-mtype-ter" onclick="setMapType('terrain');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>⛰️</span><span class="mp-btn-label">טופוגרפי</span></button>
+  </div>
+
+  <!-- ── ניווט ── -->
+  <div class="sec-hd">🧭 ניווט</div>
+  <div class="mp-grid">
+    <button class="mp-btn" onclick="if(map)map.setZoom(map.getZoom()+1)"><span>＋</span><span class="mp-btn-label">הגדל</span></button>
+    <button class="mp-btn" onclick="if(map)map.setZoom(map.getZoom()-1)"><span>－</span><span class="mp-btn-label">הקטן</span></button>
+    <button class="mp-btn" onclick="if(map){map.setCenter({lat:32.0667,lng:34.7818});map.setZoom(13)}"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
+    <button class="mp-btn" onclick="if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})"><span>🇮🇱</span><span class="mp-btn-label">כל ישראל</span></button>
+    <button class="mp-btn" onclick="locateMe()"><span>🎯</span><span class="mp-btn-label">מרכז עלי</span></button>
+    <button class="mp-btn" onclick="if(map)map.setTilt(map.getTilt()===0?45:0)"><span>🔭</span><span class="mp-btn-label">הטיה 45°</span></button>
+  </div>
+
+  <!-- ── שכבות ── -->
+  <div class="sec-hd">👁️ שכבות</div>
+  <div class="mp-grid">
+    <button class="mp-btn" id="rp-markers-btn" onclick="toggleMarkersVisibility()"><span>👤</span><span class="mp-btn-label">כוח אדם</span></button>
+    <button class="mp-btn" id="rp-geo-btn" onclick="toggleGeofenceVisibility()"><span>⬡</span><span class="mp-btn-label">גיאופנסים</span></button>
+    <button class="mp-btn" onclick="plotMissions();showToast({icon:'📋',title:'משימות עודכנו',type:'info',duration:2000})"><span>📋</span><span class="mp-btn-label">משימות</span></button>
+    <button class="mp-btn" onclick="plotMissions();plotUnits();plotGFs();showToast({icon:'🔄',title:'מפה עודכנה',type:'info',duration:2000})"><span>🔄</span><span class="mp-btn-label">רענן הכל</span></button>
+  </div>
+
+  <!-- ── כלי ציור ── -->
+  <div class="sec-hd">✏️ כלי ציור</div>
+  <div class="mp-grid">
+    <button class="mp-btn" onclick="activateTool('point')"><span>📍</span><span class="mp-btn-label">סימן</span></button>
+    <button class="mp-btn" onclick="activateTool('circle')"><span>⭕</span><span class="mp-btn-label">מעגל</span></button>
+    <button class="mp-btn" onclick="activateTool('route')"><span>🛣️</span><span class="mp-btn-label">מסלול</span></button>
+    <button class="mp-btn" onclick="clearAll()"><span>🗑️</span><span class="mp-btn-label">נקה</span></button>
   </div>
   <div class="sec-hd">צבע</div>
   <div class="clr-row" id="draw-clr">
     ${['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'].map((col,i)=>`<div class="clr-dot${i===0?' sel':''}" style="background:${col}" data-c="${col}"></div>`).join('')}
   </div>
-  <div class="sec-hd">גבולות מנהליים</div>
-  <button class="btn-sec" onclick="loadAdminBoundary('country')">🇮🇱 גבולות ישראל</button>
-  <button class="btn-sec" onclick="loadAdminBoundary('district')">🗂️ מחוז ת"א</button>
-  <button class="btn-sec" onclick="loadAdminBoundary('tlv')">🏙️ עיר תל אביב</button>
-  <button class="btn-sec" onclick="clearAdminBoundaries()">✕ נקה גבולות</button>
-  <div class="sec-hd">ציור גבול ידני</div>
-  <button class="btn-pri" onclick="startBoundaryDraw()" style="margin-bottom:5px">✏️ צייר גבול מחוז</button>
+
+  <!-- ── גבולות ── -->
+  <div class="sec-hd">🗺️ גבולות מנהליים</div>
+  <div class="mp-grid">
+    <button class="mp-btn" onclick="loadAdminBoundary('country')"><span>🇮🇱</span><span class="mp-btn-label">ישראל</span></button>
+    <button class="mp-btn" onclick="loadAdminBoundary('district')"><span>🗂️</span><span class="mp-btn-label">מחוז ת"א</span></button>
+    <button class="mp-btn" onclick="loadAdminBoundary('tlv')"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
+    <button class="mp-btn" onclick="clearAdminBoundaries()"><span>✕</span><span class="mp-btn-label">נקה גבולות</span></button>
+  </div>
+  <button class="btn-pri" onclick="startBoundaryDraw()" style="margin:6px 0 4px">✏️ צייר גבול ידני</button>
   <button class="btn-sec" onclick="cancelBoundaryDraw()">✕ בטל ציור</button>
   <button class="btn-sec" onclick="clearSavedBoundaries()">🗑️ נקה גבולות ידניים</button>
   ${_savedBoundaries.length?'<div style="font-size:11px;color:var(--accent2);margin-top:4px">'+_savedBoundaries.length+' גבולות שמורים</div>':''}
-  <div class="sec-hd">אנימציות</div>
-  <button class="btn-sec" onclick="addAnimatedZone()">⭕ אזור מואר</button>
-  <button class="btn-sec" onclick="addPulseMarker()">📡 סמן פועם</button>
-  <div class="sec-hd">משימות</div>
-  <button class="btn-pri" onclick="openNewMsnModal()">+ משימה חדשה</button>
-  <button class="btn-sec" onclick="plotMissions();plotUnits();plotGFs();showToast({icon:'🔄',title:'מפה עודכנה',type:'info',duration:2000})">🔄 רענן מפה</button>`;
+
+  <!-- ── אנימציות ── -->
+  <div class="sec-hd">✨ אנימציות</div>
+  <div class="mp-grid">
+    <button class="mp-btn" onclick="addAnimatedZone()"><span>⭕</span><span class="mp-btn-label">אזור מואר</span></button>
+    <button class="mp-btn" onclick="addPulseMarker()"><span>📡</span><span class="mp-btn-label">סמן פועם</span></button>
+    <button class="mp-btn" onclick="takeMapSnapshot()"><span>📸</span><span class="mp-btn-label">צלם מפה</span></button>
+    <button class="mp-btn" onclick="openNewMsnModal()"><span>➕</span><span class="mp-btn-label">משימה חדשה</span></button>
+  </div>
+
+  <!-- ── SOS ── -->
+  <button class="btn-sec" style="margin-top:10px;border-color:var(--danger);color:var(--danger)" onclick="triggerSOS()">🆘 SOS חירום</button>
+  `;
 }
 function renderLayersP(c){renderDrawP(c);}
 
@@ -4282,8 +4329,8 @@ function pickPersonPhoto(id){
 }
 
 
-function setActiveMapBtn(btn){
-  ['mtype-road-btn','mtype-sat-btn','mtype-hyb-btn','mtype-ter-btn'].forEach(id=>{
+function setActiveMapBtn(btn,...ids){
+  ids.forEach(id=>{
     const el=document.getElementById(id);
     if(el)el.classList.toggle('mp-active',el===btn);
   });
