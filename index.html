@@ -903,7 +903,7 @@ function _buildGovmapUrl(){
   const gz=_googleZoomToGovmap(map.getZoom());
   // Active govmap layers as comma-separated list for the lay= parameter
   const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0&background='+_govmapBackground;
+  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0&b='+_govmapBackground;
   if(activeLayers.length) url+='&layers='+activeLayers.join(',');
   return url;
 }
