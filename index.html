@@ -493,6 +493,12 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <!-- MAP WRAP -->
     <div id="map-wrap">
       <div id="gmap"></div>
+      <!-- GovMap iframe — shown when govmap base is selected -->
+      <iframe id="govmap-iframe"
+        style="position:absolute;inset:0;width:100%;height:100%;border:none;display:none;z-index:1"
+        allowfullscreen
+        src="about:blank">
+      </iframe>
       <!-- Draw mode badge -->
       <div class="draw-mode-badge" id="draw-mode-badge">✏️ מצב ציור גבול — לחץ נקודות | כפל-לחיצה לסיום</div>
       <!-- Overlay buttons -->
@@ -822,59 +828,94 @@ function setMapType(t){
 
 // ── BASE MAP SWITCHER: Google Maps ↔ GovMap ──
 let _activeBaseProvider='google'; // 'google' | 'govmap'
-let _lastGoogleMapTypeId='roadmap';
 
-function _registerCustomMapTypes(){
-  // Dark blank canvas (used under GovMap basemap)
-  if(!map.mapTypes.get('blank')){
-    map.mapTypes.set('blank',{
-      getTile:()=>{const d=document.createElement('div');d.style.cssText='width:256px;height:256px;background:#1b1f2e';return d;},
-      tileSize:new google.maps.Size(256,256),maxZoom:21,minZoom:0,name:'ריק',alt:'ריק'
-    });
-  }
-  // GovMap Hebrew basemap tiles (requires browser session with govmap.gov.il)
-  if(!map.mapTypes.get('govmap_base')){
-    map.mapTypes.set('govmap_base', new google.maps.ImageMapType({
-      name:'GovMap',alt:'GovMap — מפה ממשלתית',
-      minZoom:7,maxZoom:20,
-      tileSize:new google.maps.Size(256,256),
-      getTileUrl:function(coord,zoom){
-        // GovMap XYZ tile server — loads if user has active govmap.gov.il browser session
-        return 'https://basemaps.govmap.gov.il/tiles/backgroundMaps/streets_and_buildings_6_2025/'
-          +zoom+'/'+coord.x+'/'+coord.y+'.png';
-      }
-    }));
-  }
+// Convert WGS84 (lat, lng) → ITM (Israel Transverse Mercator / EPSG:2039)
+// Used for building GovMap URL parameters
+function _wgs84ToItm(lat, lng){
+  // GRS80 ellipsoid parameters
+  const a=6378137.0, f=1/298.257222101;
+  const b=a*(1-f);
+  const e2=(a*a-b*b)/(a*a);
+  const e=Math.sqrt(e2);
+  // ITM projection constants
+  const lat0=31.734394*Math.PI/180;
+  const lon0=35.20451*Math.PI/180;
+  const k0=1.0000067;
+  const E0=219529.584, N0=626907.39;
+  const phi=lat*Math.PI/180;
+  const lam=lng*Math.PI/180;
+  const dlam=lam-lon0;
+  const n=a/Math.sqrt(1-e2*Math.sin(phi)*Math.sin(phi));
+  const t=Math.tan(phi);
+  const psi=n/a; // close to 1 for small e
+  // Meridional arc
+  const n2=f/(2-f);
+  const n3=n2*n2, n4=n3*n2, n5=n4*n2;
+  const A0=1-n2+5/4*(n3-n4)+81/64*n5;
+  const A2=3/2*(n2-n3+7/8*n4-55/64*n5);
+  const A4=15/16*(n3-n4+3/4*n5);
+  const A6=35/48*(n4-n5);
+  const A8=315/512*n5;
+  const M=a/(1+n2)*(A0*phi-A2*Math.sin(2*phi)+A4*Math.sin(4*phi)-A6*Math.sin(6*phi)+A8*Math.sin(8*phi));
+  const M0=a/(1+n2)*(A0*lat0-A2*Math.sin(2*lat0)+A4*Math.sin(4*lat0)-A6*Math.sin(6*lat0)+A8*Math.sin(8*lat0));
+  // Easting & Northing
+  const c=Math.cos(phi), s=Math.sin(phi);
+  const T=t*t, C=e2/(1-e2)*c*c;
+  const E_=E0+k0*n*(dlam*c+(dlam*dlam*dlam*c*c*c/6)*(1-T+C)
+    +(dlam*dlam*dlam*dlam*dlam*c*c*c*c*c/120)*(5-18*T+T*T+72*C-58*e2/(1-e2)));
+  const N_=N0+k0*(M-M0+n*s*c*(dlam*dlam/2+(dlam*dlam*dlam*dlam/24)*(5-T+9*C+4*C*C)));
+  return {x:Math.round(E_), y:Math.round(N_)};
+}
+
+// Convert Google Maps zoom → approximate GovMap zoom level
+function _googleZoomToGovmap(z){
+  // GovMap zoom 0=country, 7=city block, roughly googleZoom - 9
+  return Math.max(0, Math.min(7, Math.round(z-9)));
+}
+
+function _buildGovmapUrl(){
+  if(!map) return 'https://www.govmap.gov.il/';
+  const center=map.getCenter();
+  const itm=_wgs84ToItm(center.lat(), center.lng());
+  const gz=_googleZoomToGovmap(map.getZoom());
+  // Active govmap layers as comma-separated list for the lay= parameter
+  const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
+  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0';
+  if(activeLayers.length) url+='&layers='+activeLayers.join(',');
+  return url;
 }
 
 function switchBaseMap(provider){
-  if(!map||!window._googleReady)return;
-  _registerCustomMapTypes();
+  const gmapEl=document.getElementById('gmap');
+  const iframeEl=document.getElementById('govmap-iframe');
+  const gb=document.getElementById('rp-base-google');
+  const vm=document.getElementById('rp-base-govmap');
+  const mtypeBtns=['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'];
 
   if(provider==='govmap'){
-    if(_activeBaseProvider!=='govmap') _lastGoogleMapTypeId=map.getMapTypeId();
-    map.setMapTypeId('govmap_base');
     _activeBaseProvider='govmap';
-    // Update buttons
-    const gb=document.getElementById('rp-base-google');
-    const vm=document.getElementById('rp-base-govmap');
-    if(gb)gb.classList.remove('mp-active');
-    if(vm)vm.classList.add('mp-active');
-    // Disable Google map-type sub-buttons visually
-    ['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'].forEach(id=>{
-      const b=document.getElementById(id);if(b)b.disabled=true;b&&(b.style.opacity='0.35');
-    });
-    showToast({icon:'🇮🇱',title:'GovMap',sub:'מפת ממשלה ישראלית פעילה',type:'success',duration:3000});
+    // Build URL centered on current Google Maps position
+    iframeEl.src=_buildGovmapUrl();
+    // Show iframe, hide Google Maps canvas
+    iframeEl.style.display='block';
+    if(gmapEl) gmapEl.style.display='none';
+    // Button states
+    if(gb) gb.classList.remove('mp-active');
+    if(vm) vm.classList.add('mp-active');
+    // Dim Google map-type buttons (irrelevant when showing GovMap)
+    mtypeBtns.forEach(id=>{const b=document.getElementById(id);if(b){b.disabled=true;b.style.opacity='0.35';}});
+    showToast({icon:'🇮🇱',title:'GovMap',sub:'מפת ממשלה ישראלית',type:'success',duration:3000});
   } else {
-    map.setMapTypeId(_lastGoogleMapTypeId||'roadmap');
     _activeBaseProvider='google';
-    const gb=document.getElementById('rp-base-google');
-    const vm=document.getElementById('rp-base-govmap');
-    if(gb)gb.classList.add('mp-active');
-    if(vm)vm.classList.remove('mp-active');
-    ['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'].forEach(id=>{
-      const b=document.getElementById(id);if(b){b.disabled=false;b.style.opacity='';}
-    });
+    // Hide iframe, restore Google Maps
+    iframeEl.style.display='none';
+    iframeEl.src='about:blank';
+    if(gmapEl) gmapEl.style.display='block';
+    if(map) google.maps.event.trigger(map,'resize');
+    // Button states
+    if(gb) gb.classList.add('mp-active');
+    if(vm) vm.classList.remove('mp-active');
+    mtypeBtns.forEach(id=>{const b=document.getElementById(id);if(b){b.disabled=false;b.style.opacity='';}});
     showToast({icon:'🗺️',title:'Google Maps',sub:'מפת גוגל פעילה',type:'success',duration:2500});
   }
 }
