@@ -873,6 +873,19 @@ function _googleZoomToGovmap(z){
   return Math.max(0, Math.min(7, Math.round(z-9)));
 }
 
+let _govmapBackground=0; // 0=streets, 1=aerial, 2=hybrid, 3=CIR aerial
+
+function setGovmapBackground(bg, btnId){
+  _govmapBackground=bg;
+  document.querySelectorAll('.gvm-bg-btn').forEach(b=>b.classList.remove('mp-active'));
+  const btn=document.getElementById(btnId);if(btn)btn.classList.add('mp-active');
+  // Reload iframe with new background if currently showing GovMap
+  if(_activeBaseProvider==='govmap'){
+    const iframeEl=document.getElementById('govmap-iframe');
+    if(iframeEl) iframeEl.src=_buildGovmapUrl();
+  }
+}
+
 function _buildGovmapUrl(){
   if(!map) return 'https://www.govmap.gov.il/';
   const center=map.getCenter();
@@ -880,7 +893,7 @@ function _buildGovmapUrl(){
   const gz=_googleZoomToGovmap(map.getZoom());
   // Active govmap layers as comma-separated list for the lay= parameter
   const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0';
+  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0&background='+_govmapBackground;
   if(activeLayers.length) url+='&layers='+activeLayers.join(',');
   return url;
 }
@@ -1759,6 +1772,12 @@ function renderDrawP(c){
     <button class="mp-btn" id="rp-base-govmap" onclick="switchBaseMap('govmap')" style="grid-column:2;padding:10px 4px">
       <span style="font-size:18px">🇮🇱</span><span class="mp-btn-label">GovMap</span>
     </button>
+  </div>
+  <div id="gvm-bg-row" class="mp-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:6px">
+    <button class="mp-btn gvm-bg-btn mp-active" id="gvm-bg-0" onclick="setGovmapBackground(0,'gvm-bg-0')"><span>🏘️</span><span class="mp-btn-label" style="font-size:10px">רחובות</span></button>
+    <button class="mp-btn gvm-bg-btn" id="gvm-bg-1" onclick="setGovmapBackground(1,'gvm-bg-1')"><span>🛩️</span><span class="mp-btn-label" style="font-size:10px">אוויר</span></button>
+    <button class="mp-btn gvm-bg-btn" id="gvm-bg-2" onclick="setGovmapBackground(2,'gvm-bg-2')"><span>🔀</span><span class="mp-btn-label" style="font-size:10px">משולב</span></button>
+    <button class="mp-btn gvm-bg-btn" id="gvm-bg-3" onclick="setGovmapBackground(3,'gvm-bg-3')"><span>🌿</span><span class="mp-btn-label" style="font-size:10px">CIR</span></button>
   </div>
   <div class="sec-hd" style="margin-top:2px">🎨 סוג מפה</div>
   <div class="mp-grid">
