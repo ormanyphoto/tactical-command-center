@@ -1803,14 +1803,6 @@ function goPanel(name){
   if(fns[name])fns[name](c);else c.innerHTML=`<p style="color:var(--text3);padding:20px">פאנל ${name}</p>`;
 }
 function closePanel(){document.getElementById('right-panel').classList.add('hidden');}
-function goView(v){
-  currentView=v;
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tab=document.querySelector(`.nav-tab[onclick*="${v}"]`);if(tab)tab.classList.add('active');
-  const panelMap={missions:'missions',units:'units',comms:'comms',analytics:'analytics',incidents:'incidents',ai:'ai',teams:'teams',personnel:'personnel',navigation:'navigation',map:'draw'};
-  if(panelMap[v])goPanel(panelMap[v]);
-}
-
 // ── DRAW / MAP PANEL ──
 function renderDrawP(c){
   c.innerHTML=`
@@ -2835,10 +2827,20 @@ function sendAI(){const inp=document.getElementById('ai-input');const q=inp.valu
 
 // ─── VIEW SWITCHER ───
 function goView(v){
+  currentView=v;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active',t.dataset.v===v));
   const m={map:'draw',dash:'dashboard',missions:'missions',units:'units',comms:'comms',analytics:'analytics',incidents:'incidents',ai:'ai',teams:'teams',personnel:'personnel',navigation:'navigation'};
   if(m[v])goPanel(m[v]);
-  if(v!=='map'){const rp=document.getElementById('right-panel');rp.classList.remove('hidden');document.getElementById('panel-toggle').textContent='▶'}
+  const rp=document.getElementById('right-panel');
+  const pt=document.getElementById('panel-toggle');
+  if(v!=='map'&&rp){
+    rp.classList.remove('hidden');
+    if(pt)pt.textContent='▶';
+    // Mobile: show panel as overlay
+    if(window.innerWidth<=768) rp.classList.add('mobile-open');
+  } else if(v==='map'&&window.innerWidth<=768&&rp){
+    rp.classList.remove('mobile-open');
+  }
 }
 
 // ─── MISC ───
@@ -4805,20 +4807,13 @@ function closeMobileMenu(){
 }
 function mobileGoView(v){
   closeMobileMenu();
-  goView(v);
-  // update bottom nav active
+  goView(v); // goView handles mobile-open/close
+  // update bottom nav active state
   document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+  // update drawer nav active state
   document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('active'));
   const activeItem=document.querySelector(`.mob-nav-item[onclick*="'${v}'"]`);
   if(activeItem)activeItem.classList.add('active');
-  // on mobile, open the right panel as overlay
-  if(v!=='map'&&window.innerWidth<=768){
-    const rp=document.getElementById('right-panel');
-    if(rp){rp.classList.remove('hidden');rp.classList.add('mobile-open');}
-  } else if(v==='map'&&window.innerWidth<=768){
-    const rp=document.getElementById('right-panel');
-    if(rp){rp.classList.remove('mobile-open');}
-  }
 }
 // close mobile panel when tapping map area
 document.addEventListener('DOMContentLoaded',()=>{
