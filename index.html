@@ -419,7 +419,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 }
 </style>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
 </head>
 <body class="night">
 
@@ -698,6 +698,28 @@ let miniMapOn=false;
 window._googleReady=false;
 function onGoogleMapsReady(){
   window._googleReady=true;
+  // Shared Geocoder instance — used everywhere instead of raw REST fetch
+  window._geocoder=new google.maps.Geocoder();
+
+  // Attach Places Autocomplete to the main search box
+  const searchEl=document.getElementById('search-input');
+  if(searchEl&&google.maps.places){
+    const ac=new google.maps.places.Autocomplete(searchEl,{
+      componentRestrictions:{country:'il'},
+      fields:['geometry','name','formatted_address','address_components'],
+      language:'he',
+    });
+    ac.addListener('place_changed',()=>{
+      const place=ac.getPlace();
+      if(!place.geometry)return;
+      const loc=place.geometry.location;
+      map.setCenter(loc);map.setZoom(19);
+      document.getElementById('search-results').style.display='none';
+      reverseGeocode(loc);
+    });
+    // Disable manual doSearch when autocomplete is active
+    searchEl.addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefault();});
+  }
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
@@ -819,33 +841,54 @@ function onMapRightClick(e){
 function closeAllInfoWindows(){_infoWindows.forEach(w=>w.close());}
 
 // ── REVERSE GEOCODE (show building info) ──
-async function reverseGeocode(latLng){
-  try{
-    const url=`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latLng.lat()},${latLng.lng()}&key=${GKEY}&language=he&result_type=street_address|premise|establishment`;
-    const r=await fetch(url);
-    const data=await r.json();
-    if(data.status!=='OK'||!data.results.length)return;
-    const p=data.results[0];
+// ── GEOCODER HELPER — wraps google.maps.Geocoder in a Promise ──
+function _geocodeAddr(request){
+  return new Promise((resolve,reject)=>{
+    (window._geocoder||new google.maps.Geocoder()).geocode(request,(results,status)=>{
+      if(status===google.maps.GeocoderStatus.OK&&results&&results.length) resolve(results);
+      else reject(new Error('Geocoder: '+status));
+    });
+  });
+}
+
+function reverseGeocode(latLng){
+  _geocodeAddr({
+    location:latLng,
+    language:'he',
+    region:'il',
+  }).then(results=>{
+    const p=results[0];
     const hn=(p.address_components||[]).find(a=>a.types.includes('street_number'))?.long_name||'';
     const st=(p.address_components||[]).find(a=>a.types.includes('route'))?.long_name||'';
     const city=(p.address_components||[]).find(a=>a.types.includes('locality'))?.long_name||'';
     const nbhd=(p.address_components||[]).find(a=>a.types.includes('neighborhood'))?.long_name||'';
+    const postalCode=(p.address_components||[]).find(a=>a.types.includes('postal_code'))?.long_name||'';
+    const isDark=document.body.classList.contains('night');
+    const accentC=isDark?'#3dff52':'#1a8c2e';
+    const bgC=isDark?'#0d1014':'#fff';
+    const textC=isDark?'#d8eef8':'#1a1a2e';
+    const subC=isDark?'#7a9ab8':'#666';
     const iw=new google.maps.InfoWindow({
-      content:`<div style="font-family:Heebo,sans-serif;direction:rtl;min-width:200px;padding:4px">
-        <div style="font-size:15px;font-weight:800;color:#1a8c2e;margin-bottom:4px">${hn?hn+' ':''}${st}</div>
-        ${nbhd?`<div style="font-size:11px;color:#6040b8;margin-bottom:2px">שכונה: ${nbhd}</div>`:''}
-        ${city?`<div style="font-size:12px;color:#555;margin-bottom:4px">${city}</div>`:''}
-        <div style="font-size:10px;color:#888;margin-bottom:8px">${latLng.lat().toFixed(6)}°, ${latLng.lng().toFixed(6)}°</div>
-        <div style="display:flex;gap:5px">
-          <button onclick="closeAllInfoWindows();_nmLat=${latLng.lat()};_nmLng=${latLng.lng()};openNewMsnModal()" style="background:#e8f5e9;border:1px solid #1a8c2e;border-radius:4px;padding:3px 8px;color:#1a8c2e;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">📋 משימה</button>
-          <button onclick="closeAllInfoWindows();addGF({lat:${latLng.lat()},lng:${latLng.lng()}})" style="background:#f5f5f5;border:1px solid #ccc;border-radius:4px;padding:3px 8px;color:#555;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">⬡ גיאופנס</button>
+      content:`<div style="font-family:Heebo,sans-serif;direction:rtl;min-width:220px;padding:0;border-radius:8px;overflow:hidden;background:${bgC}">
+        <div style="background:${accentC}18;border-bottom:1px solid ${accentC}30;padding:10px 14px">
+          <div style="font-size:16px;font-weight:900;color:${accentC};margin-bottom:2px">${hn?hn+' ':''}${st||p.formatted_address.split(',')[0]}</div>
+          ${nbhd?`<div style="font-size:11px;color:${subC}">שכונה: ${nbhd}</div>`:''}
+          ${city?`<div style="font-size:12px;color:${textC};font-weight:600">${city}${postalCode?' · '+postalCode:''}</div>`:''}
+        </div>
+        <div style="padding:8px 14px;font-size:10px;color:${subC};border-bottom:1px solid ${accentC}20">
+          📍 ${latLng.lat().toFixed(6)}°צ, ${latLng.lng().toFixed(6)}°מ
+        </div>
+        <div style="display:flex;gap:6px;padding:10px 14px">
+          <button onclick="closeAllInfoWindows();_nmLat=${latLng.lat()};_nmLng=${latLng.lng()};openNewMsnModal()" style="flex:1;background:${accentC}18;border:1px solid ${accentC}60;border-radius:6px;padding:6px;color:${accentC};cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">📋 משימה</button>
+          <button onclick="closeAllInfoWindows();addGF({lat:${latLng.lat()},lng:${latLng.lng()}})" style="flex:1;background:rgba(41,197,246,0.1);border:1px solid rgba(41,197,246,0.4);border-radius:6px;padding:6px;color:#29c5f6;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">⬡ גיאופנס</button>
+          <button onclick="closeAllInfoWindows();goPanel('navigation');setTimeout(()=>{const t=document.getElementById('nav-to');if(t){t.value='${hn?hn+' ':''}${st}, ${city}';t.dispatchEvent(new Event('input'));}},150)" style="flex:1;background:rgba(176,108,240,0.1);border:1px solid rgba(176,108,240,0.4);border-radius:6px;padding:6px;color:#b06cf0;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">🧭 נווט</button>
         </div>
       </div>`,
       position:latLng,
     });
     iw.open(map);
     _infoWindows.push(iw);
-  }catch(e){console.warn('Geocode error',e);}
+  }).catch(e=>console.warn('Geocode error',e));
 }
 
 // ── CONTEXT MENU ──
@@ -893,50 +936,40 @@ function showCtxMenu(latLng, pixel){
   _infoWindows.push(iw);
 }
 
-// ── SEARCH ──
+// ── SEARCH — uses google.maps.Geocoder SDK ──
 let _searchTO=null;
-async function doSearch(q){
+function doSearch(q){
   clearTimeout(_searchTO);
   const sr=document.getElementById('search-results');
   if(!q||q.length<2){sr.style.display='none';return;}
-  _searchTO=setTimeout(async()=>{
-    try{
-      const url=`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q+' ישראל')}&key=${GKEY}&language=he&region=il`;
-      const r=await fetch(url);const data=await r.json();
-      if(data.status==='OK'&&data.results.length){
+  _searchTO=setTimeout(()=>{
+    if(!window._googleReady){sr.style.display='none';return;}
+    sr.innerHTML='<div class="sr-item" style="color:var(--text3)">מחפש...</div>';
+    sr.style.display='block';
+    _geocodeAddr({address:q+' ישראל',region:'il',language:'he'})
+      .then(results=>{
         sr.innerHTML='';
-        data.results.slice(0,6).forEach(p=>{
+        results.slice(0,6).forEach(p=>{
           const d=document.createElement('div');d.className='sr-item';
           const hn=(p.address_components||[]).find(a=>a.types.includes('street_number'))?.long_name||'';
           const st=(p.address_components||[]).find(a=>a.types.includes('route'))?.long_name||'';
           const city=(p.address_components||[]).find(a=>a.types.includes('locality'))?.long_name||'';
-          d.textContent=(hn?hn+' ':'')+st+(city?', '+city:'') || p.formatted_address;
+          const sub=(p.address_components||[]).find(a=>a.types.includes('sublocality'))?.long_name||'';
+          d.innerHTML=`<span style="font-weight:700">${(hn?hn+' ':'')+st||p.formatted_address.split(',')[0]}</span>`
+            +`<span style="font-size:10px;color:var(--text3);margin-right:6px">${city||sub}</span>`;
+          const pos={lat:p.geometry.location.lat(),lng:p.geometry.location.lng()};
           d.onclick=()=>{
-            const pos={lat:p.geometry.location.lat,lng:p.geometry.location.lng};
             map.setCenter(pos);map.setZoom(19);sr.style.display='none';
-            document.getElementById('search-input').value=d.textContent;
+            document.getElementById('search-input').value=(hn?hn+' ':'')+st+(city?', '+city:'') || p.formatted_address;
             reverseGeocode(new google.maps.LatLng(pos.lat,pos.lng));
           };
           sr.appendChild(d);
         });
-        sr.style.display='block';return;
-      }
-    }catch(e){}
-    // Nominatim fallback
-    try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=il&format=json&limit=5&accept-language=he`);
-      const data=await r.json();
-      if(!data.length){sr.innerHTML='<div class="sr-item" style="color:#888">לא נמצאו תוצאות</div>';sr.style.display='block';return;}
-      sr.innerHTML='';
-      data.forEach(p=>{
-        const d=document.createElement('div');d.className='sr-item';
-        d.textContent=p.display_name.split(',').slice(0,2).join(', ');
-        d.onclick=()=>{map.setCenter({lat:+p.lat,lng:+p.lon});map.setZoom(18);sr.style.display='none';};
-        sr.appendChild(d);
-      });
-      sr.style.display='block';
-    }catch(e){sr.style.display='none';}
-  },400);
+        if(!sr.children.length)sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';
+        sr.style.display='block';
+      })
+      .catch(()=>{sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';sr.style.display='block';});
+  },350);
 }
 document.addEventListener('click',e=>{if(!e.target.closest('#search-wrap'))document.getElementById('search-results').style.display='none'});
 
@@ -1998,6 +2031,19 @@ function renderNavigationP(c){
   </div>
   <div class="sec-hd">ניווט למשימה</div>
   ${MISSIONS.filter(m=>m.status==='active'||m.status==='urgent').map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
+  // Attach Places Autocomplete to nav inputs
+  if(window._googleReady&&google.maps.places){
+    ['nav-from','nav-to'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el||el._ac)return;
+      const ac=new google.maps.places.Autocomplete(el,{
+        componentRestrictions:{country:'il'},
+        fields:['geometry','formatted_address'],
+        language:'he',
+      });
+      el._ac=ac;
+    });
+  }
 }
 
 // ── DASHBOARD ──
@@ -3431,21 +3477,17 @@ function movePersonByAddress(id){
       </div>
     </div>
     <p style="font-size:11px;color:var(--text3);margin-top:5px">לחץ אישור לאחר הכנסת הכתובת</p>`;
-  modalCB=async function(){
+  modalCB=function(){
     const addr=document.getElementById('move-addr').value.trim();
     if(!addr)return;
-    try{
-      const url='https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr+' ישראל')+'&key='+GKEY+'&language=he&region=il';
-      const r=await fetch(url);const data=await r.json();
-      if(data.status==='OK'&&data.results[0]){
-        const pos=data.results[0].geometry.location;
-        _updatePersonLocation(id,pos.lat,pos.lng);
-        map.setCenter({lat:pos.lat,lng:pos.lng});map.setZoom(17);
-        showToast({icon:'📍',title:pname+' הועבר',sub:data.results[0].formatted_address,type:'success'});
-      } else {
-        showToast({icon:'⚠️',title:'כתובת לא נמצאה',type:'warn'});
-      }
-    }catch(e){showToast({icon:'⚠️',title:'שגיאה בחיפוש כתובת',type:'warn'});}
+    _geocodeAddr({address:addr+' ישראל',region:'il',language:'he'})
+      .then(results=>{
+        const pos=results[0].geometry.location;
+        _updatePersonLocation(id,pos.lat(),pos.lng());
+        map.setCenter({lat:pos.lat(),lng:pos.lng()});map.setZoom(17);
+        showToast({icon:'📍',title:pname+' הועבר',sub:results[0].formatted_address,type:'success'});
+      })
+      .catch(()=>showToast({icon:'⚠️',title:'כתובת לא נמצאה',type:'warn'}));
   };
   document.getElementById('modal-wrap').style.display='flex';
   setTimeout(()=>document.getElementById('move-addr').focus(),80);
@@ -3970,26 +4012,22 @@ function activatePlaceOnMap(pid){
   });
 }
 
-async function placePersAddrGo(pid){
+function placePersAddrGo(pid){
   const inp=document.getElementById('place-addr-inp');
   if(!inp||!inp.value.trim())return;
   const addr=inp.value.trim();
   inp.disabled=true;
-  try{
-    const url='https://maps.googleapis.com/maps/api/geocode/json?address='+encodeURIComponent(addr+' ישראל')+'&key='+GKEY+'&language=he&region=il';
-    const r=await fetch(url);const data=await r.json();
-    if(data.status==='OK'&&data.results[0]){
-      const pos=data.results[0].geometry.location;
+  showToast({icon:'🔍',title:'מחפש כתובת...',type:'info',duration:3000});
+  _geocodeAddr({address:addr+' ישראל',region:'il',language:'he'})
+    .then(results=>{
+      const pos=results[0].geometry.location;
       closeModal();
-      placePersonAt(pid,pos.lat,pos.lng);
-      map.setCenter({lat:pos.lat,lng:pos.lng});map.setZoom(17);
+      placePersonAt(pid,pos.lat(),pos.lng());
+      map.setCenter({lat:pos.lat(),lng:pos.lng()});map.setZoom(17);
       const p=PERSONNEL.find(x=>x.id===pid);
-      showToast({icon:'📍',title:(p?p.name:pid)+' מוקם',sub:data.results[0].formatted_address.split(',')[0],type:'success'});
-    } else {
-      showToast({icon:'⚠️',title:'כתובת לא נמצאה',sub:addr,type:'warn'});
-      inp.disabled=false;
-    }
-  }catch(e){showToast({icon:'⚠️',title:'שגיאה',type:'warn'});inp.disabled=false;}
+      showToast({icon:'📍',title:(p?p.name:pid)+' מוקם',sub:results[0].formatted_address.split(',')[0],type:'success'});
+    })
+    .catch(()=>{showToast({icon:'⚠️',title:'כתובת לא נמצאה',sub:addr,type:'warn'});inp.disabled=false;});
 }
 
 function placePersGPS(pid){
