@@ -869,13 +869,15 @@ function _wgs84ToItm(lat, lng){
   return {x:Math.round(E_), y:Math.round(N_)};
 }
 
-// Convert Google Maps zoom → approximate GovMap zoom level
+// Convert Google Maps zoom → GovMap zoom level (GovMap URL z= range: 0–12)
 function _googleZoomToGovmap(z){
-  // GovMap zoom 0=country, 7=city block, roughly googleZoom - 9
-  return Math.max(0, Math.min(7, Math.round(z-9)));
+  // Empirical mapping: google 10→gvm 2, 13→gvm 4, 16→gvm 7, 19→gvm 10
+  return Math.max(0, Math.min(12, Math.round((z - 8) * 0.85)));
 }
 
-let _govmapBackground=0; // 0=streets, 1=aerial, 2=hybrid, 3=CIR aerial
+let _govmapBackground=0;    // 0=streets, 1=aerial, 2=hybrid, 3=CIR aerial
+// Persistent GovMap viewport state (updated when switching / zooming / navigating)
+let _govmapState = { x: 178500, y: 665000, z: 4 }; // default: center of Israel
 
 const _GOOGLE_MTYPE_HTML=`
   <button class="mp-btn mp-active" id="rp-mtype-road" onclick="setMapType('roadmap');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
@@ -896,34 +898,21 @@ function setGovmapBackground(bg, btnId){
   _reloadGovmapIframe();
 }
 
+// Build GovMap URL from _govmapState (never reads from Google Maps object)
 function _buildGovmapUrl(){
-  if(!map) return 'https://www.govmap.gov.il/';
-  const center=map.getCenter();
-  const itm=_wgs84ToItm(center.lat(), center.lng());
-  const gz=_googleZoomToGovmap(map.getZoom());
-  // Active govmap layers — GovMap URL uses individual lay= params per layer
   const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&b='+_govmapBackground;
-  // Add each active layer as a separate lay= parameter (GovMap URL format)
+  let url='https://www.govmap.gov.il/?c='+_govmapState.x+','+_govmapState.y
+         +'&z='+_govmapState.z+'&b='+_govmapBackground;
   activeLayers.forEach(l=>{ url+='&lay='+encodeURIComponent(l); });
   return url;
 }
 
 // ── MAP NAVIGATION HELPERS (work for both Google Maps and GovMap iframe) ──
-// GovMap zoom scale: 0=country … 7=city block (roughly googleZoom - 9)
-let _govmapZoom=5; // track current govmap zoom level
-
 function mapZoom(delta){
   if(_activeBaseProvider==='govmap'){
-    _govmapZoom=Math.max(0,Math.min(7,_govmapZoom+delta));
-    const iframeEl=document.getElementById('govmap-iframe');
-    if(!iframeEl||!map)return;
-    const center=map.getCenter();
-    const itm=_wgs84ToItm(center.lat(),center.lng());
-    const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-    let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+_govmapZoom+'&b='+_govmapBackground;
-    activeLayers.forEach(l=>{url+='&lay='+encodeURIComponent(l);});
-    iframeEl.src=url;
+    // Only change zoom — keep the same center (_govmapState.x/y unchanged)
+    _govmapState.z=Math.max(0,Math.min(12,_govmapState.z+delta));
+    _reloadGovmapIframe();
   } else {
     if(map) map.setZoom(map.getZoom()+delta);
   }
@@ -932,14 +921,10 @@ function mapZoom(delta){
 function mapGoTo(lat,lng,zoom){
   if(_activeBaseProvider==='govmap'){
     const itm=_wgs84ToItm(lat,lng);
-    const gz=zoom?_googleZoomToGovmap(zoom):_govmapZoom;
-    _govmapZoom=gz;
-    const iframeEl=document.getElementById('govmap-iframe');
-    if(!iframeEl)return;
-    const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-    let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&b='+_govmapBackground;
-    activeLayers.forEach(l=>{url+='&lay='+encodeURIComponent(l);});
-    iframeEl.src=url;
+    _govmapState.x=itm.x;
+    _govmapState.y=itm.y;
+    if(zoom) _govmapState.z=_googleZoomToGovmap(zoom);
+    _reloadGovmapIframe();
   } else {
     if(map){map.setCenter({lat,lng});if(zoom)map.setZoom(zoom);}
   }
@@ -960,15 +945,22 @@ function switchBaseMap(provider){
 
   if(provider==='govmap'){
     _activeBaseProvider='govmap';
+    // Snapshot current Google Maps position → initialize GovMap state
+    if(map){
+      const center=map.getCenter();
+      const itm=_wgs84ToItm(center.lat(),center.lng());
+      _govmapState.x=itm.x;
+      _govmapState.y=itm.y;
+      _govmapState.z=_googleZoomToGovmap(map.getZoom());
+    }
     // Swap map-type grid to GovMap backgrounds
     if(grid) grid.innerHTML=_GOVMAP_MTYPE_HTML;
     // Mark the currently selected background active
     const activeBg=document.getElementById('gvm-bg-'+_govmapBackground);
     if(activeBg) activeBg.classList.add('mp-active');
-    // Load iframe centered on current Google Maps position (with active layers)
+    // Load iframe using _govmapState (not Google Maps)
     iframeEl.src=_buildGovmapUrl();
     iframeEl.style.display='block';
-    // Also apply any already-active GovMap layers to the iframe URL (already done above)
     if(gmapEl) gmapEl.style.display='none';
     // Button states
     if(gb) gb.classList.remove('mp-active');
