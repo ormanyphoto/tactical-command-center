@@ -31,7 +31,7 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .nav-tab.active,.nav-tab:hover{background:var(--panel3);color:var(--texthi)}
 .nav-tab.active{color:var(--accent)}
 .nbadge{background:var(--danger);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;font-weight:700;min-width:16px;text-align:center}
-#main{display:flex;flex:1;overflow:hidden;position:relative}
+#main{display:flex;flex-direction:row-reverse;flex:1;overflow:hidden;position:relative}
 
 /* ── MAP ── */
 
@@ -82,7 +82,7 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 @keyframes toastOut{to{opacity:0;transform:translateY(-4px)}}
 
 /* ── RIGHT PANEL ── */
-#right-panel{width:310px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s;z-index:100;position:relative}
+#right-panel{width:310px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s;z-index:100;position:relative}
 #right-panel.hidden{width:0;overflow:hidden;border:none}
 #rp-header{padding:10px 12px 0;border-bottom:1px solid var(--border);flex-shrink:0}
 #rp-title{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:8px;display:flex;align-items:center;gap:7px}
@@ -397,9 +397,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #topbar{height:54px;padding:0 10px;gap:6px}
   .nav-tabs{display:none}
   #mobile-menu-btn{display:flex}
-  #right-panel{position:fixed;top:54px;right:0;bottom:60px;z-index:400;width:100%!important;max-width:100vw;transform:translateX(100%);transition:transform 0.25s ease;border:none;box-shadow:-4px 0 20px rgba(0,0,0,0.4)}
+  #right-panel{position:fixed;top:54px;left:0;bottom:60px;z-index:400;width:100%!important;max-width:100vw;transform:translateX(-100%);transition:transform 0.25s ease;border:none;box-shadow:4px 0 20px rgba(0,0,0,0.4)}
   #right-panel.mobile-open{transform:translateX(0)}
-  #right-panel.hidden{transform:translateX(100%);width:100%!important}
+  #right-panel.hidden{transform:translateX(-100%);width:100%!important}
   #bottom-nav{display:flex}
   #main{padding-bottom:60px}
   #topbar-logo span{display:none}
