@@ -1099,13 +1099,8 @@ function onMapClick(e){
   if(activeDrawMode==='point'){addDrawPoint(e.latLng);return;}
   if(activeDrawMode==='circle'){addDrawCircle(e.latLng);return;}
   if(activeDrawMode==='route'){addRoutePoint(e.latLng);return;}
-  // Only close InfoWindows if clicking empty map (not from marker click)
-  // Marker clicks call closeAllInfoWindows themselves before opening new one
-  // Building lookup at zoom 17+
-  if(map.getZoom()>=17){
-    clearTimeout(window._bldTO);
-    window._bldTO=setTimeout(()=>reverseGeocode(e.latLng),250);
-  }
+  // Left-click: only close any open InfoWindows — no popup
+  closeAllInfoWindows();
 }
 function onMapRightClick(e){
   closeAllInfoWindows();
