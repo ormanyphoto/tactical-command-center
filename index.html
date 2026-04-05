@@ -164,17 +164,17 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 .ch-tab{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:6px 13px;font-size:12px;font-weight:700;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all 0.15s}
 .ch-tab.active{border-color:var(--blue);color:var(--blue);background:rgba(41,197,246,0.1)}
 /* Comms quick action buttons */
-.comms-qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:12px 6px;border-radius:8px;border:1px solid var(--border2);background:var(--panel2);cursor:pointer;font-family:var(--font);transition:all 0.15s;font-size:11px;font-weight:700;color:var(--text2)}
-.comms-qa-btn:hover{border-color:var(--border3);background:var(--panel3);color:var(--texthi);transform:translateY(-1px)}
-.comms-qa-btn .qa-icon{font-size:22px;line-height:1}
-.comms-qa-btn.sos-btn{border-color:rgba(255,51,51,0.4);color:var(--danger);background:rgba(255,51,51,0.06)}
-.comms-qa-btn.sos-btn:hover{background:rgba(255,51,51,0.12);border-color:var(--danger)}
+.comms-qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:18px 8px;border-radius:12px;border:1.5px solid var(--border2);background:var(--panel2);cursor:pointer;font-family:var(--font);transition:all 0.15s;font-size:12px;font-weight:800;color:var(--text2);box-shadow:0 2px 8px rgba(0,0,0,0.22);letter-spacing:0.01em}
+.comms-qa-btn:hover{border-color:var(--border3);background:var(--panel3);color:var(--texthi);transform:translateY(-2px);box-shadow:0 5px 16px rgba(0,0,0,0.32)}
+.comms-qa-btn .qa-icon{font-size:28px;line-height:1}
+.comms-qa-btn.sos-btn{border-color:rgba(255,51,51,0.5);color:var(--danger);background:rgba(255,51,51,0.08);box-shadow:0 2px 12px rgba(255,51,51,0.18)}
+.comms-qa-btn.sos-btn:hover{background:rgba(255,51,51,0.16);border-color:var(--danger);box-shadow:0 5px 20px rgba(255,51,51,0.28)}
 /* Recording button */
-.rec-btn-pro{display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:var(--r);border:2px solid var(--text3);background:var(--panel2);cursor:pointer;font-family:var(--font);font-size:13px;font-weight:700;color:var(--text2);transition:all 0.2s;flex-shrink:0}
-.rec-btn-pro:hover{border-color:var(--blue);color:var(--blue)}
-.rec-btn-pro.recording{border-color:var(--danger);color:var(--danger);background:rgba(255,51,51,0.08);animation:recpulse 1s ease-in-out infinite}
-.rec-dot{width:10px;height:10px;border-radius:50%;background:currentColor;flex-shrink:0}
-@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,51,51,0.4)}50%{box-shadow:0 0 0 6px rgba(255,51,51,0)}}
+.rec-btn-pro{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 22px;border-radius:var(--r);border:2px solid var(--text3);background:var(--panel2);cursor:pointer;font-family:var(--font);font-size:14px;font-weight:800;color:var(--text2);transition:all 0.2s;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.rec-btn-pro:hover{border-color:var(--blue);color:var(--blue);background:rgba(41,197,246,0.07)}
+.rec-btn-pro.recording{border-color:var(--danger);color:var(--danger);background:rgba(255,51,51,0.1);animation:recpulse 1s ease-in-out infinite}
+.rec-dot{width:13px;height:13px;border-radius:50%;background:currentColor;flex-shrink:0;box-shadow:0 0 6px currentColor}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,51,51,0.5)}50%{box-shadow:0 0 0 9px rgba(255,51,51,0)}}
 /* Modal */
 #modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;display:none;align-items:center;justify-content:center}
 body.day #modal-wrap{background:rgba(0,30,60,0.4)}
@@ -556,7 +556,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="right-panel">
       <div id="rp-header">
         <div id="rp-title">
-          <span id="rp-title-txt">כלי ציור</span>
+          <span id="rp-title-txt">מפה וכלים</span>
           <button class="rp-close" onclick="closePanel()">✕</button>
         </div>
       </div>
@@ -698,7 +698,10 @@ let miniMapOn=false;
 window._googleReady=false;
 function onGoogleMapsReady(){
   window._googleReady=true;
-  map=new google.maps.Map(document.getElementById('gmap'),{
+  const mapEl=document.getElementById('gmap');
+  // Ensure the map container is visible before initialising
+  if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
+  map=new google.maps.Map(mapEl,{
     center:{lat:32.0667,lng:34.7818},
     zoom:17,
     mapTypeId:'roadmap',
@@ -706,24 +709,30 @@ function onGoogleMapsReady(){
     gestureHandling:'greedy',
     clickableIcons:true,
     tilt:0,
-    language:'he',
-    region:'IL',
+    // Show building footprints + house numbers at high zoom
+    mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
+    styles:[],
   });
 
-  // Night-mode style
+  // Night-mode style — keeps building footprints + house numbers visible
   const nightStyle=[
     {elementType:'geometry',stylers:[{color:'#1d2c4d'}]},
     {elementType:'labels.text.fill',stylers:[{color:'#8ec3b9'}]},
     {elementType:'labels.text.stroke',stylers:[{color:'#1a3646'}]},
     {featureType:'administrative',elementType:'geometry.stroke',stylers:[{color:'#4b6878'}]},
     {featureType:'administrative.locality',elementType:'labels.text.fill',stylers:[{color:'#d59563'}]},
+    // Building footprints: visible with subtle fill, show address labels
+    {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#233056'}]},
     {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#334e87'}]},
+    {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
+    {featureType:'landscape.man_made',elementType:'labels.text.fill',stylers:[{color:'#a8c0d6'}]},
     {featureType:'landscape.natural',elementType:'geometry',stylers:[{color:'#023e58'}]},
     {featureType:'poi',elementType:'geometry',stylers:[{color:'#283d6a'}]},
     {featureType:'poi',elementType:'labels.text.fill',stylers:[{color:'#6f9ba5'}]},
     {featureType:'poi.park',elementType:'geometry.fill',stylers:[{color:'#023e58'}]},
     {featureType:'road',elementType:'geometry',stylers:[{color:'#304a7d'}]},
     {featureType:'road',elementType:'labels.text.fill',stylers:[{color:'#98a5be'}]},
+    {featureType:'road',elementType:'labels',stylers:[{visibility:'on'}]},
     {featureType:'road.highway',elementType:'geometry',stylers:[{color:'#2c6675'}]},
     {featureType:'road.highway',elementType:'labels.text.fill',stylers:[{color:'#b0d5ce'}]},
     {featureType:'transit',elementType:'labels.text.fill',stylers:[{color:'#98a5be'}]},
@@ -732,6 +741,17 @@ function onGoogleMapsReady(){
   ];
   if(document.body.classList.contains('night')) map.setOptions({styles:nightStyle});
   window._nightStyle=nightStyle;
+
+  // Force Google Maps to show building footprints + address numbers
+  // This is enabled by default on 'roadmap' at zoom 17+; ensure no styles suppress it
+  map.setOptions({
+    styles: document.body.classList.contains('night') ? nightStyle : [
+      // Day mode: show building outlines + house numbers prominently
+      {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
+      {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
+      {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
+    ]
+  });
 
   // Map events
   map.addListener('click',onMapClick);
@@ -745,14 +765,21 @@ function onGoogleMapsReady(){
     if(el)el.textContent=e.latLng.lat().toFixed(4)+'°צ '+e.latLng.lng().toFixed(4)+'°מ';
   });
 
+  // Trigger resize so map fills container correctly after init
+  google.maps.event.trigger(map,'resize');
+
   // Draw everything
   plotMissions();
   plotUnits();
   plotGFs();
   startAutoTrack();
-  goPanel('draw');
-  loadFromStorage();
-  setTimeout(loadSavedBoundaries, 1200);
+  if(typeof loadFromStorage==='function')loadFromStorage();
+  setTimeout(()=>{if(typeof loadSavedBoundaries==='function')loadSavedBoundaries();}, 1200);
+
+  // Open the Map panel by default on startup
+  const rp=document.getElementById('right-panel');
+  if(rp)rp.classList.remove('hidden');
+  setTimeout(()=>goPanel('draw'),150);
 
   setTimeout(()=>showToast({icon:'✅',title:'מערכת מבצעים v5',sub:'Google Maps פעיל · בניינים · עברית · 3D',type:'success',duration:5000}),600);
   setTimeout(()=>showToast({icon:'⚠️',title:'חדירת גיאופנס',sub:'רכב זוהה בגבולות GF02',type:'warn',duration:7000}),10000);
@@ -1399,9 +1426,14 @@ function setTheme(m){
   localStorage.setItem('tac-v5-theme',m);
   if(map&&window._googleReady){
     map.setOptions({styles:m==='night'?window._nightStyle||[]:[
+      // Day: show building footprints + house numbers
+      {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
+      {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
+      {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
       {featureType:'all',elementType:'labels.text',stylers:[{visibility:'on'}]},
       {featureType:'administrative',elementType:'all',stylers:[{visibility:'on'}]},
     ]});
+    google.maps.event.trigger(map,'resize');
   }
 }
 (function(){setTheme(localStorage.getItem('tac-v5-theme')||'night');})();
@@ -1741,15 +1773,15 @@ function renderCommsP(c){
   </div>
   <!-- QUICK ACTIONS -->
   <div class="sec-hd">פעולות מהירות</div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px">
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
     <button class="comms-qa-btn sos-btn" onclick="sendStatus('🆘 SOS – נדרש סיוע מיידי')"><span class="qa-icon">🆘</span>SOS</button>
-    <button class="comms-qa-btn" onclick="sendStatus('✅ שטח נקי')" style="color:var(--accent);border-color:rgba(61,255,82,0.35)"><span class="qa-icon">✅</span>נקי</button>
-    <button class="comms-qa-btn" onclick="sendStatus('🔴 בקשת תגבור')" style="color:var(--orange);border-color:rgba(255,122,26,0.35)"><span class="qa-icon">🔴</span>תגבור</button>
-    <button class="comms-qa-btn" onclick="sendStatus('📍 במיקום')" style="color:var(--blue);border-color:rgba(41,197,246,0.35)"><span class="qa-icon">📍</span>במיקום</button>
-    <button class="comms-qa-btn" onclick="sendStatus('👁️ בתצפית')" style="color:var(--purple);border-color:rgba(176,108,240,0.35)"><span class="qa-icon">👁️</span>תצפית</button>
-    <button class="comms-qa-btn" onclick="sendStatus('🚗 בנסיעה')" style="color:var(--teal);border-color:rgba(0,232,184,0.35)"><span class="qa-icon">🚗</span>נסיעה</button>
-    <button class="comms-qa-btn" onclick="sendStatus('⚠️ אירוע פעיל')" style="color:var(--warn);border-color:rgba(255,193,7,0.35)"><span class="qa-icon">⚠️</span>אירוע</button>
-    <button class="comms-qa-btn" onclick="sendStatus('📻 קבלה – אאוט')" style="color:var(--text2)"><span class="qa-icon">📻</span>אאוט</button>
+    <button class="comms-qa-btn" onclick="sendStatus('✅ שטח נקי')" style="color:var(--accent);border-color:rgba(61,255,82,0.4)"><span class="qa-icon">✅</span>שטח נקי</button>
+    <button class="comms-qa-btn" onclick="sendStatus('🔴 בקשת תגבור')" style="color:var(--orange);border-color:rgba(255,122,26,0.4)"><span class="qa-icon">🔴</span>בקשת תגבור</button>
+    <button class="comms-qa-btn" onclick="sendStatus('📍 במיקום')" style="color:var(--blue);border-color:rgba(41,197,246,0.4)"><span class="qa-icon">📍</span>במיקום</button>
+    <button class="comms-qa-btn" onclick="sendStatus('👁️ בתצפית')" style="color:var(--purple);border-color:rgba(176,108,240,0.4)"><span class="qa-icon">👁️</span>בתצפית</button>
+    <button class="comms-qa-btn" onclick="sendStatus('🚗 בנסיעה')" style="color:var(--teal);border-color:rgba(0,232,184,0.4)"><span class="qa-icon">🚗</span>בנסיעה</button>
+    <button class="comms-qa-btn" onclick="sendStatus('⚠️ אירוע פעיל')" style="color:var(--warn);border-color:rgba(255,193,7,0.4)"><span class="qa-icon">⚠️</span>אירוע פעיל</button>
+    <button class="comms-qa-btn" onclick="sendStatus('📻 קבלה – אאוט')" style="color:var(--text2)"><span class="qa-icon">📻</span>קבלה אאוט</button>
   </div>
   <!-- MESSAGES -->
   <div class="sec-hd">הודעות</div>
@@ -1766,17 +1798,15 @@ function renderCommsP(c){
   </div>
   <!-- COMPOSE -->
   <div class="sec-hd">שלח הודעה</div>
-  <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
-    <select id="msg-ch" style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:9px 10px;color:var(--text);font-size:13px;font-family:var(--font);outline:none">
-      ${channels.filter(ch=>ch!=='הכל').map(ch=>`<option value="${ch}">${ch}</option>`).join('')}
-    </select>
-    <button id="rec-btn" class="rec-btn-pro" onclick="toggleRecord(this)" title="הקלט הודעה קולית">
-      <span class="rec-dot"></span><span class="rec-label">הקלטה</span>
-    </button>
-  </div>
-  <div style="display:flex;gap:6px">
-    <input type="text" id="msg-txt" placeholder="הקלד הודעה לשידור..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 13px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.key==='Enter')sendMsg()"/>
-    <button onclick="sendMsg()" style="background:var(--glow);border:2px solid var(--accent);border-radius:var(--r);padding:10px 18px;color:var(--accent);cursor:pointer;font-size:18px;font-weight:900;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='rgba(61,255,82,0.2)'" onmouseout="this.style.background='var(--glow)'">⬅</button>
+  <select id="msg-ch" style="width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 12px;color:var(--text);font-size:13px;font-family:var(--font);outline:none;margin-bottom:8px">
+    ${channels.filter(ch=>ch!=='הכל').map(ch=>`<option value="${ch}">${ch}</option>`).join('')}
+  </select>
+  <button id="rec-btn" class="rec-btn-pro" onclick="toggleRecord(this)" title="הקלט הודעה קולית" style="width:100%;margin-bottom:8px">
+    <span class="rec-dot"></span><span class="rec-label">🎙️ הקלט הודעה קולית</span>
+  </button>
+  <div style="display:flex;gap:8px">
+    <input type="text" id="msg-txt" placeholder="הקלד הודעה לשידור..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;color:var(--texthi);font-size:14px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.key==='Enter')sendMsg()"/>
+    <button onclick="sendMsg()" style="background:var(--glow);border:2px solid var(--accent);border-radius:var(--r);padding:12px 20px;color:var(--accent);cursor:pointer;font-size:20px;font-weight:900;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='rgba(61,255,82,0.2)'" onmouseout="this.style.background='var(--glow)'">📤</button>
   </div>`;
 }
 function sendMsg(){
@@ -2301,26 +2331,10 @@ function openAddUnitModal(){
   document.getElementById('modal-wrap').style.display='flex';
 }
 
-// ─── COMMS ───
+// ─── COMMS (legacy helpers, renderCommsP is defined above) ───
 let recMode=false;
-function renderCommsP(c){
-  if(!c)c=document.getElementById('rp-body');
-  c.innerHTML=`<button class="sos-big" onclick="triggerSOS()">🆘 SOS חירום — שידור מיידי</button>
-  <div class="stat-btns">${['בדרך','בשטח','חופשי','המתנה','צריך גיבוי','ETA 5דק'].map(s=>`<button class="stat-btn" onclick="sendStatus('${s}')">${s}</button>`).join('')}</div>
-  <div class="sec-hd">הקלטת הודעה קולית</div>
-  <div class="voice-note-btn" id="voice-btn" onclick="toggleVoice()">🎙️ ${recMode?'מקליט... לחץ לסיום':'לחץ להקלטה'}</div>
-  <div class="sec-hd">ערוצים</div>
-  <div class="ch-tabs">${['הכל','MSN-001','MSN-002','שידור'].map(ch=>`<button class="ch-tab ${ch==='הכל'?'active':''}" onclick="filterCh(this,'${ch}')">${ch}</button>`).join('')}</div>
-  <ul class="msg-list" id="msg-ul">${MSGS.map(m=>`<li class="msg-card msg-${m.type}"><div class="msg-hdr"><span class="msg-from">${m.from}</span><span class="msg-time">${m.time}</span></div><div class="msg-body">${m.body}</div><div class="msg-ch"># ${m.ch}</div></li>`).join('')}</ul>
-  <div class="sec-hd">שלח הודעה</div>
-  <div class="form-g"><label>ערוץ</label><select id="msg-ch"><option>כל היחידות</option><option>MSN-001</option><option>MSN-002</option><option>MSN-003</option><option>מפקד</option></select></div>
-  <div class="form-g"><label>הודעה</label><textarea id="msg-txt" placeholder="הודעה..." style="height:55px"></textarea></div>
-  <button class="btn-pri" onclick="sendMsg()">📤 שדר</button>`;
-  document.getElementById('msg-badge').textContent='0';
-}
 function toggleVoice(){recMode=!recMode;const btn=document.getElementById('voice-btn');if(btn){btn.classList.toggle('recording',recMode);btn.textContent=recMode?'🔴 מקליט... לחץ לסיום':'🎙️ לחץ להקלטה';if(!recMode)showToast({icon:'🎙️',title:'הודעה קולית נשמרה',sub:'3.2 שניות',type:'success'})}}
-function filterCh(el,ch){document.querySelectorAll('.ch-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('#msg-ul .msg-card').forEach(li=>{li.style.display=(ch==='הכל'||li.querySelector('.msg-ch').textContent.includes(ch))?'':'none'})}
-function sendMsg(){const ch=document.getElementById('msg-ch').value;const body=document.getElementById('msg-txt').value.trim();if(!body)return;MSGS.unshift({id:Date.now(),from:'מבצע // פיקוד',ch,body,time:nowT(),type:'normal'});renderCommsP(document.getElementById('rp-body'));addAct({txt:'הודעה ל-'+ch,type:'active'});showToast({icon:'📤',title:'הודעה נשלחה',sub:ch,type:'success'})}
+function filterCh(el,ch){document.querySelectorAll('.ch-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('#msg-ul .msg-card').forEach(li=>{li.style.display=(ch==='הכל'||li.querySelector('.msg-ch')?.textContent?.includes(ch))?'':'none'})}
 function sendStatus(s){MSGS.unshift({id:Date.now(),from:'עדכון סטטוס',ch:'הכל',body:'סטטוס: '+s,time:nowT(),type:'broadcast'});addAct({txt:'סטטוס: '+s,type:'active'});if(currentPanel==='comms')renderCommsP(document.getElementById('rp-body'));showToast({icon:'📡',title:'סטטוס שודר',sub:s,type:'info'})}
 
 // ─── INCIDENTS ───
