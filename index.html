@@ -2,11 +2,22 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="מבצעים">
+<meta name="theme-color" content="#07090a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>מערכת מבצעים v5.1 // כוננות מחוזית ת"א</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{--r:6px;--font:'Heebo',sans-serif;--font2:'Assistant',sans-serif;--trans:0.25s ease}
@@ -377,6 +388,44 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #draw-ctrl-bar .dcb-cancel{background:none;color:var(--danger);border:1px solid var(--danger);border-radius:14px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif}
 
 /* ══════════════════════════════════════════════════════════
+   FIELD MODE — Mobile UI for team members
+   ══════════════════════════════════════════════════════════ */
+#field-mode{position:fixed;inset:0;z-index:9000;background:#07090a;display:none;flex-direction:column;font-family:'Heebo',sans-serif;direction:rtl}
+#field-mode.active{display:flex}
+#fm-topbar{height:56px;background:rgba(13,16,20,0.98);border-bottom:1px solid #1a2838;display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;position:relative}
+#fm-logo{font-weight:900;font-size:13px;color:#3dff52;letter-spacing:0.04em}
+#fm-name-badge{background:#1a2838;border:1px solid #2e4460;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#d8eef8;display:flex;align-items:center;gap:6px}
+#fm-name-badge .fm-dot{width:8px;height:8px;border-radius:50%;background:#3dff52;animation:fmpulse 2s infinite}
+@keyframes fmpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
+#fm-sos-btn{margin-right:auto;background:#ff3333;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-size:13px;font-weight:900;cursor:pointer;font-family:'Heebo',sans-serif;letter-spacing:0.04em}
+#fm-map-wrap{flex:1;position:relative;overflow:hidden}
+#fm-gmap{position:absolute;inset:0;width:100%;height:100%}
+#fm-accuracy-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(13,16,20,0.88);border:1px solid #2e4460;border-radius:20px;padding:4px 14px;font-size:11px;font-weight:700;color:#9ab8c8;display:none;gap:10px;white-space:nowrap;z-index:10}
+#fm-accuracy-pill.visible{display:flex}
+#fm-bottom{background:rgba(13,16,20,0.98);border-top:1px solid #1a2838;padding:12px 14px 20px;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
+#fm-gps-row{display:flex;gap:8px}
+#fm-gps-toggle{flex:1;height:52px;border-radius:12px;border:2px solid #2e4460;background:#121620;color:#5a7a90;font-size:14px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s}
+#fm-gps-toggle.on{border-color:#3dff52;background:rgba(61,255,82,0.08);color:#3dff52}
+#fm-gps-toggle .fm-gps-icon{font-size:20px}
+#fm-nav-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#29c5f6;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#fm-status-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.fm-status-btn{height:38px;border-radius:8px;border:1px solid #1a2838;background:#0d1014;color:#5a7a90;font-size:11px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;transition:all 0.15s}
+.fm-status-btn.sel{border-color:var(--sc);background:rgba(var(--scr),0.12);color:var(--sc)}
+#fm-mission-bar{background:#121620;border:1px solid #1a2838;border-radius:10px;padding:10px 12px;font-size:12px;color:#5a7a90;display:none}
+#fm-mission-bar.has-mission{display:block;border-color:#29c5f6;color:#d8eef8}
+#fm-mission-title{font-weight:800;font-size:13px;color:#29c5f6;margin-bottom:2px}
+/* Live marker pulse */
+@keyframes lmpulse{0%{r:11;opacity:0.9}70%{r:18;opacity:0}100%{r:18;opacity:0}}
+.live-marker-ring{animation:lmpulse 2s infinite}
+/* Firebase setup banner */
+#fb-setup-banner{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a2838;border:1px solid #ffc107;border-radius:12px;padding:12px 16px;z-index:8000;color:#ffc107;font-size:12px;font-weight:700;font-family:'Heebo',sans-serif;direction:rtl;text-align:center;display:none;max-width:320px;width:90vw}
+#fb-setup-banner button{background:#ffc107;color:#07090a;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:8px;width:100%}
+/* Sync status dot in topbar */
+#sync-dot{width:8px;height:8px;border-radius:50%;background:#344858;flex-shrink:0;transition:background 0.3s}
+#sync-dot.on{background:#3dff52;box-shadow:0 0 6px rgba(61,255,82,0.5)}
+#sync-dot.warn{background:#ffc107}
+
+/* ══════════════════════════════════════════════════════════
    MOBILE & TABLET RESPONSIVE
    ══════════════════════════════════════════════════════════ */
 #mobile-menu-btn{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;color:var(--texthi);align-items:center}
@@ -601,6 +650,50 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 
 <!-- MODAL -->
 <div id="modal-wrap"><div id="modal-box"><div id="modal-ttl"></div><div id="modal-body"></div><div class="modal-acts"><button id="modal-ok" onclick="modalConfirm()">✓ אישור</button><button id="modal-cancel" onclick="closeModal()">✕ ביטול</button></div></div></div>
+
+<!-- FIELD MODE — shown to team members on mobile -->
+<div id="field-mode">
+  <div id="fm-topbar">
+    <div id="fm-logo">⬡ מבצעים v5.1</div>
+    <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
+    <div id="sync-dot" title="סטטוס חיבור"></div>
+    <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 SOS</button>
+  </div>
+  <div id="fm-map-wrap">
+    <div id="fm-gmap"></div>
+    <div id="fm-accuracy-pill">
+      <span>📡 <span id="fm-acc">—</span></span>
+      <span>⚡ <span id="fm-spd">0</span> קמ"ש</span>
+      <span>🔋 <span id="fm-bat">—</span></span>
+    </div>
+  </div>
+  <div id="fm-bottom">
+    <div id="fm-mission-bar">
+      <div id="fm-mission-title">אין משימה פעילה</div>
+      <div id="fm-mission-sub" style="font-size:11px;color:#5a7a90;margin-top:2px"></div>
+    </div>
+    <div id="fm-gps-row">
+      <button id="fm-gps-toggle" onclick="FIELD.toggleGPS()">
+        <span class="fm-gps-icon">📡</span>
+        <span id="fm-gps-label">שתף מיקום</span>
+      </button>
+      <button id="fm-nav-btn" title="נווט" onclick="FIELD.navigate()">🧭</button>
+    </div>
+    <div id="fm-status-row">
+      <button class="fm-status-btn sel" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="FIELD.setStatus('active',this)">✅ פעיל</button>
+      <button class="fm-status-btn" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="FIELD.setStatus('standby',this)">⏸ כוננות</button>
+      <button class="fm-status-btn" data-s="busy" style="--sc:#ff7a1a;--scr:255,122,26" onclick="FIELD.setStatus('busy',this)">🔄 עסוק</button>
+      <button class="fm-status-btn" data-s="urgent" style="--sc:#ff3333;--scr:255,51,51" onclick="FIELD.setStatus('urgent',this)">🚨 דחוף</button>
+    </div>
+    <button onclick="FIELD.switchToCommand()" style="background:none;border:1px solid #1a2838;border-radius:8px;padding:6px;font-size:11px;color:#344858;cursor:pointer;font-family:Heebo,sans-serif;width:100%">⬡ עבור למצב פיקוד</button>
+  </div>
+</div>
+
+<!-- Firebase setup banner -->
+<div id="fb-setup-banner">
+  ⚠️ Firebase לא מוגדר — שיתוף מיקום חי לא פעיל
+  <button onclick="SYNC.openSetup()">⚙️ הגדר Firebase</button>
+</div>
 
 <!-- SOS FLASH -->
 <div id="sos-flash"></div>
@@ -3643,12 +3736,47 @@ function boAudit(c){
 }
 function boSettings(c){
   var isNight=document.body.classList.contains('night');
-  c.innerHTML='<div class="bo-section"><div class="bo-hd">הגדרות</div>'
+  var fbCfg=JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
+  var fbConnected=SYNC.connected;
+  var fieldName=localStorage.getItem('tac_field_name')||'';
+  var fieldRole=localStorage.getItem('tac_field_role')||'';
+  c.innerHTML=
+    '<div class="bo-section"><div class="bo-hd">הגדרות תצוגה</div>'
     +'<div class="config-row"><div><div class="config-lbl">מצב לילה</div><div class="config-desc">מפה כהה</div></div>'
-    +'<label class="toggle"><input type="checkbox" '+(isNight?'checked':'')+' onchange="setTheme(this.checked?&quot;night&quot;:&quot;day&quot;)"><span class="toggle-slider"></span></label></div>'
+    +'<label class="toggle"><input type="checkbox" '+(isNight?'checked':'')+' onchange="setTheme(this.checked?\'night\':\'day\')"><span class="toggle-slider"></span></label></div>'
     +'<div class="config-row"><div><div class="config-lbl">שמירה אוטומטית</div></div>'
     +'<label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>'
-    +'</div>';
+    +'</div>'
+    // ── Firebase / Live Tracking ──
+    +'<div class="bo-section"><div class="bo-hd">🔥 Firebase — מעקב מיקום חי</div>'
+    +'<div class="config-row"><div><div class="config-lbl">סטטוס חיבור</div>'
+    +'<div class="config-desc">'+(fbConnected?'<span style="color:#3dff52">● מחובר</span>':'<span style="color:#ffc107">● לא מחובר</span>')+'</div></div>'
+    +'<button class="act-btn" onclick="SYNC.openSetup()">⚙️ הגדר</button></div>'
+    +(fbCfg.projectId?'<div class="config-row"><div><div class="config-lbl">פרויקט</div><div class="config-desc" style="font-family:monospace">'+fbCfg.projectId+'</div></div></div>':'')
+    +'<div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.6">'
+    +'📱 <b>להתקנה בנייד:</b> פתח את הכתובת ב-Safari/Chrome ובחר "הוסף למסך הבית"<br/>'
+    +'🔗 <b>קישור:</b> <span style="color:var(--accent);word-break:break-all">https://ormanyphoto.github.io/tactical-command-center/</span>'
+    +'</div></div>'
+    // ── Field Identity ──
+    +'<div class="bo-section"><div class="bo-hd">👤 זהות שדה</div>'
+    +'<div class="form-g"><label>שם</label><input id="cfg-fname" class="form-inp" value="'+fieldName+'" placeholder="שם מלא"/></div>'
+    +'<div class="form-g"><label>תפקיד</label>'
+    +'<select id="cfg-frole" class="form-inp">'
+    +['לוחם','קצין','נהג','פרמדיק','מפקד צוות','קשר','מפקד'].map(r=>'<option'+(r===fieldRole?' selected':'')+'>'+r+'</option>').join('')
+    +'</select></div>'
+    +'<button class="btn-pri" style="margin-top:6px" onclick="'
+    +'var n=document.getElementById(\'cfg-fname\').value.trim();'
+    +'var r=document.getElementById(\'cfg-frole\').value;'
+    +'if(n){localStorage.setItem(\'tac_field_name\',n);localStorage.setItem(\'tac_field_role\',r);'
+    +'SYNC.startPublishing({name:n,role:r,status:\'active\'});'
+    +'showToast({icon:\'✅\',title:\'זהות עודכנה\',type:\'success\'});}">💾 שמור זהות</button>'
+    +'</div>'
+    // ── Mode switch ──
+    +'<div class="bo-section"><div class="bo-hd">📱 מצב הפעלה</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">'
+    +'<button class="btn-pri" onclick="localStorage.setItem(\'tac_mode\',\'command\');location.reload()">⬡ מצב פיקוד</button>'
+    +'<button class="btn-sec" style="margin:0" onclick="localStorage.setItem(\'tac_mode\',\'field\');location.reload()">📱 מצב שדה</button>'
+    +'</div></div>';
 }
 
 function saveToCloud(){savePersonnelToStorage();try{localStorage.setItem('tac_v5_state',JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));}catch(e){}}
@@ -5231,6 +5359,387 @@ function renderSecurityBadge(){
       if(badge) badge.textContent = SEC.isLocked ? '🔒' : '🔓';
     }, 2000);
   }, 300);
+})();
+
+// ══════════════════════════════════════════════════════════
+// SYNC — Firebase real-time location sharing
+// ══════════════════════════════════════════════════════════
+const SYNC = (() => {
+  let _db = null;
+  let _myUid = localStorage.getItem('tac_uid') || (() => {
+    const uid = 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    localStorage.setItem('tac_uid', uid);
+    return uid;
+  })();
+  let _liveMarkers = {}, _publishTimer = null, _connected = false;
+  let _myProfile = { name:'אנונימי', role:'שדה', status:'active' };
+
+  function _setSyncDot(state){ // 'on','warn','off'
+    const d=document.getElementById('sync-dot');
+    if(d){ d.className=''; if(state==='on')d.classList.add('on'); else if(state==='warn')d.classList.add('warn'); }
+  }
+
+  function init(cfg){
+    if(!cfg||!cfg.apiKey||!cfg.databaseURL){ _showSetupBanner(); return false; }
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(cfg);
+      _db = firebase.database();
+      firebase.auth().signInAnonymously()
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); })
+        .catch(()=>{ _setSyncDot('warn'); _showSetupBanner(); });
+      // connection state
+      _db.ref('.info/connected').on('value', s=>{
+        _connected=s.val(); _setSyncDot(_connected?'on':'warn');
+      });
+      return true;
+    } catch(e){ console.warn('[SYNC]',e); _showSetupBanner(); return false; }
+  }
+
+  function startPublishing(profile){
+    if(profile) _myProfile={..._myProfile,...profile};
+    if(_publishTimer) clearInterval(_publishTimer);
+    _doPublish();
+    _publishTimer = setInterval(_doPublish, 6000);
+  }
+
+  function stopPublishing(){
+    if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
+    if(_db) _db.ref('tac_locs/'+_myUid).remove();
+  }
+
+  function updateStatus(status){
+    _myProfile.status=status;
+    if(_db&&_connected) _db.ref('tac_locs/'+_myUid+'/status').set(status);
+  }
+
+  function _doPublish(){
+    if(!_db||!_connected) return;
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const bat = navigator.getBattery ? null : null; // async, skip for now
+      _db.ref('tac_locs/'+_myUid).set({
+        name:  _myProfile.name,
+        role:  _myProfile.role,
+        status:_myProfile.status,
+        lat:   pos.coords.latitude,
+        lng:   pos.coords.longitude,
+        acc:   Math.round(pos.coords.accuracy),
+        hdg:   Math.round(pos.coords.heading||0),
+        spd:   Math.round((pos.coords.speed||0)*3.6),
+        ts:    Date.now(),
+        uid:   _myUid
+      });
+    }, null, {enableHighAccuracy:true, timeout:8000, maximumAge:4000});
+  }
+
+  function _subscribeLocations(){
+    if(!_db) return;
+    _db.ref('tac_locs').on('value', snap=>{
+      const data = snap.val()||{};
+      const now  = Date.now();
+      // Add/update markers
+      Object.entries(data).forEach(([uid,d])=>{
+        if(uid===_myUid) return;
+        if(now - d.ts > 180000) return; // stale >3min
+        if(window.map && window._googleReady) _updateLiveMarker(uid,d);
+      });
+      // Remove gone markers
+      Object.keys(_liveMarkers).forEach(uid=>{
+        if(!data[uid]||now-data[uid].ts>180000){
+          if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
+          delete _liveMarkers[uid];
+        }
+      });
+    });
+  }
+
+  function _updateLiveMarker(uid,d){
+    const pos   = {lat:d.lat, lng:d.lng};
+    const color = {active:'#3dff52',urgent:'#ff3333',standby:'#ffc107',busy:'#ff7a1a'}[d.status]||'#29c5f6';
+    const age   = Math.round((Date.now()-d.ts)/1000);
+    const label = (d.name||'?').replace(/\s.*/,'').slice(0,3);
+    if(!_liveMarkers[uid]){
+      _liveMarkers[uid] = new google.maps.Marker({
+        position:pos, map:window.map, zIndex:600,
+        icon:{path:google.maps.SymbolPath.CIRCLE,scale:13,fillColor:color,fillOpacity:0.92,strokeColor:'#fff',strokeWeight:2.5},
+        label:{text:label,color:'#fff',fontSize:'9px',fontWeight:'bold'}
+      });
+      _liveMarkers[uid].addListener('click',()=>{
+        closeAllInfoWindows();
+        const iw=new google.maps.InfoWindow({content:
+          '<div style="font-family:Heebo,sans-serif;direction:rtl;padding:8px;min-width:180px">'
+          +'<div style="font-size:15px;font-weight:800;color:'+color+'">'+d.name+'</div>'
+          +'<div style="font-size:11px;color:#666;margin:3px 0">'+d.role+' · '+d.status+'</div>'
+          +'<div style="font-size:11px;color:#888">📡 דיוק: '+d.acc+'מ | ⚡ '+d.spd+' קמ"ש</div>'
+          +'<div style="font-size:10px;color:#aaa;margin-top:4px">עדכון לפני '+age+'ש\'</div>'
+          +'</div>'
+        });
+        iw.open(window.map,_liveMarkers[uid]);
+        window._infoWindows.push(iw);
+      });
+    } else {
+      _liveMarkers[uid].setPosition(pos);
+      _liveMarkers[uid].setIcon({path:google.maps.SymbolPath.CIRCLE,scale:13,fillColor:color,fillOpacity:0.92,strokeColor:'#fff',strokeWeight:2.5});
+    }
+  }
+
+  function _showSetupBanner(){
+    const b=document.getElementById('fb-setup-banner'); if(b) b.style.display='block';
+  }
+  function _hideBanner(){
+    const b=document.getElementById('fb-setup-banner'); if(b) b.style.display='none';
+  }
+
+  function openSetup(){
+    const stored = JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
+    document.getElementById('modal-ttl').innerHTML='🔥 הגדרת Firebase';
+    document.getElementById('modal-body').innerHTML=`
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+        צור פרויקט חינמי ב-<a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">console.firebase.google.com</a>
+        → הפעל Realtime Database → העתק את ה-Config:
+      </p>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${['apiKey','authDomain','databaseURL','projectId'].map(k=>`
+          <div class="form-g" style="margin:0">
+            <label style="font-size:10px">${k}</label>
+            <input id="fb-${k}" class="form-inp" value="${stored[k]||''}" placeholder="${k}" style="font-size:11px"/>
+          </div>`).join('')}
+      </div>`;
+    document.getElementById('modal-ok').textContent='💾 שמור והתחבר';
+    modalCB = ()=>{
+      const cfg={};
+      ['apiKey','authDomain','databaseURL','projectId'].forEach(k=>{
+        cfg[k]=(document.getElementById('fb-'+k)?.value||'').trim();
+      });
+      // Auto-fill derived fields
+      if(cfg.projectId && !cfg.authDomain) cfg.authDomain=cfg.projectId+'.firebaseapp.com';
+      if(cfg.projectId && !cfg.databaseURL) cfg.databaseURL='https://'+cfg.projectId+'-default-rtdb.firebaseio.com';
+      cfg.storageBucket=(cfg.projectId||'')+'.appspot.com';
+      cfg.messagingSenderId='';cfg.appId='';
+      localStorage.setItem('tac_fb_cfg', JSON.stringify(cfg));
+      init(cfg);
+      showToast({icon:'🔥',title:'Firebase מחובר',type:'success'});
+    };
+    document.getElementById('modal-wrap').style.display='flex';
+  }
+
+  // Load saved config on boot
+  function boot(){
+    const cfg = JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
+    if(cfg.apiKey) init(cfg);
+    else _showSetupBanner();
+  }
+
+  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, get connected(){ return _connected; }, myUid:_myUid };
+})();
+
+// ══════════════════════════════════════════════════════════
+// FIELD — Mobile field mode for team members
+// ══════════════════════════════════════════════════════════
+const FIELD = (() => {
+  let _fmap = null, _fMarker = null, _watchId = null, _status = 'active';
+  let _sharing = false, _myMission = null;
+
+  function _isMobile(){
+    return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 600;
+  }
+
+  function boot(){
+    // Register service worker
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+    // Auto-enter field mode on mobile if not commander
+    const mode = localStorage.getItem('tac_mode');
+    if(_isMobile() && mode !== 'command'){
+      setTimeout(()=>enterFieldMode(), 400);
+    }
+  }
+
+  function enterFieldMode(){
+    const fm = document.getElementById('field-mode');
+    if(!fm) return;
+    fm.classList.add('active');
+    // Ask for name if not set
+    const name = localStorage.getItem('tac_field_name');
+    if(!name){ _askIdentity(); } else { _setName(name); }
+    _initMap();
+    _syncMyMission();
+  }
+
+  function _askIdentity(){
+    document.getElementById('modal-ttl').innerHTML='👤 זיהוי שדה';
+    document.getElementById('modal-body').innerHTML=`
+      <div class="form-g"><label>שם מלא</label><input id="fi-name" class="form-inp" placeholder="שם ומשפחה"/></div>
+      <div class="form-g"><label>תפקיד</label>
+        <select id="fi-role" class="form-inp">
+          <option>לוחם</option><option>קצין</option><option>נהג</option>
+          <option>פרמדיק</option><option>מפקד צוות</option><option>קשר</option>
+        </select>
+      </div>`;
+    document.getElementById('modal-ok').textContent='✅ כניסה';
+    document.getElementById('modal-cancel').style.display='none';
+    modalCB=()=>{
+      const n=(document.getElementById('fi-name')?.value||'').trim()||'שדה';
+      const r=document.getElementById('fi-role')?.value||'לוחם';
+      localStorage.setItem('tac_field_name',n);
+      localStorage.setItem('tac_field_role',r);
+      _setName(n);
+      SYNC.startPublishing({name:n,role:r,status:_status});
+      document.getElementById('modal-cancel').style.display='';
+    };
+    document.getElementById('modal-wrap').style.display='flex';
+  }
+
+  function _setName(name){
+    const el=document.getElementById('fm-display-name'); if(el) el.textContent=name;
+    const role=localStorage.getItem('tac_field_role')||'שדה';
+    SYNC.startPublishing({name,role,status:_status});
+  }
+
+  function _initMap(){
+    if(_fmap || !window._googleReady) return;
+    _fmap = new google.maps.Map(document.getElementById('fm-gmap'),{
+      zoom:16, center:{lat:32.0667,lng:34.7818},
+      mapTypeId:'roadmap', disableDefaultUI:true,
+      gestureHandling:'greedy', clickableIcons:false,
+      styles: window._nightStyle||[]
+    });
+  }
+
+  function toggleGPS(){
+    if(_sharing){ _stopSharing(); } else { _startSharing(); }
+  }
+
+  function _startSharing(){
+    if(!navigator.geolocation){ showToast({icon:'⚠️',title:'GPS לא זמין',type:'warn'}); return; }
+    _sharing=true;
+    const btn=document.getElementById('fm-gps-toggle');
+    const lbl=document.getElementById('fm-gps-label');
+    if(btn) btn.classList.add('on');
+    if(lbl) lbl.textContent='משתף מיקום...';
+    document.getElementById('fm-accuracy-pill').classList.add('visible');
+    _watchId = navigator.geolocation.watchPosition(pos=>{
+      const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
+      // Update field map
+      if(_fmap){
+        _fmap.setCenter(ll);
+        if(!_fMarker){
+          _fMarker=new google.maps.Marker({position:ll,map:_fmap,
+            icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:'#3dff52',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
+            zIndex:500});
+        } else { _fMarker.setPosition(ll); }
+      }
+      // Update pill
+      const acc=Math.round(pos.coords.accuracy);
+      const spd=Math.round((pos.coords.speed||0)*3.6);
+      const el=id=>document.getElementById(id);
+      if(el('fm-acc')) el('fm-acc').textContent=acc+'מ';
+      if(el('fm-spd')) el('fm-spd').textContent=spd;
+      // Battery
+      if(navigator.getBattery) navigator.getBattery().then(b=>{
+        if(el('fm-bat')) el('fm-bat').textContent=Math.round(b.level*100)+'%';
+      });
+      // Push to Firebase
+      SYNC.startPublishing({
+        name:localStorage.getItem('tac_field_name')||'שדה',
+        role:localStorage.getItem('tac_field_role')||'שדה',
+        status:_status
+      });
+    },err=>{ showToast({icon:'⚠️',title:'GPS שגיאה: '+err.message,type:'warn'}); },
+    {enableHighAccuracy:true, timeout:15000, maximumAge:3000});
+  }
+
+  function _stopSharing(){
+    _sharing=false;
+    if(_watchId!==null){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+    SYNC.stopPublishing();
+    const btn=document.getElementById('fm-gps-toggle');
+    const lbl=document.getElementById('fm-gps-label');
+    if(btn) btn.classList.remove('on');
+    if(lbl) lbl.textContent='שתף מיקום';
+    document.getElementById('fm-accuracy-pill').classList.remove('visible');
+  }
+
+  function setStatus(s, btn){
+    _status=s;
+    document.querySelectorAll('.fm-status-btn').forEach(b=>b.classList.remove('sel'));
+    if(btn) btn.classList.add('sel');
+    SYNC.updateStatus(s);
+    showToast({icon:'✅',title:'סטטוס עודכן: '+s,type:'info',duration:2000});
+  }
+
+  function navigate(){
+    if(!_fMarker){ showToast({icon:'⚠️',title:'הפעל GPS תחילה',type:'warn'}); return; }
+    const pos=_fMarker.getPosition();
+    // Find nearest active mission
+    const msn=MISSIONS.filter(m=>m.status==='active'&&m.lat)[0];
+    if(msn){
+      const url='https://www.google.com/maps/dir/?api=1&origin='+pos.lat()+','+pos.lng()+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving';
+      window.open(url,'_blank');
+    } else {
+      // Just open current location in maps
+      window.open('https://maps.google.com/?q='+pos.lat()+','+pos.lng(),'_blank');
+    }
+  }
+
+  function sos(){
+    SYNC.updateStatus('urgent');
+    triggerSOS();
+    if(_fMarker && _db){
+      const pos=_fMarker.getPosition();
+      showToast({icon:'🆘',title:'SOS נשלח!',sub:'מיקומך שודר לפיקוד',type:'warn',duration:8000});
+    }
+  }
+
+  function switchToCommand(){
+    localStorage.setItem('tac_mode','command');
+    document.getElementById('field-mode').classList.remove('active');
+    showToast({icon:'⬡',title:'מצב פיקוד פעיל',type:'info'});
+  }
+
+  function _syncMyMission(){
+    // Show first active mission assigned to this user
+    const uid=localStorage.getItem('tac_uid');
+    const msn=MISSIONS.find(m=>m.status==='active');
+    const bar=document.getElementById('fm-mission-bar');
+    const title=document.getElementById('fm-mission-title');
+    const sub=document.getElementById('fm-mission-sub');
+    if(msn&&bar&&title){
+      bar.classList.add('has-mission');
+      title.textContent='📋 '+msn.title;
+      if(sub) sub.textContent=(msn.location||'')+(msn.priority?' · '+msn.priority:'');
+    }
+  }
+
+  return { boot, enterFieldMode, toggleGPS, setStatus, navigate, sos, switchToCommand };
+})();
+
+// ══════════════════════════════════════════════════════════
+// BOOT — PWA + Firebase + Field mode init
+// ══════════════════════════════════════════════════════════
+(function tacBoot(){
+  // Register service worker
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  // Firebase sync
+  SYNC.boot();
+  // Field mode (auto on mobile)
+  FIELD.boot();
+  // Add sync toggle to topbar GPS tracking
+  const _origToggleGPS = window.toggleGPS;
+  window.toggleGPS = function(){
+    _origToggleGPS && _origToggleGPS();
+    const name=localStorage.getItem('tac_field_name')||'פיקוד';
+    const role=localStorage.getItem('tac_field_role')||'מפקד';
+    if(window.gpsWatchId !== null){
+      // GPS just turned ON — start publishing
+      SYNC.startPublishing({name, role, status:'active'});
+    } else {
+      // GPS just turned OFF — stop publishing
+      SYNC.stopPublishing();
+    }
+  };
 })();
 
 </script>
