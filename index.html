@@ -1672,35 +1672,113 @@ function startAutoTrack(){
   },3500);
 }
 
+// ── LOCATION CASCADE: GPS → WiFi/Network → IP ──
+let _locWatchInterval = null;
+
+function _methodIcon(m){ return {GPS:'🛰️',WiFi:'📶',IP:'🌐'}[m]||'📍'; }
+function _methodHe(m){   return {GPS:'GPS',WiFi:'WiFi/רשת',IP:'כתובת IP'}[m]||m; }
+
+function _applyPos(pos, method){
+  const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
+  const acc=Math.round(pos.coords.accuracy);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('gw-lat', ll.lat.toFixed(5)+'°');
+  set('gw-lng', ll.lng.toFixed(5)+'°');
+  set('gw-acc', acc+'מ ('+_methodHe(method)+')');
+  const icon={path:google.maps.SymbolPath.CIRCLE,scale:9,
+    fillColor:method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107',
+    fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2};
+  if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon,title:'מיקומי',zIndex:500});}
+  else{gpsMarker.setPosition(ll);gpsMarker.setIcon(icon);}
+}
+
+function _ipLocate(onSuccess, onFail){
+  fetch('https://ipwho.is/')
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.success&&d.latitude){
+        onSuccess({coords:{latitude:d.latitude,longitude:d.longitude,accuracy:5000,speed:0,heading:0}}, 'IP');
+      } else { onFail&&onFail(); }
+    }).catch(()=>{ onFail&&onFail(); });
+}
+
+function _wifiLocate(onSuccess, onFail){
+  if(!navigator.geolocation){ _ipLocate(onSuccess,onFail); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos=>onSuccess(pos,'WiFi'),
+    ()=>_ipLocate(onSuccess,onFail),
+    {enableHighAccuracy:false, timeout:8000, maximumAge:15000}
+  );
+}
+
+// GPS → WiFi → IP cascade (one-shot)
+function _locateOnce(onSuccess, onFail){
+  if(!navigator.geolocation){ _ipLocate(onSuccess,onFail); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos=>onSuccess(pos,'GPS'),
+    ()=>_wifiLocate(onSuccess, onFail),
+    {enableHighAccuracy:true, timeout:10000, maximumAge:3000}
+  );
+}
+
+// GPS → WiFi → IP cascade (continuous watch)
+function _startWatch(onUpdate){
+  if(_locWatchInterval){ clearInterval(_locWatchInterval); _locWatchInterval=null; }
+  if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
+
+  if(navigator.geolocation){
+    gpsWatchId=navigator.geolocation.watchPosition(
+      pos=>onUpdate(pos,'GPS'),
+      ()=>{
+        // GPS denied/unavailable — fall back to polling WiFi/IP every 15s
+        _wifiLocate(onUpdate, ()=>_ipLocate(onUpdate,null));
+        _locWatchInterval=setInterval(()=>{
+          _wifiLocate(onUpdate, ()=>_ipLocate(onUpdate,null));
+        }, 15000);
+      },
+      {enableHighAccuracy:true, timeout:12000, maximumAge:3000}
+    );
+  } else {
+    // No geolocation API at all — poll IP every 30s
+    _ipLocate(onUpdate, null);
+    _locWatchInterval=setInterval(()=>_ipLocate(onUpdate,null), 30000);
+  }
+}
+
+function _stopWatch(){
+  if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
+  if(_locWatchInterval){ clearInterval(_locWatchInterval); _locWatchInterval=null; }
+}
+
 // ── GPS TRACKING ──
 function toggleGPS(){
-  if(gpsWatchId!==null){
-    navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;
+  if(gpsWatchId!==null||_locWatchInterval){
+    _stopWatch();
     const w=document.getElementById('gps-widget');if(w)w.classList.remove('on');
     document.getElementById('gps-btn').style.color='';
-    showToast({icon:'📡',title:'GPS כובה',type:'info'});return;
+    showToast({icon:'📡',title:'מעקב מיקום כובה',type:'info'});
+    return;
   }
-  if(!navigator.geolocation){showToast({icon:'⚠️',title:'GPS לא זמין',type:'warn'});return;}
   document.getElementById('gps-widget').classList.add('on');
   document.getElementById('gps-btn').style.color='var(--accent)';
-  showToast({icon:'🛰️',title:'GPS הופעל',type:'success'});
-  gpsWatchId=navigator.geolocation.watchPosition(pos=>{
-    const ll={lat:pos.coords.latitude,lng:pos.coords.longitude};
-    const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
-    set('gw-lat',ll.lat.toFixed(5)+'°');set('gw-lng',ll.lng.toFixed(5)+'°');set('gw-acc',Math.round(pos.coords.accuracy)+'מ');
-    if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:9,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2},title:'מיקומי',zIndex:500});}
-    else gpsMarker.setPosition(ll);
-  },err=>_gpsErr(err,'toggleGPS'),{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
+  showToast({icon:'🛰️',title:'מחפש מיקום...',sub:'GPS → WiFi → IP',type:'info',duration:3000});
+  _startWatch((pos,method)=>{
+    _applyPos(pos,method);
+    showToast({icon:_methodIcon(method),title:'מיקום: '+_methodHe(method),
+      sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success',duration:3000});
+  });
 }
+
 function locateMe(){
-  if(!navigator.geolocation){showToast({icon:'⚠️',title:'GPS לא זמין',type:'warn'});return;}
-  navigator.geolocation.getCurrentPosition(pos=>{
+  showToast({icon:'🔍',title:'מאתר מיקום...',type:'info',duration:2000});
+  _locateOnce((pos,method)=>{
     const ll={lat:pos.coords.latitude,lng:pos.coords.longitude};
-    map.setCenter(ll);map.setZoom(18);
-    if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:9,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2},zIndex:500});}
-    else gpsMarker.setPosition(ll);
-    showToast({icon:'📍',title:'מיקום נמצא',sub:`דיוק: ${Math.round(pos.coords.accuracy)}מ`,type:'success'});
-  },err=>_gpsErr(err,'locateMe'));
+    map.setCenter(ll);
+    map.setZoom(method==='IP'?12:method==='WiFi'?16:18);
+    _applyPos(pos,method);
+    showToast({icon:_methodIcon(method),title:'מיקום נמצא — '+_methodHe(method),
+      sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success'});
+  }, ()=>showToast({icon:'⚠️',title:'לא ניתן לאתר מיקום',type:'warn'}));
 }
 
 // ── DRAWING TOOLS ──
@@ -5659,47 +5737,51 @@ const FIELD = (() => {
   }
 
   function _startSharing(){
-    if(!navigator.geolocation){ showToast({icon:'⚠️',title:'GPS לא זמין',type:'warn'}); return; }
     _sharing=true;
     const btn=document.getElementById('fm-gps-toggle');
     const lbl=document.getElementById('fm-gps-label');
     if(btn) btn.classList.add('on');
-    if(lbl) lbl.textContent='משתף מיקום...';
+    if(lbl) lbl.textContent='מחפש מיקום...';
     document.getElementById('fm-accuracy-pill').classList.add('visible');
-    _watchId = navigator.geolocation.watchPosition(pos=>{
+
+    function _onPos(pos, method){
       const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
-      // Update field map
-      if(_fmap){
-        _fmap.setCenter(ll);
-        if(!_fMarker){
-          _fMarker=new google.maps.Marker({position:ll,map:_fmap,
-            icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:'#3dff52',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
-            zIndex:500});
-        } else { _fMarker.setPosition(ll); }
-      }
-      // Update pill
       const acc=Math.round(pos.coords.accuracy);
       const spd=Math.round((pos.coords.speed||0)*3.6);
       const el=id=>document.getElementById(id);
+      // Update label to show method
+      const icons={GPS:'📡 GPS',WiFi:'📶 WiFi',IP:'🌐 IP'};
+      if(lbl) lbl.textContent='משתף — '+(icons[method]||method)+' ('+acc+'מ)';
       if(el('fm-acc')) el('fm-acc').textContent=acc+'מ';
       if(el('fm-spd')) el('fm-spd').textContent=spd;
-      // Battery
       if(navigator.getBattery) navigator.getBattery().then(b=>{
         if(el('fm-bat')) el('fm-bat').textContent=Math.round(b.level*100)+'%';
       });
+      // Update field map marker
+      const color=method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107';
+      if(_fmap){
+        _fmap.setCenter(ll);
+        const icon={path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2};
+        if(!_fMarker){_fMarker=new google.maps.Marker({position:ll,map:_fmap,icon,zIndex:500});}
+        else{_fMarker.setPosition(ll);_fMarker.setIcon(icon);}
+      }
       // Push to Firebase
       SYNC.startPublishing({
         name:localStorage.getItem('tac_field_name')||'שדה',
         role:localStorage.getItem('tac_field_role')||'שדה',
-        status:_status
+        status:_status, method
       });
-    },err=>{ _gpsErr(err,'field'); },
-    {enableHighAccuracy:true, timeout:15000, maximumAge:3000});
+    }
+    // Use global cascade: GPS → WiFi → IP
+    _startWatch(_onPos);
+    // Keep _watchId reference for legacy stop check
+    _watchId = gpsWatchId || 1;
   }
 
   function _stopSharing(){
     _sharing=false;
-    if(_watchId!==null){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+    _stopWatch();
+    _watchId=null;
     SYNC.stopPublishing();
     const btn=document.getElementById('fm-gps-toggle');
     const lbl=document.getElementById('fm-gps-label');
