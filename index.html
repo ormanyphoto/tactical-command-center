@@ -820,32 +820,62 @@ function setMapType(t){
   const btn=document.getElementById('mtype-'+t);if(btn)btn.classList.add('active');
 }
 
-// ── HIDE / SHOW GOOGLE MAPS BASE LAYER ──
-let _baseMapVisible=true;
-let _lastMapTypeId='roadmap';
-function toggleBaseMap(){
-  if(!map)return;
-  if(_baseMapVisible){
-    _lastMapTypeId=map.getMapTypeId();
-    // Switch to a blank transparent type
-    if(!map.mapTypes.get('blank')){
-      map.mapTypes.set('blank',{
-        getTile:()=>{const d=document.createElement('div');d.style.cssText='width:256px;height:256px;background:#1a1a2e';return d;},
-        tileSize:new google.maps.Size(256,256),
-        maxZoom:21,minZoom:0,name:'ריק',alt:'ריק'
-      });
-    }
-    map.setMapTypeId('blank');
-    _baseMapVisible=false;
-    const btn=document.getElementById('rp-basemap-toggle');
-    if(btn){btn.classList.add('mp-active');btn.querySelector('.mp-btn-label').textContent='הצג מפה';}
-    showToast({icon:'🙈',title:'מפת בסיס',sub:'Google Maps מוסתר',type:'info',duration:2000});
+// ── BASE MAP SWITCHER: Google Maps ↔ GovMap ──
+let _activeBaseProvider='google'; // 'google' | 'govmap'
+let _lastGoogleMapTypeId='roadmap';
+
+function _registerCustomMapTypes(){
+  // Dark blank canvas (used under GovMap basemap)
+  if(!map.mapTypes.get('blank')){
+    map.mapTypes.set('blank',{
+      getTile:()=>{const d=document.createElement('div');d.style.cssText='width:256px;height:256px;background:#1b1f2e';return d;},
+      tileSize:new google.maps.Size(256,256),maxZoom:21,minZoom:0,name:'ריק',alt:'ריק'
+    });
+  }
+  // GovMap Hebrew basemap tiles (requires browser session with govmap.gov.il)
+  if(!map.mapTypes.get('govmap_base')){
+    map.mapTypes.set('govmap_base', new google.maps.ImageMapType({
+      name:'GovMap',alt:'GovMap — מפה ממשלתית',
+      minZoom:7,maxZoom:20,
+      tileSize:new google.maps.Size(256,256),
+      getTileUrl:function(coord,zoom){
+        // GovMap XYZ tile server — loads if user has active govmap.gov.il browser session
+        return 'https://basemaps.govmap.gov.il/tiles/backgroundMaps/streets_and_buildings_6_2025/'
+          +zoom+'/'+coord.x+'/'+coord.y+'.png';
+      }
+    }));
+  }
+}
+
+function switchBaseMap(provider){
+  if(!map||!window._googleReady)return;
+  _registerCustomMapTypes();
+
+  if(provider==='govmap'){
+    if(_activeBaseProvider!=='govmap') _lastGoogleMapTypeId=map.getMapTypeId();
+    map.setMapTypeId('govmap_base');
+    _activeBaseProvider='govmap';
+    // Update buttons
+    const gb=document.getElementById('rp-base-google');
+    const vm=document.getElementById('rp-base-govmap');
+    if(gb)gb.classList.remove('mp-active');
+    if(vm)vm.classList.add('mp-active');
+    // Disable Google map-type sub-buttons visually
+    ['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'].forEach(id=>{
+      const b=document.getElementById(id);if(b)b.disabled=true;b&&(b.style.opacity='0.35');
+    });
+    showToast({icon:'🇮🇱',title:'GovMap',sub:'מפת ממשלה ישראלית פעילה',type:'success',duration:3000});
   } else {
-    map.setMapTypeId(_lastMapTypeId);
-    _baseMapVisible=true;
-    const btn=document.getElementById('rp-basemap-toggle');
-    if(btn){btn.classList.remove('mp-active');btn.querySelector('.mp-btn-label').textContent='הסתר מפה';}
-    showToast({icon:'🗺️',title:'מפת בסיס',sub:'Google Maps גלוי',type:'success',duration:2000});
+    map.setMapTypeId(_lastGoogleMapTypeId||'roadmap');
+    _activeBaseProvider='google';
+    const gb=document.getElementById('rp-base-google');
+    const vm=document.getElementById('rp-base-govmap');
+    if(gb)gb.classList.add('mp-active');
+    if(vm)vm.classList.remove('mp-active');
+    ['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'].forEach(id=>{
+      const b=document.getElementById(id);if(b){b.disabled=false;b.style.opacity='';}
+    });
+    showToast({icon:'🗺️',title:'Google Maps',sub:'מפת גוגל פעילה',type:'success',duration:2500});
   }
 }
 
@@ -1680,13 +1710,21 @@ function renderDrawP(c){
   </div>
 
   <!-- ── תצוגת מפה ── -->
-  <div class="sec-hd">🗺️ סוג מפה</div>
+  <div class="sec-hd">🗺️ מפת בסיס</div>
+  <div class="mp-grid" style="margin-bottom:6px">
+    <button class="mp-btn mp-active" id="rp-base-google" onclick="switchBaseMap('google')" style="grid-column:1;padding:10px 4px">
+      <span style="font-size:18px">🌐</span><span class="mp-btn-label">Google Maps</span>
+    </button>
+    <button class="mp-btn" id="rp-base-govmap" onclick="switchBaseMap('govmap')" style="grid-column:2;padding:10px 4px">
+      <span style="font-size:18px">🇮🇱</span><span class="mp-btn-label">GovMap</span>
+    </button>
+  </div>
+  <div class="sec-hd" style="margin-top:2px">🎨 סוג מפה</div>
   <div class="mp-grid">
     <button class="mp-btn mp-active" id="rp-mtype-road" onclick="setMapType('roadmap');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
     <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰</span><span class="mp-btn-label">לוויין</span></button>
     <button class="mp-btn" id="rp-mtype-hyb" onclick="setMapType('hybrid');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🔀</span><span class="mp-btn-label">היברידי</span></button>
     <button class="mp-btn" id="rp-mtype-ter" onclick="setMapType('terrain');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>⛰️</span><span class="mp-btn-label">טופוגרפי</span></button>
-    <button class="mp-btn" id="rp-basemap-toggle" onclick="toggleBaseMap()" style="grid-column:1/-1"><span>🙈</span><span class="mp-btn-label">הסתר מפה</span></button>
   </div>
 
   <!-- ── ניווט ── -->
