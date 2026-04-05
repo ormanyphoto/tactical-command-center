@@ -700,6 +700,11 @@ function onGoogleMapsReady(){
   window._googleReady=true;
   // Shared Geocoder instance — used everywhere instead of raw REST fetch
   window._geocoder=new google.maps.Geocoder();
+  // Israel bounding box — biases all geocoding calls toward Israel
+  _ISRAEL_BOUNDS=new google.maps.LatLngBounds(
+    new google.maps.LatLng(29.2,34.1),  // SW
+    new google.maps.LatLng(33.4,35.9)   // NE
+  );
 
   // Attach Places Autocomplete to the main search box
   const searchEl=document.getElementById('search-input');
@@ -842,9 +847,25 @@ function closeAllInfoWindows(){_infoWindows.forEach(w=>w.close());}
 
 // ── REVERSE GEOCODE (show building info) ──
 // ── GEOCODER HELPER — wraps google.maps.Geocoder in a Promise ──
+// Geocoder Promise wrapper — strips invalid fields, biases toward Israel
+// _ISRAEL_BOUNDS is initialized in onGoogleMapsReady after Maps SDK loads
+let _ISRAEL_BOUNDS=null;
 function _geocodeAddr(request){
+  const req=Object.assign({},request);
+  delete req.language;                          // not a valid GeocoderRequest field
+  delete req.region;                            // replaced by componentRestrictions
+  if(req.address){                              // forward geocoding → restrict to IL
+    if(!req.componentRestrictions) req.componentRestrictions={country:'il'};
+    if(!req.bounds&&_ISRAEL_BOUNDS) req.bounds=_ISRAEL_BOUNDS;
+    // Remove any "ישראל" suffix — redundant with componentRestrictions
+    req.address=req.address.replace(/[,\s]*ישראל\s*$/,'').trim();
+    if(!req.address)return Promise.reject(new Error('empty address'));
+  }
+  if(req.location&&_ISRAEL_BOUNDS&&!req.bounds){// reverse geocoding → bounds hint
+    req.bounds=_ISRAEL_BOUNDS;
+  }
   return new Promise((resolve,reject)=>{
-    (window._geocoder||new google.maps.Geocoder()).geocode(request,(results,status)=>{
+    (window._geocoder||new google.maps.Geocoder()).geocode(req,(results,status)=>{
       if(status===google.maps.GeocoderStatus.OK&&results&&results.length) resolve(results);
       else reject(new Error('Geocoder: '+status));
     });
@@ -852,11 +873,7 @@ function _geocodeAddr(request){
 }
 
 function reverseGeocode(latLng){
-  _geocodeAddr({
-    location:latLng,
-    language:'he',
-    region:'il',
-  }).then(results=>{
+  _geocodeAddr({location:latLng}).then(results=>{
     const p=results[0];
     const hn=(p.address_components||[]).find(a=>a.types.includes('street_number'))?.long_name||'';
     const st=(p.address_components||[]).find(a=>a.types.includes('route'))?.long_name||'';
@@ -936,8 +953,24 @@ function showCtxMenu(latLng, pixel){
   _infoWindows.push(iw);
 }
 
-// ── SEARCH — uses google.maps.Geocoder SDK ──
+// ── SEARCH — Google Geocoder SDK with Nominatim fallback for Israeli addresses ──
 let _searchTO=null;
+function _renderSearchResults(sr,results){
+  sr.innerHTML='';
+  results.forEach(item=>{
+    const d=document.createElement('div');d.className='sr-item';
+    d.innerHTML=`<span style="font-weight:700">${item.primary}</span>`
+      +(item.secondary?`<span style="font-size:10px;color:var(--text3);margin-right:6px">${item.secondary}</span>`:'');
+    d.onclick=()=>{
+      map.setCenter(item.pos);map.setZoom(19);sr.style.display='none';
+      document.getElementById('search-input').value=item.label;
+      reverseGeocode(new google.maps.LatLng(item.pos.lat,item.pos.lng));
+    };
+    sr.appendChild(d);
+  });
+  if(!sr.children.length)sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';
+  sr.style.display='block';
+}
 function doSearch(q){
   clearTimeout(_searchTO);
   const sr=document.getElementById('search-results');
@@ -946,29 +979,39 @@ function doSearch(q){
     if(!window._googleReady){sr.style.display='none';return;}
     sr.innerHTML='<div class="sr-item" style="color:var(--text3)">מחפש...</div>';
     sr.style.display='block';
-    _geocodeAddr({address:q+' ישראל',region:'il',language:'he'})
+    // Primary: Google Geocoder with Israel componentRestrictions + bounds
+    _geocodeAddr({address:q})
       .then(results=>{
-        sr.innerHTML='';
-        results.slice(0,6).forEach(p=>{
-          const d=document.createElement('div');d.className='sr-item';
+        const items=results.slice(0,6).map(p=>{
           const hn=(p.address_components||[]).find(a=>a.types.includes('street_number'))?.long_name||'';
           const st=(p.address_components||[]).find(a=>a.types.includes('route'))?.long_name||'';
           const city=(p.address_components||[]).find(a=>a.types.includes('locality'))?.long_name||'';
           const sub=(p.address_components||[]).find(a=>a.types.includes('sublocality'))?.long_name||'';
-          d.innerHTML=`<span style="font-weight:700">${(hn?hn+' ':'')+st||p.formatted_address.split(',')[0]}</span>`
-            +`<span style="font-size:10px;color:var(--text3);margin-right:6px">${city||sub}</span>`;
-          const pos={lat:p.geometry.location.lat(),lng:p.geometry.location.lng()};
-          d.onclick=()=>{
-            map.setCenter(pos);map.setZoom(19);sr.style.display='none';
-            document.getElementById('search-input').value=(hn?hn+' ':'')+st+(city?', '+city:'') || p.formatted_address;
-            reverseGeocode(new google.maps.LatLng(pos.lat,pos.lng));
-          };
-          sr.appendChild(d);
+          const primary=(hn?hn+' ':'')+st||p.formatted_address.split(',')[0];
+          return {primary,secondary:city||sub,label:primary+(city?', '+city:''),
+            pos:{lat:p.geometry.location.lat(),lng:p.geometry.location.lng()}};
         });
-        if(!sr.children.length)sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';
-        sr.style.display='block';
+        if(items.length){_renderSearchResults(sr,items);}
+        else throw new Error('no results');
       })
-      .catch(()=>{sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';sr.style.display='block';});
+      .catch(()=>{
+        // Fallback: Nominatim (OSM) — excellent Israeli Hebrew address support
+        fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)
+          +'&countrycodes=il&format=json&limit=6&accept-language=he&addressdetails=1',
+          {headers:{'Accept-Language':'he'}})
+          .then(r=>r.json())
+          .then(data=>{
+            if(!data||!data.length)throw new Error('no results');
+            const items=data.map(p=>({
+              primary:(p.address?.road||p.address?.suburb||p.display_name.split(',')[0]),
+              secondary:(p.address?.city||p.address?.town||p.address?.village||''),
+              label:p.display_name.split(',').slice(0,2).join(', '),
+              pos:{lat:+p.lat,lng:+p.lon}
+            }));
+            _renderSearchResults(sr,items);
+          })
+          .catch(()=>{sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';sr.style.display='block';});
+      });
   },350);
 }
 document.addEventListener('click',e=>{if(!e.target.closest('#search-wrap'))document.getElementById('search-results').style.display='none'});
@@ -3480,7 +3523,7 @@ function movePersonByAddress(id){
   modalCB=function(){
     const addr=document.getElementById('move-addr').value.trim();
     if(!addr)return;
-    _geocodeAddr({address:addr+' ישראל',region:'il',language:'he'})
+    _geocodeAddr({address:addr})
       .then(results=>{
         const pos=results[0].geometry.location;
         _updatePersonLocation(id,pos.lat(),pos.lng());
@@ -4018,7 +4061,7 @@ function placePersAddrGo(pid){
   const addr=inp.value.trim();
   inp.disabled=true;
   showToast({icon:'🔍',title:'מחפש כתובת...',type:'info',duration:3000});
-  _geocodeAddr({address:addr+' ישראל',region:'il',language:'he'})
+  _geocodeAddr({address:addr})
     .then(results=>{
       const pos=results[0].geometry.location;
       closeModal();
