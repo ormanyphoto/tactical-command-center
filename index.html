@@ -5522,11 +5522,23 @@ const SYNC = (() => {
     document.getElementById('modal-wrap').style.display='flex';
   }
 
-  // Load saved config on boot
+  // Built-in Firebase config — auto-connects on load
+  const _DEFAULT_CFG = {
+    apiKey:            "AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E",
+    authDomain:        "tactical-command-center.firebaseapp.com",
+    databaseURL:       "https://tactical-command-center-default-rtdb.firebaseio.com",
+    projectId:         "tactical-command-center",
+    storageBucket:     "tactical-command-center.firebasestorage.app",
+    messagingSenderId: "31609493041",
+    appId:             "1:31609493041:web:abc7f59d9e8363a02f2710",
+    measurementId:     "G-2FBH7TS7SZ"
+  };
+
   function boot(){
-    const cfg = JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
-    if(cfg.apiKey) init(cfg);
-    else _showSetupBanner();
+    // Use saved config override if present, otherwise use built-in
+    const saved = JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
+    const cfg = saved.apiKey ? saved : _DEFAULT_CFG;
+    init(cfg);
   }
 
   return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, get connected(){ return _connected; }, myUid:_myUid };
