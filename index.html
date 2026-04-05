@@ -1690,7 +1690,7 @@ function toggleGPS(){
     set('gw-lat',ll.lat.toFixed(5)+'°');set('gw-lng',ll.lng.toFixed(5)+'°');set('gw-acc',Math.round(pos.coords.accuracy)+'מ');
     if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:9,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2},title:'מיקומי',zIndex:500});}
     else gpsMarker.setPosition(ll);
-  },err=>showToast({icon:'⚠️',title:'GPS: '+err.message,type:'warn'}),{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
+  },err=>_gpsErr(err,'toggleGPS'),{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
 }
 function locateMe(){
   if(!navigator.geolocation){showToast({icon:'⚠️',title:'GPS לא זמין',type:'warn'});return;}
@@ -1700,7 +1700,7 @@ function locateMe(){
     if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:9,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2},zIndex:500});}
     else gpsMarker.setPosition(ll);
     showToast({icon:'📍',title:'מיקום נמצא',sub:`דיוק: ${Math.round(pos.coords.accuracy)}מ`,type:'success'});
-  },err=>showToast({icon:'⚠️',title:'שגיאת GPS',sub:err.message,type:'warn'}));
+  },err=>_gpsErr(err,'locateMe'));
 }
 
 // ── DRAWING TOOLS ──
@@ -1901,6 +1901,42 @@ function setTheme(m){
   document.addEventListener('DOMContentLoaded',function(){setTheme(_m);},true);
   setTheme(_m);
 })();
+
+// ── GPS ERROR HANDLER ──
+function _gpsErr(err, ctx){
+  const isSecure = location.protocol==='https:' || location.hostname==='localhost';
+  if(!isSecure){
+    document.getElementById('modal-ttl').textContent='📡 GPS — נדרש HTTPS';
+    document.getElementById('modal-body').innerHTML=
+      '<p style="font-size:13px;color:var(--text2);line-height:1.7">GPS דורש חיבור מאובטח (HTTPS).<br/>'
+      +'פתח את האפליקציה דרך:<br/>'
+      +'<a href="https://ormanyphoto.github.io/tactical-command-center/" target="_blank" style="color:var(--accent);word-break:break-all">'
+      +'ormanyphoto.github.io/tactical-command-center/</a></p>';
+    document.getElementById('modal-ok').textContent='פתח HTTPS';
+    modalCB=()=>window.open('https://ormanyphoto.github.io/tactical-command-center/','_blank');
+    document.getElementById('modal-wrap').style.display='flex';
+    return;
+  }
+  if(err.code===1){ // PERMISSION_DENIED
+    document.getElementById('modal-ttl').textContent='📡 GPS — הרשאה נדרשת';
+    const isIOS=/iPhone|iPad/i.test(navigator.userAgent);
+    const isAndroid=/Android/i.test(navigator.userAgent);
+    let instructions='';
+    if(isIOS) instructions='<b>iPhone/iPad:</b><br/>הגדרות → פרטיות → שירותי מיקום → Safari/Chrome → "תמיד" או "בעת שימוש"';
+    else if(isAndroid) instructions='<b>Android:</b><br/>הגדרות → אפליקציות → Chrome/Browser → הרשאות → מיקום → אפשר';
+    else instructions='<b>מחשב:</b><br/>לחץ על 🔒 בשורת הכתובת → הרשאות → מיקום → אפשר';
+    document.getElementById('modal-body').innerHTML=
+      '<p style="font-size:12px;color:var(--text2);line-height:1.8">הגישה למיקום נחסמה. כדי להפעיל:<br/><br/>'+instructions
+      +'<br/><br/>לאחר השינוי — רענן את הדף.</p>';
+    document.getElementById('modal-ok').textContent='🔄 רענן';
+    modalCB=()=>location.reload();
+    document.getElementById('modal-wrap').style.display='flex';
+  } else if(err.code===2){ // POSITION_UNAVAILABLE
+    showToast({icon:'📡',title:'GPS: מיקום לא זמין',sub:'ודא שה-GPS פעיל במכשיר',type:'warn',duration:5000});
+  } else { // TIMEOUT
+    showToast({icon:'⏱',title:'GPS: פסק זמן',sub:'ננסה שוב...',type:'warn',duration:3000});
+  }
+}
 
 // ── HELPERS ──
 function statusHe(s){return{urgent:'דחוף',active:'פעיל',pending:'ממתין',completed:'הושלם',briefing:'בריפינג',draft:'טיוטה',debrief:'דיבריפינג'}[s]||s;}
@@ -4604,7 +4640,7 @@ function placePersGPS(pid){
     placePersonAt(pid,pos.coords.latitude,pos.coords.longitude);
     const p=PERSONNEL.find(x=>x.id===pid);
     showToast({icon:'📍',title:(p?p.name:pid)+' מוקם לפי GPS',sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success'});
-  },err=>showToast({icon:'⚠️',title:'שגיאת GPS',sub:err.message,type:'warn'}),{enableHighAccuracy:true,timeout:10000});
+  },err=>_gpsErr(err,'placeGPS'),{enableHighAccuracy:true,timeout:10000});
 }
 
 function placePersonAt(pid,lat,lng){
@@ -5657,7 +5693,7 @@ const FIELD = (() => {
         role:localStorage.getItem('tac_field_role')||'שדה',
         status:_status
       });
-    },err=>{ showToast({icon:'⚠️',title:'GPS שגיאה: '+err.message,type:'warn'}); },
+    },err=>{ _gpsErr(err,'field'); },
     {enableHighAccuracy:true, timeout:15000, maximumAge:3000});
   }
 
