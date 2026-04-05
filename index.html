@@ -845,7 +845,7 @@ function _tileToWmsBbox(coord,zoom){
 
 function _makeGovMapType(layerName){
   // Public WMS endpoint — open.govmap.gov.il/geoserver/opendata/wms
-  // Available public layers: PARCEL_ALL, SUB_GUSH_ALL, muni_il, Nikuz, nechalim1
+  // Available public layers: muni_il, Nikuz, nechalim1, POLICE_*, Mada_districs, fire_admin, FIRE_STATIONS, MADA_STATIONS
   return new google.maps.ImageMapType({
     name:'GovMap_'+layerName,
     alt:'GovMap: '+layerName,
@@ -867,8 +867,17 @@ function _makeGovMapType(layerName){
 }
 
 const _GVM_LABELS={
-  PARCEL_ALL:'חלקות',SUB_GUSH_ALL:'גושים',
-  muni_il:'מוניציפאליות',nechalim1:'נחלים',Nikuz:'ניקוז'
+  muni_il:'רשויות',nechalim1:'נחלים',Nikuz:'ניקוז',
+  POLICE_Mahoz_Region:'משטרה — מחוז',
+  POLICE_Yehida_Region:'משטרה — יחידה',
+  Mada_districs:'מד"א — מחוז',
+  POLICE_Mahoz_Location:'משטרה — מיקום מחוז',
+  POLICE_Merhav_Location:'משטרה — מיקום מרחב',
+  POLICE_Merhav_Region:'משטרה — מרחב',
+  fire_admin:'כיבוי אש — מינהל',
+  FIRE_STATIONS:'תחנות כיבוי',
+  MADA_STATIONS:'תחנות מד"א',
+  POLICE_Yehida_Location:'משטרה — מיקום יחידה'
 };
 
 function toggleGovMap(layerName,btnId){
@@ -1676,10 +1685,18 @@ function renderDrawP(c){
     <a href="https://www.govmap.gov.il/" target="_blank" rel="noopener" style="font-size:9px;color:var(--text3);text-decoration:none">govmap.gov.il ↗</a>
   </div>
   <div class="mp-grid" style="margin-bottom:6px">
-    <button class="mp-btn" id="gvm-parcel-btn" onclick="toggleGovMap('PARCEL_ALL','gvm-parcel-btn')"><span>📐</span><span class="mp-btn-label">חלקות</span></button>
-    <button class="mp-btn" id="gvm-gush-btn" onclick="toggleGovMap('SUB_GUSH_ALL','gvm-gush-btn')"><span>🗂️</span><span class="mp-btn-label">גושים</span></button>
     <button class="mp-btn" id="gvm-muni-btn" onclick="toggleGovMap('muni_il','gvm-muni-btn')"><span>🏙️</span><span class="mp-btn-label">רשויות</span></button>
     <button class="mp-btn" id="gvm-nachal-btn" onclick="toggleGovMap('nechalim1','gvm-nachal-btn')"><span>💧</span><span class="mp-btn-label">נחלים</span></button>
+    <button class="mp-btn" id="gvm-police-mahoz-r-btn" onclick="toggleGovMap('POLICE_Mahoz_Region','gvm-police-mahoz-r-btn')"><span>🚔</span><span class="mp-btn-label">מחוז</span></button>
+    <button class="mp-btn" id="gvm-police-merhav-r-btn" onclick="toggleGovMap('POLICE_Merhav_Region','gvm-police-merhav-r-btn')"><span>🚔</span><span class="mp-btn-label">מרחב</span></button>
+    <button class="mp-btn" id="gvm-police-yehida-r-btn" onclick="toggleGovMap('POLICE_Yehida_Region','gvm-police-yehida-r-btn')"><span>🚔</span><span class="mp-btn-label">יחידה</span></button>
+    <button class="mp-btn" id="gvm-police-mahoz-l-btn" onclick="toggleGovMap('POLICE_Mahoz_Location','gvm-police-mahoz-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום מחוז</span></button>
+    <button class="mp-btn" id="gvm-police-merhav-l-btn" onclick="toggleGovMap('POLICE_Merhav_Location','gvm-police-merhav-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום מרחב</span></button>
+    <button class="mp-btn" id="gvm-police-yehida-l-btn" onclick="toggleGovMap('POLICE_Yehida_Location','gvm-police-yehida-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום יחידה</span></button>
+    <button class="mp-btn" id="gvm-mada-dist-btn" onclick="toggleGovMap('Mada_districs','gvm-mada-dist-btn')"><span>🚑</span><span class="mp-btn-label">מד"א מחוז</span></button>
+    <button class="mp-btn" id="gvm-mada-sta-btn" onclick="toggleGovMap('MADA_STATIONS','gvm-mada-sta-btn')"><span>🚑</span><span class="mp-btn-label">תחנות מד"א</span></button>
+    <button class="mp-btn" id="gvm-fire-admin-btn" onclick="toggleGovMap('fire_admin','gvm-fire-admin-btn')"><span>🚒</span><span class="mp-btn-label">כיבוי מינהל</span></button>
+    <button class="mp-btn" id="gvm-fire-sta-btn" onclick="toggleGovMap('FIRE_STATIONS','gvm-fire-sta-btn')"><span>🚒</span><span class="mp-btn-label">תחנות כיבוי</span></button>
   </div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:0 2px">
     <span style="font-size:10px;color:var(--text3);white-space:nowrap">שקיפות</span>
