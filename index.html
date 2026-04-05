@@ -2413,14 +2413,48 @@ function openNewMsnModal(){
   
   // Generate AI suggestions after render
   setTimeout(buildMsnSuggestions,300);
-  
+
   modalCB=saveMission;
   document.getElementById('modal-wrap').style.display='flex';
   setTimeout(()=>document.getElementById('nm-title').focus(),50);
+
+  // Attach Google Places Autocomplete to the address field
+  setTimeout(_attachMsnAddrAutocomplete, 80);
 }
 
+function _attachMsnAddrAutocomplete(){
+  const inp=document.getElementById('nm-addr');
+  if(!inp||!window._googleReady||!google.maps.places)return;
+  if(inp._acAttached)return; // prevent double-attach
+  inp._acAttached=true;
+  const ac=new google.maps.places.Autocomplete(inp,{
+    componentRestrictions:{country:'il'},
+    fields:['geometry','name','formatted_address'],
+    language:'he',
+    bounds:_ISRAEL_BOUNDS||undefined,
+    strictBounds:false,
+  });
+  ac.addListener('place_changed',()=>{
+    const place=ac.getPlace();
+    if(place&&place.geometry&&place.geometry.location){
+      _nmLat=place.geometry.location.lat();
+      _nmLng=place.geometry.location.lng();
+      // Fill the input with the formatted address
+      inp.value=place.formatted_address||place.name||inp.value;
+      // Recompute AI team suggestions based on new location
+      clearTimeout(window._msnSugTO);
+      window._msnSugTO=setTimeout(buildMsnSuggestions,300);
+      showToast({icon:'📍',title:'כתובת אותרה',sub:inp.value,type:'success',duration:2500});
+    }
+  });
+}
+
+// Stub so the oninput call doesn't throw — Autocomplete handles suggestions natively
+function addrSuggest(val, sugsDivId){}
+
 function msnAddrInput(val){
-  // When address changes, re-run suggestions
+  // When address changes manually, reset stored coords and recompute suggestions
+  _nmLat=null; _nmLng=null;
   clearTimeout(window._msnSugTO);
   window._msnSugTO=setTimeout(buildMsnSuggestions,600);
 }
@@ -2546,15 +2580,17 @@ function saveMission(){
   var addr=document.getElementById('nm-addr').value;
   var equip=document.getElementById('nm-equip').value;
   var reqSkills=[...document.querySelectorAll('.skills-req-grid input:checked')].map(function(cb){return cb.value;});
-  // Geocode address to lat/lng
+  // Geocode address to lat/lng — use coordinates from Autocomplete selection if available
   var lat=_nmLat||(31.77+Math.random()*0.5);
   var lng=_nmLng||(35.21+Math.random()*0.3);
-  // If address typed but no GPS, try geocode async then update
+  // If address typed manually without selecting from autocomplete, geocode async then update marker
   if(addr&&!_nmLat){
-    fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&countrycodes=il&format=json&limit=1')
-      .then(function(r){return r.json();})
-      .then(function(d){if(d[0]){var m=MISSIONS[MISSIONS.length-1];m.lat=parseFloat(d[0].lat);m.lng=parseFloat(d[0].lon);plotMissions();}})
-      .catch(function(){});
+    _geocodeAddr({address:addr}).then(function(results){
+      var loc=results[0].geometry.location;
+      var m=MISSIONS[MISSIONS.length-1];
+      m.lat=loc.lat();m.lng=loc.lng();
+      plotMissions();
+    }).catch(function(){});
   }
   MISSIONS.push({
     id:id,title:title,type:type,status:status,priority:priority,
