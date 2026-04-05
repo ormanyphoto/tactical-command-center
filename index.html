@@ -893,9 +893,7 @@ function setGovmapBackground(bg, btnId){
   _govmapBackground=bg;
   document.querySelectorAll('.gvm-bg-btn').forEach(b=>b.classList.remove('mp-active'));
   const btn=document.getElementById(btnId);if(btn)btn.classList.add('mp-active');
-  // Reload iframe with new background
-  const iframeEl=document.getElementById('govmap-iframe');
-  if(iframeEl) iframeEl.src=_buildGovmapUrl();
+  _reloadGovmapIframe();
 }
 
 function _buildGovmapUrl(){
@@ -903,11 +901,18 @@ function _buildGovmapUrl(){
   const center=map.getCenter();
   const itm=_wgs84ToItm(center.lat(), center.lng());
   const gz=_googleZoomToGovmap(map.getZoom());
-  // Active govmap layers as comma-separated list for the lay= parameter
+  // Active govmap layers — GovMap URL uses individual lay= params per layer
   const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
-  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&lay=0&b='+_govmapBackground;
-  if(activeLayers.length) url+='&layers='+activeLayers.join(',');
+  let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&b='+_govmapBackground;
+  // Add each active layer as a separate lay= parameter (GovMap URL format)
+  activeLayers.forEach(l=>{ url+='&lay='+encodeURIComponent(l); });
   return url;
+}
+
+function _reloadGovmapIframe(){
+  if(_activeBaseProvider!=='govmap') return;
+  const iframeEl=document.getElementById('govmap-iframe');
+  if(iframeEl) iframeEl.src=_buildGovmapUrl();
 }
 
 function switchBaseMap(provider){
@@ -924,9 +929,10 @@ function switchBaseMap(provider){
     // Mark the currently selected background active
     const activeBg=document.getElementById('gvm-bg-'+_govmapBackground);
     if(activeBg) activeBg.classList.add('mp-active');
-    // Load iframe centered on current Google Maps position
+    // Load iframe centered on current Google Maps position (with active layers)
     iframeEl.src=_buildGovmapUrl();
     iframeEl.style.display='block';
+    // Also apply any already-active GovMap layers to the iframe URL (already done above)
     if(gmapEl) gmapEl.style.display='none';
     // Button states
     if(gb) gb.classList.remove('mp-active');
@@ -1016,25 +1022,32 @@ const _GVM_LABELS={
 };
 
 function toggleGovMap(layerName,btnId){
-  if(!map||!window._googleReady)return;
+  if(!window._googleReady)return;
   const isOn=_govmapActive[layerName];
+  const label=_GVM_LABELS[layerName]||layerName;
   if(isOn){
-    // Remove layer
-    for(let i=map.overlayMapTypes.getLength()-1;i>=0;i--){
-      if(map.overlayMapTypes.getAt(i)===_govmapLayers[layerName])
-        map.overlayMapTypes.removeAt(i);
-    }
     _govmapActive[layerName]=false;
+    // Remove from Google Maps overlay (if Google Maps is active)
+    if(map&&_govmapLayers[layerName]){
+      for(let i=map.overlayMapTypes.getLength()-1;i>=0;i--){
+        if(map.overlayMapTypes.getAt(i)===_govmapLayers[layerName])
+          map.overlayMapTypes.removeAt(i);
+      }
+    }
     const btn=document.getElementById(btnId);if(btn)btn.classList.remove('mp-active');
-    showToast({icon:'🗺️',title:'GovMap '+(_GVM_LABELS[layerName]||layerName),sub:'שכבה הוסרה',type:'info',duration:2000});
+    showToast({icon:'🗺️',title:'GovMap '+label,sub:'שכבה הוסרה',type:'info',duration:2000});
   } else {
-    // Create layer on first use
-    if(!_govmapLayers[layerName]) _govmapLayers[layerName]=_makeGovMapType(layerName);
-    map.overlayMapTypes.push(_govmapLayers[layerName]);
     _govmapActive[layerName]=true;
+    // Add to Google Maps overlay (if Google Maps is active)
+    if(map&&_activeBaseProvider==='google'){
+      if(!_govmapLayers[layerName]) _govmapLayers[layerName]=_makeGovMapType(layerName);
+      map.overlayMapTypes.push(_govmapLayers[layerName]);
+    }
     const btn=document.getElementById(btnId);if(btn)btn.classList.add('mp-active');
-    showToast({icon:'🇮🇱',title:'GovMap '+(_GVM_LABELS[layerName]||layerName),sub:'שכבה ממשלתית פעילה',type:'success',duration:3000});
+    showToast({icon:'🇮🇱',title:'GovMap '+label,sub:'שכבה פעילה',type:'success',duration:2500});
   }
+  // If GovMap iframe is active, reload it with the updated layer list
+  _reloadGovmapIframe();
 }
 
 function setGovMapOpacity(val){
