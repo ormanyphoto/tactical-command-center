@@ -393,13 +393,17 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   .tb-btn{padding:7px 12px;font-size:12px}
   #topbar-logo{font-size:14px}
 }
+@media (max-width:1024px){
+  /* Tablet + Mobile: panel slides in as overlay */
+  #right-panel{position:fixed;top:54px;left:0;bottom:0;z-index:400;width:320px!important;max-width:90vw;transform:translateX(-100%);transition:transform 0.25s ease;border:none;box-shadow:4px 0 20px rgba(0,0,0,0.4)}
+  #right-panel.mobile-open{transform:translateX(0)}
+  #right-panel.hidden{transform:translateX(-100%)!important}
+}
 @media (max-width:768px){
   #topbar{height:54px;padding:0 10px;gap:6px}
   .nav-tabs{display:none}
   #mobile-menu-btn{display:flex}
-  #right-panel{position:fixed;top:54px;left:0;bottom:60px;z-index:400;width:100%!important;max-width:100vw;transform:translateX(-100%);transition:transform 0.25s ease;border:none;box-shadow:4px 0 20px rgba(0,0,0,0.4)}
-  #right-panel.mobile-open{transform:translateX(0)}
-  #right-panel.hidden{transform:translateX(-100%);width:100%!important}
+  #right-panel{width:100%!important;max-width:100vw;bottom:60px}
   #bottom-nav{display:flex}
   #main{padding-bottom:60px}
   #topbar-logo span{display:none}
@@ -2833,13 +2837,11 @@ function goView(v){
   if(m[v])goPanel(m[v]);
   const rp=document.getElementById('right-panel');
   const pt=document.getElementById('panel-toggle');
-  if(v!=='map'&&rp){
+  if(rp){
     rp.classList.remove('hidden');
     if(pt)pt.textContent='▶';
-    // Mobile: show panel as overlay
-    if(window.innerWidth<=768) rp.classList.add('mobile-open');
-  } else if(v==='map'&&window.innerWidth<=768&&rp){
-    rp.classList.remove('mobile-open');
+    // Mobile/tablet: always open panel as overlay for all views including מפה
+    if(window.innerWidth<=1024) rp.classList.add('mobile-open');
   }
 }
 
