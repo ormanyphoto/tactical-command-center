@@ -909,6 +909,42 @@ function _buildGovmapUrl(){
   return url;
 }
 
+// ── MAP NAVIGATION HELPERS (work for both Google Maps and GovMap iframe) ──
+// GovMap zoom scale: 0=country … 7=city block (roughly googleZoom - 9)
+let _govmapZoom=5; // track current govmap zoom level
+
+function mapZoom(delta){
+  if(_activeBaseProvider==='govmap'){
+    _govmapZoom=Math.max(0,Math.min(7,_govmapZoom+delta));
+    const iframeEl=document.getElementById('govmap-iframe');
+    if(!iframeEl||!map)return;
+    const center=map.getCenter();
+    const itm=_wgs84ToItm(center.lat(),center.lng());
+    const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
+    let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+_govmapZoom+'&b='+_govmapBackground;
+    activeLayers.forEach(l=>{url+='&lay='+encodeURIComponent(l);});
+    iframeEl.src=url;
+  } else {
+    if(map) map.setZoom(map.getZoom()+delta);
+  }
+}
+
+function mapGoTo(lat,lng,zoom){
+  if(_activeBaseProvider==='govmap'){
+    const itm=_wgs84ToItm(lat,lng);
+    const gz=zoom?_googleZoomToGovmap(zoom):_govmapZoom;
+    _govmapZoom=gz;
+    const iframeEl=document.getElementById('govmap-iframe');
+    if(!iframeEl)return;
+    const activeLayers=Object.entries(_govmapActive).filter(([,v])=>v).map(([k])=>k);
+    let url='https://www.govmap.gov.il/?c='+itm.x+','+itm.y+'&z='+gz+'&b='+_govmapBackground;
+    activeLayers.forEach(l=>{url+='&lay='+encodeURIComponent(l);});
+    iframeEl.src=url;
+  } else {
+    if(map){map.setCenter({lat,lng});if(zoom)map.setZoom(zoom);}
+  }
+}
+
 function _reloadGovmapIframe(){
   if(_activeBaseProvider!=='govmap') return;
   const iframeEl=document.getElementById('govmap-iframe');
@@ -1819,9 +1855,9 @@ function renderDrawP(c){
   <!-- ── ניווט ── -->
   <div class="sec-hd">🧭 ניווט</div>
   <div class="mp-grid">
-    <button class="mp-btn" onclick="if(map)map.setZoom(map.getZoom()+1)"><span>＋</span><span class="mp-btn-label">הגדל</span></button>
-    <button class="mp-btn" onclick="if(map)map.setZoom(map.getZoom()-1)"><span>－</span><span class="mp-btn-label">הקטן</span></button>
-    <button class="mp-btn" onclick="if(map){map.setCenter({lat:32.0667,lng:34.7818});map.setZoom(13)}"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
+    <button class="mp-btn" onclick="mapZoom(1)"><span>＋</span><span class="mp-btn-label">הגדל</span></button>
+    <button class="mp-btn" onclick="mapZoom(-1)"><span>－</span><span class="mp-btn-label">הקטן</span></button>
+    <button class="mp-btn" onclick="mapGoTo(32.0667,34.7818,13)"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
     <button class="mp-btn" onclick="if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})"><span>🇮🇱</span><span class="mp-btn-label">כל ישראל</span></button>
     <button class="mp-btn" onclick="locateMe()"><span>🎯</span><span class="mp-btn-label">מרכז עלי</span></button>
     <button class="mp-btn" onclick="if(map)map.setTilt(map.getTilt()===0?45:0)"><span>🔭</span><span class="mp-btn-label">הטיה 45°</span></button>
@@ -3097,9 +3133,9 @@ function boPersonnel(c){
   });
   c.innerHTML='<div class="bo-section">'
     +'<div class="bo-hd">אנשי צוות ('+PERSONNEL.length+')<div style="display:flex;gap:6px;flex-wrap:wrap">'
-    +'<button class="btn-pri" style="width:auto;padding:6px 14px;font-size:12px" onclick="openAddPersonModal();closeBO()">+ הוסף</button>'
-    +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="exportPersonnelCSV()">⬇ CSV</button>'
-    +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="openImportCSV()">⬆ ייבוא</button>'
+    +'<button class="btn-pri" style="width:auto;padding:6px 14px;font-size:12px" onclick="openAddPersonModal();closeBO()">+ הוסף איש צוות</button>'
+    +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="exportPersonnelCSV()">⬇ יצא CSV</button>'
+    +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="openImportCSV()">⬆ יבוא CSV</button>'
     +'</div></div>'
     +'<div style="overflow-x:auto"><table class="bo-table" id="bo-pers-table">'
     +'<thead><tr><th style="width:50px">מס׳</th><th style="width:40px">תמונה</th><th>שם מלא</th><th>טלפון</th><th>יחידה</th><th>תפקיד</th><th>זמינות</th><th>פעולות</th></tr></thead>'
@@ -4174,11 +4210,11 @@ function renderPersonnelP(c){
   </div>
   <!-- ACTION BUTTONS -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
-    <button class="btn-pri" onclick="openAddPersonModal()">+ איש צוות</button>
-    <button class="btn-sec" style="margin:0" onclick="exportPersonnelCSV()">⬇ CSV</button>
+    <button class="btn-pri" onclick="openAddPersonModal()">+ הוסף איש צוות</button>
+    <button class="btn-sec" style="margin:0" onclick="exportPersonnelCSV()">⬇ יצא CSV</button>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
-    <button class="btn-sec" style="margin:0" onclick="openImportCSV()">⬆ ייבוא</button>
+    <button class="btn-sec" style="margin:0" onclick="openImportCSV()">⬆ יבוא CSV</button>
     <button class="btn-sec" style="margin:0" onclick="toggleSelectAll()">${_selectedPersonnel.size>0?'✕ בטל בחירה':'☑ בחר הכל'}</button>
   </div>
   <!-- MULTI-SELECT BAR -->
