@@ -875,15 +875,25 @@ function _googleZoomToGovmap(z){
 
 let _govmapBackground=0; // 0=streets, 1=aerial, 2=hybrid, 3=CIR aerial
 
+const _GOOGLE_MTYPE_HTML=`
+  <button class="mp-btn mp-active" id="rp-mtype-road" onclick="setMapType('roadmap');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
+  <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰️</span><span class="mp-btn-label">לוויין</span></button>
+  <button class="mp-btn" id="rp-mtype-hyb" onclick="setMapType('hybrid');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🔀</span><span class="mp-btn-label">היברידי</span></button>
+  <button class="mp-btn" id="rp-mtype-ter" onclick="setMapType('terrain');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>⛰️</span><span class="mp-btn-label">טופוגרפי</span></button>`;
+
+const _GOVMAP_MTYPE_HTML=`
+  <button class="mp-btn gvm-bg-btn mp-active" id="gvm-bg-0" onclick="setGovmapBackground(0,'gvm-bg-0')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
+  <button class="mp-btn gvm-bg-btn" id="gvm-bg-1" onclick="setGovmapBackground(1,'gvm-bg-1')"><span>🛩️</span><span class="mp-btn-label">תצ"א</span></button>
+  <button class="mp-btn gvm-bg-btn" id="gvm-bg-2" onclick="setGovmapBackground(2,'gvm-bg-2')"><span>🔀</span><span class="mp-btn-label">משולב</span></button>
+  <button class="mp-btn gvm-bg-btn" id="gvm-bg-3" onclick="setGovmapBackground(3,'gvm-bg-3')"><span>🌿</span><span class="mp-btn-label">CIR</span></button>`;
+
 function setGovmapBackground(bg, btnId){
   _govmapBackground=bg;
   document.querySelectorAll('.gvm-bg-btn').forEach(b=>b.classList.remove('mp-active'));
   const btn=document.getElementById(btnId);if(btn)btn.classList.add('mp-active');
-  // Reload iframe with new background if currently showing GovMap
-  if(_activeBaseProvider==='govmap'){
-    const iframeEl=document.getElementById('govmap-iframe');
-    if(iframeEl) iframeEl.src=_buildGovmapUrl();
-  }
+  // Reload iframe with new background
+  const iframeEl=document.getElementById('govmap-iframe');
+  if(iframeEl) iframeEl.src=_buildGovmapUrl();
 }
 
 function _buildGovmapUrl(){
@@ -903,32 +913,42 @@ function switchBaseMap(provider){
   const iframeEl=document.getElementById('govmap-iframe');
   const gb=document.getElementById('rp-base-google');
   const vm=document.getElementById('rp-base-govmap');
-  const mtypeBtns=['rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter'];
+  const grid=document.getElementById('rp-mtype-grid');
 
   if(provider==='govmap'){
     _activeBaseProvider='govmap';
-    // Build URL centered on current Google Maps position
+    // Swap map-type grid to GovMap backgrounds
+    if(grid) grid.innerHTML=_GOVMAP_MTYPE_HTML;
+    // Mark the currently selected background active
+    const activeBg=document.getElementById('gvm-bg-'+_govmapBackground);
+    if(activeBg) activeBg.classList.add('mp-active');
+    // Load iframe centered on current Google Maps position
     iframeEl.src=_buildGovmapUrl();
-    // Show iframe, hide Google Maps canvas
     iframeEl.style.display='block';
     if(gmapEl) gmapEl.style.display='none';
     // Button states
     if(gb) gb.classList.remove('mp-active');
     if(vm) vm.classList.add('mp-active');
-    // Dim Google map-type buttons (irrelevant when showing GovMap)
-    mtypeBtns.forEach(id=>{const b=document.getElementById(id);if(b){b.disabled=true;b.style.opacity='0.35';}});
     showToast({icon:'🇮🇱',title:'GovMap',sub:'מפת ממשלה ישראלית',type:'success',duration:3000});
   } else {
     _activeBaseProvider='google';
-    // Hide iframe, restore Google Maps
+    // Swap map-type grid back to Google options
+    if(grid) grid.innerHTML=_GOOGLE_MTYPE_HTML;
+    // Restore Google Maps
     iframeEl.style.display='none';
     iframeEl.src='about:blank';
     if(gmapEl) gmapEl.style.display='block';
     if(map) google.maps.event.trigger(map,'resize');
+    // Mark the currently active Google map type
+    const typeMap={roadmap:'rp-mtype-road',satellite:'rp-mtype-sat',hybrid:'rp-mtype-hyb',terrain:'rp-mtype-ter'};
+    const currentType=map?map.getMapTypeId():'roadmap';
+    const activeId=typeMap[currentType]||'rp-mtype-road';
+    document.querySelectorAll('#rp-mtype-grid .mp-btn').forEach(b=>b.classList.remove('mp-active'));
+    const activeBtn=document.getElementById(activeId);
+    if(activeBtn) activeBtn.classList.add('mp-active');
     // Button states
     if(gb) gb.classList.add('mp-active');
     if(vm) vm.classList.remove('mp-active');
-    mtypeBtns.forEach(id=>{const b=document.getElementById(id);if(b){b.disabled=false;b.style.opacity='';}});
     showToast({icon:'🗺️',title:'Google Maps',sub:'מפת גוגל פעילה',type:'success',duration:2500});
   }
 }
@@ -1773,16 +1793,10 @@ function renderDrawP(c){
       <span style="font-size:18px">🇮🇱</span><span class="mp-btn-label">GovMap</span>
     </button>
   </div>
-  <div id="gvm-bg-row" class="mp-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:6px">
-    <button class="mp-btn gvm-bg-btn mp-active" id="gvm-bg-0" onclick="setGovmapBackground(0,'gvm-bg-0')"><span>🏘️</span><span class="mp-btn-label" style="font-size:10px">רחובות</span></button>
-    <button class="mp-btn gvm-bg-btn" id="gvm-bg-1" onclick="setGovmapBackground(1,'gvm-bg-1')"><span>🛩️</span><span class="mp-btn-label" style="font-size:10px">אוויר</span></button>
-    <button class="mp-btn gvm-bg-btn" id="gvm-bg-2" onclick="setGovmapBackground(2,'gvm-bg-2')"><span>🔀</span><span class="mp-btn-label" style="font-size:10px">משולב</span></button>
-    <button class="mp-btn gvm-bg-btn" id="gvm-bg-3" onclick="setGovmapBackground(3,'gvm-bg-3')"><span>🌿</span><span class="mp-btn-label" style="font-size:10px">CIR</span></button>
-  </div>
   <div class="sec-hd" style="margin-top:2px">🎨 סוג מפה</div>
-  <div class="mp-grid">
+  <div class="mp-grid" id="rp-mtype-grid">
     <button class="mp-btn mp-active" id="rp-mtype-road" onclick="setMapType('roadmap');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🏘️</span><span class="mp-btn-label">רחובות</span></button>
-    <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰</span><span class="mp-btn-label">לוויין</span></button>
+    <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰️</span><span class="mp-btn-label">לוויין</span></button>
     <button class="mp-btn" id="rp-mtype-hyb" onclick="setMapType('hybrid');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🔀</span><span class="mp-btn-label">היברידי</span></button>
     <button class="mp-btn" id="rp-mtype-ter" onclick="setMapType('terrain');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>⛰️</span><span class="mp-btn-label">טופוגרפי</span></button>
   </div>
