@@ -4190,7 +4190,7 @@ function renderPersonnelP(c){
       ${unitList.map(u=>`<option value="${u}" ${filterUnit===u?'selected':''}>${u}</option>`).join('')}
     </select>
     <select style="width:96px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px;color:var(--text);font-size:12px;font-family:var(--font)" onchange="persnSetFilter(this.value,'avail')">
-      <option value="all">הכולם</option>
+      <option value="all">כולם</option>
       <option value="yes" ${filterAvail==='yes'?'selected':''}>זמינים</option>
       <option value="no" ${filterAvail==='no'?'selected':''}>לא זמינים</option>
     </select>
