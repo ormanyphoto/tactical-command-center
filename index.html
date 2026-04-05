@@ -1503,7 +1503,7 @@ function renderDrawP(c){
   <button class="btn-pri" onclick="startBoundaryDraw()" style="margin:6px 0 4px">✏️ צייר גבול ידני</button>
   <button class="btn-sec" onclick="cancelBoundaryDraw()">✕ בטל ציור</button>
   <button class="btn-sec" onclick="clearSavedBoundaries()">🗑️ נקה גבולות ידניים</button>
-  ${_savedBoundaries.length?'<div style="font-size:11px;color:var(--accent2);margin-top:4px">'+_savedBoundaries.length+' גבולות שמורים</div>':''}
+  ${(window._savedBoundaries||[]).length?'<div style="font-size:11px;color:var(--accent2);margin-top:4px">'+(window._savedBoundaries||[]).length+' גבולות שמורים</div>':''}
 
   <!-- ── אנימציות ── -->
   <div class="sec-hd">✨ אנימציות</div>
@@ -4380,7 +4380,7 @@ function mobileGoView(v){
   // update bottom nav active
   document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
   document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('active'));
-  const activeItem=document.querySelector(\`.mob-nav-item[onclick*="'\${v}'"]\`);
+  const activeItem=document.querySelector(`.mob-nav-item[onclick*="'${v}'"]`);
   if(activeItem)activeItem.classList.add('active');
   // on mobile, open the right panel as overlay
   if(v!=='map'&&window.innerWidth<=768){
