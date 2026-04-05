@@ -820,6 +820,35 @@ function setMapType(t){
   const btn=document.getElementById('mtype-'+t);if(btn)btn.classList.add('active');
 }
 
+// ── HIDE / SHOW GOOGLE MAPS BASE LAYER ──
+let _baseMapVisible=true;
+let _lastMapTypeId='roadmap';
+function toggleBaseMap(){
+  if(!map)return;
+  if(_baseMapVisible){
+    _lastMapTypeId=map.getMapTypeId();
+    // Switch to a blank transparent type
+    if(!map.mapTypes.get('blank')){
+      map.mapTypes.set('blank',{
+        getTile:()=>{const d=document.createElement('div');d.style.cssText='width:256px;height:256px;background:#1a1a2e';return d;},
+        tileSize:new google.maps.Size(256,256),
+        maxZoom:21,minZoom:0,name:'ריק',alt:'ריק'
+      });
+    }
+    map.setMapTypeId('blank');
+    _baseMapVisible=false;
+    const btn=document.getElementById('rp-basemap-toggle');
+    if(btn){btn.classList.add('mp-active');btn.querySelector('.mp-btn-label').textContent='הצג מפה';}
+    showToast({icon:'🙈',title:'מפת בסיס',sub:'Google Maps מוסתר',type:'info',duration:2000});
+  } else {
+    map.setMapTypeId(_lastMapTypeId);
+    _baseMapVisible=true;
+    const btn=document.getElementById('rp-basemap-toggle');
+    if(btn){btn.classList.remove('mp-active');btn.querySelector('.mp-btn-label').textContent='הסתר מפה';}
+    showToast({icon:'🗺️',title:'מפת בסיס',sub:'Google Maps גלוי',type:'success',duration:2000});
+  }
+}
+
 // ── GOVMAP OVERLAY (govmap.gov.il — Israeli Government Mapping) ──
 // Each active layer is stored in _govmapLayers keyed by layer name
 const _govmapLayers={};       // { layerName: google.maps.ImageMapType }
@@ -1657,6 +1686,7 @@ function renderDrawP(c){
     <button class="mp-btn" id="rp-mtype-sat" onclick="setMapType('satellite');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🛰</span><span class="mp-btn-label">לוויין</span></button>
     <button class="mp-btn" id="rp-mtype-hyb" onclick="setMapType('hybrid');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>🔀</span><span class="mp-btn-label">היברידי</span></button>
     <button class="mp-btn" id="rp-mtype-ter" onclick="setMapType('terrain');setActiveMapBtn(this,'rp-mtype-road','rp-mtype-sat','rp-mtype-hyb','rp-mtype-ter')"><span>⛰️</span><span class="mp-btn-label">טופוגרפי</span></button>
+    <button class="mp-btn" id="rp-basemap-toggle" onclick="toggleBaseMap()" style="grid-column:1/-1"><span>🙈</span><span class="mp-btn-label">הסתר מפה</span></button>
   </div>
 
   <!-- ── ניווט ── -->
