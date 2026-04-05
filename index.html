@@ -177,6 +177,8 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 @keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,51,51,0.5)}50%{box-shadow:0 0 0 9px rgba(255,51,51,0)}}
 /* Modal */
 #modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9998;display:none;align-items:center;justify-content:center}
+/* Google Places Autocomplete dropdown must appear above modal */
+.pac-container{z-index:99999!important;direction:rtl;font-family:var(--font)}
 body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #modal-box{background:var(--panel);border:1px solid var(--border3);border-radius:10px;padding:20px;min-width:300px;max-width:640px;width:96%;max-height:92vh;overflow-y:auto;position:relative;direction:rtl;box-shadow:0 16px 48px rgba(0,0,0,0.6)}
 #modal-box::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px 10px 0 0}
@@ -2355,7 +2357,7 @@ function renderDash(c){renderAnalP(c);}
 
 function openNewMsnModal(){
   _nmAssignedTeams=[];_nmLat=null;_nmLng=null;
-  document.getElementById('modal-ttl').innerHTML='🎯 סריקות אחר חשוד';
+  document.getElementById('modal-ttl').innerHTML='🎯 משימה חדשה';
   
   // Build skills checkboxes
   var skillsCbs='';
@@ -2430,9 +2432,9 @@ function _attachMsnAddrAutocomplete(){
   const ac=new google.maps.places.Autocomplete(inp,{
     componentRestrictions:{country:'il'},
     fields:['geometry','name','formatted_address'],
-    language:'he',
     bounds:_ISRAEL_BOUNDS||undefined,
     strictBounds:false,
+    types:['geocode','establishment'],
   });
   ac.addListener('place_changed',()=>{
     const place=ac.getPlace();
