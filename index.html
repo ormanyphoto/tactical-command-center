@@ -790,10 +790,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 </div>
 
 <!-- Firebase setup banner -->
-<div id="fb-setup-banner">
-  ⚠️ Firebase לא מוגדר — שיתוף מיקום חי לא פעיל
-  <button onclick="SYNC.openSetup()">⚙️ הגדר Firebase</button>
-</div>
+<div id="fb-setup-banner" style="display:none"></div>
 
 <!-- SOS FLASH -->
 <div id="sos-flash"></div>
@@ -5949,19 +5946,19 @@ const SYNC = (() => {
   }
 
   function init(cfg){
-    if(!cfg||!cfg.apiKey||!cfg.databaseURL){ _showSetupBanner(); return false; }
+    if(!cfg||!cfg.apiKey||!cfg.databaseURL){ _setSyncDot('off'); return false; }
     try{
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
       firebase.auth().signInAnonymously()
         .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); })
-        .catch(()=>{ _setSyncDot('warn'); _showSetupBanner(); });
+        .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
         _connected=s.val(); _setSyncDot(_connected?'on':'warn');
       });
       return true;
-    } catch(e){ console.warn('[SYNC]',e); _showSetupBanner(); return false; }
+    } catch(e){ console.warn('[SYNC]',e); _setSyncDot('warn'); return false; }
   }
 
   function startPublishing(profile){
@@ -6158,10 +6155,8 @@ const SYNC = (() => {
   };
 
   function boot(){
-    // Use saved config override if present, otherwise use built-in
-    const saved = JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
-    const cfg = saved.apiKey ? saved : _DEFAULT_CFG;
-    init(cfg);
+    // Always use the built-in config — credentials are permanent
+    init(_DEFAULT_CFG);
   }
 
   return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, get connected(){ return _connected; }, myUid:_myUid };
