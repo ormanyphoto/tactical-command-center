@@ -145,10 +145,29 @@ async function _showNotif(notif){
   );
 }
 
-// ── Notification click → open app ──
+// ── Notification click → Waze navigation or open app ──
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   if(e.action === 'ack') return; // just dismiss
+
+  const notif = e.notification.data || {};
+  const lat   = notif.lat;
+  const lng   = notif.lng;
+  const addr  = notif.address;
+
+  // If there's a location → open Waze directly
+  if(addr || (lat && lng)){
+    let wazeUrl;
+    if(lat && lng){
+      wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+    } else {
+      wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`;
+    }
+    e.waitUntil(clients.openWindow(wazeUrl));
+    return;
+  }
+
+  // No address → focus / open app
   e.waitUntil(
     clients.matchAll({ type:'window', includeUncontrolled:true }).then(list => {
       const win = list.find(c => c.url.includes('tactical-command-center'));

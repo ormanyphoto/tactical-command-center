@@ -6390,17 +6390,6 @@ function sendNotification(){
     sentAt: Date.now()
   };
 
-  // Geocode address and mark on map immediately for sender
-  if(address && window._geocoder && window.map){
-    window._geocoder.geocode({address, region:'il'}, (results, status)=>{
-      if(status==='OK' && results[0]){
-        const loc = results[0].geometry.location;
-        _placeNotifMarker(loc.lat(), loc.lng(), address, payload);
-        payload.lat = loc.lat(); payload.lng = loc.lng();
-      }
-    });
-  }
-
   // Determine recipients
   let recipientIds = [];
   if(_activeNotifTarget === 'all'){
@@ -6409,27 +6398,37 @@ function sendNotification(){
     recipientIds = [..._notifSelectedPersonnel];
   }
 
-  // Write to Firebase for each recipient
-  const writes = recipientIds.map(pid =>
-    db.ref('tac_notifications/'+pid+'/'+notifId).set(payload)
-  );
-  // Write active notif metadata
-  db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
-
-  Promise.all(writes).then(()=>{
-    showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
-    closeNotifModal();
-    // Send FCM push for background/closed devices
-    if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
-    // Start listening for approvals on the map כוחות panel
-    _listenApprovals(notifId);
-    // Refresh panels
-    const c = document.getElementById('rp-body');
-    if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
-  }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
-
-  // Also show local toast
   showToast({icon:'📢',title:'שולח הודעה...',sub:title,type:'info',duration:2000});
+
+  // Geocode first (if address), then write to Firebase with lat/lng included
+  function _doSend(){
+    const writes = recipientIds.map(pid =>
+      db.ref('tac_notifications/'+pid+'/'+notifId).set(payload)
+    );
+    db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
+    Promise.all(writes).then(()=>{
+      showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
+      closeNotifModal();
+      if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
+      _listenApprovals(notifId);
+      const c = document.getElementById('rp-body');
+      if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+    }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
+  }
+
+  if(address && window._geocoder && window.map){
+    window._geocoder.geocode({address, region:'il'}, (results, status)=>{
+      if(status==='OK' && results[0]){
+        const loc = results[0].geometry.location;
+        payload.lat = loc.lat();
+        payload.lng = loc.lng();
+        _placeNotifMarker(payload.lat, payload.lng, address, payload);
+      }
+      _doSend(); // send after geocode (with or without coords)
+    });
+  } else {
+    _doSend();
+  }
 }
 
 /* ── Listen for incoming notifications ── */
@@ -6480,18 +6479,25 @@ function _showIncomingNotif(notif, fbRef){
   const colors = {mission:'rgba(41,197,246,0.5)', message:'rgba(176,108,240,0.5)', alert:'rgba(255,51,51,0.5)'};
   card.style.borderColor = colors[notif.type]||'var(--border2)';
   document.getElementById('incoming-notif-overlay').classList.add('open');
-  // Mark address on map
-  if(notif.address && window.map && window._geocoder){
-    if(notif.lat && notif.lng){
-      _placeNotifMarker(notif.lat, notif.lng, notif.address, notif);
-    } else {
-      window._geocoder.geocode({address:notif.address, region:'il'}, (res,st)=>{
-        if(st==='OK' && res[0]){
-          const loc=res[0].geometry.location;
-          _placeNotifMarker(loc.lat(), loc.lng(), notif.address, notif);
+  // Mark address on map (retry until map is ready)
+  if(notif.address || (notif.lat && notif.lng)){
+    const _tryMark = (attempts) => {
+      if(window.map && window.google){
+        if(notif.lat && notif.lng){
+          _placeNotifMarker(notif.lat, notif.lng, notif.address||'', notif);
+        } else if(window._geocoder){
+          window._geocoder.geocode({address:notif.address, region:'il'}, (res,st)=>{
+            if(st==='OK' && res[0]){
+              const loc=res[0].geometry.location;
+              _placeNotifMarker(loc.lat(), loc.lng(), notif.address, notif);
+            }
+          });
         }
-      });
-    }
+      } else if(attempts > 0){
+        setTimeout(()=>_tryMark(attempts-1), 1000);
+      }
+    };
+    _tryMark(10); // retry up to 10 seconds
   }
 }
 
@@ -7272,17 +7278,30 @@ const FIELD = (() => {
       }
     });
   }
-  // ── Auth gate — always require explicit login on every open ──
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-  // Biometric UI init (show/hide fast-login button)
-  BIOMETRIC.init();
-  // Auto-prompt biometric ONLY if the user did NOT explicitly log out.
-  // After logout, sessionStorage flag is set so we skip the auto-prompt —
-  // the user must tap the fast-login button themselves.
+  // ── Auth gate ──
   const _justLoggedOut = sessionStorage.getItem('tac_just_logged_out');
-  sessionStorage.removeItem('tac_just_logged_out'); // consume flag immediately
-  if(BIOMETRIC.hasSaved() && !_justLoggedOut){
+  sessionStorage.removeItem('tac_just_logged_out');
+
+  // Auto-restore session — stay logged in between visits
+  if(!_justLoggedOut && AUTH.restore()){
+    const _autoUser = AUTH.getUser();
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    AUTH.applyPerms();
+    setTimeout(()=>_triggerMapResize(), 100);
+    setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_autoUser.name.split(' ')[0],sub:_autoUser.role||'לוחם',type:'success',duration:3000}), 400);
+    setTimeout(()=>{ if(typeof listenForIncomingNotifications==='function') listenForIncomingNotifications(); }, 800);
+    if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
+      setTimeout(()=>_registerPushForUser(_autoUser.id), 1200);
+    }
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+
+  // Biometric UI init
+  BIOMETRIC.init();
+  if(!AUTH.getUser() && BIOMETRIC.hasSaved() && !_justLoggedOut){
     setTimeout(()=>BIOMETRIC.doFastLogin(), 700);
   }
   // Firebase sync
