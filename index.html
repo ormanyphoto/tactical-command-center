@@ -30,7 +30,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 /* ── LAYOUT ── */
 #app{display:flex;flex-direction:column;height:100%;overflow:hidden}
 #topbar{background:var(--panel);border-bottom:1px solid var(--border2);height:62px;display:flex;align-items:center;gap:8px;padding:0 14px;flex-shrink:0;z-index:100}
-#topbar-logo{font-family:var(--font2);font-weight:900;font-size:16px;color:var(--accent);letter-spacing:0.04em;white-space:nowrap;display:flex;align-items:center;gap:8px;flex-shrink:0}
+#topbar-logo-wrap{width:360px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--border2)}
+#topbar-logo{font-family:var(--font2);font-weight:900;font-size:16px;color:var(--accent);letter-spacing:0.04em;white-space:nowrap;display:flex;align-items:center;gap:8px}
 #topbar-logo span{color:var(--text3);font-weight:400;font-size:12px}
 #sys-clock{font-family:var(--font2);font-size:15px;font-weight:700;color:var(--accent2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 13px;cursor:default;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px}
 .tb-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap;display:flex;align-items:center;gap:6px}
@@ -82,7 +83,7 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #mob-bio-clear:hover{color:var(--danger);border-color:var(--danger)}
 #topbar-user{font-size:12px;font-weight:700;color:var(--text2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 11px;white-space:nowrap;direction:rtl;max-width:160px;overflow:hidden;text-overflow:ellipsis}
 
-.nav-tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;overflow-x:auto;flex:1;min-width:0;scrollbar-width:none;-ms-overflow-style:none}
+.nav-tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;overflow-x:auto;flex-shrink:1;min-width:0;scrollbar-width:none;-ms-overflow-style:none}
 .nav-tabs::-webkit-scrollbar{display:none}
 .nav-tab{background:none;border:none;padding:5px 10px;font-size:12px;font-weight:700;color:var(--text3);cursor:pointer;border-radius:6px;font-family:var(--font);white-space:nowrap;transition:all 0.12s;position:relative}
 .nav-tab.active,.nav-tab:hover{background:var(--panel3);color:var(--texthi)}
@@ -517,6 +518,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 @media (max-width:1024px) and (min-width:769px){
   #topbar{height:56px;padding:0 12px;gap:6px}
   .nav-tabs{display:none}
+  #topbar-logo-wrap{width:auto;border-left:none}
   #bottom-nav{display:flex}
   #right-panel{width:320px}
   #main{padding-bottom:60px}
@@ -543,6 +545,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #right-panel{width:100%!important;max-width:100vw;bottom:60px}
   #bottom-nav{display:flex}
   #main{padding-bottom:60px}
+  #topbar-logo-wrap{width:auto;border-left:none}
   #topbar-logo span{display:none}
   #topbar-logo{font-size:13px;white-space:nowrap}
   .tb-btn{padding:7px 10px;font-size:12px}
@@ -612,7 +615,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <line x1="3" y1="6" x2="19" y2="6"/><line x1="3" y1="11" x2="19" y2="11"/><line x1="3" y1="16" x2="19" y2="16"/>
       </svg>
     </button>
-    <div id="topbar-logo">⬡ מערכת מבצעים v5.2 <span>כוננות מחוזית ת"א</span></div>
+    <div id="topbar-logo-wrap">
+      <div id="topbar-logo">⬡ מערכת מבצעים v5.2 <span>כוננות מחוזית ת"א</span></div>
+    </div>
     <div class="nav-tabs">
       <button class="nav-tab active" data-v="map" onclick="goView('map')">🗺️ מפה</button>
       <button class="nav-tab" data-v="missions" onclick="goView('missions')">📋 משימות</button>
@@ -627,6 +632,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab nav-tab-action" onclick="goPanel('alerts')">⚠ התראות <span id="alert-badge">2</span></button>
       <button class="nav-tab nav-tab-action" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
     </div>
+    <div class="tb-spacer"></div>
     <div id="topbar-right">
       <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
       <div id="topbar-user" title="משתמש מחובר">—</div>
