@@ -1,5 +1,5 @@
 // Service Worker — מערכת מבצעים v5.2
-const CACHE = 'tac-v5-2';            // ← bumped: forces old cache to be wiped
+const CACHE = 'tac-v5-2-' + '2026040601'; // bump this suffix on every deploy to force cache wipe
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 
@@ -18,6 +18,11 @@ self.addEventListener('activate', e => {
         keys.filter(k => k !== CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
+      .then(() => {
+        // Tell every open tab to reload so they get the fresh HTML immediately
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+          .then(clients => clients.forEach(c => c.postMessage({ type: 'SW_UPDATED' })));
+      })
   );
 });
 

@@ -672,6 +672,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <!-- MAP WRAP -->
     <div id="map-wrap">
       <div id="gmap"></div>
+      <!-- Zoom overlay buttons -->
+      <div id="map-zoom-overlay" style="position:absolute;bottom:90px;left:10px;z-index:200;display:flex;flex-direction:column;gap:6px">
+        <button onclick="mapZoom(1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">＋</button>
+        <button onclick="mapZoom(-1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">－</button>
+      </div>
       <!-- GovMap iframe — shown when govmap base is selected -->
       <iframe id="govmap-iframe"
         style="position:absolute;inset:0;width:100%;height:100%;border:none;display:none;z-index:1"
@@ -1244,7 +1249,7 @@ const AUTH = (() => {
 // ── STATE ──
 let map=null, _markers={}, _circles={}, _polylines={}, _infoWindows=[];
 let currentPanel='', currentView='map', modalCB=null;
-let labelNum=1, activeDrawMode=null, drawPoints=[], drawPolyline=null;
+let labelNum=1, activeDrawMode=null, drawPoints=[], drawPolyline=null, activeDrawColor='#3dff52';
 let trackingOn=false, trackMks={}, autoTrackInterval=null;
 let gpsWatchId=null, gpsMarker=null;
 let _selectedPersonnel=new Set(), dragSrcEl=null;
@@ -2075,6 +2080,7 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
       <div style="display:flex;gap:5px;margin-top:6px">
         <button onclick="startDragPerson('${id}')" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:3px 8px;color:#0a7cb8;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">↕ גרור</button>
         <button onclick="movePersonByAddress('${personnelId||id}')" style="background:#f5f5f5;border:1px solid #ccc;border-radius:4px;padding:3px 8px;color:#333;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">📍 כתובת</button>
+        ${personnelId?`<button onclick="closeAllInfoWindows();removePersFromMap('${personnelId}')" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:3px 8px;color:#c62828;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">✕ הסר ממפה</button>`:''}
       </div>
     </div>`,
   });
@@ -2237,10 +2243,15 @@ function activateTool(mode){
 }
 function deactivateTool(){activeDrawMode=null;map.setOptions({cursor:''});}
 
+function setDrawColor(col,el){
+  activeDrawColor=col;
+  document.querySelectorAll('#draw-clr .clr-dot').forEach(d=>d.classList.remove('sel'));
+  if(el)el.classList.add('sel');
+}
 function addDrawPoint(latLng){
   const mk=new google.maps.Marker({
     position:latLng,map,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:'#3dff52',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
     label:{text:String(labelNum++),color:'#fff',fontSize:'10px',fontWeight:'bold'},
     zIndex:300,
   });
@@ -2248,7 +2259,7 @@ function addDrawPoint(latLng){
   deactivateTool();
 }
 function addDrawCircle(latLng){
-  const c=new google.maps.Circle({map,center:latLng,radius:200,strokeColor:'#ffc107',strokeOpacity:0.8,strokeWeight:2,fillColor:'#ffc107',fillOpacity:0.08});
+  const c=new google.maps.Circle({map,center:latLng,radius:200,strokeColor:activeDrawColor,strokeOpacity:0.8,strokeWeight:2,fillColor:activeDrawColor,fillOpacity:0.08});
   _circles['d_'+Date.now()]=c;
   deactivateTool();
   showToast({icon:'⭕',title:'מעגל רדיוס נוסף',sub:'200מ',type:'success'});
@@ -2258,7 +2269,7 @@ function addRoutePoint(latLng){
   _routePoints.push(latLng);
   if(_routePoints.length>=2){
     if(drawPolyline)drawPolyline.setMap(null);
-    drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:'#29c5f6',strokeWeight:3,strokeOpacity:0.85});
+    drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:activeDrawColor,strokeWeight:3,strokeOpacity:0.85});
   }
   new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:'#29c5f6',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
 }
@@ -2518,8 +2529,6 @@ function renderDrawP(c){
   <!-- ── ניווט ── -->
   <div class="sec-hd">🧭 ניווט</div>
   <div class="mp-grid">
-    <button class="mp-btn" onclick="mapZoom(1)"><span>＋</span><span class="mp-btn-label">הגדל</span></button>
-    <button class="mp-btn" onclick="mapZoom(-1)"><span>－</span><span class="mp-btn-label">הקטן</span></button>
     <button class="mp-btn" onclick="mapGoTo(32.0667,34.7818,13)"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
     <button class="mp-btn" onclick="if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})"><span>🇮🇱</span><span class="mp-btn-label">כל ישראל</span></button>
     <button class="mp-btn" onclick="locateMe()"><span>🎯</span><span class="mp-btn-label">מרכז עלי</span></button>
@@ -2571,7 +2580,7 @@ function renderDrawP(c){
   </div>
   <div class="sec-hd">צבע</div>
   <div class="clr-row" id="draw-clr">
-    ${['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'].map((col,i)=>`<div class="clr-dot${i===0?' sel':''}" style="background:${col}" data-c="${col}"></div>`).join('')}
+    ${['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'].map((col,i)=>`<div class="clr-dot${i===0?' sel':''}" style="background:${col}" data-c="${col}" onclick="setDrawColor('${col}',this)"></div>`).join('')}
   </div>
 
   <!-- ── גבולות ── -->
@@ -5000,7 +5009,6 @@ function renderPersonnelP(c){
           <button class="pqa-btn pqa-edit" onclick="editPersonModal('${p.id}')">✏️ ערוך</button>
           <button class="pqa-btn pqa-place" onclick="openPlacePersonModal('${p.id}')" title="מקם על המפה">📍 מקם</button>
           <button class="pqa-btn pqa-assign" onclick="persnAssignMission('${p.id}')">📋 שבץ</button>
-          <button class="pqa-btn pqa-del" onclick="deletePerson('${p.id}')" title="הסר מהרשימה">✕ הסר</button>
         </div>
       </div>
     </div>`).join('')}
@@ -6100,6 +6108,19 @@ const FIELD = (() => {
   // fresh from network. No forced page reloads here — they caused re-login loops.
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(()=>{});
+    // When a new SW activates and claims this client, reload once to get fresh HTML
+    let _swReloading = false;
+    const _swReload = () => { if (!_swReloading) { _swReloading = true; window.location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', _swReload);
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data && e.data.type === 'SW_UPDATED') _swReload();
+    });
+    // Trigger SW update check whenever the tab becomes visible (catches background updates)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker.getRegistration().then(reg => reg && reg.update());
+      }
+    });
   }
   // ── Auth gate — always require explicit login on every open ──
   document.getElementById('login-screen').style.display = 'flex';
