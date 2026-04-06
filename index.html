@@ -735,7 +735,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
       <div class="nav-tab-sep"></div>
       <button class="nav-tab nav-tab-action" onclick="goPanel('alerts')">⚠ התראות <span id="alert-badge">2</span></button>
-      <button class="nav-tab nav-tab-action" onclick="openNotifModal()" id="tb-notif-btn" style="display:none">📢 שלח</button>
       <button class="nav-tab nav-tab-action" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
     </div>
     <div class="tb-spacer"></div>
@@ -1434,8 +1433,6 @@ const AUTH = (() => {
     // Show/hide admin buttons
     const tbAdminBtn = document.getElementById('tb-admin-btn');
     if(tbAdminBtn) tbAdminBtn.style.display = isAdmin ? '' : 'none';
-    const tbNotifBtn = document.getElementById('tb-notif-btn');
-    if(tbNotifBtn) tbNotifBtn.style.display = isAdmin ? '' : 'none';
     // Update mobile drawer user card
     const mobName = document.getElementById('mob-user-name');
     const mobRole = document.getElementById('mob-user-role');
