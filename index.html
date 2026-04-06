@@ -1293,9 +1293,9 @@ const BIOMETRIC = (() => {
         _triggerMapResize();
         if(typeof FIELD !== 'undefined') FIELD.boot();
         if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
-        if(typeof PUSH!=='undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024)){
+        if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
           const _u2 = AUTH.getUser();
-          if(_u2) setTimeout(()=>PUSH.requestAndSaveToken(_u2.id), 1500);
+          if(_u2) setTimeout(()=>_registerPushForUser(_u2.id), 800);
         }
         const u = AUTH.getUser();
         setTimeout(()=>{
@@ -1479,9 +1479,9 @@ const AUTH = (() => {
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
       // Start listening for incoming notifications now that user is authenticated
       if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
-      // Register for FCM push (mobile only)
-      if(typeof PUSH!=='undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024)){
-        setTimeout(()=>PUSH.requestAndSaveToken(_user.id), 1500);
+      // Register SW background polling + push permission
+      if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
+        setTimeout(()=>_registerPushForUser(_user.id), 800);
       }
     } else {
       err.textContent = '⚠️ אימייל או סיסמה שגויים';
@@ -1498,6 +1498,35 @@ const AUTH = (() => {
 
   return { login, logout, restore, applyPerms, canDo, doLogin, getUser, isAdmin, getPerms, getRolePerms };
 })();
+
+// ── Background push registration (called after login on mobile) ──
+async function _registerPushForUser(personId){
+  if(!('serviceWorker' in navigator) || !('Notification' in window)) return;
+  try {
+    // Request notification permission
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted') return;
+
+    // Tell SW who this user is + when to start listening from
+    const reg = await navigator.serviceWorker.ready;
+    if(reg.active){
+      reg.active.postMessage({ type:'SET_USER', personId, listenFrom: Date.now() });
+    }
+
+    // Register Periodic Background Sync (Android Chrome only)
+    if('periodicSync' in reg){
+      try {
+        const status = await navigator.permissions.query({ name:'periodic-background-sync' });
+        if(status.state === 'granted'){
+          await reg.periodicSync.register('tac-notif-check', { minInterval: 60 * 1000 });
+        }
+      } catch(e){ /* not supported */ }
+    }
+
+    // Save FCM token for future use
+    if(typeof PUSH !== 'undefined') PUSH.requestAndSaveToken(personId);
+  } catch(e){ console.warn('Push registration error', e); }
+}
 
 // ── STATE ──
 let map=null, _markers={}, _circles={}, _polylines={}, _infoWindows=[];
