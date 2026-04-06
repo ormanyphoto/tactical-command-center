@@ -3766,7 +3766,7 @@ function boPersonnel(c){
     rows+='<td style="font-size:12px">'+(p.unit||'—')+'</td>';
     rows+='<td style="color:var(--accent2);font-size:12px">'+(p.role||'—')+'</td>';
     rows+='<td><span class="badge '+(av?'b-active':'b-unavail')+'">'+(av?'זמין':'לא זמין')+'</span></td>';
-    rows+='<td><div class="actions"><button class="act-btn" onclick="togglePersonAvail(this.dataset.id)" data-id="'+p.id+'" title="החלף זמינות">⇄</button><button class="act-btn" onclick="editPersonModal(this.dataset.id);closeBO()" data-id="'+p.id+'">✏️</button><button class="act-btn del" onclick="boDeletePerson(this.dataset.id)" data-id="'+p.id+'">✕</button></div></td>';
+    rows+='<td><div class="actions"><button class="act-btn" onclick="togglePersonAvail(this.dataset.id)" data-id="'+p.id+'" title="החלף זמינות">⇄</button><button class="act-btn" onclick="editPersonModal(this.dataset.id)" data-id="'+p.id+'">✏️</button><button class="act-btn del" onclick="boDeletePerson(this.dataset.id)" data-id="'+p.id+'">✕</button></div></td>';
     rows+='</tr>';
   });
   c.innerHTML='<div class="bo-section">'
@@ -4028,7 +4028,7 @@ function boUnits(c){
       +members.map(function(p){
         var av=p.available;
         var initials=p.name.split(' ').map(function(w){return w[0];}).join('').slice(0,2);
-        return '<span class="dept-member-chip" style="border-color:'+(av?'rgba(61,255,82,0.3)':'rgba(255,51,51,0.2)')+';color:'+(av?'var(--accent)':'var(--text3)')+'" data-id="'+p.id+'" onclick="editPersonModal(this.dataset.id);closeBO()" title="'+p.name+'">'
+        return '<span class="dept-member-chip" style="border-color:'+(av?'rgba(61,255,82,0.3)':'rgba(255,51,51,0.2)')+';color:'+(av?'var(--accent)':'var(--text3)')+'" data-id="'+p.id+'" onclick="editPersonModal(this.dataset.id)" title="'+p.name+'">'
           +(p.photo?'<img src="'+p.photo+'" style="width:16px;height:16px;border-radius:50%;object-fit:cover"/>':'<div style="width:14px;height:14px;border-radius:50%;background:'+(p.color||'#9ab8c8')+';flex-shrink:0"></div>')
           +p.name.split(' ').slice(-1)[0]+'</span>';
       }).join('')
@@ -5460,6 +5460,8 @@ function editPersonModal(id){
       <div class="addr-sugs" id="ep-addr-sugs"></div>
     </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
+  const _callerPanel = currentPanel;
+  const _boOpen = document.getElementById('bo-wrap')?.classList.contains('show');
   modalCB=()=>{
     p.name=document.getElementById('ep-name').value||p.name;
     p.phone=document.getElementById('ep-phone').value;
@@ -5471,9 +5473,14 @@ function editPersonModal(id){
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
     if(window._pendingPhoto){p.photo=window._pendingPhoto;window._pendingPhoto='';}
-    renderPersonnelP(document.getElementById('rp-body'));
     savePersonnelToStorage();
     showToast({icon:'✅',title:'עודכן: '+p.name,type:'success'});
+    // Return to the same screen the user came from
+    if(_boOpen){
+      boTab('personnel-bo');
+    } else {
+      renderPersonnelP(document.getElementById('rp-body'));
+    }
   };
   document.getElementById('modal-wrap').style.display='flex';
 }
