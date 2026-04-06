@@ -603,7 +603,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="analytics" onclick="goView('analytics')">📈 אנליטיקה</button>
       <button class="nav-tab" data-v="ai" onclick="goView('ai')">🤖 AI</button>
       <button class="nav-tab" data-v="teams" onclick="goView('teams')">🏢 צוותים</button>
-      <button class="nav-tab" data-v="personnel" onclick="goView('personnel')">👤 כוח אדם</button>
+      <button class="nav-tab" data-v="personnel" onclick="goView('personnel')">👤 אנשי צוות</button>
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
     </div>
     <div class="tb-spacer"></div>
@@ -647,7 +647,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div class="mob-nav-item" onclick="mobileGoView('analytics')"><span class="mob-icon">📈</span>אנליטיקה</div>
         <div class="mob-nav-item" onclick="mobileGoView('ai')"><span class="mob-icon">🤖</span>AI סייע</div>
         <div class="mob-nav-item" onclick="mobileGoView('teams')"><span class="mob-icon">🏢</span>צוותים</div>
-        <div class="mob-nav-item" onclick="mobileGoView('personnel')"><span class="mob-icon">👤</span>כוח אדם</div>
+        <div class="mob-nav-item" onclick="mobileGoView('personnel')"><span class="mob-icon">👤</span>אנשי צוות</div>
         <div class="mob-nav-item" onclick="mobileGoView('navigation')"><span class="mob-icon">🧭</span>ניווט</div>
       </nav>
       <div id="mobile-drawer-footer">
@@ -661,7 +661,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   <!-- BOTTOM NAV (tablet + mobile) -->
   <div id="bottom-nav">
     <button class="bn-item active" data-v="map" onclick="mobileGoView('map')"><span class="bn-icon">🗺️</span>מפה</button>
-    <button class="bn-item" data-v="personnel" onclick="mobileGoView('personnel')"><span class="bn-icon">👤</span>כוח אדם</button>
+    <button class="bn-item" data-v="personnel" onclick="mobileGoView('personnel')"><span class="bn-icon">👤</span>אנשי צוות</button>
     <button class="bn-item" data-v="missions" onclick="mobileGoView('missions')"><span class="bn-icon">📋</span>משימות</button>
     <button class="bn-item" data-v="comms" onclick="mobileGoView('comms')"><span class="bn-icon">📡</span>תקשורת</button>
     <button class="bn-item bn-sos" onclick="triggerSOS()"><span class="bn-icon">🆘</span>מצוקה</button>
@@ -676,6 +676,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div id="map-zoom-overlay" style="position:absolute;bottom:90px;left:10px;z-index:200;display:flex;flex-direction:column;gap:6px">
         <button onclick="mapZoom(1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">＋</button>
         <button onclick="mapZoom(-1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">－</button>
+        <button onclick="locateMe()" title="מרכז עלי" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(168,232,0,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">🎯</button>
       </div>
       <!-- GovMap iframe — shown when govmap base is selected -->
       <iframe id="govmap-iframe"
@@ -2248,30 +2249,78 @@ function setDrawColor(col,el){
   document.querySelectorAll('#draw-clr .clr-dot').forEach(d=>d.classList.remove('sel'));
   if(el)el.classList.add('sel');
 }
+function _drawDeleteIW(label, onDelete){
+  const iw = new google.maps.InfoWindow({
+    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
+      <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">${label}</div>
+      <button onclick="(${onDelete.toString()})()" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק</button>
+    </div>`
+  });
+  return iw;
+}
 function addDrawPoint(latLng){
+  const key='d_'+Date.now();
   const mk=new google.maps.Marker({
     position:latLng,map,
     icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
     label:{text:String(labelNum++),color:'#fff',fontSize:'10px',fontWeight:'bold'},
     zIndex:300,
   });
-  _markers['d_'+Date.now()]=mk;
+  _markers[key]=mk;
+  const iw=_drawDeleteIW('📍 סימן', function(){
+    mk.setMap(null); delete _markers[key]; closeAllInfoWindows();
+  });
+  mk.addListener('click',()=>{closeAllInfoWindows();iw.open(map,mk);_infoWindows.push(iw);});
   deactivateTool();
 }
 function addDrawCircle(latLng){
+  const key='d_'+Date.now();
   const c=new google.maps.Circle({map,center:latLng,radius:200,strokeColor:activeDrawColor,strokeOpacity:0.8,strokeWeight:2,fillColor:activeDrawColor,fillOpacity:0.08});
-  _circles['d_'+Date.now()]=c;
+  _circles[key]=c;
+  const iw=new google.maps.InfoWindow({
+    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
+      <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">⭕ מעגל</div>
+      <button id="del-circ-${key}" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק</button>
+    </div>`,
+    position: latLng,
+  });
+  c.addListener('click', e=>{
+    closeAllInfoWindows();
+    iw.setPosition(e.latLng);
+    iw.open(map);
+    _infoWindows.push(iw);
+    google.maps.event.addListenerOnce(iw,'domready',()=>{
+      const btn=document.getElementById('del-circ-'+key);
+      if(btn) btn.onclick=()=>{c.setMap(null);delete _circles[key];closeAllInfoWindows();};
+    });
+  });
   deactivateTool();
-  showToast({icon:'⭕',title:'מעגל רדיוס נוסף',sub:'200מ',type:'success'});
+  showToast({icon:'⭕',title:'מעגל רדיוס נוסף',sub:'200מ — לחץ למחיקה',type:'success'});
 }
 let _routePoints=[];
 function addRoutePoint(latLng){
   _routePoints.push(latLng);
   if(_routePoints.length>=2){
-    if(drawPolyline)drawPolyline.setMap(null);
+    if(drawPolyline){drawPolyline.setMap(null);}
     drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:activeDrawColor,strokeWeight:3,strokeOpacity:0.85});
+    drawPolyline.addListener('click', e=>{
+      closeAllInfoWindows();
+      const iw=new google.maps.InfoWindow({
+        content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
+          <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">🛣️ מסלול</div>
+          <button id="del-route-btn" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק מסלול</button>
+        </div>`,
+        position: e.latLng,
+      });
+      iw.open(map);
+      _infoWindows.push(iw);
+      google.maps.event.addListenerOnce(iw,'domready',()=>{
+        const btn=document.getElementById('del-route-btn');
+        if(btn) btn.onclick=()=>{if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}_routePoints=[];closeAllInfoWindows();};
+      });
+    });
   }
-  new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:'#29c5f6',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
+  new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
 }
 function startCircleAt(latLng){activateTool('circle');addDrawCircle(latLng);}
 function clearAll(){
@@ -2531,7 +2580,6 @@ function renderDrawP(c){
   <div class="mp-grid">
     <button class="mp-btn" onclick="mapGoTo(32.0667,34.7818,13)"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
     <button class="mp-btn" onclick="if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})"><span>🇮🇱</span><span class="mp-btn-label">כל ישראל</span></button>
-    <button class="mp-btn" onclick="locateMe()"><span>🎯</span><span class="mp-btn-label">מרכז עלי</span></button>
     <button class="mp-btn" onclick="if(map)map.setTilt(map.getTilt()===0?45:0)"><span>🔭</span><span class="mp-btn-label">הטיה 45°</span></button>
   </div>
 
@@ -2576,11 +2624,7 @@ function renderDrawP(c){
     <button class="mp-btn" onclick="activateTool('point')"><span>📍</span><span class="mp-btn-label">סימן</span></button>
     <button class="mp-btn" onclick="activateTool('circle')"><span>⭕</span><span class="mp-btn-label">מעגל</span></button>
     <button class="mp-btn" onclick="activateTool('route')"><span>🛣️</span><span class="mp-btn-label">מסלול</span></button>
-    <button class="mp-btn" onclick="clearAll()"><span>🗑️</span><span class="mp-btn-label">נקה</span></button>
-  </div>
-  <div class="sec-hd">צבע</div>
-  <div class="clr-row" id="draw-clr">
-    ${['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'].map((col,i)=>`<div class="clr-dot${i===0?' sel':''}" style="background:${col}" data-c="${col}" onclick="setDrawColor('${col}',this)"></div>`).join('')}
+    <button class="mp-btn" onclick="clearAll()"><span>🗑️</span><span class="mp-btn-label">נקה הכל</span></button>
   </div>
 
   <!-- ── גבולות ── -->
@@ -2594,6 +2638,10 @@ function renderDrawP(c){
   <button class="btn-pri" onclick="startBoundaryDraw()" style="margin:6px 0 4px">✏️ צייר גבול ידני</button>
   <button class="btn-sec" onclick="cancelBoundaryDraw()">✕ בטל ציור</button>
   <button class="btn-sec" onclick="clearSavedBoundaries()">🗑️ נקה גבולות ידניים</button>
+  <div class="sec-hd" style="margin-top:10px">🎨 צבע ציור</div>
+  <div class="clr-row" id="draw-clr">
+    ${['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'].map((col,i)=>`<div class="clr-dot${i===0?' sel':''}" style="background:${col}" data-c="${col}" onclick="setDrawColor('${col}',this)"></div>`).join('')}
+  </div>
   ${(window._savedBoundaries||[]).length?'<div style="font-size:11px;color:var(--accent2);margin-top:4px">'+(window._savedBoundaries||[]).length+' גבולות שמורים</div>':''}
 
   <!-- ── אנימציות ── -->
@@ -4439,7 +4487,7 @@ function startBoundaryDraw(){
     _boundaryPolyline=new google.maps.Polyline({
       path:_boundaryPoints,
       map:map,
-      strokeColor:'#29c5f6',
+      strokeColor:activeDrawColor,
       strokeWeight:3,
       strokeOpacity:0.9,
       icons:[{icon:{path:google.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:3},offset:'100%'}],
@@ -4447,7 +4495,7 @@ function startBoundaryDraw(){
     // Add small dot at each point
     new google.maps.Marker({
       position:e.latLng,map:map,
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:4,fillColor:'#29c5f6',fillOpacity:1,strokeColor:'#fff',strokeWeight:1.5},
+      icon:{path:google.maps.SymbolPath.CIRCLE,scale:4,fillColor:activeDrawColor,fillOpacity:1,strokeColor:'#fff',strokeWeight:1.5},
       zIndex:500,
     });
     showToast({icon:'📍',title:'נקודה '+_boundaryPoints.length+' נוספה',sub:'לחץ שוב לנקודה נוספת · כפל-לחיצה לסיום',type:'info',duration:1500});
@@ -4463,8 +4511,8 @@ function _finalizeBoundary(name){
   // Create closed polygon
   const poly=new google.maps.Polygon({
     paths:_boundaryPoints,map:map,
-    strokeColor:'#29c5f6',strokeOpacity:0.9,strokeWeight:2,
-    fillColor:'#29c5f6',fillOpacity:0.06,
+    strokeColor:activeDrawColor,strokeOpacity:0.9,strokeWeight:2,
+    fillColor:activeDrawColor,fillOpacity:0.06,
     clickable:true,editable:false,
   });
   // Info window on click
