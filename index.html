@@ -6117,6 +6117,21 @@ function openNotifModal(){
   }
   selectNotifTarget('all', document.querySelector('[data-target="all"]'));
   document.getElementById('notif-modal-overlay').classList.add('open');
+  // Attach Google Places Autocomplete to address field (once)
+  const addrEl = document.getElementById('nm-addr-notif');
+  if(addrEl && !addrEl._acAttached && window.google && google.maps.places){
+    const ac = new google.maps.places.Autocomplete(addrEl, {
+      componentRestrictions:{country:'il'},
+      fields:['formatted_address','geometry','name'],
+      language:'he'
+    });
+    ac.addListener('place_changed', ()=>{
+      const place = ac.getPlace();
+      if(place && place.formatted_address) addrEl.value = place.formatted_address;
+    });
+    addrEl._acAttached = true;
+  }
+  setTimeout(()=>{ const a=document.getElementById('nm-addr-notif'); if(a) a.focus(); }, 50);
 }
 
 function closeNotifModal(){
