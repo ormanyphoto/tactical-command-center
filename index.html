@@ -123,6 +123,20 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #zoom-btns{display:none}.zoom-btn{display:none}
 #sos-flash{position:fixed;inset:0;background:rgba(255,0,0,0.15);pointer-events:none;z-index:9997;display:none;animation:sos-anim 0.5s ease-in-out infinite}
 @keyframes sos-anim{0%,100%{opacity:0}50%{opacity:1}}
+/* ── MAP RIGHT ACTION OVERLAY ── */
+#map-action-overlay{position:absolute;top:10px;right:10px;z-index:200;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none}
+#map-action-overlay>*{pointer-events:all}
+#map-user-card{background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);border-radius:10px;padding:8px 12px;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;gap:2px;min-width:120px}
+#map-overlay-user{font-size:11px;font-weight:700;color:var(--accent2)}
+#map-overlay-time{font-size:17px;font-weight:900;color:var(--accent2);font-family:var(--font2);letter-spacing:0.04em}
+#map-overlay-date{font-size:9px;color:var(--text3)}
+#map-act-row{display:flex;flex-direction:row;gap:5px}
+.map-act-btn{width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s;font-family:var(--font)}
+.map-act-btn:hover{background:rgba(41,197,246,0.8)}
+#map-sos-btn{position:absolute;bottom:30px;right:10px;z-index:200;background:rgba(210,0,0,0.9);border:2px solid rgba(255,60,60,0.65);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 22px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(200,0,0,0.5);font-family:var(--font);white-space:nowrap;animation:sosPulse 2.5s ease-in-out infinite;transition:transform 0.12s}
+#map-sos-btn:hover{transform:scale(1.05)}
+@keyframes sosPulse{0%,100%{box-shadow:0 4px 18px rgba(200,0,0,0.5)}55%{box-shadow:0 4px 28px rgba(255,0,0,0.9),0 0 0 5px rgba(255,51,51,0.15)}}
+@media(max-width:768px){#map-action-overlay,#map-sos-btn{display:none}}
 #toast-container{position:fixed;bottom:60px;left:16px;z-index:9990;display:flex;flex-direction:column;gap:6px;pointer-events:none;direction:rtl}
 .toast{background:var(--panel);border:1px solid var(--border3);border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--texthi);box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:all;display:flex;align-items:center;gap:9px;min-width:220px;max-width:320px;direction:rtl;animation:toastIn 0.3s ease}
 .toast.fadeout{animation:toastOut 0.3s ease forwards}
@@ -606,13 +620,12 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
     </div>
     <div class="tb-spacer"></div>
-    <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
-    <button class="tb-btn tbdanger" onclick="triggerSOS()">🆘 מצוקה</button>
-    <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
-    <button class="tb-btn" onclick="openBO()">⚙ ניהול</button>
-    <div id="topbar-user" title="משתמש מחובר">—</div>
-    <button class="tb-btn" id="btn-logout" onclick="AUTH.logout()" title="יציאה">🚪</button>
-    <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
+    <!-- Hidden elements kept for JS compatibility -->
+    <span id="sys-time" style="display:none">00:00:00</span>
+    <span id="sys-date" style="display:none"></span>
+    <span id="topbar-user" style="display:none"></span>
+    <span id="btn-night" style="display:none"></span>
+    <span id="btn-day" style="display:none"></span>
   </div>
 
   <!-- MOBILE DRAWER -->
@@ -676,6 +689,22 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button onclick="mapZoom(-1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">－</button>
         <button onclick="locateMe()" title="מרכז עלי" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(168,232,0,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">🎯</button>
       </div>
+      <!-- Right action overlay (desktop) -->
+      <div id="map-action-overlay">
+        <div id="map-user-card">
+          <div id="map-overlay-user">—</div>
+          <div id="map-overlay-time">00:00</div>
+          <div id="map-overlay-date">...</div>
+        </div>
+        <div id="map-act-row">
+          <button class="map-act-btn" id="btn-theme-icon" onclick="setTheme(document.body.classList.contains('day')?'night':'day')" title="יום / לילה">🌙</button>
+          <button class="map-act-btn" onclick="goPanel('alerts')" title="התראות" style="font-size:13px;font-weight:900;position:relative">⚠<span id="alert-badge" style="position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:50%;font-size:9px;font-weight:900;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 2px">2</span></button>
+          <button class="map-act-btn" id="map-admin-btn" onclick="openBO()" title="ניהול">⚙</button>
+          <button class="map-act-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
+        </div>
+      </div>
+      <!-- SOS button bottom-right -->
+      <button id="map-sos-btn" onclick="triggerSOS()">🆘 מצוקה</button>
       <!-- GovMap iframe — shown when govmap base is selected -->
       <iframe id="govmap-iframe"
         style="position:absolute;inset:0;width:100%;height:100%;border:none;display:none;z-index:1"
@@ -716,7 +745,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button class="mp-btn" onclick="goPanel('draw')" title="כלי ציור גבולות">✏️</button>
         <button class="mp-btn" onclick="takeMapSnapshot()" title="צלם מפה">📸</button>
         <div class="mp-divider"></div>
-        <button class="mp-btn" onclick="triggerSOS()" title="SOS חירום" style="border-color:var(--danger);color:var(--danger)">🆘</button>
       </div>
       <!-- Search -->
       <div id="search-wrap">
@@ -1192,6 +1220,12 @@ const AUTH = (() => {
     // Update topbar user badge (desktop)
     const badge = document.getElementById('topbar-user');
     if(badge) badge.textContent = _user.name.split(' ')[0] + ' · ' + (_user.role||'לוחם');
+    // Update map overlay user
+    const mapUser = document.getElementById('map-overlay-user');
+    if(mapUser) mapUser.textContent = _user.name.split(' ')[0] + ' · ' + (_user.role||'לוחם');
+    // Show/hide admin button in overlay
+    const mapAdminBtn = document.getElementById('map-admin-btn');
+    if(mapAdminBtn) mapAdminBtn.style.display = isAdmin ? '' : 'none';
     // Update mobile drawer user card
     const mobName = document.getElementById('mob-user-name');
     const mobRole = document.getElementById('mob-user-role');
@@ -2451,7 +2485,13 @@ function showToast({icon='ℹ️',title='',sub='',type='info',duration=4000}){
     const tel=document.getElementById('sys-time');
     const del=document.getElementById('sys-date');
     if(tel)tel.textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
-    if(del){const days=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];del.textContent=days[n.getDay()]+' '+p(n.getDate())+'/'+p(n.getMonth()+1)+'/'+n.getFullYear();}
+    const days=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+    if(del)del.textContent=days[n.getDay()]+' '+p(n.getDate())+'/'+p(n.getMonth()+1)+'/'+n.getFullYear();
+    // Update map overlay clock
+    const ot=document.getElementById('map-overlay-time');
+    const od=document.getElementById('map-overlay-date');
+    if(ot)ot.textContent=`${p(n.getHours())}:${p(n.getMinutes())}`;
+    if(od)od.textContent=days[n.getDay()]+' '+p(n.getDate())+'/'+p(n.getMonth()+1);
   }
   tick();setInterval(tick,1000);
 })();
@@ -2462,6 +2502,8 @@ function setTheme(m){
   const dn=document.getElementById('btn-night'),dd=document.getElementById('btn-day');
   if(dn){dn.classList.toggle('active',m==='night');dn.style.cssText='';}
   if(dd){dd.classList.toggle('active',m==='day');dd.style.cssText='';}
+  const ti=document.getElementById('btn-theme-icon');
+  if(ti)ti.textContent=m==='night'?'☀️':'🌙';
   localStorage.setItem('tac-v5-theme',m);
   if(map&&window._googleReady){
     map.setOptions({styles:m==='night'?window._nightStyle||[]:[
