@@ -205,6 +205,34 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #map-sos-btn:hover{transform:scale(1.05)}
 @keyframes sosPulse{0%,100%{box-shadow:0 4px 18px rgba(200,0,0,0.5)}55%{box-shadow:0 4px 28px rgba(255,0,0,0.9),0 0 0 5px rgba(255,51,51,0.15)}}
 @media(max-width:768px){#map-action-overlay,#map-sos-btn{display:none}}
+/* ── SOS DISTRESS SYSTEM ── */
+#sos-alert-bar{display:none;position:fixed;top:62px;left:0;right:0;z-index:8500;background:rgba(190,0,0,0.97);color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(255,80,80,0.5);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl}
+#sos-alert-bar.active{display:flex;animation:sosBarPulse 1.4s ease-in-out infinite}
+@keyframes sosBarPulse{0%,100%{background:rgba(190,0,0,0.97)}55%{background:rgba(255,20,20,1)}}
+.sos-bar-blink{font-size:22px;animation:sosBounce 0.55s ease-in-out infinite alternate;flex-shrink:0}
+@keyframes sosBounce{from{transform:scale(1)}to{transform:scale(1.25)}}
+.sos-bar-info{flex:1;min-width:0}
+.sos-bar-title{font-size:14px;font-weight:900;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sos-bar-sub{font-size:11px;opacity:0.82;font-weight:600}
+.sos-bar-nav{background:#fff;color:#c00;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:900;cursor:pointer;font-family:var(--font);white-space:nowrap;flex-shrink:0;transition:opacity 0.15s}
+.sos-bar-nav:hover{opacity:0.88}
+.sos-bar-ack{background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);flex-shrink:0}
+.sos-bar-ack:hover{background:rgba(255,255,255,0.25)}
+/* SOS full-screen popup */
+#sos-popup-overlay{display:none;position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.82);backdrop-filter:blur(7px);align-items:center;justify-content:center}
+#sos-popup-overlay.open{display:flex}
+#sos-popup-card{background:#0d0000;border:3px solid #ff2222;border-radius:22px;width:360px;max-width:92vw;padding:30px 24px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;animation:sosCardPulse 1.2s ease-in-out infinite}
+@keyframes sosCardPulse{0%,100%{box-shadow:0 0 40px rgba(255,0,0,0.4),0 20px 60px rgba(0,0,0,0.8)}55%{box-shadow:0 0 90px rgba(255,40,40,0.85),0 20px 60px rgba(0,0,0,0.8)}}
+.sos-pop-icon{font-size:54px;animation:sosBounce 0.5s ease-in-out infinite alternate}
+.sos-pop-badge{font-size:11px;font-weight:900;letter-spacing:0.12em;color:#ff4444;background:rgba(255,0,0,0.1);border:1px solid rgba(255,60,60,0.4);border-radius:20px;padding:3px 14px}
+.sos-pop-name{font-size:22px;font-weight:900;color:#fff;line-height:1.2}
+.sos-pop-meta{font-size:13px;color:rgba(255,255,255,0.6)}
+.sos-pop-loc{font-size:12px;color:rgba(255,160,160,0.8);font-weight:600}
+.sos-pop-time{font-size:11px;color:rgba(255,80,80,0.65)}
+.sos-pop-nav{width:100%;padding:14px;background:#dd0000;border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font);transition:background 0.15s}
+.sos-pop-nav:hover{background:#ff2222}
+.sos-pop-ack{width:100%;padding:10px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.18);border-radius:12px;color:rgba(255,255,255,0.65);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);transition:all 0.15s}
+.sos-pop-ack:hover{background:rgba(255,255,255,0.14);color:#fff}
 /* ── Location Privacy Toggle (mobile/tablet only) ── */
 #loc-privacy-btn{display:none;position:absolute;top:62px;left:10px;z-index:202;align-items:center;gap:10px;background:rgba(8,12,18,0.88);border:1.5px solid rgba(255,255,255,0.13);border-radius:26px;padding:8px 14px 8px 10px;cursor:pointer;backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,0.5);user-select:none;transition:border-color 0.22s,background 0.22s}
 #loc-privacy-btn:active{transform:scale(0.96)}
@@ -719,6 +747,31 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <span>צא</span>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
+    </div>
+  </div>
+
+  <!-- SOS ALERT BAR — fixed top bar for all users when SOS active -->
+  <div id="sos-alert-bar">
+    <div class="sos-bar-blink">🆘</div>
+    <div class="sos-bar-info">
+      <div class="sos-bar-title" id="sos-bar-title">אות מצוקה פעיל</div>
+      <div class="sos-bar-sub" id="sos-bar-sub">מאתר מיקום...</div>
+    </div>
+    <button class="sos-bar-nav" id="sos-bar-nav-btn" onclick="navToSOS()">🗺️ נווט מהיר</button>
+    <button class="sos-bar-ack" onclick="acknowledgeSOS()">✓ קיבלתי</button>
+  </div>
+
+  <!-- SOS POPUP — full-screen alert for recipients -->
+  <div id="sos-popup-overlay">
+    <div id="sos-popup-card">
+      <div class="sos-pop-icon">🆘</div>
+      <div class="sos-pop-badge">⚠ אות מצוקה פעיל ⚠</div>
+      <div class="sos-pop-name" id="sos-pop-name">—</div>
+      <div class="sos-pop-meta" id="sos-pop-meta">—</div>
+      <div class="sos-pop-loc" id="sos-pop-loc">📍 מאתר מיקום...</div>
+      <div class="sos-pop-time" id="sos-pop-time">—</div>
+      <button class="sos-pop-nav" onclick="navToSOS()">🗺️ נווט מהיר למיקום</button>
+      <button class="sos-pop-ack" onclick="acknowledgeSOS()">✓ קיבלתי — סגור חלון</button>
     </div>
   </div>
 
@@ -1556,6 +1609,7 @@ function onGoogleMapsReady(){
   startAutoTrack();
   if(typeof initLocPrivacy==='function') initLocPrivacy();
   if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 1500);
+  if(typeof listenForSOS==='function') setTimeout(listenForSOS, 1500);
   if(typeof loadFromStorage==='function')loadFromStorage();
   setTimeout(()=>{if(typeof loadSavedBoundaries==='function')loadSavedBoundaries();}, 1200);
 
@@ -2322,6 +2376,9 @@ function _methodIcon(m){ return {GPS:'🛰️',WiFi:'📶',IP:'🌐'}[m]||'📍'
 function _methodHe(m){   return {GPS:'GPS',WiFi:'WiFi/רשת',IP:'כתובת IP'}[m]||m; }
 
 function _applyPos(pos, method){
+  // Track last known position globally for SOS fallback
+  window._lastLat = pos.coords.latitude;
+  window._lastLng = pos.coords.longitude;
   const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
   const acc=Math.round(pos.coords.accuracy);
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
@@ -2718,9 +2775,175 @@ function statusHe(s){return{urgent:'דחוף',active:'פעיל',pending:'ממת�
 function typeHe(t){return{arrest:'מעצר',surveillance:'מעקב',escort:'ליווי',traffic:'תנועה',rescue:'חילוץ'}[t]||t;}
 function nowT(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
 function addAct(obj){actLog.unshift({time:nowT(),txt:obj.txt,type:obj.type});}
+/* ══════════════════════════════════════════════════
+   SOS DISTRESS SYSTEM
+══════════════════════════════════════════════════ */
+let _sosData=null, _sosMarker=null, _sosListener=null, _sosConfirmPending=false;
+
 function triggerSOS(){
+  // Two-tap confirmation to prevent accidents
+  if(!_sosConfirmPending){
+    _sosConfirmPending=true;
+    const btn=document.getElementById('map-sos-btn');
+    if(btn){btn.textContent='⚠️ לחץ שוב לאישור';btn.style.background='rgba(255,100,0,0.95)';}
+    showToast({icon:'⚠️',title:'לחץ שוב לאישור שידור מצוקה',type:'warn',duration:3000});
+    setTimeout(()=>{
+      _sosConfirmPending=false;
+      const b=document.getElementById('map-sos-btn');
+      if(b){b.innerHTML='🆘 לחצן מצוקה';b.style.background='';}
+    },3000);
+    return;
+  }
+  _sosConfirmPending=false;
+  const b=document.getElementById('map-sos-btn');
+  if(b){b.innerHTML='🆘 לחצן מצוקה';b.style.background='';}
+
+  const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
+  const db=window._db;
+  const myUid=(typeof SYNC!=='undefined')?SYNC.myUid:localStorage.getItem('tac_uid');
+
+  const rec={
+    uid:myUid||'unknown',
+    name:u?u.name:(window._myProfile?.name||'משתמש לא מזוהה'),
+    role:u?u.role:'',
+    color:u?(u.color||'#ff2222'):'#ff2222',
+    personId:u?u.id:'',
+    lat:null,lng:null,acc:null,
+    ts:Date.now(),active:true
+  };
+
+  // Flash + toast for sender
   const f=document.getElementById('sos-flash');if(f){f.style.display='block';setTimeout(()=>f.style.display='none',5000);}
-  showToast({icon:'🆘',title:'SOS שודר לכל היחידות',sub:'כל היחידות — התייצבו מיידית!',type:'danger',duration:8000});
+  showToast({icon:'🆘',title:'אות מצוקה שודר!',sub:'כל הכוחות קיבלו את הקריאה',type:'danger',duration:8000});
+
+  const _write=(lat,lng,acc)=>{
+    if(lat) rec.lat=lat; if(lng) rec.lng=lng; if(acc) rec.acc=acc;
+    if(db) db.ref('tac_sos/'+rec.uid).set(rec);
+  };
+
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      pos=>_write(pos.coords.latitude,pos.coords.longitude,Math.round(pos.coords.accuracy)),
+      ()=>_write(window._lastLat||null,window._lastLng||null,999),
+      {enableHighAccuracy:true,timeout:6000,maximumAge:8000}
+    );
+  } else {
+    _write(window._lastLat||null,window._lastLng||null,999);
+  }
+}
+
+function listenForSOS(){
+  const db=window._db;
+  if(!db||_sosListener) return;
+  _sosListener=true;
+  const myUid=(typeof SYNC!=='undefined')?SYNC.myUid:localStorage.getItem('tac_uid');
+
+  db.ref('tac_sos').on('child_added',snap=>{
+    const sos=snap.val();
+    if(!sos||!sos.active) return;
+    _showSOSAlert(sos, sos.uid===myUid);
+  });
+  db.ref('tac_sos').on('child_changed',snap=>{
+    const sos=snap.val();
+    if(!sos||!sos.active) _clearSOSUI();
+    else _showSOSAlert(sos, sos.uid===((typeof SYNC!=='undefined')?SYNC.myUid:localStorage.getItem('tac_uid')));
+  });
+  db.ref('tac_sos').on('child_removed',()=>_clearSOSUI());
+}
+
+function _showSOSAlert(sos, isOwn){
+  _sosData=sos;
+  const name=sos.name||'משתמש';
+  const ts=new Date(sos.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const hasLoc=sos.lat&&sos.lng;
+  const locStr=hasLoc?`📍 ${sos.lat.toFixed(5)}, ${sos.lng.toFixed(5)}`:'📍 מיקום לא זמין';
+
+  // SOS top bar (everyone)
+  const bar=document.getElementById('sos-alert-bar');
+  if(bar){
+    document.getElementById('sos-bar-title').textContent='🆘 מצוקה! — '+name+(isOwn?' (אתה)':'');
+    document.getElementById('sos-bar-sub').textContent=locStr+' · '+ts;
+    const navBtn=document.getElementById('sos-bar-nav-btn');
+    if(navBtn) navBtn.style.display=hasLoc?'':'none';
+    bar.classList.add('active');
+  }
+
+  // Full popup for receivers (not sender)
+  if(!isOwn){
+    document.getElementById('sos-pop-name').textContent=name;
+    document.getElementById('sos-pop-meta').textContent=sos.role||'';
+    document.getElementById('sos-pop-loc').textContent=locStr;
+    document.getElementById('sos-pop-time').textContent='שעה: '+ts;
+    document.getElementById('sos-popup-overlay').classList.add('open');
+    // Alert sound
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      [0,0.3,0.6].forEach(t=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g);g.connect(ctx.destination);
+        o.frequency.value=880;
+        g.gain.setValueAtTime(0.4,ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.25);
+        o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.25);
+      });
+    }catch(e){}
+  }
+
+  // Add to alerts panel
+  ALERTS.unshift({type:'danger',body:'🆘 מצוקה — '+name+' · '+ts,level:'high',time:ts});
+  if(typeof updateAlertBadge==='function') updateAlertBadge();
+
+  // Map marker
+  if(hasLoc&&window.map&&window.google) _placeSOSMapMarker(sos,ts);
+}
+
+function _placeSOSMapMarker(sos,ts){
+  if(_sosMarker) _sosMarker.setMap(null);
+  _sosMarker=new google.maps.Marker({
+    position:{lat:sos.lat,lng:sos.lng},
+    map:window.map,
+    title:'🆘 מצוקה — '+sos.name,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:18,fillColor:'#ff0000',fillOpacity:1,strokeColor:'#fff',strokeWeight:3},
+    zIndex:99999,
+    animation:google.maps.Animation.BOUNCE
+  });
+  setTimeout(()=>{if(_sosMarker)_sosMarker.setAnimation(null);},4000);
+  window.map.panTo({lat:sos.lat,lng:sos.lng});
+  const iw=new google.maps.InfoWindow({content:`
+    <div style="font-family:Heebo,sans-serif;direction:rtl;padding:8px 10px;min-width:200px">
+      <div style="font-size:15px;font-weight:900;color:#c00;margin-bottom:4px">🆘 אות מצוקה</div>
+      <div style="font-size:13px;font-weight:800;margin-bottom:2px">${sos.name}</div>
+      <div style="font-size:11px;color:#666;margin-bottom:2px">${sos.role||''}</div>
+      <div style="font-size:11px;color:#888;margin-bottom:6px">📍 ${sos.lat.toFixed(5)}, ${sos.lng.toFixed(5)}</div>
+      <div style="font-size:10px;color:#aaa;margin-bottom:8px">שעה: ${ts}</div>
+      <button onclick="navToSOS()" style="width:100%;padding:9px;background:#cc0000;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:800;cursor:pointer;font-family:Heebo,sans-serif">🗺️ נווט מהיר</button>
+    </div>`});
+  _sosMarker.addListener('click',()=>iw.open(window.map,_sosMarker));
+  iw.open(window.map,_sosMarker);
+}
+
+function navToSOS(){
+  if(!_sosData?.lat||!_sosData?.lng) return;
+  const {lat,lng}=_sosData;
+  if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
+    window.location.href=`waze://?ll=${lat},${lng}&navigate=yes`;
+    setTimeout(()=>window.open(`https://maps.google.com/?q=${lat},${lng}`,'_blank'),1500);
+  } else {
+    window.open(`https://maps.google.com/?q=${lat},${lng}`,'_blank');
+  }
+}
+
+function acknowledgeSOS(){
+  document.getElementById('sos-popup-overlay').classList.remove('open');
+  // Bar stays until SOS is resolved by sender
+}
+
+function _clearSOSUI(){
+  _sosData=null;
+  const bar=document.getElementById('sos-alert-bar');
+  if(bar) bar.classList.remove('active');
+  document.getElementById('sos-popup-overlay').classList.remove('open');
+  if(_sosMarker){_sosMarker.setMap(null);_sosMarker=null;}
 }
 function updateAlertBadge(){const el=document.getElementById('alert-badge');if(el)el.textContent=ALERTS.length;}
 
