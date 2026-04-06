@@ -435,6 +435,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #fm-name-badge .fm-dot{width:8px;height:8px;border-radius:50%;background:#3dff52;animation:fmpulse 2s infinite}
 @keyframes fmpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
 #fm-sos-btn{margin-right:auto;background:#ff3333;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-size:13px;font-weight:900;cursor:pointer;font-family:'Heebo',sans-serif;letter-spacing:0.04em}
+#fm-logout-btn{background:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;font-size:15px;color:rgba(255,255,255,0.55);cursor:pointer;line-height:1;flex-shrink:0}
+#fm-logout-btn:hover{color:#ff6b6b;border-color:#ff6b6b}
 #fm-map-wrap{flex:1;position:relative;overflow:hidden}
 #fm-gmap{position:absolute;inset:0;width:100%;height:100%}
 #fm-accuracy-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(13,16,20,0.88);border:1px solid #2e4460;border-radius:20px;padding:4px 14px;font-size:11px;font-weight:700;color:#9ab8c8;display:none;gap:10px;white-space:nowrap;z-index:10}
@@ -755,6 +757,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 SOS</button>
+    <button id="fm-logout-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
   </div>
   <div id="fm-map-wrap">
     <div id="fm-gmap"></div>
@@ -1039,6 +1042,7 @@ const BIOMETRIC = (() => {
         document.getElementById('app').style.display = '';
         AUTH.applyPerms();
         _triggerMapResize();
+        if(typeof FIELD !== 'undefined') FIELD.boot();
         const u = AUTH.getUser();
         setTimeout(()=>{
           if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
@@ -1131,6 +1135,9 @@ const AUTH = (() => {
     _user = null;
     localStorage.removeItem('tac_auth_id');
     localStorage.removeItem('tac_auth_em');
+    // Hide field mode immediately so it doesn't flash before the reload
+    const fm = document.getElementById('field-mode');
+    if(fm) fm.classList.remove('active');
     // Mark explicit logout so tacBoot won't auto-trigger biometric on the reload
     sessionStorage.setItem('tac_just_logged_out', '1');
     // Full reload — clears all in-memory state and returns to clean login screen
@@ -1207,6 +1214,8 @@ const AUTH = (() => {
       applyPerms();
       // Maps was initialised while #app was hidden → force a resize so tiles render
       _triggerMapResize();
+      // Start field mode if on mobile (now that user is authenticated)
+      if(typeof FIELD !== 'undefined') FIELD.boot();
       setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_user.name.split(' ')[0],sub:(_user.role||'לוחם')+' · כוננות מחוזית ת"א',type:'success',duration:4000}),300);
       // Offer fast-login / biometric registration after first password login
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
@@ -6179,13 +6188,10 @@ const FIELD = (() => {
   }
 
   function boot(){
-    // Register service worker
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('sw.js').catch(()=>{});
-    }
-    // Auto-enter field mode on mobile if not commander
+    // Only auto-enter field mode after the user is authenticated
     const mode = localStorage.getItem('tac_mode');
-    if(_isMobile() && mode !== 'command'){
+    if(_isMobile() && mode !== 'command' &&
+       typeof AUTH !== 'undefined' && AUTH.getUser()){
       setTimeout(()=>enterFieldMode(), 400);
     }
   }
