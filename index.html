@@ -45,6 +45,23 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #btn-day:not(.active){color:#586878!important}
 #btn-day:not(.active):hover{color:#b07000!important;background:rgba(255,180,0,0.12)!important}
 .tb-spacer{flex:1}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
+#login-box{background:var(--panel);border:1px solid var(--border2);border-radius:16px;padding:40px 36px;width:380px;max-width:92vw;display:flex;flex-direction:column;gap:18px;box-shadow:0 12px 60px rgba(0,0,0,0.5)}
+#login-logo{font-family:var(--font2);font-weight:900;font-size:28px;color:var(--accent);text-align:center;letter-spacing:0.04em}
+#login-subtitle{font-size:13px;color:var(--text2);text-align:center;margin-top:-10px;font-weight:600}
+.login-field{display:flex;flex-direction:column;gap:6px}
+.login-field label{font-size:12px;font-weight:700;color:var(--text3);text-align:right}
+.login-field input{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 14px;font-size:14px;font-family:var(--font);color:var(--texthi);outline:none;transition:border-color 0.15s}
+.login-field input:focus{border-color:var(--accent)}
+#login-err{font-size:12px;color:var(--danger);text-align:center;min-height:18px;font-weight:600}
+#login-btn{background:var(--accent);border:none;border-radius:var(--r);padding:13px;font-size:15px;font-weight:800;color:#07090a;cursor:pointer;font-family:var(--font);transition:opacity 0.15s;letter-spacing:0.03em}
+#login-btn:hover{opacity:0.85}
+#login-btn:active{opacity:0.7}
+#login-version{font-size:11px;color:var(--text3);text-align:center}
+#topbar-user{font-size:12px;font-weight:700;color:var(--text2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 11px;white-space:nowrap;direction:rtl;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+
 .nav-tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;overflow-x:auto;flex-shrink:0}
 .nav-tab{background:none;border:none;padding:7px 13px;font-size:13px;font-weight:700;color:var(--text3);cursor:pointer;border-radius:6px;font-family:var(--font);white-space:nowrap;transition:all 0.12s;position:relative}
 .nav-tab.active,.nav-tab:hover{background:var(--panel3);color:var(--texthi)}
@@ -494,6 +511,25 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 </head>
 <body class="night">
 
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:none">
+  <div id="login-box">
+    <div id="login-logo">⬡ מערכת מבצעים</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.1</div>
+    <div class="login-field">
+      <label>אימייל</label>
+      <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    </div>
+    <div class="login-field">
+      <label>סיסמה</label>
+      <input type="password" id="login-pass" placeholder="••••••••" dir="ltr" autocomplete="current-password" onkeydown="if(event.key==='Enter')AUTH.doLogin()">
+    </div>
+    <div id="login-err"></div>
+    <button id="login-btn" onclick="AUTH.doLogin()">🔓 כניסה למערכת</button>
+    <div id="login-version">מצב בדיקה · אל תשתף פרטי כניסה</div>
+  </div>
+</div>
+
 <div id="app">
   <!-- TOPBAR -->
   <div id="topbar">
@@ -520,6 +556,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <button class="tb-btn tbdanger" onclick="triggerSOS()">🆘 SOS</button>
     <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
     <button class="tb-btn" onclick="openBO()">⚙ ניהול</button>
+    <div id="topbar-user" title="משתמש מחובר">—</div>
+    <button class="tb-btn" id="btn-logout" onclick="AUTH.logout()" title="יציאה">🚪</button>
     <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
   </div>
 
@@ -714,6 +752,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('incidents-bo')">🗂️ אירועים</button>
       <button class="bo-tab" onclick="boTab('shifts-bo')">🕐 משמרות</button>
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
+      <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
@@ -732,44 +771,44 @@ let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פל
 let MISSIONS=[];
 let UNITS=[];
 let PERSONNEL=[
-  {id:'P17892',name:'נפתלי ברזני',phone:'051-505-0648',email:'naftali1127505@gmail.com',unit:'מחוזית ת״א',role:'מפקד יחידה',callsign:'',address:'5151',available:true,skills:[],mission:null,photo:'',color:'#29c5f6',order:0,lat:32.0895,lng:34.80325},
-  {id:'P17893',name:'יואב אליאסי',phone:'054-4502221',email:'yoav.eliassi@gmail.com',unit:'מחוזית ת״א',role:'סגן מפקד יחידה',callsign:'',address:'317-98-804',available:true,skills:[],mission:null,photo:'',color:'#29c5f6',order:1,lat:32.09505,lng:34.7725},
-  {id:'P17894',name:'ברק מרגי',phone:'054-5646044',email:'barak.mergi@gmail.com',unit:'מחוזית ת״א',role:'מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:2,lat:32.0697,lng:34.77085},
-  {id:'P17896',name:'זיו אומר',phone:'054-212-4424',email:'zivomerm@gmail.com',unit:'מחוזית ת״א',role:'סגן מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:3,lat:32.0784,lng:34.783},
-  {id:'P17897',name:'איתן אוחיון',phone:'053-745-4518',email:'info@911vip.co.il',unit:'מחוזית ת״א',role:'',callsign:'',address:'',available:true,skills:['נהג','נהיגה מבצעית'],mission:null,photo:'',color:'#5a7a90',order:4,lat:32.09145,lng:34.792},
-  {id:'P17898',name:'אור מני',phone:'050-3404444',email:'ormanyphoto@gmail.com',unit:'מחוזית ת״א',role:'מפקד חפ״ק',callsign:'100',address:'297-12-101',available:true,skills:['נהג','קשר','לוגיסטיקה','סייבר','נהיגה מבצעית'],mission:null,photo:'',color:'#b06cf0',order:5,lat:32.0955,lng:34.7905},
-  {id:'P17899',name:'שי אביגדור',phone:'054-4538555',email:'shayavig@gmail.com',unit:'מחוזית ת״א',role:'סגן מפקד חפ״ק',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:6,lat:32.08575,lng:34.76155},
-  {id:'P17900',name:'נועם ויילר',phone:'052-686-6356',email:'weilernoam@gmail.com',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:7,lat:32.04435,lng:34.7911},
-  {id:'P17901',name:'גלעד פינקלשטיין',phone:'058-406-8641',email:'finkelg@gmail.com',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:8,lat:32.0943,lng:34.8115},
-  {id:'P17902',name:'תמיר אדרי',phone:'052-255-8067',email:'tamirederi4x4@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:9,lat:32.08305,lng:34.78345},
-  {id:'P17903',name:'דויד כהן',phone:'054-780-0057',email:'maildavidcohen@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:['medic'],mission:null,photo:'',color:'#5a7a90',order:10,lat:32.07705,lng:34.8103},
-  {id:'P17904',name:'אביב יוחנן',phone:'054-646-9002',email:'avivcali11@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:11,lat:32.0454,lng:34.8079},
-  {id:'P17905',name:'שייקה שאול',phone:'054-637-5531',email:'shinshaul@gmail.com',unit:'מחוזית ת״א',role:'מפקד צוות',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:12,lat:32.06505,lng:34.7602},
-  {id:'P17906',name:'אסף אוליאל',phone:'054-214-5480',email:'ulielasaf@gmail.com',unit:'מחוזית ת״א',role:'סגן מפקד צוות',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:13,lat:32.04255,lng:34.78105},
-  {id:'P17907',name:'אורן כהן',phone:'052-251-8691',email:'oren4293@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:14,lat:32.0463,lng:34.76305},
-  {id:'P17908',name:'אלמוג לי און',phone:'052-567-0582',email:'almog4502@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:15,lat:32.0922,lng:34.7962},
-  {id:'P17909',name:'הילל מור',phone:'052-792-8181',email:'hm1996xx@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:16,lat:32.0403,lng:34.7839},
-  {id:'P17910',name:'אלכס שקנבסקי',phone:'058-621-5904',email:'alexhdltd@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:17,lat:32.0391,lng:34.75825},
-  {id:'P17911',name:'רם הרשקוביץ',phone:'050-229-9574',email:'ramhershkovich@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:18,lat:32.05185,lng:34.76185},
-  {id:'P17912',name:'בן עוזרי',phone:'052-394-7551',email:'ben13971398@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:19,lat:32.06565,lng:34.77985},
-  {id:'P17913',name:'יוסי לוגסי',phone:'054-286-8282',email:'yossiyel@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:20,lat:32.0685,lng:34.8088},
-  {id:'P17914',name:'דור פפו',phone:'054-221-0474',email:'dor7894@gmail.com',unit:'מחוזית ת״א',role:'מפקד צוות',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:21,lat:32.05815,lng:34.78345},
-  {id:'P17915',name:'רותם ניר',phone:'050-921-6703',email:'rotemnir97@gmail.com',unit:'מחוזית ת״א',role:'סגן מפקד צוות',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:22,lat:32.0952,lng:34.7749},
-  {id:'P17916',name:'אלי חן',phone:'054-809-3838',email:'eli6chen@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:23,lat:32.0952,lng:34.8115},
-  {id:'P17917',name:'גיל אטיה',phone:'052-483-0200',email:'gilattia@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:24,lat:32.085,lng:34.8076},
-  {id:'P17918',name:'שמואל שוורץ',phone:'054-234-0317',email:'schwarcz@hotmail.fr',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:25,lat:32.08155,lng:34.7548},
-  {id:'P17919',name:'בוריס שגלוב',phone:'054-226-5157',email:'bshagal@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:26,lat:32.0493,lng:34.76095},
-  {id:'P17920',name:'סם ברנשטיין',phone:'052-806-6692',email:'sam.bernstien24@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:27,lat:32.0886,lng:34.80925},
-  {id:'P17921',name:'דביר תורג׳מן',phone:'053-390-9705',email:'dvirturgeman6@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:28,lat:32.08725,lng:34.76275},
-  {id:'P17922',name:'אור מיימון',phone:'054-429-3238',email:'mumon147@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:29,lat:32.03895,lng:34.75705},
-  {id:'P17923',name:'עומר צבאח',phone:'052-281-2726',email:'omertzahba@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:30,lat:32.07105,lng:34.7785},
-  {id:'P17924',name:'שליו לביא',phone:'054-428-2205',email:'shalevlavi@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:31,lat:32.0505,lng:34.77835},
-  {id:'P17925',name:'שון מנחם',phone:'052-388-8429',email:'shonmenahem@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:32,lat:32.0538,lng:34.76815},
-  {id:'P17926',name:'מנדי יוחאי',phone:'055-998-7827',email:'mendi.yohai@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:33,lat:32.04885,lng:34.8061},
-  {id:'P17927',name:'משה שבח',phone:'054-772-8885',email:'shevach.100@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:34,lat:32.03745,lng:34.76965},
-  {id:'P17928',name:'גיא יפה',phone:'052-672-0784',email:'guyyaffear@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:35,lat:32.08305,lng:34.79155},
-  {id:'P17929',name:'יהונתן כהן',phone:'054-911-0402',email:'ykhn8811@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:36,lat:32.08965,lng:34.78705},
-  {id:'P17930',name:'חיים ג׳ורנו',phone:'054-243-3079',email:'chaimgorno@gmail.com',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:37,lat:32.06325,lng:34.7593}
+  {id:'P17892',name:'נפתלי ברזני',phone:'051-505-0648',email:'naftali1127505@gmail.com',loginPassword:'Tac7892!',unit:'מחוזית ת״א',role:'מפקד יחידה',callsign:'',address:'5151',available:true,skills:[],mission:null,photo:'',color:'#29c5f6',order:0,lat:32.0895,lng:34.80325},
+  {id:'P17893',name:'יואב אליאסי',phone:'054-4502221',email:'yoav.eliassi@gmail.com',loginPassword:'Tac7893!',unit:'מחוזית ת״א',role:'סגן מפקד יחידה',callsign:'',address:'317-98-804',available:true,skills:[],mission:null,photo:'',color:'#29c5f6',order:1,lat:32.09505,lng:34.7725},
+  {id:'P17894',name:'ברק מרגי',phone:'054-5646044',email:'barak.mergi@gmail.com',loginPassword:'Tac7894!',unit:'מחוזית ת״א',role:'מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:2,lat:32.0697,lng:34.77085},
+  {id:'P17896',name:'זיו אומר',phone:'054-212-4424',email:'zivomerm@gmail.com',loginPassword:'Tac7896!',unit:'מחוזית ת״א',role:'סגן מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:3,lat:32.0784,lng:34.783},
+  {id:'P17897',name:'איתן אוחיון',phone:'053-745-4518',email:'info@911vip.co.il',loginPassword:'Tac7897!',unit:'מחוזית ת״א',role:'',callsign:'',address:'',available:true,skills:['נהג','נהיגה מבצעית'],mission:null,photo:'',color:'#5a7a90',order:4,lat:32.09145,lng:34.792},
+  {id:'P17898',name:'אור מני',phone:'050-3404444',email:'ormanyphoto@gmail.com',loginPassword:'Tac7898!',unit:'מחוזית ת״א',role:'מפקד חפ״ק',callsign:'100',address:'297-12-101',available:true,skills:['נהג','קשר','לוגיסטיקה','סייבר','נהיגה מבצעית'],mission:null,photo:'',color:'#b06cf0',order:5,lat:32.0955,lng:34.7905},
+  {id:'P17899',name:'שי אביגדור',phone:'054-4538555',email:'shayavig@gmail.com',loginPassword:'Tac7899!',unit:'מחוזית ת״א',role:'סגן מפקד חפ״ק',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:6,lat:32.08575,lng:34.76155},
+  {id:'P17900',name:'נועם ויילר',phone:'052-686-6356',email:'weilernoam@gmail.com',loginPassword:'Tac7900!',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:7,lat:32.04435,lng:34.7911},
+  {id:'P17901',name:'גלעד פינקלשטיין',phone:'058-406-8641',email:'finkelg@gmail.com',loginPassword:'Tac7901!',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:8,lat:32.0943,lng:34.8115},
+  {id:'P17902',name:'תמיר אדרי',phone:'052-255-8067',email:'tamirederi4x4@gmail.com',loginPassword:'Tac7902!',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:9,lat:32.08305,lng:34.78345},
+  {id:'P17903',name:'דויד כהן',phone:'054-780-0057',email:'maildavidcohen@gmail.com',loginPassword:'Tac7903!',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:['medic'],mission:null,photo:'',color:'#5a7a90',order:10,lat:32.07705,lng:34.8103},
+  {id:'P17904',name:'אביב יוחנן',phone:'054-646-9002',email:'avivcali11@gmail.com',loginPassword:'Tac7904!',unit:'מחוזית ת״א',role:'',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:11,lat:32.0454,lng:34.8079},
+  {id:'P17905',name:'שייקה שאול',phone:'054-637-5531',email:'shinshaul@gmail.com',loginPassword:'Tac7905!',unit:'מחוזית ת״א',role:'מפקד צוות',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:12,lat:32.06505,lng:34.7602},
+  {id:'P17906',name:'אסף אוליאל',phone:'054-214-5480',email:'ulielasaf@gmail.com',loginPassword:'Tac7906!',unit:'מחוזית ת״א',role:'סגן מפקד צוות',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:13,lat:32.04255,lng:34.78105},
+  {id:'P17907',name:'אורן כהן',phone:'052-251-8691',email:'oren4293@gmail.com',loginPassword:'Tac7907!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:14,lat:32.0463,lng:34.76305},
+  {id:'P17908',name:'אלמוג לי און',phone:'052-567-0582',email:'almog4502@gmail.com',loginPassword:'Tac7908!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:15,lat:32.0922,lng:34.7962},
+  {id:'P17909',name:'הילל מור',phone:'052-792-8181',email:'hm1996xx@gmail.com',loginPassword:'Tac7909!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:16,lat:32.0403,lng:34.7839},
+  {id:'P17910',name:'אלכס שקנבסקי',phone:'058-621-5904',email:'alexhdltd@gmail.com',loginPassword:'Tac7910!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:17,lat:32.0391,lng:34.75825},
+  {id:'P17911',name:'רם הרשקוביץ',phone:'050-229-9574',email:'ramhershkovich@gmail.com',loginPassword:'Tac7911!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:18,lat:32.05185,lng:34.76185},
+  {id:'P17912',name:'בן עוזרי',phone:'052-394-7551',email:'ben13971398@gmail.com',loginPassword:'Tac7912!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:19,lat:32.06565,lng:34.77985},
+  {id:'P17913',name:'יוסי לוגסי',phone:'054-286-8282',email:'yossiyel@gmail.com',loginPassword:'Tac7913!',unit:'מחוזית ת״א',role:'',callsign:'1',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:20,lat:32.0685,lng:34.8088},
+  {id:'P17914',name:'דור פפו',phone:'054-221-0474',email:'dor7894@gmail.com',loginPassword:'Tac7914!',unit:'מחוזית ת״א',role:'מפקד צוות',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:21,lat:32.05815,lng:34.78345},
+  {id:'P17915',name:'רותם ניר',phone:'050-921-6703',email:'rotemnir97@gmail.com',loginPassword:'Tac7915!',unit:'מחוזית ת״א',role:'סגן מפקד צוות',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#ffc107',order:22,lat:32.0952,lng:34.7749},
+  {id:'P17916',name:'אלי חן',phone:'054-809-3838',email:'eli6chen@gmail.com',loginPassword:'Tac7916!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:23,lat:32.0952,lng:34.8115},
+  {id:'P17917',name:'גיל אטיה',phone:'052-483-0200',email:'gilattia@gmail.com',loginPassword:'Tac7917!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:24,lat:32.085,lng:34.8076},
+  {id:'P17918',name:'שמואל שוורץ',phone:'054-234-0317',email:'schwarcz@hotmail.fr',loginPassword:'Tac7918!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:25,lat:32.08155,lng:34.7548},
+  {id:'P17919',name:'בוריס שגלוב',phone:'054-226-5157',email:'bshagal@gmail.com',loginPassword:'Tac7919!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:26,lat:32.0493,lng:34.76095},
+  {id:'P17920',name:'סם ברנשטיין',phone:'052-806-6692',email:'sam.bernstien24@gmail.com',loginPassword:'Tac7920!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:27,lat:32.0886,lng:34.80925},
+  {id:'P17921',name:'דביר תורג׳מן',phone:'053-390-9705',email:'dvirturgeman6@gmail.com',loginPassword:'Tac7921!',unit:'מחוזית ת״א',role:'',callsign:'2',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:28,lat:32.08725,lng:34.76275},
+  {id:'P17922',name:'אור מיימון',phone:'054-429-3238',email:'mumon147@gmail.com',loginPassword:'Tac7922!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:29,lat:32.03895,lng:34.75705},
+  {id:'P17923',name:'עומר צבאח',phone:'052-281-2726',email:'omertzahba@gmail.com',loginPassword:'Tac7923!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:30,lat:32.07105,lng:34.7785},
+  {id:'P17924',name:'שליו לביא',phone:'054-428-2205',email:'shalevlavi@gmail.com',loginPassword:'Tac7924!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:31,lat:32.0505,lng:34.77835},
+  {id:'P17925',name:'שון מנחם',phone:'052-388-8429',email:'shonmenahem@gmail.com',loginPassword:'Tac7925!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:32,lat:32.0538,lng:34.76815},
+  {id:'P17926',name:'מנדי יוחאי',phone:'055-998-7827',email:'mendi.yohai@gmail.com',loginPassword:'Tac7926!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:33,lat:32.04885,lng:34.8061},
+  {id:'P17927',name:'משה שבח',phone:'054-772-8885',email:'shevach.100@gmail.com',loginPassword:'Tac7927!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:34,lat:32.03745,lng:34.76965},
+  {id:'P17928',name:'גיא יפה',phone:'052-672-0784',email:'guyyaffear@gmail.com',loginPassword:'Tac7928!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:35,lat:32.08305,lng:34.79155},
+  {id:'P17929',name:'יהונתן כהן',phone:'054-911-0402',email:'ykhn8811@gmail.com',loginPassword:'Tac7929!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:36,lat:32.08965,lng:34.78705},
+  {id:'P17930',name:'חיים ג׳ורנו',phone:'054-243-3079',email:'chaimgorno@gmail.com',loginPassword:'Tac7930!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:37,lat:32.06325,lng:34.7593}
 ];
 let DEPARTMENTS=[
   {id:'D00',name:'מחוזית ת"א',color:'#29c5f6',commander:'P17892',desc:'מפקדת מחוז תל אביב — יחידה מרכזית קבועה',phone:'03-0000000',location:'מטה מחוז תל אביב',capacity:50,members:['P17892','P17893','P17894','P17896','P17897','P17898','P17899','P17900','P17901','P17902','P17903','P17904','P17905','P17906','P17907','P17908','P17909','P17910','P17911','P17912','P17913','P17914','P17915','P17916','P17917','P17918','P17919','P17920','P17921','P17922','P17923','P17924','P17925','P17926','P17927','P17928','P17929','P17930'],fixed:true},
@@ -808,6 +847,126 @@ let TEAMS=[
   {id:'T05',name:'צוות 3',color:'#3dff52',desc:'צוות לוחמה ג'},
 ];
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ██████████████████  AUTH — כניסה והרשאות  ████████████████████████████████████
+// ══════════════════════════════════════════════════════════════════════════════
+const AUTH = (() => {
+  // Role → permissions mapping
+  const ROLE_PERMS = {
+    'מפקד יחידה':      ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','admin','geofence','layers','navigation','field_mode'],
+    'סגן מפקד יחידה':  ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','geofence','layers','navigation','field_mode'],
+    'מפקד פלגה':       ['map','dashboard','missions','create_mission','units','comms','analytics','incidents','layers','navigation','field_mode'],
+    'סגן מפקד פלגה':   ['map','missions','units','comms','incidents','navigation','field_mode'],
+    'מפקד צוות':       ['map','missions','comms','incidents','navigation','field_mode'],
+    'סגן מפקד צוות':   ['map','missions','comms','navigation','field_mode'],
+    'מפקד חפ״ק':       ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','geofence','layers','navigation','field_mode'],
+    'סגן מפקד חפ״ק':   ['map','missions','units','comms','incidents','navigation','field_mode'],
+    'מפעיל רחפן':      ['map','missions','layers','navigation','field_mode'],
+    '':               ['map','navigation','field_mode'],
+  };
+  // Nav tab data-v → required permission
+  const VIEW_PERMS = {
+    'map':'map','missions':'missions','units':'units','comms':'comms',
+    'incidents':'incidents','analytics':'analytics','ai':'admin',
+    'teams':'manage_units','personnel':'units','navigation':'navigation',
+  };
+  let _user = null;
+
+  function _permsFor(role){ return ROLE_PERMS[role] || ROLE_PERMS['']; }
+
+  function login(email, password){
+    const em = (email||'').trim().toLowerCase();
+    const u = PERSONNEL.find(p => p.email && p.email.toLowerCase()===em && p.loginPassword===password);
+    if(!u) return false;
+    _user = u;
+    localStorage.setItem('tac_auth_id', u.id);
+    localStorage.setItem('tac_auth_em', u.email);
+    return true;
+  }
+
+  function logout(){
+    _user = null;
+    localStorage.removeItem('tac_auth_id');
+    localStorage.removeItem('tac_auth_em');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    const err = document.getElementById('login-err');
+    if(err){ err.textContent=''; }
+    const ep = document.getElementById('login-email');
+    if(ep) ep.value='';
+    const pp = document.getElementById('login-pass');
+    if(pp) pp.value='';
+  }
+
+  function restore(){
+    const id = localStorage.getItem('tac_auth_id');
+    const em = localStorage.getItem('tac_auth_em');
+    if(!id||!em) return false;
+    const u = PERSONNEL.find(p=>p.id===id && p.email===em);
+    if(!u) return false;
+    _user = u;
+    return true;
+  }
+
+  function applyPerms(){
+    if(!_user) return;
+    const perms = _permsFor(_user.role);
+    // Nav tabs (desktop)
+    document.querySelectorAll('.nav-tab[data-v]').forEach(tab=>{
+      const vp = VIEW_PERMS[tab.dataset.v];
+      tab.style.display = (!vp||perms.includes(vp)) ? '' : 'none';
+    });
+    // Mobile nav items (extract view from onclick)
+    document.querySelectorAll('.mob-nav-item[onclick]').forEach(item=>{
+      const m = (item.getAttribute('onclick')||'').match(/'([^']+)'/);
+      if(!m) return;
+      const vp = VIEW_PERMS[m[1]];
+      item.style.display = (!vp||perms.includes(vp)) ? '' : 'none';
+    });
+    // Bottom nav items
+    document.querySelectorAll('.bn-item[data-v]').forEach(item=>{
+      const vp = VIEW_PERMS[item.dataset.v];
+      item.style.display = (!vp||perms.includes(vp)) ? '' : 'none';
+    });
+    // Admin BO buttons — visible only to admin
+    const isAdmin = perms.includes('admin');
+    document.querySelectorAll('[onclick="openBO()"], [onclick="openBO();closeMobileMenu()"]').forEach(btn=>{
+      btn.style.display = isAdmin ? '' : 'none';
+    });
+    // Update topbar user badge
+    const badge = document.getElementById('topbar-user');
+    if(badge) badge.textContent = _user.name.split(' ')[0] + ' · ' + (_user.role||'לוחם');
+    // Set field identity for GPS sharing
+    localStorage.setItem('tac_field_name', _user.name);
+    localStorage.setItem('tac_field_role', _user.role||'לוחם');
+  }
+
+  function doLogin(){
+    const email = (document.getElementById('login-email').value||'').trim();
+    const pass = document.getElementById('login-pass').value;
+    const err = document.getElementById('login-err');
+    if(!email||!pass){ err.textContent='יש למלא אימייל וסיסמה'; return; }
+    if(login(email, pass)){
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = '';
+      applyPerms();
+      setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_user.name.split(' ')[0],sub:(_user.role||'לוחם')+' · כוננות מחוזית ת"א',type:'success',duration:4000}),300);
+    } else {
+      err.textContent = '⚠️ אימייל או סיסמה שגויים';
+      document.getElementById('login-pass').value = '';
+      document.getElementById('login-pass').focus();
+    }
+  }
+
+  function canDo(perm){ return _user ? _permsFor(_user.role).includes(perm) : false; }
+  function getUser(){ return _user; }
+  function isAdmin(){ return canDo('admin'); }
+  function getPerms(){ return _user ? _permsFor(_user.role) : []; }
+  function getRolePerms(){ return ROLE_PERMS; }
+
+  return { login, logout, restore, applyPerms, canDo, doLogin, getUser, isAdmin, getPerms, getRolePerms };
+})();
 
 // ── STATE ──
 let map=null, _markers={}, _circles={}, _polylines={}, _infoWindows=[];
@@ -3331,7 +3490,7 @@ function boTab(tab){
     'overview':boOverview,'missions-bo':boMissions,'units-bo':boUnits,
     'personnel-bo':boPersonnel,'teams-bo':boTeamsAdmin,'geofences-bo':boGeofences,
     'incidents-bo':boIncidents,'shifts-bo':boShifts,'permissions-bo':boPermissions,
-    'audit-bo':boAudit,'settings-bo':boSettings,
+    'credentials-bo':boCredentials,'audit-bo':boAudit,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
   if(fn)fn(bi);else bi.innerHTML='<p style="color:var(--text3);padding:20px">לשונית: '+tab+'</p>';
@@ -3817,6 +3976,29 @@ function exportIncidentsCSV(){
   showToast({icon:'⬇️',title:'יוצא',sub:INCIDENTS.length+' רשומות',type:'success'});
 }
 
+function boCredentials(c){
+  if(!AUTH.isAdmin()){c.innerHTML='<div class="bo-section"><div style="color:var(--danger);padding:20px;text-align:center">⛔ גישה מוגבלת — מנהל בלבד</div></div>';return;}
+  const ROLE_PERMS = AUTH.getRolePerms();
+  const PERM_LABELS = {'map':'מפה','dashboard':'לוח בקרה','missions':'משימות','create_mission':'יצירת משימה','units':'כוחות','manage_units':'ניהול כוחות','comms':'תקשורת','analytics':'אנליטיקה','incidents':'יומן','admin':'ניהול מערכת','geofence':'גיאופנסים','layers':'שכבות','navigation':'ניווט','field_mode':'מצב שטח'};
+  var rows='';
+  [...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(function(p){
+    var role = p.role||'לוחם';
+    var perms = ROLE_PERMS[p.role]||ROLE_PERMS[''];
+    var permBadges = perms.map(function(pr){return '<span style="background:var(--panel3);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);margin:1px;display:inline-block">'+(PERM_LABELS[pr]||pr)+'</span>';}).join('');
+    rows+='<tr>';
+    rows+='<td style="font-weight:700;color:var(--texthi)">'+p.name+'</td>';
+    rows+='<td style="color:var(--accent2);font-size:12px">'+role+'</td>';
+    rows+='<td style="font-family:monospace;font-size:13px;color:var(--blue);direction:ltr;text-align:left">'+p.email+'</td>';
+    rows+='<td style="font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:0.04em">'+p.loginPassword+'</td>';
+    rows+='<td style="font-size:11px">'+permBadges+'</td>';
+    rows+='</tr>';
+  });
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd">פרטי כניסה ★ מסמך מאובטח — לשימוש מנהל בלבד</div>'
+    +'<div style="background:var(--panel2);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px">⚠️ מסמך זה מכיל סיסמאות גישה. אל תשתף עם גורמים שאינם מורשים.</div>'
+    +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>תפקיד</th><th>אימייל (שם משתמש)</th><th>סיסמה</th><th>הרשאות</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    +'</div>';
+}
 function boPermissions(c){
   const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','מפקד צוות','לוחם','איש חפ״ק','מפעיל רחפן'];
   const perms=['צפייה','עריכה','יצירת משימה','פריסת כוחות','גיאופנסים','שידורים','ניהול מערכת'];
@@ -5851,6 +6033,18 @@ const FIELD = (() => {
   // Register service worker
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  // ── Auth gate ──
+  if(AUTH.restore()){
+    // Existing session — show app
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    // Apply permissions after DOM ready
+    setTimeout(()=>AUTH.applyPerms(), 50);
+  } else {
+    // No session — show login screen, hide app
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
   }
   // Firebase sync
   SYNC.boot();
