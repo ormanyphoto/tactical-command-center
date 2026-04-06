@@ -49,6 +49,60 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #btn-day:not(.active):hover{color:#b07000!important;background:rgba(255,180,0,0.12)!important}
 #topbar-right{flex-shrink:0;display:flex;align-items:center;gap:6px}
 
+/* ── NOTIFICATION SYSTEM ── */
+#notif-modal-overlay{display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#notif-modal-overlay.open{display:flex}
+#notif-modal{background:var(--panel);border:1px solid var(--border2);border-radius:16px;width:480px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:0}
+#notif-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border2)}
+#notif-modal-hdr h3{font-size:16px;font-weight:800;color:var(--texthi);margin:0}
+#notif-modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.nm-label{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.nm-type-row{display:flex;gap:8px}
+.nm-type-btn{flex:1;padding:9px 6px;border:1.5px solid var(--border2);border-radius:8px;background:var(--panel2);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.15s}
+.nm-type-btn.sel{border-color:var(--accent);background:rgba(41,197,246,0.1);color:var(--accent)}
+.nm-type-btn.sel.danger{border-color:var(--danger);background:rgba(255,51,51,0.1);color:var(--danger)}
+.nm-type-btn.sel.warn{border-color:var(--warn);background:rgba(255,165,0,0.1);color:var(--warn)}
+.nm-input{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;font-size:13px;font-family:var(--font);color:var(--texthi);outline:none;box-sizing:border-box;transition:border-color 0.15s}
+.nm-input:focus{border-color:var(--accent)}
+.nm-textarea{min-height:80px;resize:vertical}
+.nm-target-row{display:flex;gap:6px;flex-wrap:wrap}
+.nm-target-chip{padding:5px 12px;border:1px solid var(--border2);border-radius:20px;background:var(--panel2);color:var(--text3);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font);transition:all 0.15s;white-space:nowrap}
+.nm-target-chip.sel{border-color:var(--accent);background:rgba(41,197,246,0.12);color:var(--accent)}
+.nm-recipients-list{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px}
+.nm-rec-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;transition:background 0.12s}
+.nm-rec-item:hover{background:var(--panel3)}
+.nm-rec-item input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0}
+.nm-rec-name{font-size:12px;font-weight:700;color:var(--texthi);flex:1}
+.nm-rec-role{font-size:10px;color:var(--text3)}
+.nm-send-btn{background:var(--accent);color:#07090a;border:none;border-radius:var(--r);padding:11px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);transition:opacity 0.15s;width:100%}
+.nm-send-btn:hover{opacity:0.88}
+.nm-send-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+/* Incoming notification overlay */
+#incoming-notif-overlay{display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:center;justify-content:center}
+#incoming-notif-overlay.open{display:flex}
+#incoming-notif-card{background:var(--panel);border:2px solid var(--border2);border-radius:20px;width:340px;max-width:92vw;padding:28px 24px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.7)}
+.inc-icon{font-size:44px;line-height:1}
+.inc-type{font-size:11px;font-weight:800;letter-spacing:0.08em;color:var(--text3);text-transform:uppercase}
+.inc-title{font-size:18px;font-weight:900;color:var(--texthi);line-height:1.3}
+.inc-body{font-size:13px;color:var(--text2);line-height:1.5}
+.inc-sender{font-size:11px;color:var(--text3)}
+.inc-btns{display:flex;gap:10px;width:100%}
+.inc-approve{flex:1;padding:12px;background:#22c55e;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);transition:opacity 0.15s}
+.inc-approve:hover{opacity:0.88}
+.inc-decline{flex:1;padding:12px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font);transition:all 0.15s}
+.inc-decline:hover{border-color:var(--danger);color:var(--danger)}
+
+/* Approvals section in כוחות panel */
+.approvals-section{background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.approvals-hdr{font-size:12px;font-weight:800;color:#22c55e;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.approval-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.approval-item:last-child{border-bottom:none}
+.approval-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 6px #22c55e}
+.approval-name{font-size:12px;font-weight:700;color:var(--texthi);flex:1}
+.approval-role{font-size:10px;color:var(--text3)}
+.approval-live{font-size:10px;color:#22c55e;font-weight:700}
+
 /* ── LOGIN SCREEN ── */
 #login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
 #login-box{background:var(--panel);border:1px solid var(--border2);border-radius:16px;padding:40px 36px;width:380px;max-width:92vw;display:flex;flex-direction:column;gap:18px;box-shadow:0 12px 60px rgba(0,0,0,0.5)}
@@ -647,6 +701,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
       <div class="nav-tab-sep"></div>
       <button class="nav-tab nav-tab-action" onclick="goPanel('alerts')">⚠ התראות <span id="alert-badge">2</span></button>
+      <button class="nav-tab nav-tab-action" onclick="openNotifModal()" id="tb-notif-btn" style="display:none">📢 שלח</button>
       <button class="nav-tab nav-tab-action" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
     </div>
     <div class="tb-spacer"></div>
@@ -658,6 +713,67 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <span>צא</span>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION SENDER MODAL -->
+  <div id="notif-modal-overlay" onclick="if(event.target===this)closeNotifModal()">
+    <div id="notif-modal">
+      <div id="notif-modal-hdr">
+        <h3>📢 שליחת הודעה לכוחות</h3>
+        <button onclick="closeNotifModal()" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:0 4px">✕</button>
+      </div>
+      <div id="notif-modal-body">
+        <!-- Type -->
+        <div>
+          <div class="nm-label">סוג הודעה</div>
+          <div class="nm-type-row">
+            <button class="nm-type-btn sel" data-type="mission" onclick="selectNotifType('mission',this)">📋 משימה</button>
+            <button class="nm-type-btn" data-type="message" onclick="selectNotifType('message',this)">💬 הודעה</button>
+            <button class="nm-type-btn warn" data-type="alert" onclick="selectNotifType('alert',this)">⚠️ התראה</button>
+          </div>
+        </div>
+        <!-- Title -->
+        <div>
+          <div class="nm-label">כותרת</div>
+          <input class="nm-input" id="nm-title" placeholder="כותרת ההודעה..." />
+        </div>
+        <!-- Body -->
+        <div>
+          <div class="nm-label">תוכן</div>
+          <textarea class="nm-input nm-textarea" id="nm-body" placeholder="פרטי ההודעה, המשימה או ההתראה..."></textarea>
+        </div>
+        <!-- Target -->
+        <div>
+          <div class="nm-label">יעד שליחה</div>
+          <div class="nm-target-row" id="nm-target-row">
+            <div class="nm-target-chip sel" data-target="all" onclick="selectNotifTarget('all',this)">👥 כולם</div>
+            <!-- Team chips injected dynamically -->
+          </div>
+        </div>
+        <!-- Recipients list -->
+        <div id="nm-recipients-wrap">
+          <div class="nm-label">נמענים <span id="nm-count" style="color:var(--accent)"></span></div>
+          <div class="nm-recipients-list" id="nm-recipients-list"></div>
+        </div>
+        <!-- Send -->
+        <button class="nm-send-btn" id="nm-send-btn" onclick="sendNotification()">📤 שלח עכשיו</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOMING NOTIFICATION OVERLAY -->
+  <div id="incoming-notif-overlay">
+    <div id="incoming-notif-card">
+      <div class="inc-icon" id="inc-icon">📋</div>
+      <div class="inc-type" id="inc-type">משימה</div>
+      <div class="inc-title" id="inc-title"></div>
+      <div class="inc-body" id="inc-body"></div>
+      <div class="inc-sender" id="inc-sender"></div>
+      <div class="inc-btns">
+        <button class="inc-approve" onclick="respondToNotif(true)">✅ אשר — מגיע</button>
+        <button class="inc-decline" onclick="respondToNotif(false)">❌ לא זמין</button>
+      </div>
     </div>
   </div>
 
@@ -1250,6 +1366,8 @@ const AUTH = (() => {
     // Show/hide admin buttons
     const tbAdminBtn = document.getElementById('tb-admin-btn');
     if(tbAdminBtn) tbAdminBtn.style.display = isAdmin ? '' : 'none';
+    const tbNotifBtn = document.getElementById('tb-notif-btn');
+    if(tbNotifBtn) tbNotifBtn.style.display = isAdmin ? '' : 'none';
     // Update mobile drawer user card
     const mobName = document.getElementById('mob-user-name');
     const mobRole = document.getElementById('mob-user-role');
@@ -1422,6 +1540,7 @@ function onGoogleMapsReady(){
   plotGFs();
   startAutoTrack();
   if(typeof initLocPrivacy==='function') initLocPrivacy();
+  if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 1500);
   if(typeof loadFromStorage==='function')loadFromStorage();
   setTimeout(()=>{if(typeof loadSavedBoundaries==='function')loadSavedBoundaries();}, 1200);
 
@@ -3457,6 +3576,8 @@ function renderUnitsP(c){
   const filtered=UNITS.filter(function(u){return flt==='all'||u.status===flt;});
 
   var html='';
+  // Show approvals at top if any
+  html+=renderApprovalsSection();
   // Summary KPIs
   html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
   html+='<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+dep+'</div><div style="font-size:10px;color:var(--text3)">פרוסים</div></div>';
@@ -5059,7 +5180,7 @@ function renderPersonnelP(c){
   const filterAvail=c._avail||'all';
   const unitList=[...new Set([...TEAMS.map(t=>t.name),...PERSONNEL.map(p=>p.unit).filter(Boolean)])];
   const filtered=sorted.filter(p=>(filterUnit==='all'||p.unit===filterUnit)&&(filterAvail==='all'||(filterAvail==='yes'?p.available:!p.available)));
-  c.innerHTML=`
+  c.innerHTML=renderApprovalsSection()+`
   <!-- FILTERS -->
   <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
     <select style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px;color:var(--text);font-size:12px;font-family:var(--font)" onchange="persnSetFilter(this.value,'unit')">
@@ -5726,6 +5847,279 @@ function initLocPrivacy(){
   if(!window._locPrivacyOn && typeof SYNC!=='undefined') SYNC.stopPublishing();
 }
 
+/* ══════════════════════════════════════════════════
+   NOTIFICATION SYSTEM
+══════════════════════════════════════════════════ */
+let _activeNotifType = 'mission';
+let _activeNotifTarget = 'all';
+let _notifSelectedPersonnel = new Set(); // all by default
+let _currentIncomingNotif = null;
+let _activeNotifId = null; // last sent notif id
+let _approvalsListener = null;
+let _incomingListener = null;
+
+function openNotifModal(){
+  // Build team chips
+  const row = document.getElementById('nm-target-row');
+  if(row){
+    // Remove old team chips (keep 'all')
+    row.querySelectorAll('[data-target]:not([data-target="all"])').forEach(c=>c.remove());
+    TEAMS.forEach(t=>{
+      const chip = document.createElement('div');
+      chip.className = 'nm-target-chip';
+      chip.dataset.target = 'team:'+t.id;
+      chip.textContent = t.name;
+      chip.onclick = ()=>selectNotifTarget('team:'+t.id, chip);
+      row.appendChild(chip);
+    });
+    // Individual chip
+    const indChip = document.createElement('div');
+    indChip.className = 'nm-target-chip';
+    indChip.dataset.target = 'individual';
+    indChip.textContent = '👤 בחר אנשים';
+    indChip.onclick = ()=>selectNotifTarget('individual', indChip);
+    row.appendChild(indChip);
+  }
+  selectNotifTarget('all', document.querySelector('[data-target="all"]'));
+  document.getElementById('notif-modal-overlay').classList.add('open');
+}
+
+function closeNotifModal(){
+  document.getElementById('notif-modal-overlay').classList.remove('open');
+}
+
+function selectNotifType(type, el){
+  _activeNotifType = type;
+  document.querySelectorAll('.nm-type-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function selectNotifTarget(target, el){
+  _activeNotifTarget = target;
+  document.querySelectorAll('.nm-target-chip').forEach(c=>c.classList.remove('sel'));
+  if(el) el.classList.add('sel');
+  _renderRecipientsList();
+}
+
+function _renderRecipientsList(){
+  const list = document.getElementById('nm-recipients-list');
+  const wrap = document.getElementById('nm-recipients-wrap');
+  const countEl = document.getElementById('nm-count');
+  if(!list) return;
+
+  let recipients = [];
+  if(_activeNotifTarget === 'all'){
+    recipients = PERSONNEL.slice();
+    wrap.style.display = 'none'; // no need to show list for all
+    if(countEl) countEl.textContent = '('+recipients.length+' אנשים)';
+    _notifSelectedPersonnel = new Set(recipients.map(p=>p.id));
+    return;
+  } else if(_activeNotifTarget === 'individual'){
+    recipients = PERSONNEL.slice();
+    wrap.style.display = '';
+  } else if(_activeNotifTarget.startsWith('team:')){
+    const teamId = _activeNotifTarget.split(':')[1];
+    const team = TEAMS.find(t=>t.id===teamId);
+    if(team) recipients = PERSONNEL.filter(p=>p.unit===team.name);
+    wrap.style.display = '';
+    // Auto-select all team members
+    _notifSelectedPersonnel = new Set(recipients.map(p=>p.id));
+  }
+
+  list.innerHTML = recipients.map(p=>`
+    <label class="nm-rec-item">
+      <input type="checkbox" ${_notifSelectedPersonnel.has(p.id)||_activeNotifTarget.startsWith('team:')?'checked':''} onchange="toggleNotifRecipient('${p.id}',this.checked)">
+      <div style="width:28px;height:28px;border-radius:50%;background:${p.color||'#29c5f6'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#07090a;flex-shrink:0">${(p.name||'?')[0]}</div>
+      <div style="flex:1;min-width:0">
+        <div class="nm-rec-name">${p.name}</div>
+        <div class="nm-rec-role">${p.role||''} · ${p.unit||''}</div>
+      </div>
+    </label>
+  `).join('');
+
+  if(countEl) countEl.textContent = '('+_notifSelectedPersonnel.size+' נבחרו)';
+}
+
+function toggleNotifRecipient(pid, checked){
+  if(checked) _notifSelectedPersonnel.add(pid);
+  else _notifSelectedPersonnel.delete(pid);
+  const countEl = document.getElementById('nm-count');
+  if(countEl) countEl.textContent = '('+_notifSelectedPersonnel.size+' נבחרו)';
+}
+
+function sendNotification(){
+  const title = (document.getElementById('nm-title')||{}).value||'';
+  const body = (document.getElementById('nm-body')||{}).value||'';
+  if(!title.trim()){showToast({icon:'⚠️',title:'נא להזין כותרת',type:'warn'});return;}
+
+  const db = window._db || (typeof SYNC!=='undefined' && SYNC._db);
+  if(!db){showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'});return;}
+
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const senderName = u ? u.name : 'מפקד';
+  const senderId = u ? u.id : '';
+  const notifId = 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
+  const typeLabels = {mission:'משימה', message:'הודעה', alert:'התראה'};
+
+  _activeNotifId = notifId;
+  const payload = {
+    id: notifId,
+    type: _activeNotifType,
+    typeLabel: typeLabels[_activeNotifType]||_activeNotifType,
+    title: title.trim(),
+    body: body.trim(),
+    senderName,
+    senderId,
+    sentAt: Date.now()
+  };
+
+  // Determine recipients
+  let recipientIds = [];
+  if(_activeNotifTarget === 'all'){
+    recipientIds = PERSONNEL.map(p=>p.id);
+  } else {
+    recipientIds = [..._notifSelectedPersonnel];
+  }
+
+  // Write to Firebase for each recipient
+  const writes = recipientIds.map(pid =>
+    db.ref('tac_notifications/'+pid+'/'+notifId).set(payload)
+  );
+  // Write active notif metadata
+  db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
+
+  Promise.all(writes).then(()=>{
+    showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
+    closeNotifModal();
+    // Start listening for approvals on the map כוחות panel
+    _listenApprovals(notifId);
+    // Refresh panels
+    const c = document.getElementById('rp-body');
+    if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+  }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
+
+  // Also show local toast
+  showToast({icon:'📢',title:'שולח הודעה...',sub:title,type:'info',duration:2000});
+}
+
+/* ── Listen for incoming notifications ── */
+function listenForIncomingNotifications(){
+  const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
+  const db = window._db;
+  if(!myPersonId || !db) return;
+  if(_incomingListener) return; // already listening
+
+  const ref = db.ref('tac_notifications/'+myPersonId);
+  _incomingListener = true;
+  ref.on('child_added', snap=>{
+    const notif = snap.val();
+    if(!notif) return;
+    // Show incoming notification modal
+    _showIncomingNotif(notif, snap.ref);
+  });
+}
+
+function _showIncomingNotif(notif, fbRef){
+  _currentIncomingNotif = {notif, fbRef};
+  const icons = {mission:'📋', message:'💬', alert:'⚠️'};
+  document.getElementById('inc-icon').textContent = icons[notif.type]||'📢';
+  document.getElementById('inc-type').textContent = notif.typeLabel||notif.type;
+  document.getElementById('inc-title').textContent = notif.title||'';
+  document.getElementById('inc-body').textContent = notif.body||'';
+  document.getElementById('inc-sender').textContent = 'נשלח על ידי: '+notif.senderName;
+  // Color border by type
+  const card = document.getElementById('incoming-notif-card');
+  const colors = {mission:'rgba(41,197,246,0.5)', message:'rgba(176,108,240,0.5)', alert:'rgba(255,51,51,0.5)'};
+  card.style.borderColor = colors[notif.type]||'var(--border2)';
+  document.getElementById('incoming-notif-overlay').classList.add('open');
+}
+
+function respondToNotif(approved){
+  if(!_currentIncomingNotif) return;
+  const {notif, fbRef} = _currentIncomingNotif;
+  const db = window._db;
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const myId = u ? u.id : null;
+
+  // Write response
+  if(db && myId){
+    db.ref('tac_notif_responses/'+notif.id+'/'+myId).set({
+      personId: myId,
+      name: u.name||'',
+      role: u.role||'',
+      color: u.color||'#29c5f6',
+      approved,
+      ts: Date.now()
+    });
+    // Remove notification from queue
+    fbRef.remove();
+  }
+
+  // Close overlay
+  document.getElementById('incoming-notif-overlay').classList.remove('open');
+  _currentIncomingNotif = null;
+
+  if(approved){
+    // Auto-enable live location
+    window._locPrivacyOn = true;
+    localStorage.setItem('tac_loc_privacy','1');
+    if(typeof _applyLocPrivacyUI === 'function') _applyLocPrivacyUI();
+    if(typeof SYNC !== 'undefined' && SYNC.connected) SYNC.startPublishing();
+    // Mark as available
+    if(u && !u.available){
+      u.available = true;
+      if(typeof savePersonnelToStorage==='function') savePersonnelToStorage();
+    }
+    showToast({icon:'✅',title:'אישרת — מגיע!',sub:'מיקום חי הופעל אוטומטית',type:'success',duration:5000});
+  } else {
+    showToast({icon:'❌',title:'לא זמין',sub:'הוגדרת כלא זמין',type:'info'});
+  }
+}
+
+/* ── Listen for approvals (sender side) ── */
+let _approvalsData = {}; // personId → {name, approved, ts}
+function _listenApprovals(notifId){
+  const db = window._db;
+  if(!db) return;
+  if(_approvalsListener) { _approvalsListener(); _approvalsListener=null; }
+  _approvalsData = {};
+  const ref = db.ref('tac_notif_responses/'+notifId);
+  const handler = ref.on('value', snap=>{
+    _approvalsData = {};
+    if(snap.exists()){
+      snap.forEach(child=>{
+        const d = child.val();
+        if(d && d.approved) _approvalsData[d.personId] = d;
+      });
+    }
+    // Refresh panel if open
+    const c = document.getElementById('rp-body');
+    if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+  });
+  _approvalsListener = ()=>ref.off('value', handler);
+}
+
+function renderApprovalsSection(){
+  const entries = Object.values(_approvalsData);
+  if(!entries.length) return '';
+  return `<div class="approvals-section">
+    <div class="approvals-hdr">
+      <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
+      מאשרים ומגיעים (${entries.length})
+    </div>
+    ${entries.map(e=>`
+      <div class="approval-item">
+        <div class="approval-dot"></div>
+        <div style="flex:1;min-width:0">
+          <span class="approval-name">${e.name}</span>
+          <span class="approval-role"> · ${e.role||''}</span>
+        </div>
+        <span class="approval-live">📍 מגיע</span>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
 let _markersVisible=true;
 function toggleMarkersVisibility(){
   _markersVisible=!_markersVisible;
@@ -5820,6 +6214,7 @@ const SYNC = (() => {
     try{
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
+      window._db = _db;
       firebase.auth().signInAnonymously()
         .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); loadPhotos(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
