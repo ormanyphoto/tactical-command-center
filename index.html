@@ -617,7 +617,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div id="mob-user-card">
         <div id="mob-user-avatar">?</div>
         <div id="mob-user-info">
-          <div id="mob-user-name">טוען...</div>
+          <div id="mob-user-name">—</div>
           <div id="mob-user-role"></div>
         </div>
         <button id="mob-logout-btn" onclick="AUTH.logout();closeMobileMenu()">🚪 יציאה</button>
@@ -5560,6 +5560,8 @@ setTimeout(()=>{
 function openMobileMenu(){
   const d=document.getElementById('mobile-drawer');
   if(d){d.classList.add('open');}
+  // Always refresh user card so it never shows "טוען..."
+  if(typeof AUTH!=='undefined') AUTH.applyPerms();
 }
 function closeMobileMenu(){
   const d=document.getElementById('mobile-drawer');
@@ -6365,21 +6367,15 @@ const FIELD = (() => {
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
-  // ── Biometric UI init ──
+  // ── Auth gate — always require explicit login on every open ──
+  // (No silent session restore — security policy)
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  // Biometric UI init (show/hide fast-login button)
   BIOMETRIC.init();
-  // ── Auth gate ──
-  if(AUTH.restore()){
-    // Existing session — show app
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = '';
-    // Apply permissions after DOM ready
-    setTimeout(()=>AUTH.applyPerms(), 50);
-    // Ensure map renders correctly if it initialised before session was restored
-    _triggerMapResize();
-  } else {
-    // No session — show login screen, hide app
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
+  // If a biometric credential is saved on this device, auto-prompt it
+  if(BIOMETRIC.hasSaved()){
+    setTimeout(()=>BIOMETRIC.doFastLogin(), 700);
   }
   // Firebase sync
   SYNC.boot();
