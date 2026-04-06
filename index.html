@@ -4919,18 +4919,20 @@ function boSettings(c){
     +'<button class="btn-sec" style="margin:0" onclick="localStorage.setItem(\'tac_mode\',\'field\');location.reload()">📱 מצב שדה</button>'
     +'</div></div>'
     // ── FCM Push Notifications ──
-    +'<div class="bo-section"><div class="bo-hd">🔔 התראות Push — הגדרת FCM</div>'
-    +'<div style="background:var(--panel2);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px;line-height:1.7">'
-    +'⚠️ <b>שלב נדרש:</b> כנס ל-<b>Firebase Console → Project Settings → Cloud Messaging</b><br/>'
-    +'לחץ על ⋮ ליד <b>"Cloud Messaging API (Legacy)"</b> → <b>Enable</b><br/>'
-    +'לאחר הפעלה יופיע <b>Server key</b> — הדבק אותו כאן:</div>'
-    +'<div class="form-g"><label style="font-size:11px">🗝️ Server Key (Legacy — לאחר הפעלה)</label>'
-    +'<input id="cfg-serverkey" class="form-inp" style="font-size:11px;font-family:monospace;direction:ltr" placeholder="AAAA..." value="'+(typeof PUSH!=='undefined'?PUSH.serverKey:'')+'" /></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin:6px 0 10px">✅ VAPID key מוגדר אוטומטית</div>'
+    +'<div class="bo-section"><div class="bo-hd">🔔 Push Notifications — FCM v1</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.7">'
+    +'להפעלת Push כשהאפליקציה סגורה, הדבק את ה-<b>Service Account JSON</b>:<br/>'
+    +'Firebase Console → Project Settings → <b>Service accounts</b> → <b>Generate new private key</b></div>'
+    +'<div class="form-g"><label style="font-size:11px">📋 Service Account JSON</label>'
+    +'<textarea id="cfg-sa-json" rows="5" class="form-inp" style="font-size:10px;font-family:monospace;direction:ltr;resize:vertical" placeholder=\'{"type":"service_account","project_id":"...","private_key":"...","client_email":"...",...}\'>'
+    +(localStorage.getItem('tac_sa_json')||'')
+    +'</textarea></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin:4px 0 10px">✅ VAPID key מוגדר אוטומטית</div>'
     +'<button class="btn-pri" style="margin-top:2px" onclick="'
-    +'var s=document.getElementById(\'cfg-serverkey\').value.trim();'
-    +'if(typeof PUSH!==\'undefined\') PUSH.setKeys(\'\',s);'
-    +'showToast({icon:\'🔔\',title:\'Server Key נשמר\',sub:\'Push פעיל\',type:\'success\'});">💾 שמור Server Key</button>'
+    +'var j=document.getElementById(\'cfg-sa-json\').value.trim();'
+    +'try{JSON.parse(j);if(typeof PUSH!==\'undefined\')PUSH.saveSA(j);'
+    +'showToast({icon:\'🔔\',title:\'Service Account נשמר\',sub:\'Push פעיל לכולם\',type:\'success\'});}catch(e){'
+    +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
     +'</div>';
 }
 
@@ -6411,6 +6413,20 @@ function sendNotification(){
       closeNotifModal();
       if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
       _listenApprovals(notifId);
+      // ── Auto-create mission on map for "mission" type notifications ──
+      if(payload.type === 'mission' && payload.title){
+        const mId = 'NM_'+Date.now().toString(36).toUpperCase();
+        MISSIONS.push({
+          id: mId, title: payload.title, type: 'rescue', status: 'active',
+          priority: 'high', teams: [], progress: 0,
+          objective: payload.body||'', address: payload.address||'',
+          lat: payload.lat||null, lng: payload.lng||null,
+          checklist: [], requiredSkills: [], equipment: '',
+          timeline: [{t: nowT(), txt: 'משימה נוצרה מהתראה — '+payload.senderName}]
+        });
+        if(typeof saveToCloud==='function') saveToCloud();
+        if(typeof plotMissions==='function') setTimeout(plotMissions, 300);
+      }
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
     }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
@@ -6750,11 +6766,35 @@ const SYNC = (() => {
     } catch(e){ console.warn('[SYNC]',e); _setSyncDot('warn'); return false; }
   }
 
+  let _watchId = null;
   function startPublishing(profile){
     if(profile) _myProfile={..._myProfile,...profile};
+    // Use watchPosition for continuous real-time tracking
+    if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+    if('geolocation' in navigator){
+      _watchId = navigator.geolocation.watchPosition(pos=>{
+        if(!_db||!_connected||window._locPrivacyOn===false) return;
+        const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+        const d = {
+          name:     u ? u.name     : _myProfile.name,
+          role:     u ? (u.role||_myProfile.role) : _myProfile.role,
+          status:   _myProfile.status,
+          color:    u ? (u.color||'#29c5f6') : '#29c5f6',
+          personId: u ? (u.id||'') : '',
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          acc: Math.round(pos.coords.accuracy),
+          hdg: Math.round(pos.coords.heading||0),
+          spd: Math.round((pos.coords.speed||0)*3.6),
+          ts: Date.now(), uid: _myUid
+        };
+        _db.ref('tac_locs/'+_myUid).set(d);
+        if(window.map && window._googleReady) _updateLiveMarker(_myUid, d, true);
+      }, ()=>{}, {enableHighAccuracy:true, maximumAge:2000, timeout:10000});
+    }
+    // Keep setInterval as fallback
     if(_publishTimer) clearInterval(_publishTimer);
     _doPublish();
-    _publishTimer = setInterval(_doPublish, 6000);
+    _publishTimer = setInterval(_doPublish, 8000);
   }
 
   function stopPublishing(){
@@ -6805,18 +6845,28 @@ const SYNC = (() => {
     _db.ref('tac_locs').on('value', snap=>{
       const data = snap.val()||{};
       const now  = Date.now();
-      // Add/update markers for all users (including self from other devices)
-      Object.entries(data).forEach(([uid,d])=>{
-        if(now - d.ts > 300000) return; // stale >5min
-        if(window.map && window._googleReady) _updateLiveMarker(uid, d, uid===_myUid);
-      });
-      // Remove gone/stale markers
-      Object.keys(_liveMarkers).forEach(uid=>{
-        if(!data[uid] || now-data[uid].ts>300000){
-          if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
-          delete _liveMarkers[uid];
-        }
-      });
+      function _renderAll(){
+        Object.entries(data).forEach(([uid,d])=>{
+          if(!d || now - (d.ts||0) > 300000) return;
+          _updateLiveMarker(uid, d, uid===_myUid);
+        });
+        Object.keys(_liveMarkers).forEach(uid=>{
+          if(!data[uid] || now-(data[uid].ts||0)>300000){
+            if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
+            delete _liveMarkers[uid];
+          }
+        });
+      }
+      if(window.map && window._googleReady){
+        _renderAll();
+      } else {
+        // Map not ready yet — retry until it is
+        let tries = 0;
+        const t = setInterval(()=>{
+          if(window.map && window._googleReady){ clearInterval(t); _renderAll(); }
+          else if(++tries > 20) clearInterval(t);
+        }, 500);
+      }
     });
   }
 
@@ -6986,111 +7036,116 @@ const SYNC = (() => {
 // PUSH — Firebase Cloud Messaging (background notifications)
 // ══════════════════════════════════════════════════════════
 const PUSH = (() => {
-  // ── Keys (set from Firebase Console → Project Settings → Cloud Messaging) ──
-  // VAPID public key: Project Settings → Cloud Messaging → Web Push certificates → Key pair
-  // Server key:       Project Settings → Cloud Messaging → Server key  (Legacy)
-  // VAPID public key — from Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
-  let _vapidKey  = localStorage.getItem('tac_fcm_vapid')  || 'BEe5hc-jpVaWhwss8GpGbr9iN-8DiqktMPlfSWksq6zOMDlHMFsdifUFfPXNbp2QTvL-Dx1nzklzx-CdwSki28';
-  // Server key — from Firebase Console → Cloud Messaging → Legacy API → Enable → Server key
-  let _serverKey = localStorage.getItem('tac_fcm_server') || '';
+  const VAPID_KEY = 'BEe5hc-jpVaWhwss8GpGbr9iN-8DiqktMPlfSWksq6zOMDlHMFsdifUFfPXNbp2QTvL-Dx1nzklzx-CdwSki28';
+  let _messaging = null, _token = null;
+  let _sa = null; // service account JSON
 
-  let _messaging = null;
-  let _token     = null;
+  function loadSA(){
+    try{ _sa = JSON.parse(localStorage.getItem('tac_sa_json')||'null'); }catch(e){ _sa=null; }
+    return !!(_sa && _sa.private_key && _sa.client_email);
+  }
+  function saveSA(json){ localStorage.setItem('tac_sa_json', json); loadSA(); }
 
-  function setKeys(vapid, server){
-    _vapidKey  = vapid  || _vapidKey;
-    _serverKey = server || _serverKey;
-    if(_vapidKey)  localStorage.setItem('tac_fcm_vapid',  _vapidKey);
-    if(_serverKey) localStorage.setItem('tac_fcm_server', _serverKey);
+  // ── Generate OAuth2 access token from service account (client-side JWT) ──
+  let _cachedToken = null, _tokenExpiry = 0;
+  async function _getOAuthToken(){
+    if(_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
+    if(!_sa) return null;
+    const now = Math.floor(Date.now()/1000);
+    const header  = {alg:'RS256',typ:'JWT'};
+    const payload = {iss:_sa.client_email, scope:'https://www.googleapis.com/auth/firebase.messaging',
+                     aud:'https://oauth2.googleapis.com/token', iat:now, exp:now+3600};
+    const b64u = o => btoa(JSON.stringify(o)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const sigInput = b64u(header)+'.'+b64u(payload);
+    const pem = _sa.private_key.replace(/-----[^-]+-----/g,'').replace(/\s/g,'');
+    const keyBytes = Uint8Array.from(atob(pem), c=>c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('pkcs8', keyBytes,
+      {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['sign']);
+    const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(sigInput));
+    const jwt = sigInput+'.'+btoa(String.fromCharCode(...new Uint8Array(sig)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const resp = await fetch('https://oauth2.googleapis.com/token',{
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion='+jwt
+    });
+    const data = await resp.json();
+    if(data.access_token){
+      _cachedToken = data.access_token;
+      _tokenExpiry = Date.now() + 3500*1000;
+      return _cachedToken;
+    }
+    return null;
   }
 
-  async function init(){
-    if(!_vapidKey) return; // no key configured yet
-    if(!('Notification' in window)) return;
-    if(!firebase.messaging) return;
-    try {
-      // Use existing registered SW for FCM
-      const swReg = await navigator.serviceWorker.ready;
-      _messaging = firebase.messaging();
-      // Forward foreground messages to the in-app notification system
-      _messaging.onMessage(payload => {
-        const d = payload.data || {};
-        if(d.title && typeof _showIncomingNotif === 'function'){
-          _showIncomingNotif({
-            id: d.notifId, type: d.type, typeLabel: d.typeLabel,
-            title: d.title, body: d.body, address: d.address||'',
-            senderName: d.senderName||'מפקד', sentAt: Number(d.sentAt)||Date.now()
-          }, null);
-        }
-      });
-    } catch(e){ console.warn('FCM init error', e); }
-  }
-
-  async function requestAndSaveToken(userId){
-    if(!_vapidKey) return null;
-    if(!('Notification' in window)) return null;
-    try {
-      const perm = await Notification.requestPermission();
-      if(perm !== 'granted') return null;
-      if(!_messaging){
-        _messaging = firebase.messaging();
-      }
-      const swReg = await navigator.serviceWorker.ready;
-      _token = await _messaging.getToken({ vapidKey: _vapidKey, serviceWorkerRegistration: swReg });
-      if(_token && userId && window._db){
-        window._db.ref('tac_fcm_tokens/'+userId).set(_token);
-      }
-      return _token;
-    } catch(e){ console.warn('FCM token error', e); return null; }
-  }
-
+  // ── FCM v1 push ──
   async function sendPush(recipientIds, payload){
-    if(!_serverKey) return; // server key not configured
     const db = window._db;
     if(!db || !recipientIds.length) return;
-    try {
-      const snap = await db.ref('tac_fcm_tokens').once('value');
-      const allTokens = snap.val() || {};
-      const tokens = recipientIds.map(id => allTokens[id]).filter(Boolean);
+    if(!loadSA()){ console.warn('PUSH: no service account configured'); return; }
+    try{
+      const [snap, token] = await Promise.all([
+        db.ref('tac_fcm_tokens').once('value'), _getOAuthToken()
+      ]);
+      if(!token) return;
+      const allTokens = snap.val()||{};
+      const tokens = recipientIds.map(id=>allTokens[id]).filter(Boolean);
       if(!tokens.length) return;
-      // Send via FCM Legacy HTTP API
-      await fetch('https://fcm.googleapis.com/fcm/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'key=' + _serverKey
-        },
-        body: JSON.stringify({
-          registration_ids: tokens,
-          priority: 'high',
-          notification: {
-            title: payload.title || 'מערכת מבצעים',
-            body:  payload.body  || '',
-            icon:  '/tactical-command-center/icon-192.png',
-            badge: '/tactical-command-center/icon-192.png',
-            dir:   'rtl',
-            tag:   payload.id || 'tac-notif',
-            vibrate: [200,100,200]
-          },
-          data: {
-            notifId:    payload.id      || '',
-            type:       payload.type    || '',
-            typeLabel:  payload.typeLabel|| '',
-            title:      payload.title   || '',
-            body:       payload.body    || '',
-            address:    payload.address || '',
-            senderName: payload.senderName || '',
-            sentAt:     String(payload.sentAt || Date.now())
-          }
-        })
-      });
-    } catch(e){ console.warn('FCM send error', e); }
+      const project = _sa.project_id || 'tactical-command-center';
+      const url = `https://fcm.googleapis.com/v1/projects/${project}/messages:send`;
+      const data = {
+        notifId:    payload.id       ||'',
+        type:       payload.type     ||'',
+        typeLabel:  payload.typeLabel||'',
+        title:      payload.title    ||'',
+        body:       payload.body     ||'',
+        address:    payload.address  ||'',
+        senderName: payload.senderName||'',
+        lat:        String(payload.lat||''),
+        lng:        String(payload.lng||''),
+        sentAt:     String(payload.sentAt||Date.now())
+      };
+      await Promise.all(tokens.map(t=>
+        fetch(url,{method:'POST',
+          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+          body:JSON.stringify({message:{
+            token:t,
+            notification:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
+            data,
+            android:{priority:'high'},
+            webpush:{
+              headers:{TTL:'300',Urgency:'high'},
+              notification:{
+                icon:'/tactical-command-center/icon-192.png',
+                badge:'/tactical-command-center/icon-192.png',
+                dir:'rtl', lang:'he', tag:payload.id||'tac',
+                renotify:true, requireInteraction:true,
+                vibrate:[200,100,200],
+                actions:[{action:'open',title:'📂 פתח'},{action:'ack',title:'✓ קיבלתי'}]
+              }
+            }
+          }})
+        }).catch(()=>{})
+      ));
+    }catch(e){ console.warn('FCM v1 error',e); }
   }
 
-  return { init, requestAndSaveToken, sendPush, setKeys,
-    get vapidKey(){ return _vapidKey; },
-    get serverKey(){ return _serverKey; }
-  };
+  // ── FCM token registration ──
+  async function requestAndSaveToken(userId){
+    if(!('Notification' in window)||!firebase.messaging) return null;
+    try{
+      const perm = await Notification.requestPermission();
+      if(perm!=='granted') return null;
+      if(!_messaging) _messaging = firebase.messaging();
+      const swReg = await navigator.serviceWorker.ready;
+      _token = await _messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:swReg});
+      if(_token && userId && window._db) window._db.ref('tac_fcm_tokens/'+userId).set(_token);
+      return _token;
+    }catch(e){ return null; }
+  }
+
+  loadSA();
+  return { sendPush, requestAndSaveToken, saveSA, loadSA, hasSA:()=>!!_sa,
+    get vapidKey(){ return VAPID_KEY; } };
 })();
 
 // ══════════════════════════════════════════════════════════
