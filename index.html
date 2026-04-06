@@ -33,12 +33,14 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #topbar-logo-wrap{width:360px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--border2)}
 #topbar-logo{font-family:var(--font2);font-weight:900;font-size:16px;color:var(--accent);letter-spacing:0.04em;white-space:nowrap;display:flex;align-items:center;gap:8px}
 #topbar-logo span{color:var(--text3);font-weight:400;font-size:12px}
-#sys-clock{font-family:var(--font2);font-size:15px;font-weight:700;color:var(--accent2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 13px;cursor:default;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:1px}
-.tb-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+#sys-clock{font-family:var(--font2);font-size:12px;font-weight:700;color:var(--accent2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:4px 10px;cursor:default;white-space:nowrap;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;line-height:1.35}
+#sys-clock #sys-time{font-size:13px;font-weight:700}
+#sys-clock #sys-date{font-size:10px!important;font-weight:600;color:var(--text2)}
+.tb-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap;display:flex;align-items:center;gap:6px}
 .tb-btn:hover{border-color:var(--border3);color:var(--texthi)}
 .tb-btn.tbdanger{border-color:rgba(255,51,51,0.5);color:var(--danger)}
-.tpill{display:flex;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:2px;gap:2px;flex-shrink:0}
-.tpill-btn{background:none;border:1px solid transparent;border-radius:16px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text3);font-family:var(--font);transition:background 0.18s,color 0.18s,border-color 0.18s,box-shadow 0.18s;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.tpill{display:flex;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;gap:2px;flex-shrink:0}
+.tpill-btn{background:none;border:1px solid transparent;border-radius:4px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;color:var(--text3);font-family:var(--font);transition:background 0.18s,color 0.18s,border-color 0.18s,box-shadow 0.18s;display:flex;align-items:center;gap:4px;white-space:nowrap}
 #btn-night.active{background:linear-gradient(135deg,#060d1a 0%,#0f1a30 100%)!important;color:#ffffff!important;box-shadow:0 0 10px rgba(20,40,100,0.6),inset 0 1px 0 rgba(255,255,255,0.08)!important;border:1px solid rgba(60,90,160,0.5)!important;text-shadow:0 0 8px rgba(180,200,255,0.8)}
 #btn-night:not(.active){color:#586878!important}
 #btn-night:not(.active):hover{color:#8ab0d0!important;background:rgba(80,130,255,0.1)!important}
@@ -636,8 +638,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="topbar-right">
       <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
       <div id="topbar-user" title="משתמש מחובר">—</div>
-      <button class="tb-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
       <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
+      <button class="tb-btn" onclick="AUTH.logout()" title="יציאה">צא</button>
     </div>
   </div>
 
