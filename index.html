@@ -4642,6 +4642,21 @@ setTimeout(()=>{
   try{const sr=localStorage.getItem('tac_roles');if(sr){const r=JSON.parse(sr);if(Array.isArray(r)&&r.length)ALL_ROLES.splice(0,ALL_ROLES.length,...r);}}catch(e){}
 },100);
 
+// ── Compress image to max 200×200px JPEG before saving ───────────────────────
+function _compressPhoto(dataUrl, maxPx, quality, cb){
+  const img = new Image();
+  img.onload = ()=>{
+    const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(cv.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
+
 function savePersonnelToStorage(){
   try{
     localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL));
@@ -5475,8 +5490,19 @@ function handlePersonPhoto(event,previewId,pid){
       if(!img){img=document.createElement('img');wrap.insertBefore(img,wrap.querySelector('input'));}
       img.src=data;
     }
-    if(pid){const p=PERSONNEL.find(x=>x.id===pid);if(p){p.photo=data;savePersonnelToStorage();}}
-    else{window._pendingPhoto=data;}
+    if(pid){
+      const p=PERSONNEL.find(x=>x.id===pid);
+      if(p){
+        _compressPhoto(data, 200, 0.82, compressed=>{
+          p.photo=compressed;
+          savePersonnelToStorage();
+          if(typeof SYNC!=='undefined') SYNC.savePhoto(pid, compressed);
+          // Update preview with compressed version
+          const wrap=document.getElementById(previewId);
+          if(wrap){const img=wrap.querySelector('img');if(img)img.src=compressed;}
+        });
+      }
+    } else { window._pendingPhoto=data; }
   };
   reader.readAsDataURL(file);
 }
@@ -5488,7 +5514,14 @@ function pickPersonPhoto(id){
     const reader=new FileReader();
     reader.onload=ev=>{
       const p=PERSONNEL.find(x=>x.id===id);
-      if(p){p.photo=ev.target.result;renderPersonnelP(document.getElementById('rp-body'));savePersonnelToStorage();}
+      if(p){
+        _compressPhoto(ev.target.result, 200, 0.82, compressed=>{
+          p.photo=compressed;
+          renderPersonnelP(document.getElementById('rp-body'));
+          savePersonnelToStorage();
+          if(typeof SYNC!=='undefined') SYNC.savePhoto(id, compressed);
+        });
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -5597,7 +5630,7 @@ const SYNC = (() => {
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); })
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); loadPhotos(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
@@ -5800,12 +5833,34 @@ const SYNC = (() => {
     measurementId:     "G-2FBH7TS7SZ"
   };
 
+  // ── Photos: save a single photo to Firebase ──────────────────────────────
+  function savePhoto(personId, dataUrl){
+    if(!_db || !personId) return;
+    try{ _db.ref('tac_photos/' + personId).set(dataUrl); }catch(e){}
+  }
+
+  // ── Photos: load all photos from Firebase and apply to PERSONNEL ─────────
+  function loadPhotos(){
+    if(!_db) return;
+    _db.ref('tac_photos').once('value', snap=>{
+      const data = snap.val();
+      if(!data) return;
+      Object.entries(data).forEach(([pid, url])=>{
+        const p = PERSONNEL.find(x=>x.id===pid);
+        if(p && url){ p.photo = url; }
+      });
+      // Re-render wherever photos are shown
+      const rpBody = document.getElementById('rp-body');
+      if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
+    });
+  }
+
   function boot(){
     // Always use the built-in config — credentials are permanent
     init(_DEFAULT_CFG);
   }
 
-  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, get connected(){ return _connected; }, myUid:_myUid };
 })();
 
 // ══════════════════════════════════════════════════════════
