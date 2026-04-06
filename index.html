@@ -1291,6 +1291,7 @@ const BIOMETRIC = (() => {
         AUTH.applyPerms();
         _triggerMapResize();
         if(typeof FIELD !== 'undefined') FIELD.boot();
+        if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
         const u = AUTH.getUser();
         setTimeout(()=>{
           if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
@@ -1471,6 +1472,8 @@ const AUTH = (() => {
       setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_user.name.split(' ')[0],sub:(_user.role||'לוחם')+' · כוננות מחוזית ת"א',type:'success',duration:4000}),300);
       // Offer fast-login / biometric registration after first password login
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
+      // Start listening for incoming notifications now that user is authenticated
+      if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
     } else {
       err.textContent = '⚠️ אימייל או סיסמה שגויים';
       document.getElementById('login-pass').value = '';
@@ -6382,15 +6385,22 @@ function listenForIncomingNotifications(){
   if(!isMobileOrTablet) return;
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
   const db = window._db;
-  if(!myPersonId || !db) return;
+  if(!myPersonId || !db){
+    // Retry once DB/auth is ready
+    setTimeout(listenForIncomingNotifications, 2000);
+    return;
+  }
   if(_incomingListener) return; // already listening
-
-  const ref = db.ref('tac_notifications/'+myPersonId);
   _incomingListener = true;
+
+  // Only listen for notifications sent from NOW onwards — ignore old DB entries
+  const listenFrom = Date.now();
+  const ref = db.ref('tac_notifications/'+myPersonId)
+                 .orderByChild('sentAt').startAt(listenFrom);
   ref.on('child_added', snap=>{
     const notif = snap.val();
     if(!notif) return;
-    // Show incoming notification modal
+    if(notif.sentAt && notif.sentAt < listenFrom) return; // extra guard
     _showIncomingNotif(notif, snap.ref);
   });
 }
