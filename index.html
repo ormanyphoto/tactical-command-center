@@ -1087,7 +1087,7 @@ const SCOLORS={urgent:'#ff3333',active:'#3dff52',pending:'#ffc107',completed:'#2
 const MICONS={arrest:'🚨',surveillance:'👁️',escort:'🛡️',traffic:'🚧',rescue:'🏥',default:'◉'};
 const TCOLORS={אדום:'#ff3333',כחול:'#29c5f6',ירוק:'#3dff52',צהוב:'#ffc107',אלפא:'#a8e800',רפואה:'#ff4aaa',מבצע:'#b06cf0',K9:'#ff7a1a','יחידה-5':'#9ab8c8'};
 const ALL_SKILLS=['נשק','חובש','נהג','צלף','כלבן','משא ומתן','חבלה','קשר','מפעיל רחפן','מודיעין','סנפלינג','כימי/ביולוגי','לוגיסטיקה','רופא','סייבר','חילוץ','ירי מדויק','נהיגה מבצעית','מנהיגות','מתורגמן'];
-let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','לוחם','איש חפ״ק','מפעיל רחפן','צופה רחפן'];
+let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','לוחם','איש חפ״ק','מפעיל רחפן','צופה רחפן'];
 let MISSIONS=[];
 let UNITS=[];
 let PERSONNEL=[
@@ -1356,6 +1356,7 @@ const AUTH = (() => {
     'סגן מפקד צוות':   ['map','missions','comms','navigation','field_mode'],
     'מפקד חפ״ק':       ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','geofence','layers','navigation','field_mode'],
     'סגן מפקד חפ״ק':   ['map','missions','units','comms','incidents','navigation','field_mode'],
+    'חפ״ק':            ['map','dashboard','missions','units','comms','incidents','layers','navigation','field_mode'],
     'מפעיל רחפן':      ['map','missions','layers','navigation','field_mode'],
     '':               ['map','navigation','field_mode'],
   };
@@ -4733,16 +4734,21 @@ function boCredentials(c){
     +'</div>';
 }
 function boPermissions(c){
-  const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','מפקד צוות','לוחם','איש חפ״ק','מפעיל רחפן'];
+  const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','איש חפ״ק','לוחם','מפעיל רחפן'];
   const perms=['צפייה','עריכה','יצירת משימה','פריסת כוחות','גיאופנסים','שידורים','ניהול מערכת'];
   const defaults={
-    'מפקד יחידה':   [1,1,1,1,1,1,1],
-    'סגן מפקד יחידה':[1,1,1,1,1,1,0],
-    'מפקד פלגה':    [1,1,1,1,1,1,0],
-    'מפקד צוות':    [1,1,1,0,1,1,0],
-    'לוחם':          [1,0,0,0,0,0,0],
-    'איש חפ״ק':     [1,1,0,0,0,1,0],
-    'מפעיל רחפן':   [1,0,0,0,0,1,0],
+    'מפקד יחידה':      [1,1,1,1,1,1,1],
+    'סגן מפקד יחידה':  [1,1,1,1,1,1,0],
+    'מפקד פלגה':       [1,1,1,1,1,1,0],
+    'סגן מפקד פלגה':   [1,1,0,1,0,1,0],
+    'מפקד צוות':       [1,1,1,0,1,1,0],
+    'סגן מפקד צוות':   [1,1,0,0,0,1,0],
+    'מפקד חפ״ק':       [1,1,1,1,1,1,0],
+    'סגן מפקד חפ״ק':   [1,1,0,1,0,1,0],
+    'חפ״ק':            [1,1,0,0,0,1,0],
+    'איש חפ״ק':        [1,1,0,0,0,1,0],
+    'לוחם':             [1,0,0,0,0,0,0],
+    'מפעיל רחפן':      [1,0,0,0,0,1,0],
   };
   var rows='';
   roles.forEach(function(r){
@@ -6267,6 +6273,9 @@ function sendNotification(){
 
 /* ── Listen for incoming notifications ── */
 function listenForIncomingNotifications(){
+  // Incoming notifications are for field operatives on mobile/tablet only
+  const isMobileOrTablet = window.innerWidth <= 1024 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(!isMobileOrTablet) return;
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
   const db = window._db;
   if(!myPersonId || !db) return;
