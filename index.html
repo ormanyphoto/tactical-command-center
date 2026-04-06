@@ -480,15 +480,23 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #right-panel.hidden{transform:translateX(-100%)!important}
 }
 @media (max-width:768px){
-  #topbar{height:54px;padding:0 10px;gap:6px}
+  #topbar{height:54px;padding:0 10px;gap:6px;overflow:hidden}
   .nav-tabs{display:none}
   #mobile-menu-btn{display:flex}
+  /* Hide desktop-only topbar items on mobile — they move to the drawer */
+  .tpill{display:none}
+  #topbar-user{display:none}
+  #btn-logout{display:none}
+  #sys-clock{display:none}
+  /* Keep only: menu btn, logo, alerts, SOS */
+  .tb-btn:not(.tbdanger):not([onclick*="alerts"]){display:none}
   #right-panel{width:100%!important;max-width:100vw;bottom:60px}
   #bottom-nav{display:flex}
   #main{padding-bottom:60px}
   #topbar-logo span{display:none}
-  #topbar-logo{font-size:14px}
+  #topbar-logo{font-size:13px;white-space:nowrap}
   .tb-btn{padding:7px 10px;font-size:12px}
+  .tb-btn.tbdanger{padding:7px 12px}
   #statusbar{display:none}
   #map-overlay-btns{top:8px;left:6px}
   #map-overlay-btns .mp-btn{width:38px;height:38px;font-size:17px;padding:0;justify-content:center}
@@ -501,6 +509,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #modal-box{max-width:100%;width:100%;margin:0;border-radius:12px 12px 0 0;position:fixed;bottom:0;max-height:85vh}
   #modal-wrap{align-items:flex-end}
 }
+/* Mobile drawer user card */
+#mob-user-card{background:var(--panel3);border-bottom:1px solid var(--border2);padding:16px 18px;display:flex;align-items:center;gap:12px}
+#mob-user-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#07090a;flex-shrink:0;font-family:var(--font2)}
+#mob-user-info{flex:1;min-width:0}
+#mob-user-name{font-size:14px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mob-user-role{font-size:11px;color:var(--text2);margin-top:2px}
+#mob-logout-btn{background:none;border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px;color:var(--text3);cursor:pointer;font-size:12px;font-family:var(--font);white-space:nowrap;flex-shrink:0}
+#mob-logout-btn:hover{color:var(--danger);border-color:var(--danger)}
 @media (max-width:480px){
   .comms-qa-btn{padding:10px 4px;font-size:10px}
   .comms-qa-btn .qa-icon{font-size:18px}
@@ -569,6 +585,15 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div id="mobile-drawer-logo">⬡ מערכת מבצעים v5.1</div>
         <button id="mobile-drawer-close" onclick="closeMobileMenu()">✕</button>
       </div>
+      <!-- Logged-in user card -->
+      <div id="mob-user-card">
+        <div id="mob-user-avatar">?</div>
+        <div id="mob-user-info">
+          <div id="mob-user-name">טוען...</div>
+          <div id="mob-user-role"></div>
+        </div>
+        <button id="mob-logout-btn" onclick="AUTH.logout();closeMobileMenu()">🚪 יציאה</button>
+      </div>
       <nav id="mobile-drawer-nav">
         <div class="mob-nav-item active" onclick="mobileGoView('map')"><span class="mob-icon">🗺️</span>מפה</div>
         <div class="mob-nav-item" onclick="mobileGoView('missions')"><span class="mob-icon">📋</span>משימות</div>
@@ -583,7 +608,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </nav>
       <div id="mobile-drawer-footer">
         <button class="tb-btn tbdanger" style="flex:1;justify-content:center" onclick="triggerSOS();closeMobileMenu()">🆘 SOS</button>
-        <button class="tb-btn" style="flex:1;justify-content:center" onclick="openBO();closeMobileMenu()">⚙ ניהול</button>
+        <button class="tb-btn" id="mob-admin-btn" style="flex:1;justify-content:center" onclick="openBO();closeMobileMenu()">⚙ ניהול</button>
+        <button class="tb-btn" style="padding:7px 10px" onclick="setTheme(document.body.classList.contains('night')?'day':'night')" title="יום/לילה">🌙</button>
       </div>
     </div>
   </div>
@@ -934,9 +960,25 @@ const AUTH = (() => {
     document.querySelectorAll('[onclick="openBO()"], [onclick="openBO();closeMobileMenu()"]').forEach(btn=>{
       btn.style.display = isAdmin ? '' : 'none';
     });
-    // Update topbar user badge
+    // Update topbar user badge (desktop)
     const badge = document.getElementById('topbar-user');
     if(badge) badge.textContent = _user.name.split(' ')[0] + ' · ' + (_user.role||'לוחם');
+    // Update mobile drawer user card
+    const mobName = document.getElementById('mob-user-name');
+    const mobRole = document.getElementById('mob-user-role');
+    const mobAvatar = document.getElementById('mob-user-avatar');
+    if(mobName) mobName.textContent = _user.name;
+    if(mobRole) mobRole.textContent = (_user.role||'לוחם') + ' · ' + (_user.unit||'');
+    if(mobAvatar){
+      // Show first letter of first name as avatar
+      const initials = _user.name.split(' ').map(w=>w[0]).join('').slice(0,2);
+      mobAvatar.textContent = initials;
+      mobAvatar.style.background = _user.color || 'var(--accent)';
+      mobAvatar.style.color = '#07090a';
+    }
+    // Show/hide admin button in mobile drawer based on permissions
+    const mobAdminBtn = document.getElementById('mob-admin-btn');
+    if(mobAdminBtn) mobAdminBtn.style.display = isAdmin ? '' : 'none';
     // Set field identity for GPS sharing
     localStorage.setItem('tac_field_name', _user.name);
     localStorage.setItem('tac_field_role', _user.role||'לוחם');
