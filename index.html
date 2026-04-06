@@ -776,7 +776,7 @@ let PERSONNEL=[
   {id:'P17894',name:'ברק מרגי',phone:'054-5646044',email:'barak.mergi@gmail.com',loginPassword:'Tac7894!',unit:'מחוזית ת״א',role:'מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:2,lat:32.0697,lng:34.77085},
   {id:'P17896',name:'זיו אומר',phone:'054-212-4424',email:'zivomerm@gmail.com',loginPassword:'Tac7896!',unit:'מחוזית ת״א',role:'סגן מפקד פלגה',callsign:'',address:'',available:true,skills:[],mission:null,photo:'',color:'#a8e800',order:3,lat:32.0784,lng:34.783},
   {id:'P17897',name:'איתן אוחיון',phone:'053-745-4518',email:'info@911vip.co.il',loginPassword:'Tac7897!',unit:'מחוזית ת״א',role:'',callsign:'',address:'',available:true,skills:['נהג','נהיגה מבצעית'],mission:null,photo:'',color:'#5a7a90',order:4,lat:32.09145,lng:34.792},
-  {id:'P17898',name:'אור מני',phone:'050-3404444',email:'ormanyphoto@gmail.com',loginPassword:'Tac7898!',unit:'מחוזית ת״א',role:'מפקד חפ״ק',callsign:'100',address:'297-12-101',available:true,skills:['נהג','קשר','לוגיסטיקה','סייבר','נהיגה מבצעית'],mission:null,photo:'',color:'#b06cf0',order:5,lat:32.0955,lng:34.7905},
+  {id:'P17898',name:'אור מני',phone:'050-3404444',email:'ormanyphoto@gmail.com',loginPassword:'Tac7898!',unit:'מחוזית ת״א',role:'מפקד חפ״ק',callsign:'100',address:'297-12-101',available:true,skills:['נהג','קשר','לוגיסטיקה','סייבר','נהיגה מבצעית'],mission:null,photo:'',color:'#b06cf0',order:5,lat:32.0955,lng:34.7905,permsOverride:['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','admin','geofence','layers','navigation','field_mode']},
   {id:'P17899',name:'שי אביגדור',phone:'054-4538555',email:'shayavig@gmail.com',loginPassword:'Tac7899!',unit:'מחוזית ת״א',role:'סגן מפקד חפ״ק',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:6,lat:32.08575,lng:34.76155},
   {id:'P17900',name:'נועם ויילר',phone:'052-686-6356',email:'weilernoam@gmail.com',loginPassword:'Tac7900!',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:7,lat:32.04435,lng:34.7911},
   {id:'P17901',name:'גלעד פינקלשטיין',phone:'058-406-8641',email:'finkelg@gmail.com',loginPassword:'Tac7901!',unit:'מחוזית ת״א',role:'מפעיל רחפן',callsign:'חפ״ק',address:'',available:true,skills:['מפעיל רחפן'],mission:null,photo:'',color:'#ff7a1a',order:8,lat:32.0943,lng:34.8115},
@@ -873,7 +873,7 @@ const AUTH = (() => {
   };
   let _user = null;
 
-  function _permsFor(role){ return ROLE_PERMS[role] || ROLE_PERMS['']; }
+  function _permsFor(role, user){ return (user && user.permsOverride) ? user.permsOverride : (ROLE_PERMS[role] || ROLE_PERMS['']); }
 
   function login(email, password){
     const em = (email||'').trim().toLowerCase();
@@ -911,7 +911,7 @@ const AUTH = (() => {
 
   function applyPerms(){
     if(!_user) return;
-    const perms = _permsFor(_user.role);
+    const perms = _permsFor(_user.role, _user);
     // Nav tabs (desktop)
     document.querySelectorAll('.nav-tab[data-v]').forEach(tab=>{
       const vp = VIEW_PERMS[tab.dataset.v];
@@ -959,10 +959,10 @@ const AUTH = (() => {
     }
   }
 
-  function canDo(perm){ return _user ? _permsFor(_user.role).includes(perm) : false; }
+  function canDo(perm){ return _user ? _permsFor(_user.role, _user).includes(perm) : false; }
   function getUser(){ return _user; }
   function isAdmin(){ return canDo('admin'); }
-  function getPerms(){ return _user ? _permsFor(_user.role) : []; }
+  function getPerms(){ return _user ? _permsFor(_user.role, _user) : []; }
   function getRolePerms(){ return ROLE_PERMS; }
 
   return { login, logout, restore, applyPerms, canDo, doLogin, getUser, isAdmin, getPerms, getRolePerms };
