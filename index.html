@@ -92,6 +92,12 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .inc-approve:hover{opacity:0.88}
 .inc-decline{flex:1;padding:12px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--font);transition:all 0.15s}
 .inc-decline:hover{border-color:var(--danger);color:var(--danger)}
+.inc-addr-btn{width:100%;padding:10px 14px;background:rgba(41,197,246,0.12);border:1.5px solid rgba(41,197,246,0.4);border-radius:10px;color:var(--accent);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--font);transition:all 0.15s;text-align:center}
+.inc-addr-btn:hover{background:rgba(41,197,246,0.22);border-color:var(--accent)}
+/* Emergency button on map */
+#map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:13px;font-weight:900;padding:10px 18px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
+#map-emergency-btn:hover{transform:scale(1.04);opacity:0.92}
+@media(max-width:768px){#map-emergency-btn{display:none}}
 
 /* Approvals section in כוחות panel */
 .approvals-section{background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px}
@@ -743,6 +749,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
           <div class="nm-label">תוכן</div>
           <textarea class="nm-input nm-textarea" id="nm-body" placeholder="פרטי ההודעה, המשימה או ההתראה..."></textarea>
         </div>
+        <!-- Address -->
+        <div>
+          <div class="nm-label">📍 כתובת אירוע <span style="font-weight:500;color:var(--text3)">— תסומן אוטומטית במפה + ניווט ישיר</span></div>
+          <input class="nm-input" id="nm-addr-notif" placeholder="רחוב ומספר, עיר..." autocomplete="off" />
+        </div>
         <!-- Target -->
         <div>
           <div class="nm-label">יעד שליחה</div>
@@ -769,6 +780,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div class="inc-type" id="inc-type">משימה</div>
       <div class="inc-title" id="inc-title"></div>
       <div class="inc-body" id="inc-body"></div>
+      <div id="inc-addr-wrap" style="display:none;width:100%">
+        <button class="inc-addr-btn" id="inc-addr-btn" onclick="openNavToAddress(this.dataset.addr)">📍</button>
+      </div>
       <div class="inc-sender" id="inc-sender"></div>
       <div class="inc-btns">
         <button class="inc-approve" onclick="respondToNotif(true)">✅ אשר — מגיע</button>
@@ -838,8 +852,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button onclick="mapZoom(-1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">－</button>
         <button onclick="locateMe()" title="מרכז עלי" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(168,232,0,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">🎯</button>
       </div>
-      <!-- SOS button bottom-right -->
-      <button id="map-sos-btn" onclick="triggerSOS()">🆘 מצוקה</button>
+      <!-- Emergency notification button + SOS button bottom-right -->
+      <button id="map-emergency-btn" onclick="openNotifModal()">📢 הודעת חירום</button>
+      <button id="map-sos-btn" onclick="triggerSOS()">🆘 לחצן מצוקה</button>
       <!-- Location privacy toggle — mobile/tablet only -->
       <div id="loc-privacy-btn" class="loc-priv-on" onclick="toggleLocPrivacy()">
         <div class="lp-switch"><div class="lp-knob"></div></div>
@@ -5960,6 +5975,7 @@ function sendNotification(){
   const senderId = u ? u.id : '';
   const notifId = 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   const typeLabels = {mission:'משימה', message:'הודעה', alert:'התראה'};
+  const address = ((document.getElementById('nm-addr-notif')||{}).value||'').trim();
 
   _activeNotifId = notifId;
   const payload = {
@@ -5968,10 +5984,22 @@ function sendNotification(){
     typeLabel: typeLabels[_activeNotifType]||_activeNotifType,
     title: title.trim(),
     body: body.trim(),
+    address,
     senderName,
     senderId,
     sentAt: Date.now()
   };
+
+  // Geocode address and mark on map immediately for sender
+  if(address && window._geocoder && window.map){
+    window._geocoder.geocode({address, region:'il'}, (results, status)=>{
+      if(status==='OK' && results[0]){
+        const loc = results[0].geometry.location;
+        _placeNotifMarker(loc.lat(), loc.lng(), address, payload);
+        payload.lat = loc.lat(); payload.lng = loc.lng();
+      }
+    });
+  }
 
   // Determine recipients
   let recipientIds = [];
@@ -6027,11 +6055,77 @@ function _showIncomingNotif(notif, fbRef){
   document.getElementById('inc-title').textContent = notif.title||'';
   document.getElementById('inc-body').textContent = notif.body||'';
   document.getElementById('inc-sender').textContent = 'נשלח על ידי: '+notif.senderName;
+  // Address button
+  const addrWrap = document.getElementById('inc-addr-wrap');
+  const addrBtn = document.getElementById('inc-addr-btn');
+  if(notif.address && addrWrap && addrBtn){
+    addrWrap.style.display='';
+    addrBtn.textContent = '📍 נווט — '+notif.address;
+    addrBtn.dataset.addr = notif.address;
+  } else if(addrWrap){ addrWrap.style.display='none'; }
   // Color border by type
   const card = document.getElementById('incoming-notif-card');
   const colors = {mission:'rgba(41,197,246,0.5)', message:'rgba(176,108,240,0.5)', alert:'rgba(255,51,51,0.5)'};
   card.style.borderColor = colors[notif.type]||'var(--border2)';
   document.getElementById('incoming-notif-overlay').classList.add('open');
+  // Mark address on map
+  if(notif.address && window.map && window._geocoder){
+    if(notif.lat && notif.lng){
+      _placeNotifMarker(notif.lat, notif.lng, notif.address, notif);
+    } else {
+      window._geocoder.geocode({address:notif.address, region:'il'}, (res,st)=>{
+        if(st==='OK' && res[0]){
+          const loc=res[0].geometry.location;
+          _placeNotifMarker(loc.lat(), loc.lng(), notif.address, notif);
+        }
+      });
+    }
+  }
+}
+
+// Place a mission/event marker on the map for notification address
+let _notifMapMarker = null;
+function _placeNotifMarker(lat, lng, address, notif){
+  if(!window.map||!window.google) return;
+  if(_notifMapMarker) _notifMapMarker.setMap(null);
+  const typeColors = {mission:'#29c5f6', message:'#b06cf0', alert:'#ff3333'};
+  const color = typeColors[notif.type]||'#29c5f6';
+  _notifMapMarker = new google.maps.Marker({
+    position:{lat,lng}, map:window.map,
+    title: notif.title||address,
+    icon:{
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 14,
+      fillColor: color,
+      fillOpacity: 0.95,
+      strokeColor: '#fff',
+      strokeWeight: 3
+    },
+    zIndex: 9999,
+    animation: google.maps.Animation.BOUNCE
+  });
+  setTimeout(()=>{ if(_notifMapMarker) _notifMapMarker.setAnimation(null); }, 3000);
+  // Pan map to marker
+  window.map.panTo({lat,lng});
+  // Info window
+  const iw = new google.maps.InfoWindow({content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 6px"><b style="font-size:13px">${notif.title||''}</b><br/><span style="font-size:11px;color:#555">📍 ${address}</span></div>`});
+  _notifMapMarker.addListener('click',()=>iw.open(window.map, _notifMapMarker));
+  iw.open(window.map, _notifMapMarker);
+}
+
+function openNavToAddress(addr){
+  if(!addr) return;
+  const enc = encodeURIComponent(addr);
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(isMobile){
+    // Try Waze; fall back to Google Maps after short delay
+    const wazeUrl = 'waze://?q='+enc+'&navigate=yes';
+    const gmUrl = 'https://maps.google.com/?q='+enc;
+    window.location.href = wazeUrl;
+    setTimeout(()=>window.open(gmUrl,'_blank'), 1500);
+  } else {
+    window.open('https://maps.google.com/?q='+enc,'_blank');
+  }
 }
 
 function respondToNotif(approved){
