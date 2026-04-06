@@ -1038,6 +1038,7 @@ const BIOMETRIC = (() => {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = '';
         AUTH.applyPerms();
+        _triggerMapResize();
         const u = AUTH.getUser();
         setTimeout(()=>{
           if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
@@ -1210,6 +1211,8 @@ const AUTH = (() => {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = '';
       applyPerms();
+      // Maps was initialised while #app was hidden → force a resize so tiles render
+      _triggerMapResize();
       setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_user.name.split(' ')[0],sub:(_user.role||'לוחם')+' · כוננות מחוזית ת"א',type:'success',duration:4000}),300);
       // Offer fast-login / biometric registration after first password login
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
@@ -1455,6 +1458,19 @@ function mapZoom(delta){
   } else {
     if(map) map.setZoom(map.getZoom()+delta);
   }
+}
+
+// ── Map resize helper — call whenever #app transitions from display:none to visible ──
+// Google Maps silently renders into a 0×0 box while hidden; this forces a correct repaint.
+function _triggerMapResize(){
+  // Small delay so the browser can flush the display:'' style change first
+  setTimeout(()=>{
+    if(window.map && window.google && google.maps){
+      google.maps.event.trigger(window.map, 'resize');
+      // Re-centre so the viewport doesn't drift
+      if(window.map.getCenter) window.map.panTo(window.map.getCenter());
+    }
+  }, 150);
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -6358,6 +6374,8 @@ const FIELD = (() => {
     document.getElementById('app').style.display = '';
     // Apply permissions after DOM ready
     setTimeout(()=>AUTH.applyPerms(), 50);
+    // Ensure map renders correctly if it initialised before session was restored
+    _triggerMapResize();
   } else {
     // No session — show login screen, hide app
     document.getElementById('login-screen').style.display = 'flex';
