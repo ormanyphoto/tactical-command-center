@@ -4745,24 +4745,45 @@ function boPermissions(c){
     'סגן מפקד צוות':   [1,1,0,0,0,1,0],
     'מפקד חפ״ק':       [1,1,1,1,1,1,0],
     'סגן מפקד חפ״ק':   [1,1,0,1,0,1,0],
-    'חפ״ק':            [1,1,0,0,0,1,0],
+    'חפ״ק':            [1,1,1,1,1,1,0],
     'איש חפ״ק':        [1,1,0,0,0,1,0],
     'לוחם':             [1,0,0,0,0,0,0],
     'מפעיל רחפן':      [1,0,0,0,0,1,0],
   };
-  var rows='';
-  roles.forEach(function(r){
-    var d=defaults[r]||[0,0,0,0,0,0,0];
-    rows+='<tr><td style="font-weight:800;color:var(--texthi)">'+r+'</td>';
-    perms.forEach(function(_,i){
-      rows+='<td style="text-align:center;vertical-align:middle;padding:10px 0"><input type="checkbox" '+(d[i]?'checked':'')+' style="accent-color:var(--accent);width:17px;height:17px;cursor:pointer;display:block;margin:0 auto"/></td>';
+
+  function _renderPermsTable(data){
+    var rows='';
+    roles.forEach(function(r){
+      var d=data[r]||defaults[r]||[0,0,0,0,0,0,0];
+      rows+='<tr><td style="font-weight:800;color:var(--texthi)">'+r+'</td>';
+      perms.forEach(function(_,i){
+        rows+='<td style="text-align:center;vertical-align:middle;padding:10px 0"><input type="checkbox" '+(d[i]?'checked':'')+' style="accent-color:var(--accent);width:17px;height:17px;cursor:pointer;display:block;margin:0 auto"/></td>';
+      });
+      rows+='</tr>';
     });
-    rows+='</tr>';
-  });
-  c.innerHTML='<div class="bo-section"><div class="bo-hd">הרשאות לפי תפקיד <button class="btn-pri" style="width:auto;padding:6px 14px;font-size:12px" onclick="savePermissions()">💾 שמור</button></div>'
-    +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th style="min-width:130px">תפקיד</th>'+perms.map(function(p){return '<th style="text-align:center;font-size:11px;min-width:80px;white-space:nowrap">'+p+'</th>';}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>'
-    +'<div style="margin-top:12px;font-size:12px;color:var(--text3)">* שינויים יחולו על כניסת המשתמשים הבאה למערכת</div>'
-    +'</div>';
+    c.innerHTML='<div class="bo-section"><div class="bo-hd">הרשאות לפי תפקיד <button class="btn-pri" style="width:auto;padding:6px 14px;font-size:12px" onclick="savePermissions()">💾 שמור</button></div>'
+      +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th style="min-width:130px">תפקיד</th>'+perms.map(function(p){return '<th style="text-align:center;font-size:11px;min-width:80px;white-space:nowrap">'+p+'</th>';}).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+      +'<div style="margin-top:12px;font-size:12px;color:var(--text3)">* שינויים יחולו על כניסת המשתמשים הבאה למערכת</div>'
+      +'</div>';
+  }
+
+  // Try Firebase first, then localStorage, then built-in defaults
+  const db=window._db;
+  if(db){
+    c.innerHTML='<div class="bo-section" style="padding:30px;text-align:center;color:var(--text3)">⏳ טוען הרשאות...</div>';
+    db.ref('tac_role_perms').once('value', function(snap){
+      var saved=snap.val()||{};
+      // Also check localStorage fallback
+      if(!Object.keys(saved).length){
+        try{ saved=JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); }catch(e){}
+      }
+      _renderPermsTable(Object.keys(saved).length ? saved : defaults);
+    }, function(){ _renderPermsTable(defaults); });
+  } else {
+    var lsSaved={};
+    try{ lsSaved=JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); }catch(e){}
+    _renderPermsTable(Object.keys(lsSaved).length ? lsSaved : defaults);
+  }
 }
 function boAudit(c){
   var rows='';
@@ -4872,7 +4893,46 @@ function handleCSVImport(event){
   reader.readAsText(file,'UTF-8');
 }
 
-function savePermissions(){showToast({icon:'💾',title:'הרשאות נשמרו',type:'success'});}
+// Mapping: checkbox index → actual permission keys used in ROLE_PERMS
+const PERM_MAP=[
+  ['map','navigation','field_mode'],          // 0 צפייה
+  ['missions','incidents','comms'],            // 1 עריכה
+  ['create_mission'],                          // 2 יצירת משימה
+  ['manage_units','units'],                    // 3 פריסת כוחות
+  ['geofence'],                                // 4 גיאופנסים
+  ['analytics','dashboard','layers'],          // 5 שידורים
+  ['admin'],                                   // 6 ניהול מערכת
+];
+
+function savePermissions(){
+  const db=window._db;
+  // Read current checkbox states from the rendered table
+  const rows=document.querySelectorAll('#bo-inner .bo-table tbody tr');
+  if(!rows.length){showToast({icon:'⚠️',title:'שגיאה',sub:'לא נמצאה טבלה',type:'error'});return;}
+  const saved={};
+  rows.forEach(function(row){
+    const roleName=row.cells[0] && row.cells[0].textContent.trim();
+    if(!roleName) return;
+    const checks=row.querySelectorAll('input[type=checkbox]');
+    const bits=[...checks].map(function(cb){return cb.checked?1:0;});
+    saved[roleName]=bits;
+    // Build actual permission list and update live ROLE_PERMS
+    const perms=[];
+    bits.forEach(function(on,i){ if(on) PERM_MAP[i].forEach(function(p){if(!perms.includes(p))perms.push(p);}); });
+    const rp=AUTH.getRolePerms();
+    rp[roleName]=perms;
+  });
+  // Persist to Firebase
+  if(db){
+    db.ref('tac_role_perms').set(saved)
+      .then(function(){showToast({icon:'💾',title:'הרשאות נשמרו',sub:'עודכן בדאטאבייס',type:'success'});})
+      .catch(function(e){showToast({icon:'⚠️',title:'שגיאת שמירה',sub:e.message,type:'error'});});
+  } else {
+    // Fallback: localStorage
+    localStorage.setItem('tac_role_perms', JSON.stringify(saved));
+    showToast({icon:'💾',title:'הרשאות נשמרו',sub:'(מקומי — אין חיבור Firebase)',type:'success'});
+  }
+}
 
 // ── MANUAL DISTRICT BOUNDARY DRAWING ──
 let _boundaryDrawing=false;
