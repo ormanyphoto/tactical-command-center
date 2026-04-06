@@ -45,6 +45,7 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #btn-day:not(.active){color:#586878!important}
 #btn-day:not(.active):hover{color:#b07000!important;background:rgba(255,180,0,0.12)!important}
 .tb-spacer{flex:1}
+#topbar-right{width:360px;flex-shrink:0;display:flex;align-items:center;gap:8px;justify-content:flex-end}
 
 /* ── LOGIN SCREEN ── */
 #login-screen{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
@@ -153,7 +154,7 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 @keyframes toastOut{to{opacity:0;transform:translateY(-4px)}}
 
 /* ── RIGHT PANEL ── */
-#right-panel{width:310px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s;z-index:100;position:relative}
+#right-panel{width:360px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s;z-index:100;position:relative}
 #right-panel.hidden{width:0;overflow:hidden;border:none}
 #rp-header{padding:10px 12px 0;border-bottom:1px solid var(--border);flex-shrink:0}
 #rp-title{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:8px;display:flex;align-items:center;gap:7px}
@@ -281,16 +282,16 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .bo-table tr:hover td{background:var(--panel2)}
 .actions{display:flex;gap:4px;flex-wrap:wrap}
 /* Personnel */
-.pers-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:11px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;transition:all 0.15s;cursor:grab}
+.pers-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;gap:8px;align-items:flex-start;transition:all 0.15s;cursor:grab}
 .pers-card:hover{background:var(--panel3);border-color:var(--border3)}
 .pers-card.dragging{opacity:0.4;border:2px dashed var(--accent)}
 .pers-card.drag-over{border-top:3px solid var(--accent)}
 .pers-card.selected{border-color:var(--accent)!important;background:var(--glow2)!important}
-.pers-avatar{width:44px;height:44px;border-radius:50%;flex-shrink:0;border:2px solid var(--border2);background:var(--panel3);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;font-family:var(--font2);overflow:hidden;position:relative}
+.pers-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;border:2px solid var(--border2);background:var(--panel3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:var(--font2);overflow:hidden;position:relative}
 .pers-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .pers-info{flex:1;min-width:0}
-.pers-name{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:2px}
-.pers-sub{font-size:11px;color:var(--text3);margin-bottom:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pers-name{font-size:13px;font-weight:800;color:var(--texthi)}
+.pers-sub{font-size:10px;color:var(--text3);margin:1px 0 0;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pers-avail{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;border:1px solid}
 .avail-yes{background:rgba(61,255,82,0.1);color:var(--accent);border-color:rgba(61,255,82,0.3)}
 .avail-no{background:rgba(255,51,51,0.08);color:var(--danger);border-color:rgba(255,51,51,0.25)}
@@ -298,16 +299,16 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .pers-expand{display:none}
 .pers-detail{display:none}
 .pers-actions-col{display:none}
-.pers-meta{font-size:11px;color:var(--text3);margin:3px 0 4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pers-meta{font-size:10px;color:var(--text3);margin:2px 0 2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pers-meta a{color:var(--blue);text-decoration:none;font-weight:600}
 .pers-meta a:hover{text-decoration:underline}
-.pers-quick-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
-.pqa-btn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;font-family:var(--font);transition:all 0.12s;background:transparent;flex-shrink:0}
+.pers-quick-acts{display:flex;gap:3px;margin-top:4px;flex-wrap:wrap}
+.pqa-btn{display:inline-flex;align-items:center;gap:2px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;font-family:var(--font);transition:all 0.12s;background:transparent;flex-shrink:0}
 .pqa-edit{color:var(--texthi);border-color:var(--border3)}.pqa-edit:hover{background:var(--panel3);border-color:var(--accent);color:var(--accent)}
 .pqa-place{color:var(--blue);border-color:rgba(41,197,246,0.3)}.pqa-place:hover{background:rgba(41,197,246,0.08);border-color:var(--blue)}
 .pqa-assign{color:var(--accent2);border-color:rgba(168,232,0,0.3)}.pqa-assign:hover{background:rgba(168,232,0,0.08);border-color:var(--accent2)}
 .pqa-del{color:var(--text3);border-color:var(--border)}.pqa-del:hover{color:var(--danger);border-color:var(--danger);background:rgba(255,51,51,0.06)}
-.pers-avail-inline{font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;cursor:pointer;border:1px solid;flex-shrink:0;letter-spacing:0.02em}
+.pers-avail-inline{font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;cursor:pointer;border:1px solid;flex-shrink:0;letter-spacing:0.02em}
 .drag-handle{cursor:grab;color:var(--text3);font-size:14px;padding:0 3px;user-select:none;flex-shrink:0}
 .pers-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin-top:2px}
 .multi-sel-bar{display:none;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;align-items:center;gap:8px;direction:rtl}
@@ -513,7 +514,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #topbar{height:56px;padding:0 12px;gap:6px}
   .nav-tabs{display:none}
   #bottom-nav{display:flex}
-  #right-panel{width:280px}
+  #right-panel{width:320px}
   #main{padding-bottom:60px}
   .tb-btn{padding:7px 12px;font-size:12px}
   #topbar-logo{font-size:14px}
@@ -620,12 +621,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
     </div>
     <div class="tb-spacer"></div>
-    <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
-    <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
-    <button class="tb-btn" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
-    <div id="topbar-user" title="משתמש מחובר">—</div>
-    <button class="tb-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
-    <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
+    <div id="topbar-right">
+      <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
+      <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
+      <button class="tb-btn" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
+      <div id="topbar-user" title="משתמש מחובר">—</div>
+      <button class="tb-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
+      <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
+    </div>
   </div>
 
   <!-- MOBILE DRAWER -->
@@ -5048,31 +5051,27 @@ function renderPersonnelP(c){
   ${filtered.map(p=>`
     <div class="pers-card ${_selectedPersonnel.has(p.id)?'selected':''}" draggable="true" data-pid="${p.id}">
       <input type="checkbox" class="pers-check" ${_selectedPersonnel.has(p.id)?'checked':''} onchange="togglePersonSelect('${p.id}',this.checked)" onclick="event.stopPropagation()"/>
-      <span class="drag-handle">⠿</span>
+      <span class="drag-handle" style="font-size:12px;color:var(--text3)">⠿</span>
       <div class="pers-avatar" onclick="pickPersonPhoto('${p.id}')" title="לחץ לשנות תמונה" style="cursor:pointer">
         ${p.photo?`<img src="${p.photo}" alt="${p.name}"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}
       </div>
-      <div class="pers-info">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:2px">
-          <div class="pers-name" style="line-height:1.2">${p.name}</div>
+      <div class="pers-info" style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+          <div class="pers-name">${p.name}</div>
           <span class="pers-avail-inline ${p.available?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')">${p.available?'זמין':'לא זמין'}</span>
         </div>
         <div class="pers-sub">
           ${p.role?`<span style="color:var(--accent2);font-weight:700">${p.role}</span>`:''}
-          ${p.callsign?`<span>📻 ${p.callsign}</span>`:''}
-          ${p.unit?`<span>🏢 ${p.unit}</span>`:''}
+          ${p.unit?`<span style="color:var(--text3)">· ${p.unit}</span>`:''}
+          ${p.callsign?`<span style="color:var(--text3)">· 📻${p.callsign}</span>`:''}
+          ${p.phone?`<a href="tel:${p.phone}" style="color:var(--blue);text-decoration:none">· 📞${p.phone}</a>`:''}
+          ${p.mission?`<span style="color:var(--accent2)">· 📋${p.mission}</span>`:''}
         </div>
-        <div class="pers-meta">
-          ${p.phone?`<a href="tel:${p.phone}">📞 ${p.phone}</a>`:''}
-          ${p.email?`<a href="mailto:${p.email}">✉️ ${p.email}</a>`:''}
-          ${p.address?`<span>📍 ${p.address}</span>`:''}
-          ${p.mission?`<span style="color:var(--accent2)">📋 ${p.mission}</span>`:''}
-        </div>
-        <div class="skill-tag-wrap">${(p.skills||[]).map(s=>`<span class="sk-tag">${s}</span>`).join('')}</div>
+        ${(p.skills&&p.skills.length)?`<div class="skill-tag-wrap" style="margin:2px 0">${p.skills.map(s=>`<span class="sk-tag">${s}</span>`).join('')}</div>`:''}
         <div class="pers-quick-acts">
-          <button class="pqa-btn pqa-edit" onclick="editPersonModal('${p.id}')">✏️ ערוך</button>
+          <button class="pqa-btn pqa-edit" onclick="editPersonModal('${p.id}')" title="ערוך">✏️ ערוך</button>
           <button class="pqa-btn pqa-place" onclick="openPlacePersonModal('${p.id}')" title="מקם על המפה">📍 מקם</button>
-          <button class="pqa-btn pqa-assign" onclick="persnAssignMission('${p.id}')">📋 שבץ</button>
+          <button class="pqa-btn pqa-assign" onclick="persnAssignMission('${p.id}')" title="שבץ משימה">📋 שבץ</button>
         </div>
       </div>
     </div>`).join('')}
