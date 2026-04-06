@@ -87,6 +87,10 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .nav-tab{background:none;border:none;padding:5px 10px;font-size:12px;font-weight:700;color:var(--text3);cursor:pointer;border-radius:6px;font-family:var(--font);white-space:nowrap;transition:all 0.12s;position:relative}
 .nav-tab.active,.nav-tab:hover{background:var(--panel3);color:var(--texthi)}
 .nav-tab.active{color:var(--accent)}
+.nav-tab-sep{width:1px;background:var(--border2);margin:4px 4px;flex-shrink:0}
+.nav-tab-action{color:var(--text2)!important}
+.nav-tab-action:hover{color:var(--accent)!important}
+#alert-badge{background:var(--danger);color:#fff;font-size:10px;font-weight:900;border-radius:8px;padding:1px 5px;margin-right:2px;vertical-align:middle}
 .nbadge{background:var(--danger);color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;font-weight:700;min-width:16px;text-align:center}
 #main{display:flex;flex-direction:row-reverse;flex:1;overflow:hidden;position:relative}
 
@@ -619,11 +623,12 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="teams" onclick="goView('teams')">🏢 צוותים</button>
       <button class="nav-tab" data-v="personnel" onclick="goView('personnel')">👤 אנשי צוות</button>
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
+      <div class="nav-tab-sep"></div>
+      <button class="nav-tab nav-tab-action" onclick="goPanel('alerts')">⚠ התראות <span id="alert-badge">2</span></button>
+      <button class="nav-tab nav-tab-action" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
     </div>
     <div id="topbar-right">
       <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
-      <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
-      <button class="tb-btn" onclick="openBO()" id="tb-admin-btn">⚙ ניהול</button>
       <div id="topbar-user" title="משתמש מחובר">—</div>
       <button class="tb-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
       <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date" style="font-size:10px;font-weight:600;color:var(--text2);letter-spacing:0.02em">טוען...</span></div>
