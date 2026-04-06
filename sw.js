@@ -1,5 +1,5 @@
-// Service Worker — מערכת מבצעים v5.1
-const CACHE = 'tac-v5-1';
+// Service Worker — מערכת מבצעים v5.2
+const CACHE = 'tac-v5-2';            // ← bumped: forces old cache to be wiped
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 
@@ -7,7 +7,7 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
       .then(c => c.addAll(SHELL).catch(() => {}))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting())   // activate immediately, don't wait for old SW to die
   );
 });
 
@@ -23,12 +23,34 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  // Network-first for API calls; cache-first for shell
+
+  // ── Always network-first for external APIs ──
   if (url.includes('googleapis.com') || url.includes('gstatic.com') ||
       url.includes('firebaseio.com') || url.includes('fonts.')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
+
+  // ── Network-first for HTML pages (index.html) ──
+  // This ensures updates always appear on next open.
+  // Falls back to cached version only when truly offline.
+  if (e.request.mode === 'navigate' ||
+      e.request.headers.get('accept').includes('text/html')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request).then(r => r || caches.match(BASE + 'index.html')))
+    );
+    return;
+  }
+
+  // ── Cache-first for everything else (icons, fonts, etc.) ──
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request)
       .then(res => {
