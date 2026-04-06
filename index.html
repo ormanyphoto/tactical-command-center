@@ -60,6 +60,26 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #login-btn:hover{opacity:0.85}
 #login-btn:active{opacity:0.7}
 #login-version{font-size:11px;color:var(--text3);text-align:center}
+/* Fast login biometric */
+#fast-login-section{border-top:1px solid var(--border2);padding-top:14px}
+#fast-login-hint{font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px}
+#fast-login-btn{background:none;border:1px solid var(--border3);border-radius:var(--r);padding:12px;font-size:13px;font-weight:700;color:var(--texthi);cursor:pointer;font-family:var(--font);width:100%;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.15s;box-sizing:border-box}
+#fast-login-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--glow)}
+#fast-login-btn:active{opacity:0.7}
+.fast-login-icon{font-size:20px;flex-shrink:0}
+/* Biometric save prompt */
+#bio-save-prompt{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10000;background:var(--panel);border:1px solid var(--border3);border-radius:14px;padding:18px 20px;width:320px;max-width:92vw;box-shadow:0 8px 40px rgba(0,0,0,0.5);display:none;direction:rtl;animation:toastIn 0.3s ease}
+#bio-save-title{font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:4px}
+#bio-save-sub{font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.55}
+.bio-save-btns{display:flex;gap:10px}
+.bio-save-btn{flex:1;border:none;border-radius:var(--r);padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+#bio-save-yes{background:var(--accent);color:#07090a}
+#bio-save-no{background:var(--panel2);color:var(--text2);border:1px solid var(--border2)}
+/* Mobile drawer biometric row */
+#mob-bio-row{padding:10px 18px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:10px}
+#mob-bio-row>span{flex:1;font-size:12px;color:var(--text3)}
+#mob-bio-clear{background:none;border:1px solid var(--border2);border-radius:var(--r);padding:5px 10px;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--font)}
+#mob-bio-clear:hover{color:var(--danger);border-color:var(--danger)}
 #topbar-user{font-size:12px;font-weight:700;color:var(--text2);background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 11px;white-space:nowrap;direction:rtl;max-width:160px;overflow:hidden;text-overflow:ellipsis}
 
 .nav-tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:2px;overflow-x:auto;flex-shrink:0}
@@ -543,6 +563,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="login-err"></div>
     <button id="login-btn" onclick="AUTH.doLogin()">🔓 כניסה למערכת</button>
     <div id="login-version">מצב בדיקה · אל תשתף פרטי כניסה</div>
+    <!-- Fast / biometric login (shown when a credential is saved on device) -->
+    <div id="fast-login-section" style="display:none">
+      <div id="fast-login-hint">כניסה מהירה שמורה במכשיר</div>
+      <button id="fast-login-btn" onclick="BIOMETRIC.doFastLogin()">
+        <span class="fast-login-icon">🔑</span>
+        <span>כניסה מהירה · טביעת אצבע / קוד מכשיר</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -593,6 +621,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
           <div id="mob-user-role"></div>
         </div>
         <button id="mob-logout-btn" onclick="AUTH.logout();closeMobileMenu()">🚪 יציאה</button>
+      </div>
+      <!-- Biometric fast-login status row (visible only when saved) -->
+      <div id="mob-bio-row" style="display:none">
+        <span>🔑 כניסה מהירה שמורה במכשיר</span>
+        <button id="mob-bio-clear" onclick="BIOMETRIC.clear();closeMobileMenu()">מחק</button>
       </div>
       <nav id="mobile-drawer-nav">
         <div class="mob-nav-item active" onclick="mobileGoView('map')"><span class="mob-icon">🗺️</span>מפה</div>
@@ -787,6 +820,16 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   <div id="bo-content"><div class="bo-inner"></div></div>
 </div>
 
+<!-- Biometric save prompt — appears after first password login -->
+<div id="bio-save-prompt">
+  <div id="bio-save-title">💾 שמור כניסה מהירה?</div>
+  <div id="bio-save-sub">בפעם הבאה תוכל להיכנס עם טביעת אצבע, קוד PIN, דפוס מכשיר — ללא צורך בסיסמה.</div>
+  <div class="bio-save-btns">
+    <button class="bio-save-btn" id="bio-save-yes" onclick="BIOMETRIC.register()">🔑 כן, שמור</button>
+    <button class="bio-save-btn" id="bio-save-no" onclick="BIOMETRIC.dismissPrompt()">לא עכשיו</button>
+  </div>
+</div>
+
 <script>
 const GKEY='AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo';
 const SCOLORS={urgent:'#ff3333',active:'#3dff52',pending:'#ffc107',completed:'#29c5f6',briefing:'#b06cf0',draft:'#5a7a90',debrief:'#ff7a1a'};
@@ -875,6 +918,178 @@ let TEAMS=[
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ██████████████████  BIOMETRIC — כניסה מהירה  ██████████████████████████████████
+// ══════════════════════════════════════════════════════════════════════════════
+const BIOMETRIC = (() => {
+  const STORE_KEY = 'tac_bio_cred';
+  // RP ID must match the origin exactly
+  const RP_ID = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? location.hostname
+    : 'ormanyphoto.github.io';
+  const RP_NAME = 'מערכת מבצעים';
+  let _pendingUser = null;
+
+  function isSupported(){
+    return !!(window.PublicKeyCredential &&
+              navigator.credentials &&
+              typeof navigator.credentials.create === 'function' &&
+              typeof navigator.credentials.get === 'function');
+  }
+
+  function hasSaved(){
+    try{ return !!JSON.parse(localStorage.getItem(STORE_KEY)); }catch(e){ return false; }
+  }
+
+  function getSaved(){
+    try{ return JSON.parse(localStorage.getItem(STORE_KEY)); }catch(e){ return null; }
+  }
+
+  function _b64url(buf){
+    return btoa(String.fromCharCode(...new Uint8Array(buf)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  }
+
+  function _fromB64url(s){
+    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length%4) s+='=';
+    return Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+  }
+
+  function _rand(len){ return crypto.getRandomValues(new Uint8Array(len)); }
+
+  async function register(){
+    dismissPrompt();
+    if(!isSupported()){
+      if(typeof showToast==='function') showToast({icon:'⚠️',title:'לא נתמך',sub:'המכשיר לא תומך בכניסה ביומטרית',type:'warn',duration:3000});
+      return;
+    }
+    const u = _pendingUser || (typeof AUTH!=='undefined' ? AUTH.getUser() : null);
+    if(!u){ _pendingUser=null; return; }
+    try{
+      const userId = _rand(16);
+      const challenge = _rand(32);
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { id: RP_ID, name: RP_NAME },
+          user: { id: userId, name: u.email, displayName: u.name },
+          pubKeyCredParams: [
+            { type:'public-key', alg:-7 },   // ES256
+            { type:'public-key', alg:-257 },  // RS256
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: 'platform',
+            userVerification: 'required',
+            residentKey: 'preferred',
+          },
+          timeout: 60000,
+        }
+      });
+      const saved = {
+        credId: _b64url(cred.rawId),
+        email: u.email,
+        // Simple obfuscation — keeps it off plain text in storage inspector
+        pass: btoa(unescape(encodeURIComponent(u.loginPassword||''))),
+        name: u.name,
+        ts: Date.now(),
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(saved));
+      _pendingUser = null;
+      _updateUI();
+      if(typeof showToast==='function') showToast({icon:'🔑',title:'כניסה מהירה נשמרה!',sub:'בפעם הבאה הכנסו עם טביעת אצבע / קוד מכשיר',type:'success',duration:4000});
+    } catch(e){
+      _pendingUser = null;
+      if(e.name !== 'NotAllowedError' && typeof showToast==='function'){
+        showToast({icon:'⚠️',title:'שגיאה בשמירה',sub:e.message||'נסה שנית',type:'warn',duration:3500});
+      }
+    }
+  }
+
+  async function doFastLogin(){
+    const err = document.getElementById('login-err');
+    if(!isSupported() || !hasSaved()){
+      if(err) err.textContent='⚠️ אין כניסה מהירה שמורה — היכנס עם אימייל וסיסמה';
+      return;
+    }
+    const saved = getSaved();
+    if(!saved){ return; }
+    if(err) err.textContent='';
+    // Set btn loading state
+    const btn = document.getElementById('fast-login-btn');
+    const origHtml = btn ? btn.innerHTML : '';
+    if(btn){ btn.innerHTML='<span class="fast-login-icon">⌛</span><span>מאמת...</span>'; btn.disabled=true; }
+    try{
+      const challenge = _rand(32);
+      const allow = saved.credId
+        ? [{ type:'public-key', id: _fromB64url(saved.credId), transports:['internal'] }]
+        : [];
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          rpId: RP_ID,
+          allowCredentials: allow,
+          userVerification: 'required',
+          timeout: 60000,
+        }
+      });
+      // Device verified — decode stored creds and log in
+      const pass = decodeURIComponent(escape(atob(saved.pass||'')));
+      if(typeof AUTH!=='undefined' && AUTH.login(saved.email, pass)){
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = '';
+        AUTH.applyPerms();
+        const u = AUTH.getUser();
+        setTimeout(()=>{
+          if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
+        },300);
+      } else {
+        // Saved credentials no longer valid (password changed?) — clear
+        clear(true);
+        if(err) err.textContent='⚠️ פרטי הכניסה השמורים אינם תקינים — נא להתחבר עם סיסמה';
+      }
+    } catch(e){
+      if(btn){ btn.innerHTML=origHtml; btn.disabled=false; }
+      if(e.name !== 'NotAllowedError'){
+        if(err) err.textContent='⚠️ אימות ביומטרי נכשל — נסה שנית';
+      }
+      return;
+    }
+    if(btn){ btn.innerHTML=origHtml; btn.disabled=false; }
+  }
+
+  // Call this after a successful password login — offers to save biometric
+  function offerRegister(user){
+    if(!isSupported()) return;
+    if(hasSaved()) return; // Already registered
+    _pendingUser = user;
+    const prompt = document.getElementById('bio-save-prompt');
+    if(prompt) prompt.style.display = '';
+  }
+
+  function dismissPrompt(){
+    _pendingUser = null;
+    const prompt = document.getElementById('bio-save-prompt');
+    if(prompt) prompt.style.display = 'none';
+  }
+
+  function clear(silent){
+    localStorage.removeItem(STORE_KEY);
+    _updateUI();
+    if(!silent && typeof showToast==='function') showToast({icon:'🗑️',title:'כניסה מהירה נמחקה',sub:'',type:'info',duration:2500});
+  }
+
+  function _updateUI(){
+    const sec = document.getElementById('fast-login-section');
+    if(sec) sec.style.display = hasSaved() ? '' : 'none';
+    const row = document.getElementById('mob-bio-row');
+    if(row) row.style.display = hasSaved() ? '' : 'none';
+  }
+
+  function init(){ _updateUI(); }
+
+  return { isSupported, hasSaved, getSaved, register, doFastLogin, offerRegister, dismissPrompt, clear, init };
+})();
+
 // ██████████████████  AUTH — כניסה והרשאות  ████████████████████████████████████
 // ══════════════════════════════════════════════════════════════════════════════
 const AUTH = (() => {
@@ -923,6 +1138,8 @@ const AUTH = (() => {
     if(ep) ep.value='';
     const pp = document.getElementById('login-pass');
     if(pp) pp.value='';
+    // Refresh fast-login button visibility
+    setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.init(); }, 50);
   }
 
   function restore(){
@@ -994,6 +1211,8 @@ const AUTH = (() => {
       document.getElementById('app').style.display = '';
       applyPerms();
       setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_user.name.split(' ')[0],sub:(_user.role||'לוחם')+' · כוננות מחוזית ת"א',type:'success',duration:4000}),300);
+      // Offer fast-login / biometric registration after first password login
+      setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
     } else {
       err.textContent = '⚠️ אימייל או סיסמה שגויים';
       document.getElementById('login-pass').value = '';
@@ -6130,6 +6349,8 @@ const FIELD = (() => {
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
+  // ── Biometric UI init ──
+  BIOMETRIC.init();
   // ── Auth gate ──
   if(AUTH.restore()){
     // Existing session — show app
