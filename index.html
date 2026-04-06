@@ -5753,19 +5753,24 @@ const SYNC = (() => {
   function _doPublish(){
     if(!_db||!_connected) return;
     navigator.geolocation.getCurrentPosition(pos=>{
-      const bat = navigator.getBattery ? null : null; // async, skip for now
-      _db.ref('tac_locs/'+_myUid).set({
-        name:  _myProfile.name,
-        role:  _myProfile.role,
-        status:_myProfile.status,
-        lat:   pos.coords.latitude,
-        lng:   pos.coords.longitude,
-        acc:   Math.round(pos.coords.accuracy),
-        hdg:   Math.round(pos.coords.heading||0),
-        spd:   Math.round((pos.coords.speed||0)*3.6),
-        ts:    Date.now(),
-        uid:   _myUid
-      });
+      const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+      const d = {
+        name:     _myProfile.name,
+        role:     _myProfile.role,
+        status:   _myProfile.status,
+        color:    u ? (u.color||'#29c5f6') : '#29c5f6',
+        personId: u ? (u.id||'') : '',
+        lat:  pos.coords.latitude,
+        lng:  pos.coords.longitude,
+        acc:  Math.round(pos.coords.accuracy),
+        hdg:  Math.round(pos.coords.heading||0),
+        spd:  Math.round((pos.coords.speed||0)*3.6),
+        ts:   Date.now(),
+        uid:  _myUid
+      };
+      _db.ref('tac_locs/'+_myUid).set(d);
+      // Show own marker immediately on map
+      if(window.map && window._googleReady) _updateLiveMarker(_myUid, d, true);
     }, null, {enableHighAccuracy:true, timeout:8000, maximumAge:4000});
   }
 
@@ -5774,15 +5779,14 @@ const SYNC = (() => {
     _db.ref('tac_locs').on('value', snap=>{
       const data = snap.val()||{};
       const now  = Date.now();
-      // Add/update markers
+      // Add/update markers for all users (including self from other devices)
       Object.entries(data).forEach(([uid,d])=>{
-        if(uid===_myUid) return;
-        if(now - d.ts > 180000) return; // stale >3min
-        if(window.map && window._googleReady) _updateLiveMarker(uid,d);
+        if(now - d.ts > 300000) return; // stale >5min
+        if(window.map && window._googleReady) _updateLiveMarker(uid, d, uid===_myUid);
       });
-      // Remove gone markers
+      // Remove gone/stale markers
       Object.keys(_liveMarkers).forEach(uid=>{
-        if(!data[uid]||now-data[uid].ts>180000){
+        if(!data[uid] || now-data[uid].ts>300000){
           if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
           delete _liveMarkers[uid];
         }
@@ -5790,33 +5794,83 @@ const SYNC = (() => {
     });
   }
 
-  function _updateLiveMarker(uid,d){
-    const pos   = {lat:d.lat, lng:d.lng};
-    const color = {active:'#3dff52',urgent:'#ff3333',standby:'#ffc107',busy:'#ff7a1a'}[d.status]||'#29c5f6';
-    const age   = Math.round((Date.now()-d.ts)/1000);
-    const label = (d.name||'?').replace(/\s.*/,'').slice(0,3);
+  // Build SVG avatar marker
+  function _avatarSVG(initials, bgColor, ringColor, isMe){
+    const W=48, H=60, cx=24, cy=22, rOuter=20, rInner=17;
+    const pulse = isMe
+      ? `<circle cx="${cx}" cy="${cy}" r="${rOuter+3}" fill="${ringColor}" opacity="0.25"/>`
+      : '';
+    const crown = isMe
+      ? `<text x="${cx}" y="6" text-anchor="middle" font-size="8" fill="#ffd700">👑</text>`
+      : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      ${pulse}
+      <ellipse cx="${cx}" cy="${H-2}" rx="9" ry="3" fill="rgba(0,0,0,0.28)"/>
+      <circle cx="${cx}" cy="${cy}" r="${rOuter}" fill="${ringColor}"/>
+      <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="${bgColor}"/>
+      ${crown}
+      <text x="${cx}" y="${cy+5}" text-anchor="middle"
+        font-family="Heebo,Arial,sans-serif" font-size="${initials.length>2?9:13}"
+        font-weight="900" fill="#fff">${initials}</text>
+      <polygon points="${cx-7},${cy+rOuter} ${cx},${H-5} ${cx+7},${cy+rOuter}"
+        fill="${ringColor}"/>
+    </svg>`;
+  }
+
+  function _updateLiveMarker(uid, d, isMe){
+    if(!d.lat||!d.lng) return;
+    const pos  = {lat:d.lat, lng:d.lng};
+    const STATUS = {active:'#3dff52', urgent:'#ff3333', standby:'#ffc107', busy:'#ff7a1a'};
+    const ringColor = STATUS[d.status] || '#29c5f6';
+    // Look up personnel color by personId or name match
+    const person = (typeof PERSONNEL!=='undefined')
+      ? (PERSONNEL.find(p=>p.id===d.personId) || PERSONNEL.find(p=>p.name===d.name))
+      : null;
+    const bgColor = d.color || (person ? person.color : '#1a3a5c');
+    const initials = (d.name||'?').split(' ').map(w=>w[0]).filter(Boolean).join('').slice(0,2);
+    const svg = _avatarSVG(initials, bgColor, ringColor, !!isMe);
+    const icon = {
+      url: 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(48, 60),
+      anchor: new google.maps.Point(24, 57)
+    };
+
     if(!_liveMarkers[uid]){
       _liveMarkers[uid] = new google.maps.Marker({
-        position:pos, map:window.map, zIndex:600,
-        icon:{path:google.maps.SymbolPath.CIRCLE,scale:13,fillColor:color,fillOpacity:0.92,strokeColor:'#fff',strokeWeight:2.5},
-        label:{text:label,color:'#fff',fontSize:'9px',fontWeight:'bold'}
+        position:pos, map:window.map,
+        zIndex: isMe ? 800 : 600,
+        icon, title: d.name + (isMe?' (אני)':'')
       });
-      _liveMarkers[uid].addListener('click',()=>{
+      _liveMarkers[uid]._data = d;
+      _liveMarkers[uid].addListener('click', ()=>{
         closeAllInfoWindows();
-        const iw=new google.maps.InfoWindow({content:
-          '<div style="font-family:Heebo,sans-serif;direction:rtl;padding:8px;min-width:180px">'
-          +'<div style="font-size:15px;font-weight:800;color:'+color+'">'+d.name+'</div>'
-          +'<div style="font-size:11px;color:#666;margin:3px 0">'+d.role+' · '+d.status+'</div>'
-          +'<div style="font-size:11px;color:#888">📡 דיוק: '+d.acc+'מ | ⚡ '+d.spd+' קמ"ש</div>'
-          +'<div style="font-size:10px;color:#aaa;margin-top:4px">עדכון לפני '+age+'ש\'</div>'
-          +'</div>'
+        const age = Math.round((Date.now()-(d.ts||Date.now()))/1000);
+        const ageStr = age<60 ? age+'ש\'' : Math.round(age/60)+'ד\'';
+        const iw = new google.maps.InfoWindow({content:
+          `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};
+                display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>
+              <div>
+                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
+                <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div>
+              </div>
+            </div>
+            <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
+              <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
+              <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
+              <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
+              <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span>
+            </div>
+          </div>`
         });
-        iw.open(window.map,_liveMarkers[uid]);
+        iw.open(window.map, _liveMarkers[uid]);
         window._infoWindows.push(iw);
       });
     } else {
+      _liveMarkers[uid]._data = d;
       _liveMarkers[uid].setPosition(pos);
-      _liveMarkers[uid].setIcon({path:google.maps.SymbolPath.CIRCLE,scale:13,fillColor:color,fillOpacity:0.92,strokeColor:'#fff',strokeWeight:2.5});
+      _liveMarkers[uid].setIcon(icon);
     }
   }
 
