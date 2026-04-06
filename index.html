@@ -145,6 +145,21 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #map-sos-btn:hover{transform:scale(1.05)}
 @keyframes sosPulse{0%,100%{box-shadow:0 4px 18px rgba(200,0,0,0.5)}55%{box-shadow:0 4px 28px rgba(255,0,0,0.9),0 0 0 5px rgba(255,51,51,0.15)}}
 @media(max-width:768px){#map-action-overlay,#map-sos-btn{display:none}}
+/* ── Location Privacy Toggle (mobile/tablet only) ── */
+#loc-privacy-btn{display:none;position:absolute;top:62px;left:10px;z-index:202;align-items:center;gap:10px;background:rgba(8,12,18,0.88);border:1.5px solid rgba(255,255,255,0.13);border-radius:26px;padding:8px 14px 8px 10px;cursor:pointer;backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,0.5);user-select:none;transition:border-color 0.22s,background 0.22s}
+#loc-privacy-btn:active{transform:scale(0.96)}
+.lp-switch{position:relative;width:40px;height:23px;border-radius:12px;background:#3a3a3a;flex-shrink:0;transition:background 0.25s}
+.lp-knob{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,0.45);transition:left 0.22s,background 0.22s}
+.lp-text{display:flex;flex-direction:column;gap:1px}
+.lp-main{font-family:var(--font);font-size:12px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.3}
+.lp-sub{font-family:var(--font);font-size:10px;font-weight:600;color:rgba(255,255,255,0.55);white-space:nowrap;line-height:1.3}
+#loc-privacy-btn.loc-priv-on{border-color:rgba(34,197,94,0.55)}
+#loc-privacy-btn.loc-priv-on .lp-switch{background:#22c55e}
+#loc-privacy-btn.loc-priv-on .lp-knob{left:20px}
+#loc-privacy-btn.loc-priv-off{border-color:rgba(239,68,68,0.5)}
+#loc-privacy-btn.loc-priv-off .lp-switch{background:#4b4b4b}
+#loc-privacy-btn.loc-priv-off .lp-knob{left:3px}
+@media(max-width:1024px){#loc-privacy-btn{display:flex}}
 #toast-container{position:fixed;bottom:60px;left:16px;z-index:9990;display:flex;flex-direction:column;gap:6px;pointer-events:none;direction:rtl}
 .toast{background:var(--panel);border:1px solid var(--border3);border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--texthi);box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:all;display:flex;align-items:center;gap:9px;min-width:220px;max-width:320px;direction:rtl;animation:toastIn 0.3s ease}
 .toast.fadeout{animation:toastOut 0.3s ease forwards}
@@ -706,6 +721,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </div>
       <!-- SOS button bottom-right -->
       <button id="map-sos-btn" onclick="triggerSOS()">🆘 מצוקה</button>
+      <!-- Location privacy toggle — mobile/tablet only -->
+      <div id="loc-privacy-btn" class="loc-priv-on" onclick="toggleLocPrivacy()">
+        <div class="lp-switch"><div class="lp-knob"></div></div>
+        <div class="lp-text">
+          <div class="lp-main" id="lp-label-main">מיקום פעיל</div>
+          <div class="lp-sub" id="lp-label-sub">גלוי לצוות</div>
+        </div>
+      </div>
       <!-- GovMap iframe — shown when govmap base is selected -->
       <iframe id="govmap-iframe"
         style="position:absolute;inset:0;width:100%;height:100%;border:none;display:none;z-index:1"
@@ -1395,6 +1418,7 @@ function onGoogleMapsReady(){
   plotUnits();
   plotGFs();
   startAutoTrack();
+  if(typeof initLocPrivacy==='function') initLocPrivacy();
   if(typeof loadFromStorage==='function')loadFromStorage();
   setTimeout(()=>{if(typeof loadSavedBoundaries==='function')loadSavedBoundaries();}, 1200);
 
@@ -5664,6 +5688,41 @@ function setActiveMapBtn(btn,...ids){
     if(el)el.classList.toggle('mp-active',el===btn);
   });
 }
+/* ── Location Privacy Toggle ── */
+window._locPrivacyOn = localStorage.getItem('tac_loc_privacy') !== '0';
+function toggleLocPrivacy(){
+  window._locPrivacyOn = !window._locPrivacyOn;
+  localStorage.setItem('tac_loc_privacy', window._locPrivacyOn ? '1' : '0');
+  _applyLocPrivacyUI();
+  if(window._locPrivacyOn){
+    if(typeof SYNC!=='undefined' && SYNC.connected) SYNC.startPublishing();
+    showToast({icon:'📍',title:'מיקום פעיל',sub:'המיקום שלך גלוי לצוות',type:'success'});
+  } else {
+    if(typeof SYNC!=='undefined') SYNC.stopPublishing();
+    showToast({icon:'🔒',title:'מיקום כבוי',sub:'הצוות לא רואה את מיקומך',type:'info'});
+  }
+}
+function _applyLocPrivacyUI(){
+  const btn = document.getElementById('loc-privacy-btn');
+  const lbl = document.getElementById('lp-label-main');
+  const sub = document.getElementById('lp-label-sub');
+  if(!btn) return;
+  if(window._locPrivacyOn){
+    btn.className = 'loc-priv-on';
+    if(lbl) lbl.textContent = 'מיקום פעיל';
+    if(sub) sub.textContent = 'גלוי לצוות';
+  } else {
+    btn.className = 'loc-priv-off';
+    if(lbl) lbl.textContent = 'מיקום כבוי';
+    if(sub) sub.textContent = 'פרטיות — לא גלוי';
+  }
+}
+// Apply saved state on load (called after map init)
+function initLocPrivacy(){
+  _applyLocPrivacyUI();
+  if(!window._locPrivacyOn && typeof SYNC!=='undefined') SYNC.stopPublishing();
+}
+
 let _markersVisible=true;
 function toggleMarkersVisibility(){
   _markersVisible=!_markersVisible;
@@ -5788,6 +5847,7 @@ const SYNC = (() => {
 
   function _doPublish(){
     if(!_db||!_connected) return;
+    if(window._locPrivacyOn === false) return;
     navigator.geolocation.getCurrentPosition(pos=>{
       const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
       const d = {
