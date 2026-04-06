@@ -6363,9 +6363,26 @@ const FIELD = (() => {
 // BOOT — PWA + Firebase + Field mode init
 // ══════════════════════════════════════════════════════════
 (function tacBoot(){
-  // Register service worker
+  // Register service worker — updateViaCache:'none' forces browser to always
+  // fetch sw.js from network (never from HTTP cache) so updates land immediately
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        // If a new SW is waiting, activate it right away without waiting for tab close
+        if(reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if(!nw) return;
+          nw.addEventListener('statechange', () => {
+            if(nw.state === 'installed' && navigator.serviceWorker.controller){
+              // New version ready — reload silently so user always gets latest
+              window.location.reload();
+            }
+          });
+        });
+      }).catch(()=>{});
+    // Reload when SW takes control (handles the case where SW was just updated)
+    navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
   }
   // ── Auth gate — always require explicit login on every open ──
   // (No silent session restore — security policy)

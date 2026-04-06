@@ -64,6 +64,11 @@ self.addEventListener('fetch', e => {
   );
 });
 
+// Allow the page to tell a waiting SW to activate immediately
+self.addEventListener('message', e => {
+  if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 // Push notifications (future use)
 self.addEventListener('push', e => {
   if (!e.data) return;
