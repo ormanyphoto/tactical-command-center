@@ -4723,7 +4723,15 @@ function boCredentials(c){
     rows+='<td style="font-weight:700;color:var(--texthi)">'+p.name+'</td>';
     rows+='<td style="color:var(--accent2);font-size:12px">'+role+'</td>';
     rows+='<td style="font-family:monospace;font-size:13px;color:var(--blue);direction:ltr;text-align:left">'+p.email+'</td>';
-    rows+='<td style="font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:0.04em">'+p.loginPassword+'</td>';
+    rows+='<td>'
+      +'<div style="display:flex;align-items:center;gap:6px">'
+      +'<span id="pwd-display-'+p.id+'" style="font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:0.04em">'+p.loginPassword+'</span>'
+      +'<input id="pwd-input-'+p.id+'" type="text" value="'+p.loginPassword+'" style="display:none;font-family:monospace;font-size:12px;padding:3px 7px;border:1px solid var(--border2);border-radius:4px;background:var(--panel3);color:var(--text);width:130px;direction:ltr"/>'
+      +'<button id="pwd-edit-btn-'+p.id+'" onclick="startEditPwd(\''+p.id+'\')" style="background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text2);cursor:pointer">✏️ ערוך</button>'
+      +'<button id="pwd-save-btn-'+p.id+'" onclick="commitPwd(\''+p.id+'\')" style="display:none;background:var(--accent);border:none;border-radius:4px;padding:2px 9px;font-size:11px;color:#fff;cursor:pointer;font-weight:700">שמור</button>'
+      +'<button id="pwd-cancel-btn-'+p.id+'" onclick="cancelEditPwd(\''+p.id+'\')" style="display:none;background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text3);cursor:pointer">ביטול</button>'
+      +'</div>'
+      +'</td>';
     rows+='<td style="font-size:11px">'+permBadges+'</td>';
     rows+='</tr>';
   });
@@ -4732,6 +4740,42 @@ function boCredentials(c){
     +'<div style="background:var(--panel2);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px">⚠️ מסמך זה מכיל סיסמאות גישה. אל תשתף עם גורמים שאינם מורשים.</div>'
     +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>תפקיד</th><th>אימייל (שם משתמש)</th><th>סיסמה</th><th>הרשאות</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +'</div>';
+}
+
+function startEditPwd(pid){
+  document.getElementById('pwd-display-'+pid).style.display='none';
+  document.getElementById('pwd-edit-btn-'+pid).style.display='none';
+  document.getElementById('pwd-input-'+pid).style.display='';
+  document.getElementById('pwd-save-btn-'+pid).style.display='';
+  document.getElementById('pwd-cancel-btn-'+pid).style.display='';
+  var inp=document.getElementById('pwd-input-'+pid);
+  inp.focus(); inp.select();
+}
+
+function cancelEditPwd(pid){
+  var p=PERSONNEL.find(function(x){return x.id===pid;});
+  if(p) document.getElementById('pwd-input-'+pid).value=p.loginPassword;
+  document.getElementById('pwd-display-'+pid).style.display='';
+  document.getElementById('pwd-edit-btn-'+pid).style.display='';
+  document.getElementById('pwd-input-'+pid).style.display='none';
+  document.getElementById('pwd-save-btn-'+pid).style.display='none';
+  document.getElementById('pwd-cancel-btn-'+pid).style.display='none';
+}
+
+function commitPwd(pid){
+  var newPwd=document.getElementById('pwd-input-'+pid).value.trim();
+  if(!newPwd){showToast({icon:'⚠️',title:'סיסמה ריקה',type:'error'});return;}
+  var p=PERSONNEL.find(function(x){return x.id===pid;});
+  if(!p) return;
+  p.loginPassword=newPwd;
+  savePersonnelToStorage();
+  // Sync to Firebase
+  var db=window._db;
+  if(db) db.ref('tac_passwords/'+pid).set(newPwd).catch(function(){});
+  // Update display
+  document.getElementById('pwd-display-'+pid).textContent=newPwd;
+  cancelEditPwd(pid);
+  showToast({icon:'🔑',title:'סיסמה עודכנה',sub:p.name,type:'success'});
 }
 function boPermissions(c){
   const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','איש חפ״ק','לוחם','מפעיל רחפן'];
