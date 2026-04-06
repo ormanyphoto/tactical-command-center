@@ -18,6 +18,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 :root{--r:6px;--font:'Heebo',sans-serif;--font2:'Assistant',sans-serif;--trans:0.25s ease}
@@ -1292,6 +1293,10 @@ const BIOMETRIC = (() => {
         _triggerMapResize();
         if(typeof FIELD !== 'undefined') FIELD.boot();
         if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
+        if(typeof PUSH!=='undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024)){
+          const _u2 = AUTH.getUser();
+          if(_u2) setTimeout(()=>PUSH.requestAndSaveToken(_u2.id), 1500);
+        }
         const u = AUTH.getUser();
         setTimeout(()=>{
           if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
@@ -1474,6 +1479,10 @@ const AUTH = (() => {
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
       // Start listening for incoming notifications now that user is authenticated
       if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
+      // Register for FCM push (mobile only)
+      if(typeof PUSH!=='undefined' && (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024)){
+        setTimeout(()=>PUSH.requestAndSaveToken(_user.id), 1500);
+      }
     } else {
       err.textContent = '⚠️ אימייל או סיסמה שגויים';
       document.getElementById('login-pass').value = '';
@@ -4879,7 +4888,21 @@ function boSettings(c){
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">'
     +'<button class="btn-pri" onclick="localStorage.setItem(\'tac_mode\',\'command\');location.reload()">⬡ מצב פיקוד</button>'
     +'<button class="btn-sec" style="margin:0" onclick="localStorage.setItem(\'tac_mode\',\'field\');location.reload()">📱 מצב שדה</button>'
-    +'</div></div>';
+    +'</div></div>'
+    // ── FCM Push Notifications ──
+    +'<div class="bo-section"><div class="bo-hd">🔔 התראות Push — הגדרת FCM</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">'
+    +'כדי שהתראות יגיעו למכשיר גם כשהאפליקציה סגורה, הזן את המפתחות מ-<b>Firebase Console → Project Settings → Cloud Messaging</b></div>'
+    +'<div class="form-g"><label style="font-size:11px">🔑 VAPID Public Key (Web Push certificates)</label>'
+    +'<input id="cfg-vapid" class="form-inp" style="font-size:11px;font-family:monospace;direction:ltr" placeholder="BH..." value="'+(typeof PUSH!=='undefined'?PUSH.vapidKey:'')+'" /></div>'
+    +'<div class="form-g"><label style="font-size:11px">🗝️ Server Key (Legacy)</label>'
+    +'<input id="cfg-serverkey" class="form-inp" style="font-size:11px;font-family:monospace;direction:ltr" placeholder="AAAA..." value="'+(typeof PUSH!=='undefined'?PUSH.serverKey:'')+'" /></div>'
+    +'<button class="btn-pri" style="margin-top:6px" onclick="'
+    +'var v=document.getElementById(\'cfg-vapid\').value.trim();'
+    +'var s=document.getElementById(\'cfg-serverkey\').value.trim();'
+    +'if(typeof PUSH!==\'undefined\') PUSH.setKeys(v,s);'
+    +'showToast({icon:\'🔔\',title:\'מפתחות FCM נשמרו\',sub:\'יחולו בכניסה הבאה\',type:\'success\'});">💾 שמור מפתחות</button>'
+    +'</div>';
 }
 
 function saveToCloud(){savePersonnelToStorage();try{localStorage.setItem('tac_v5_state',JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));}catch(e){}}
@@ -6367,6 +6390,8 @@ function sendNotification(){
   Promise.all(writes).then(()=>{
     showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
     closeNotifModal();
+    // Send FCM push for background/closed devices
+    if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
     // Start listening for approvals on the map כוחות panel
     _listenApprovals(notifId);
     // Refresh panels
@@ -6900,6 +6925,115 @@ const SYNC = (() => {
   }
 
   return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, get connected(){ return _connected; }, myUid:_myUid };
+})();
+
+// ══════════════════════════════════════════════════════════
+// PUSH — Firebase Cloud Messaging (background notifications)
+// ══════════════════════════════════════════════════════════
+const PUSH = (() => {
+  // ── Keys (set from Firebase Console → Project Settings → Cloud Messaging) ──
+  // VAPID public key: Project Settings → Cloud Messaging → Web Push certificates → Key pair
+  // Server key:       Project Settings → Cloud Messaging → Server key  (Legacy)
+  let _vapidKey  = localStorage.getItem('tac_fcm_vapid')  || '';
+  let _serverKey = localStorage.getItem('tac_fcm_server') || '';
+
+  let _messaging = null;
+  let _token     = null;
+
+  function setKeys(vapid, server){
+    _vapidKey  = vapid  || _vapidKey;
+    _serverKey = server || _serverKey;
+    if(_vapidKey)  localStorage.setItem('tac_fcm_vapid',  _vapidKey);
+    if(_serverKey) localStorage.setItem('tac_fcm_server', _serverKey);
+  }
+
+  async function init(){
+    if(!_vapidKey) return; // no key configured yet
+    if(!('Notification' in window)) return;
+    if(!firebase.messaging) return;
+    try {
+      // Use existing registered SW for FCM
+      const swReg = await navigator.serviceWorker.ready;
+      _messaging = firebase.messaging();
+      // Forward foreground messages to the in-app notification system
+      _messaging.onMessage(payload => {
+        const d = payload.data || {};
+        if(d.title && typeof _showIncomingNotif === 'function'){
+          _showIncomingNotif({
+            id: d.notifId, type: d.type, typeLabel: d.typeLabel,
+            title: d.title, body: d.body, address: d.address||'',
+            senderName: d.senderName||'מפקד', sentAt: Number(d.sentAt)||Date.now()
+          }, null);
+        }
+      });
+    } catch(e){ console.warn('FCM init error', e); }
+  }
+
+  async function requestAndSaveToken(userId){
+    if(!_vapidKey) return null;
+    if(!('Notification' in window)) return null;
+    try {
+      const perm = await Notification.requestPermission();
+      if(perm !== 'granted') return null;
+      if(!_messaging){
+        _messaging = firebase.messaging();
+      }
+      const swReg = await navigator.serviceWorker.ready;
+      _token = await _messaging.getToken({ vapidKey: _vapidKey, serviceWorkerRegistration: swReg });
+      if(_token && userId && window._db){
+        window._db.ref('tac_fcm_tokens/'+userId).set(_token);
+      }
+      return _token;
+    } catch(e){ console.warn('FCM token error', e); return null; }
+  }
+
+  async function sendPush(recipientIds, payload){
+    if(!_serverKey) return; // server key not configured
+    const db = window._db;
+    if(!db || !recipientIds.length) return;
+    try {
+      const snap = await db.ref('tac_fcm_tokens').once('value');
+      const allTokens = snap.val() || {};
+      const tokens = recipientIds.map(id => allTokens[id]).filter(Boolean);
+      if(!tokens.length) return;
+      // Send via FCM Legacy HTTP API
+      await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=' + _serverKey
+        },
+        body: JSON.stringify({
+          registration_ids: tokens,
+          priority: 'high',
+          notification: {
+            title: payload.title || 'מערכת מבצעים',
+            body:  payload.body  || '',
+            icon:  '/tactical-command-center/icon-192.png',
+            badge: '/tactical-command-center/icon-192.png',
+            dir:   'rtl',
+            tag:   payload.id || 'tac-notif',
+            vibrate: [200,100,200]
+          },
+          data: {
+            notifId:    payload.id      || '',
+            type:       payload.type    || '',
+            typeLabel:  payload.typeLabel|| '',
+            title:      payload.title   || '',
+            body:       payload.body    || '',
+            address:    payload.address || '',
+            senderName: payload.senderName || '',
+            sentAt:     String(payload.sentAt || Date.now())
+          }
+        })
+      });
+    } catch(e){ console.warn('FCM send error', e); }
+  }
+
+  return { init, requestAndSaveToken, sendPush, setKeys,
+    get vapidKey(){ return _vapidKey; },
+    get serverKey(){ return _serverKey; }
+  };
 })();
 
 // ══════════════════════════════════════════════════════════
