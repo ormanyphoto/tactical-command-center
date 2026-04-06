@@ -281,10 +281,19 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .avail-yes{background:rgba(61,255,82,0.1);color:var(--accent);border-color:rgba(61,255,82,0.3)}
 .avail-no{background:rgba(255,51,51,0.08);color:var(--danger);border-color:rgba(255,51,51,0.25)}
 .pers-dial{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--blue);text-decoration:none;font-weight:600;padding:2px 8px;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);transition:all 0.12s;margin-top:3px}
-.pers-expand{background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:1px 4px;font-weight:700;font-family:var(--font)}
-.pers-detail{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);line-height:1.8}
-.pers-detail.open{display:block}
-.pers-actions-col{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.pers-expand{display:none}
+.pers-detail{display:none}
+.pers-actions-col{display:none}
+.pers-meta{font-size:11px;color:var(--text3);margin:3px 0 4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pers-meta a{color:var(--blue);text-decoration:none;font-weight:600}
+.pers-meta a:hover{text-decoration:underline}
+.pers-quick-acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.pqa-btn{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;font-family:var(--font);transition:all 0.12s;background:transparent;flex-shrink:0}
+.pqa-edit{color:var(--texthi);border-color:var(--border3)}.pqa-edit:hover{background:var(--panel3);border-color:var(--accent);color:var(--accent)}
+.pqa-place{color:var(--blue);border-color:rgba(41,197,246,0.3)}.pqa-place:hover{background:rgba(41,197,246,0.08);border-color:var(--blue)}
+.pqa-assign{color:var(--accent2);border-color:rgba(168,232,0,0.3)}.pqa-assign:hover{background:rgba(168,232,0,0.08);border-color:var(--accent2)}
+.pqa-del{color:var(--text3);border-color:var(--border)}.pqa-del:hover{color:var(--danger);border-color:var(--danger);background:rgba(255,51,51,0.06)}
+.pers-avail-inline{font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;cursor:pointer;border:1px solid;flex-shrink:0;letter-spacing:0.02em}
 .drag-handle{cursor:grab;color:var(--text3);font-size:14px;padding:0 3px;user-select:none;flex-shrink:0}
 .pers-check{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin-top:2px}
 .multi-sel-bar{display:none;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px;margin-bottom:8px;align-items:center;gap:8px;direction:rtl}
@@ -599,7 +608,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     </div>
     <div class="tb-spacer"></div>
     <div class="tpill"><button class="tpill-btn active" id="btn-night" onclick="setTheme('night')">🌙 לילה</button><button class="tpill-btn" id="btn-day" onclick="setTheme('day')">☀️ יום</button></div>
-    <button class="tb-btn tbdanger" onclick="triggerSOS()">🆘 SOS</button>
+    <button class="tb-btn tbdanger" onclick="triggerSOS()">🆘 מצוקה</button>
     <button class="tb-btn" onclick="goPanel('alerts')">⚠ <span id="alert-badge">2</span></button>
     <button class="tb-btn" onclick="openBO()">⚙ ניהול</button>
     <div id="topbar-user" title="משתמש מחובר">—</div>
@@ -642,7 +651,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div class="mob-nav-item" onclick="mobileGoView('navigation')"><span class="mob-icon">🧭</span>ניווט</div>
       </nav>
       <div id="mobile-drawer-footer">
-        <button class="tb-btn tbdanger" style="flex:1;justify-content:center" onclick="triggerSOS();closeMobileMenu()">🆘 SOS</button>
+        <button class="tb-btn tbdanger" style="flex:1;justify-content:center" onclick="triggerSOS();closeMobileMenu()">🆘 מצוקה</button>
         <button class="tb-btn" id="mob-admin-btn" style="flex:1;justify-content:center" onclick="openBO();closeMobileMenu()">⚙ ניהול</button>
         <button class="tb-btn" style="padding:7px 10px" onclick="setTheme(document.body.classList.contains('night')?'day':'night')" title="יום/לילה">🌙</button>
       </div>
@@ -655,7 +664,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <button class="bn-item" data-v="personnel" onclick="mobileGoView('personnel')"><span class="bn-icon">👤</span>כוח אדם</button>
     <button class="bn-item" data-v="missions" onclick="mobileGoView('missions')"><span class="bn-icon">📋</span>משימות</button>
     <button class="bn-item" data-v="comms" onclick="mobileGoView('comms')"><span class="bn-icon">📡</span>תקשורת</button>
-    <button class="bn-item bn-sos" onclick="triggerSOS()"><span class="bn-icon">🆘</span>SOS</button>
+    <button class="bn-item bn-sos" onclick="triggerSOS()"><span class="bn-icon">🆘</span>מצוקה</button>
   </div>
 
   <!-- MAIN -->
@@ -756,7 +765,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="fm-logo">⬡ מבצעים v5.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
-    <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 SOS</button>
+    <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
     <button id="fm-logout-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
   </div>
   <div id="fm-map-wrap">
@@ -2588,7 +2597,7 @@ function renderDrawP(c){
   </div>
 
   <!-- ── SOS ── -->
-  <button class="btn-sec" style="margin-top:10px;border-color:var(--danger);color:var(--danger)" onclick="triggerSOS()">🆘 SOS חירום</button>
+  <button class="btn-sec" style="margin-top:10px;border-color:var(--danger);color:var(--danger)" onclick="triggerSOS()">🆘 מצוקה</button>
   `;
 }
 function renderLayersP(c){renderDrawP(c);}
@@ -2815,7 +2824,7 @@ function renderCommsP(c){
   <!-- QUICK ACTIONS -->
   <div class="sec-hd">פעולות מהירות</div>
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
-    <button class="comms-qa-btn sos-btn" onclick="sendStatus('🆘 SOS – נדרש סיוע מיידי')"><span class="qa-icon">🆘</span>SOS</button>
+    <button class="comms-qa-btn sos-btn" onclick="sendStatus('🆘 מצוקה – נדרש סיוע מיידי')"><span class="qa-icon">🆘</span>מצוקה</button>
     <button class="comms-qa-btn" onclick="sendStatus('✅ שטח נקי')" style="color:var(--accent);border-color:rgba(61,255,82,0.4)"><span class="qa-icon">✅</span>שטח נקי</button>
     <button class="comms-qa-btn" onclick="sendStatus('🔴 בקשת תגבור')" style="color:var(--orange);border-color:rgba(255,122,26,0.4)"><span class="qa-icon">🔴</span>בקשת תגבור</button>
     <button class="comms-qa-btn" onclick="sendStatus('📍 במיקום')" style="color:var(--blue);border-color:rgba(41,197,246,0.4)"><span class="qa-icon">📍</span>במיקום</button>
@@ -4950,12 +4959,10 @@ function renderPersonnelP(c){
   </div>
   <!-- ACTION BUTTONS -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
-    <button class="btn-pri" onclick="openAddPersonModal()">+ הוסף איש צוות</button>
-    <button class="btn-sec" style="margin:0" onclick="exportPersonnelCSV()">⬇ יצא CSV</button>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px">
+    <button class="btn-pri" style="grid-column:1/-1" onclick="openAddPersonModal()">＋ הוסף איש צוות</button>
     <button class="btn-sec" style="margin:0" onclick="openImportCSV()">⬆ יבוא CSV</button>
-    <button class="btn-sec" style="margin:0" onclick="toggleSelectAll()">${_selectedPersonnel.size>0?'✕ בטל בחירה':'☑ בחר הכל'}</button>
+    <button class="btn-sec" style="margin:0" onclick="exportPersonnelCSV()">⬇ יצא CSV</button>
+    <button class="btn-sec" style="margin:0;grid-column:1/-1" onclick="toggleSelectAll()">${_selectedPersonnel.size>0?'✕ בטל בחירה':'☑ בחר הכל'}</button>
   </div>
   <!-- MULTI-SELECT BAR -->
   <div class="multi-sel-bar ${_selectedPersonnel.size>0?'visible':''}" id="multi-sel-bar">
@@ -4969,38 +4976,70 @@ function renderPersonnelP(c){
     <div class="pers-card ${_selectedPersonnel.has(p.id)?'selected':''}" draggable="true" data-pid="${p.id}">
       <input type="checkbox" class="pers-check" ${_selectedPersonnel.has(p.id)?'checked':''} onchange="togglePersonSelect('${p.id}',this.checked)" onclick="event.stopPropagation()"/>
       <span class="drag-handle">⠿</span>
-      <div class="pers-avatar" onclick="pickPersonPhoto('${p.id}')" title="שנה תמונה" style="cursor:pointer">
+      <div class="pers-avatar" onclick="pickPersonPhoto('${p.id}')" title="לחץ לשנות תמונה" style="cursor:pointer">
         ${p.photo?`<img src="${p.photo}" alt="${p.name}"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}
       </div>
       <div class="pers-info">
-        <div class="pers-name">${p.name}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:2px">
+          <div class="pers-name" style="line-height:1.2">${p.name}</div>
+          <span class="pers-avail-inline ${p.available?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')">${p.available?'זמין':'לא זמין'}</span>
+        </div>
         <div class="pers-sub">
+          ${p.role?`<span style="color:var(--accent2);font-weight:700">${p.role}</span>`:''}
           ${p.callsign?`<span>📻 ${p.callsign}</span>`:''}
-          ${p.role?`<span style="color:var(--accent2);font-weight:700">👤 ${p.role}</span>`:''}
           ${p.unit?`<span>🏢 ${p.unit}</span>`:''}
         </div>
-        <div class="skill-tag-wrap">${(p.skills||[]).map(s=>`<span class="sk-tag">${s}</span>`).join('')}</div>
-        ${p.phone?`<a class="pers-dial" href="tel:${p.phone}">📞 ${p.phone}</a>`:''}
-        <div class="pers-detail" id="pd-${p.id}">
-          ${p.email?`<div><strong>דוא"ל:</strong> <a href="mailto:${p.email}" style="color:var(--blue)">${p.email}</a></div>`:''}
-          ${p.address?`<div><strong>כתובת:</strong> ${p.address}</div>`:''}
-          ${p.mission?`<div><strong>משימה:</strong> <span style="color:var(--accent2)">${p.mission}</span></div>`:''}
-          <div style="display:flex;gap:4px;margin-top:7px;flex-wrap:wrap">
-            <button class="act-btn" onclick="editPersonModal('${p.id}')">✏️ ערוך</button>
-            <button class="act-btn" onclick="openPlacePersonModal('${p.id}')" style="border-color:var(--blue);color:var(--blue)" title="מקם על המפה">📍 מקם</button>
-            <button class="act-btn" onclick="persnAssignMission('${p.id}')">📋 שבץ</button>
-            <button class="act-btn del" onclick="deletePerson('${p.id}')">✕ הסר</button>
-          </div>
+        <div class="pers-meta">
+          ${p.phone?`<a href="tel:${p.phone}">📞 ${p.phone}</a>`:''}
+          ${p.email?`<a href="mailto:${p.email}">✉️ ${p.email}</a>`:''}
+          ${p.address?`<span>📍 ${p.address}</span>`:''}
+          ${p.mission?`<span style="color:var(--accent2)">📋 ${p.mission}</span>`:''}
         </div>
-      </div>
-      <div class="pers-actions-col">
-        <span class="pers-avail ${p.available?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')">${p.available?'זמין':'לא זמין'}</span>
-        <button class="pers-expand" onclick="togglePersnDetail('${p.id}')">▼ פרטים</button>
+        <div class="skill-tag-wrap">${(p.skills||[]).map(s=>`<span class="sk-tag">${s}</span>`).join('')}</div>
+        <div class="pers-quick-acts">
+          <button class="pqa-btn pqa-edit" onclick="editPersonModal('${p.id}')">✏️ ערוך</button>
+          <button class="pqa-btn pqa-place" onclick="openPlacePersonModal('${p.id}')" title="מקם על המפה">📍 מקם</button>
+          <button class="pqa-btn pqa-assign" onclick="persnAssignMission('${p.id}')">📋 שבץ</button>
+          <button class="pqa-btn pqa-del" onclick="deletePerson('${p.id}')" title="הסר מהרשימה">✕ הסר</button>
+        </div>
       </div>
     </div>`).join('')}
   ${filtered.length===0?'<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">לא נמצאו אנשי צוות</div>':''}
   </div>`;
   requestAnimationFrame(initPersonnelDrag);
+}
+
+let _persDragPid = null;
+function initPersonnelDrag(){
+  document.querySelectorAll('#personnel-list .pers-card').forEach(card=>{
+    card.addEventListener('dragstart', e=>{
+      _persDragPid = card.dataset.pid;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragover', e=>{
+      e.preventDefault();
+      document.querySelectorAll('.pers-card').forEach(c=>c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('drop', e=>{
+      e.preventDefault();
+      document.querySelectorAll('.pers-card').forEach(c=>c.classList.remove('drag-over','dragging'));
+      const targetPid = card.dataset.pid;
+      if(!_persDragPid || _persDragPid === targetPid) return;
+      const si = PERSONNEL.findIndex(p=>p.id===_persDragPid);
+      const ti = PERSONNEL.findIndex(p=>p.id===targetPid);
+      if(si>-1 && ti>-1){
+        const so=PERSONNEL[si].order||si, to=PERSONNEL[ti].order||ti;
+        PERSONNEL[si].order=to; PERSONNEL[ti].order=so;
+      }
+      savePersonnelToStorage();
+      renderPersonnelP(document.getElementById('rp-body'));
+    });
+    card.addEventListener('dragend', ()=>{
+      document.querySelectorAll('.pers-card').forEach(c=>c.classList.remove('dragging','drag-over'));
+    });
+  });
 }
 
 function togglePersonSelect(id,checked){
