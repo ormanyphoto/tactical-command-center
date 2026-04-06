@@ -6576,11 +6576,23 @@ function respondToNotif(approved){
     window._locPrivacyOn = true;
     localStorage.setItem('tac_loc_privacy','1');
     if(typeof _applyLocPrivacyUI === 'function') _applyLocPrivacyUI();
-    if(typeof SYNC !== 'undefined' && SYNC.connected) SYNC.startPublishing();
-    // Mark as available
+    // Start publishing — pass correct name/role, don't require .connected (timer will retry)
+    if(typeof SYNC !== 'undefined'){
+      const profile = u ? { name: u.name, role: u.role||'לוחם', status: 'active' } : null;
+      SYNC.startPublishing(profile);
+    }
+    // Mark as available in personnel
     if(u && !u.available){
       u.available = true;
       if(typeof savePersonnelToStorage==='function') savePersonnelToStorage();
+    }
+    // Request GPS permission explicitly (ensures first fix comes fast)
+    if('geolocation' in navigator){
+      navigator.geolocation.getCurrentPosition(
+        ()=>{}, // success handled inside _doPublish
+        ()=>showToast({icon:'⚠️',title:'GPS לא זמין',sub:'אפשר גישה למיקום בהגדרות',type:'warn'}),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
     }
     showToast({icon:'✅',title:'אישרת — מגיע!',sub:'מיקום חי הופעל אוטומטית',type:'success',duration:5000});
   } else {
@@ -6756,8 +6768,12 @@ const SYNC = (() => {
   }
 
   function _doPublish(){
-    if(!_db||!_connected) return;
     if(window._locPrivacyOn === false) return;
+    if(!_db||!_connected){
+      // Not yet connected — retry in 3s (handles approve-before-connect race)
+      setTimeout(_doPublish, 3000);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(pos=>{
       const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
       const d = {
@@ -6774,10 +6790,14 @@ const SYNC = (() => {
         ts:   Date.now(),
         uid:  _myUid
       };
+      // Use actual user name/role from AUTH if available
+      const au = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+      if(au){ d.name = au.name; d.role = au.role||d.role; }
       _db.ref('tac_locs/'+_myUid).set(d);
       // Show own marker immediately on map
       if(window.map && window._googleReady) _updateLiveMarker(_myUid, d, true);
-    }, null, {enableHighAccuracy:true, timeout:8000, maximumAge:4000});
+    }, (err)=>{ /* GPS error — silent, timer will retry */ },
+    {enableHighAccuracy:true, timeout:10000, maximumAge:3000});
   }
 
   function _subscribeLocations(){
