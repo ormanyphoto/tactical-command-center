@@ -916,11 +916,29 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <!-- MAP WRAP -->
     <div id="map-wrap">
       <div id="gmap"></div>
-      <!-- Map loading indicator — hidden once Google Maps fires onGoogleMapsReady -->
+      <!-- Map loading indicator — hidden once Google Maps fires onGoogleMapsReady (max 20s) -->
       <div id="map-loading" style="position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:12px;pointer-events:none">
         <div style="width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div>
         <span style="font-size:13px;font-weight:700;color:var(--text3);font-family:var(--font)">טוען מפה...</span>
       </div>
+      <script>(function(){
+        var _mapsRetried=false;
+        // If Maps API hasn't loaded after 8s → retry dynamically (handles mobile/cache failures)
+        setTimeout(function(){
+          if(!window._googleReady && !_mapsRetried){
+            _mapsRetried=true;
+            var s=document.createElement('script');
+            s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
+            s.onerror=function(){
+              var ml=document.getElementById('map-loading');
+              if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
+            };
+            document.head.appendChild(s);
+          }
+        },8000);
+        // Force-hide spinner after 20s regardless
+        setTimeout(function(){var ml=document.getElementById('map-loading');if(ml)ml.style.display='none';},20000);
+      })();</script>
       <!-- Zoom overlay buttons -->
       <div id="map-zoom-overlay" style="position:absolute;bottom:90px;left:10px;z-index:200;display:flex;flex-direction:column;gap:6px">
         <button onclick="mapZoom(1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">＋</button>
@@ -1801,42 +1819,18 @@ function mapZoom(delta){
 
 // ── Map resize helper — call whenever #app transitions from display:none to visible ──
 // Google Maps silently renders into a 0×0 box while hidden; this forces a correct repaint.
-let _mapResizeInterval = null;
 function _triggerMapResize(){
   const _doResize = (rerender)=>{
     if(window.map && window.google && google.maps){
-      const gmapEl = document.getElementById('gmap');
-      if(gmapEl) void gmapEl.offsetHeight; // force reflow
-      window.dispatchEvent(new Event('resize'));
       google.maps.event.trigger(window.map, 'resize');
       if(window.map.getCenter) window.map.panTo(window.map.getCenter());
       if(rerender && typeof SYNC!=='undefined') SYNC.rerenderMarkers();
     }
   };
-  setTimeout(()=>_doResize(false), 100);
-  setTimeout(()=>_doResize(false), 300);
-  setTimeout(()=>_doResize(false), 700);
-  setTimeout(()=>_doResize(true),  1500);
+  setTimeout(()=>_doResize(false), 150);
+  setTimeout(()=>_doResize(false), 500);
+  setTimeout(()=>_doResize(true),  1200);
   setTimeout(()=>_doResize(true),  3000);
-  setTimeout(()=>_doResize(true),  6000);
-
-  // Persistent interval — keeps retrying every 2s until map tiles are confirmed visible
-  // Handles slow Google Maps API load on mobile (can take > 6s on slow connections)
-  if(_mapResizeInterval) clearInterval(_mapResizeInterval);
-  let _retries = 0;
-  _mapResizeInterval = setInterval(()=>{
-    _retries++;
-    if(window.map && window.google && google.maps){
-      _doResize(_retries % 3 === 0); // rerender markers every 3rd pass
-      // Stop once map has tiles (div is non-empty = API loaded and rendered)
-      const gmapEl = document.getElementById('gmap');
-      if(gmapEl && gmapEl.children.length > 0){
-        clearInterval(_mapResizeInterval);
-        _mapResizeInterval = null;
-      }
-    }
-    if(_retries > 60) { clearInterval(_mapResizeInterval); _mapResizeInterval = null; } // 2min max
-  }, 2000);
 }
 
 function mapGoTo(lat,lng,zoom){
