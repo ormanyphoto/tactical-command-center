@@ -7125,18 +7125,18 @@ function _showIncomingNotif(notif, fbRef){
       }
       return {...v, distStr};
     });
+    // Store venues by id for safe navigation lookup (avoids onclick escaping bugs)
+    window._incVenueList = originalOrder;
     venueList.innerHTML = originalOrder.map((v,i)=>{
-      const isClosest = userLat && v.lat && v.lng &&
-        Math.abs(_haversineKm(userLat, userLng, v.lat, v.lng) - (closestIdx>=0 ? _haversineKm(userLat, userLng, originalOrder[closestIdx]&&originalOrder[closestIdx].lat||0, originalOrder[closestIdx]&&originalOrder[closestIdx].lng||0) : Infinity)) < 0.001;
       const closestMe = userLat && closestIdx>=0 && sorted[closestIdx] && sorted[closestIdx].id === v.id;
-      const navCall = (v.lat && v.lng)
-        ? `openNavToLatLng(${v.lat},${v.lng},'${(v.address||'').replace(/'/g,"\\'")}')`
-        : `openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}')`;
+      const distBadge = v.distStr
+        ? `<span style="font-size:11px;font-weight:800;color:${closestMe?'var(--accent)':'var(--text2)'};white-space:nowrap;background:${closestMe?'rgba(61,255,82,0.1)':'var(--panel2)'};border-radius:6px;padding:3px 8px;border:1px solid ${closestMe?'rgba(61,255,82,0.3)':'var(--border2)'}">${closestMe?'📍 ':'🧭 '}${v.distStr} ממך</span>`
+        : '';
       return `<button class="inc-venue-btn${closestMe?' selected':''}" data-vid="${v.id}"
-        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);${navCall}">
+        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);_navToVenueId('${v.id}')">
         <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
         <span style="flex:1;text-align:right;line-height:1.3">${v.label} — ${v.address}</span>
-        ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${closestMe?'📍 ':''}${v.distStr}</span>`:''}
+        ${distBadge}
       </button>`;
     }).join('');
     // Hide approve button only — keep "לא זמין" always visible
@@ -7275,18 +7275,27 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
   const threatHtml = (notif&&notif.threat) ? `<div style="font-size:12px;font-weight:700;color:#ff3333;background:rgba(255,51,51,0.08);border-radius:5px;padding:3px 8px;margin-bottom:5px">⚡ ${notif.threat}</div>` : '';
   const bodyHtml  = (notif&&notif.body)   ? `<div style="font-size:11px;color:#555;margin-bottom:5px;max-height:60px;overflow:hidden;direction:rtl">${notif.body}</div>` : '';
   const delBtn    = isAdmin ? `<button onclick="_removeNotifMarker('${mid}')" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר זירה (אדמין)</button>` : '';
+  const iwId = 'iw_'+mid;
+  const navBtnJs = (lat && lng)
+    ? `openNavToLatLng(${lat},${lng},'${address.replace(/'/g,"\\'")}');event.stopPropagation()`
+    : `openNavToAddress('${address.replace(/'/g,"\\'")}');event.stopPropagation()`;
   const iw = new google.maps.InfoWindow({content:`
     <div style="font-family:Heebo,sans-serif;direction:rtl;padding:6px 8px;min-width:200px;max-width:280px">
-      <div style="font-size:13px;font-weight:900;color:${color};margin-bottom:4px">${label}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:900;color:${color}">${label}</div>
+        <button onclick="document.getElementById('${iwId}_close')&&document.getElementById('${iwId}_close').click();event.stopPropagation()" id="${iwId}_close" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;padding:0 0 0 6px;line-height:1" title="הסתר חלונית">✕</button>
+      </div>
       ${threatHtml}${bodyHtml}
       <div style="font-size:11px;color:#888;margin-bottom:6px">📍 ${address}</div>
-      <button onclick="openNavToAddress('${address.replace(/'/g,"\\'")}');event.stopPropagation()" style="width:100%;padding:8px;background:${color};color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;font-family:Heebo,sans-serif">🗺️ נווט לזירה</button>
+      <button onclick="${navBtnJs}" style="width:100%;padding:8px;background:${color};color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;font-family:Heebo,sans-serif">🗺️ נווט לזירה</button>
       ${delBtn}
     </div>`});
   marker.addListener('click',()=>iw.open(window.map, marker));
-  // Auto-open only for the first/primary venue marker (markerId contains '_v1' or no '_v')
-  const isFirstVenue = !markerId || markerId.endsWith('_v1') || (!markerId.includes('_v'));
-  if(isFirstVenue) iw.open(window.map, marker);
+  // Wire close button to actually close the InfoWindow
+  google.maps.event.addListener(iw, 'domready', ()=>{
+    const btn = document.getElementById(iwId+'_close');
+    if(btn) btn.onclick = (e)=>{ e.stopPropagation(); iw.close(); };
+  });
   // Persist to Firebase so markers survive page reload
   if(!_noSave) _persistNotifMarker(mid, lat, lng, address, notif, venueLabel||label, venueColor||color);
 }
@@ -7308,6 +7317,14 @@ function openNavToLatLng(lat, lng, fallbackAddr){
   } else {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,'_blank');
   }
+}
+// Navigate to a venue by its ID (safe lookup — avoids onclick escaping issues)
+function _navToVenueId(vid){
+  const venues = window._incVenueList || [];
+  const v = venues.find(x=>x && x.id===vid);
+  if(!v) return;
+  if(v.lat && v.lng) openNavToLatLng(v.lat, v.lng, v.address||'');
+  else if(v.address) openNavToAddress(v.address);
 }
 
 function respondToNotif(approved){
