@@ -103,6 +103,16 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .inc-decline:hover{border-color:var(--danger);color:var(--danger)}
 .inc-addr-btn{width:100%;padding:10px 14px;background:rgba(41,197,246,0.12);border:1.5px solid rgba(41,197,246,0.4);border-radius:10px;color:var(--accent);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--font);transition:all 0.15s;text-align:center}
 .inc-addr-btn:hover{background:rgba(41,197,246,0.22);border-color:var(--accent)}
+/* Incident tags */
+.inc-tag{display:inline-flex;align-items:center;border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800;letter-spacing:0.02em;white-space:nowrap;border:1px solid transparent;cursor:default}
+.inc-tag-wrap{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.tag-chip{display:inline-flex;align-items:center;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid;transition:all 0.13s;user-select:none}
+.tag-chip.sel{filter:brightness(1.1)}
+.tag-chip:not(.sel){opacity:0.45;background:transparent!important}
+.tag-chip:hover{opacity:1}
+.inc-filter-bar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.inc-filter-chip{border-radius:20px;padding:3px 9px;font-size:10px;font-weight:800;cursor:pointer;border:1px solid;transition:all 0.12s;opacity:0.5;background:transparent}
+.inc-filter-chip.active{opacity:1}
 /* Emergency button on map */
 #map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
 #map-emergency-btn:hover{transform:scale(1.04);opacity:0.92}
@@ -1226,6 +1236,63 @@ let SHIFTS=[
 let ALERTS=[];
 let GFS=[];
 const INCIDENTS=[];
+const INCIDENT_TAGS=[
+  {id:'attack',     label:'פיגוע',             color:'#ff1111'},
+  {id:'stabbing',   label:'דקירה',             color:'#ff6600'},
+  {id:'shooting',   label:'ירי',               color:'#ff3333'},
+  {id:'infiltration',label:'חדירת מחבלים',    color:'#cc0000'},
+  {id:'bomb',       label:'חפ"מ',              color:'#ff4500'},
+  {id:'missile',    label:'טילים/כטב"מ',       color:'#ff1111'},
+  {id:'suspect',    label:'חשוד',              color:'#b06cf0'},
+  {id:'chase',      label:'מרדף',              color:'#ff7a1a'},
+  {id:'theft',      label:'גנבה',              color:'#f5c518'},
+  {id:'accident',   label:'תאונה',             color:'#29c5f6'},
+  {id:'search',     label:'חיפוש',             color:'#a8e800'},
+  {id:'rescue',     label:'חילוץ',             color:'#00e8b8'},
+  {id:'protest',    label:'הפגנה',             color:'#e0b800'},
+  {id:'fire',       label:'שריפה',             color:'#ff4500'},
+  {id:'casualty',   label:'נפגע',              color:'#ff3333'},
+  {id:'weapon',     label:'נשק',               color:'#cc0000'},
+  {id:'vehicle',    label:'רכב חשוד',          color:'#29c5f6'},
+  {id:'roadblock',  label:'מחסום',             color:'#f5c518'},
+  {id:'drugs',      label:'סמים',              color:'#9400d3'},
+  {id:'other',      label:'אחר',               color:'#888888'}
+];
+let _incTagFilter = null; // currently active tag filter (null = all)
+
+function _renderTagSelector(selected){
+  selected = selected||[];
+  return '<div style="margin-top:6px"><div style="font-size:11px;color:var(--text3);margin-bottom:5px;font-weight:700">תגיות</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:4px" id="inc-tag-sel">'
+    +INCIDENT_TAGS.map(function(t){
+      var isSel=selected.includes(t.id);
+      return '<span class="tag-chip'+(isSel?' sel':'')+'" style="color:'+(isSel?'#fff':t.color)+';border-color:'+t.color+';background:'+(isSel?t.color:'transparent')+'" data-tid="'+t.id+'" data-color="'+t.color+'" onclick="toggleIncTag(this)">'
+        +t.label+'</span>';
+    }).join('')
+    +'</div></div>';
+}
+function toggleIncTag(el){
+  var isSel=el.classList.toggle('sel');
+  var col=el.dataset.color;
+  if(isSel){el.style.background=col;el.style.color='#fff';}
+  else{el.style.background='transparent';el.style.color=col;}
+}
+function _getSelectedTags(){
+  var sel=document.querySelectorAll('#inc-tag-sel .tag-chip.sel');
+  return Array.from(sel).map(function(el){return el.dataset.tid;});
+}
+function _tagHtml(tags){
+  if(!tags||!tags.length) return '';
+  return '<div class="inc-tag-wrap">'+tags.map(function(tid){
+    var t=INCIDENT_TAGS.find(function(x){return x.id===tid;});
+    if(!t) return '';
+    return '<span class="inc-tag" style="background:'+t.color+'22;border-color:'+t.color+';color:'+t.color+'">'+t.label+'</span>';
+  }).join('')+'</div>';
+}
+function saveIncidentsToFirebase(){
+  if(window._db) window._db.ref('tac_incidents').set(INCIDENTS.length?INCIDENTS:null).catch(function(){});
+  try{localStorage.setItem('tac_incidents_local',JSON.stringify(INCIDENTS));}catch(e){}
+}
 const actLog=[
   {time:'10:22',txt:'🆘 SOS מ-U03 – MSN-001',type:'urgent'},
   {time:'10:20',txt:'MSN-002: פגישה חשודה זוהתה',type:'pending'},
@@ -4166,11 +4233,49 @@ function sendStatus(s){MSGS.unshift({id:Date.now(),from:'עדכון סטטוס',
 function renderIncidentsP(c){
   if(!c)c=document.getElementById('rp-body');
   _syncTitle('incidents');
-  c.innerHTML=`<div class="sec-hd">יומן אירועים (${INCIDENTS.length})</div>
-  <button class="btn-sec" onclick="addTestIncident()" style="margin-bottom:8px">+ דווח אירוע חדש</button>
-  ${INCIDENTS.map(inc=>`<div class="inc-item" style="border-right-color:${inc.type==='urgent'?'var(--danger)':inc.type==='warn'?'var(--warn)':inc.type==='rescue'?'var(--purple)':'var(--blue)'}"><div class="inc-hdr"><span class="inc-id">${inc.id}</span><span class="inc-time">${inc.time}</span></div><div class="inc-title">${inc.title}</div><div class="inc-meta">אזור: ${inc.area} | סטטוס: <strong>${inc.status}</strong> | יחידות: ${inc.units.join(', ')}</div></div>`).join('')}`;
+  // Collect all used tags for filter bar
+  var usedTagIds={};
+  INCIDENTS.forEach(function(inc){ (inc.tags||[]).forEach(function(tid){usedTagIds[tid]=true;}); });
+  var usedTags=INCIDENT_TAGS.filter(function(t){return usedTagIds[t.id];});
+  var filtered=_incTagFilter ? INCIDENTS.filter(function(inc){return (inc.tags||[]).includes(_incTagFilter);}) : INCIDENTS;
+  var filterBar=usedTags.length
+    ? '<div class="inc-filter-bar">'
+      +'<span style="font-size:10px;font-weight:800;color:var(--text3);padding:3px 2px;white-space:nowrap">סנן:</span>'
+      +usedTags.map(function(t){
+        var active=_incTagFilter===t.id;
+        return '<span class="inc-filter-chip'+(active?' active':'')+'" style="color:'+(active?'#fff':t.color)+';border-color:'+t.color+';'+(active?'background:'+t.color+';':'')+'" onclick="setIncTagFilter(\''+(active?'null':t.id)+'\')">'
+          +t.label+'</span>';
+      }).join('')
+      +'</div>'
+    : '';
+  c.innerHTML='<div class="sec-hd">יומן אירועים ('+INCIDENTS.length+')</div>'
+    +'<button class="btn-sec" onclick="addTestIncident()" style="margin-bottom:6px">+ דווח אירוע חדש</button>'
+    +filterBar
+    +filtered.map(function(inc){
+      var borderColor=inc.type==='urgent'?'var(--danger)':inc.type==='warn'?'var(--warn)':inc.type==='rescue'?'var(--purple)':'var(--blue)';
+      return '<div class="inc-item" style="border-right-color:'+borderColor+'">'
+        +'<div class="inc-hdr"><span class="inc-id">'+inc.id+'</span><span class="inc-time">'+inc.time+'</span></div>'
+        +'<div class="inc-title">'+inc.title+'</div>'
+        +'<div class="inc-meta">אזור: '+inc.area+' | סטטוס: <strong>'+inc.status+'</strong> | יחידות: '+inc.units.join(', ')+'</div>'
+        +_tagHtml(inc.tags)
+        +'</div>';
+    }).join('');
 }
-function addTestIncident(){const titles=['חשוד חמוש – שוק הכרמל','כלי רכב מסחרי חשוד','אירוע דקירה – תחנה מרכזית','פיצוץ מבוקר – חנות נטושה'];const areas=['תל אביב','חיפה','ירושלים','באר שבע'];const id='INC-'+String(INCIDENTS.length+1).padStart(3,'0');const t=titles[Math.floor(Math.random()*titles.length)];INCIDENTS.unshift({id,title:t,type:'warn',area:areas[Math.floor(Math.random()*areas.length)],time:nowT(),units:['U01'],status:'פתוח',desc:t});renderIncidentsP(document.getElementById('rp-body'));showToast({icon:'🚨',title:'אירוע חדש דווח',sub:t,type:'danger'})}
+function setIncTagFilter(tid){
+  _incTagFilter=(tid==='null'||tid===_incTagFilter)?null:tid;
+  renderIncidentsP(document.getElementById('rp-body'));
+}
+function addTestIncident(){
+  var titles=['חשוד חמוש – שוק הכרמל','כלי רכב מסחרי חשוד','אירוע דקירה – תחנה מרכזית','פיצוץ מבוקר – חנות נטושה'];
+  var tagSets=[['suspect','weapon'],['vehicle','suspect'],['stabbing','casualty'],['bomb']];
+  var areas=['תל אביב','חיפה','ירושלים','באר שבע'];
+  var ri=Math.floor(Math.random()*titles.length);
+  var id='INC-'+String(INCIDENTS.length+1).padStart(3,'0');
+  INCIDENTS.unshift({id,title:titles[ri],type:'warn',area:areas[Math.floor(Math.random()*areas.length)],time:nowT(),units:['U01'],status:'פתוח',desc:titles[ri],tags:tagSets[ri]||[]});
+  saveIncidentsToFirebase();
+  renderIncidentsP(document.getElementById('rp-body'));
+  showToast({icon:'🚨',title:'אירוע חדש דווח',sub:titles[ri],type:'danger'});
+}
 
 // ─── ANALYTICS ───
 function renderAnalP(c){
@@ -4920,6 +5025,7 @@ function boIncidents(c){
       +'<td style="font-size:12px">'+inc.time+'</td>'
       +'<td style="font-size:11px">'+inc.units.join(', ')+'</td>'
       +'<td><span class="badge" style="background:'+col+'22;border:1px solid '+col+';color:'+col+'">'+inc.status+'</span></td>'
+      +'<td style="max-width:140px">'+(inc.tags||[]).map(function(tid){var t=INCIDENT_TAGS.find(function(x){return x.id===tid;});return t?'<span class="inc-tag" style="background:'+t.color+'22;border-color:'+t.color+';color:'+t.color+'">'+t.label+'</span>':''}).join('')+'</td>'
       +'<td><div class="actions">'
       +'<button class="act-btn" data-i="'+i+'" onclick="editIncidentModal(+this.dataset.i)">✏️</button>'
       +'<button class="act-btn" data-i="'+i+'" onclick="quickStatusInc(+this.dataset.i)">⇄</button>'
@@ -4933,7 +5039,7 @@ function boIncidents(c){
     +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="exportIncidentsCSV()">⬇ CSV</button>'
     +'</div></div>'
     +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr>'
-    +'<th>מזהה</th><th>כותרת</th><th>אזור</th><th>שעה</th><th>יחידות</th><th>סטטוס</th><th>פעולות</th>'
+    +'<th>מזהה</th><th>כותרת</th><th>אזור</th><th>שעה</th><th>יחידות</th><th>סטטוס</th><th>תגיות</th><th>פעולות</th>'
     +'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function addIncidentModal(){
@@ -4943,7 +5049,8 @@ function addIncidentModal(){
     +'<div class="form-g"><label>אזור</label><input type="text" id="inc-area" placeholder="אזור האירוע..."/></div></div>'
     +'<div class="form-g"><label>תיאור</label><textarea id="inc-desc" placeholder="פרטי האירוע..."></textarea></div>'
     +'<div class="form-g"><label>יחידות</label><input type="text" id="inc-units" placeholder="U01, U04..."/></div>'
-    +'<div class="form-g"><label>סטטוס</label><select id="inc-status"><option value="פתוח">פתוח</option><option value="בטיפול">בטיפול</option><option value="סגור">סגור</option></select></div>';
+    +'<div class="form-g"><label>סטטוס</label><select id="inc-status"><option value="פתוח">פתוח</option><option value="בטיפול">בטיפול</option><option value="סגור">סגור</option></select></div>'
+    +_renderTagSelector([]);
   modalCB=function(){
     var title=document.getElementById('inc-title').value.trim();if(!title)return;
     INCIDENTS.unshift({id:'INC-'+String(INCIDENTS.length+1).padStart(3,'0'),title,
@@ -4951,7 +5058,9 @@ function addIncidentModal(){
       area:document.getElementById('inc-area').value||'—',time:nowT(),
       units:document.getElementById('inc-units').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
       status:document.getElementById('inc-status').value,
-      desc:document.getElementById('inc-desc').value});
+      desc:document.getElementById('inc-desc').value,
+      tags:_getSelectedTags()});
+    saveIncidentsToFirebase();
     boIncidents(document.getElementById('bo-inner'));
     showToast({icon:'🚨',title:'אירוע נוסף',sub:title,type:'danger'});
   };
@@ -4975,7 +5084,8 @@ function editIncidentModal(i){
     +'<option value="פתוח"'+(inc.status==='פתוח'?' selected':'')+'>פתוח</option>'
     +'<option value="בטיפול"'+(inc.status==='בטיפול'?' selected':'')+'>בטיפול</option>'
     +'<option value="סגור"'+(inc.status==='סגור'?' selected':'')+'>סגור</option>'
-    +'</select></div>';
+    +'</select></div>'
+    +_renderTagSelector(inc.tags||[]);
   modalCB=function(){
     inc.title=document.getElementById('inc-title').value||inc.title;
     inc.type=document.getElementById('inc-type').value;
@@ -4983,6 +5093,8 @@ function editIncidentModal(i){
     inc.desc=document.getElementById('inc-desc').value;
     inc.units=document.getElementById('inc-units').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
     inc.status=document.getElementById('inc-status').value;
+    inc.tags=_getSelectedTags();
+    saveIncidentsToFirebase();
     boIncidents(document.getElementById('bo-inner'));
     showToast({icon:'✏️',title:'אירוע עודכן',sub:inc.id,type:'success'});
   };
@@ -4992,12 +5104,14 @@ function quickStatusInc(i){
   var inc=INCIDENTS[i];if(!inc)return;
   var cycle={פתוח:'בטיפול',בטיפול:'סגור',סגור:'פתוח'};
   inc.status=cycle[inc.status]||'בטיפול';
+  saveIncidentsToFirebase();
   boIncidents(document.getElementById('bo-inner'));
   showToast({icon:'⇄',title:inc.id+': '+inc.status,type:'info',duration:2000});
 }
 function deleteIncident(i){
   if(!confirm('למחוק אירוע?'))return;
   INCIDENTS.splice(i,1);
+  saveIncidentsToFirebase();
   boIncidents(document.getElementById('bo-inner'));
   showToast({icon:'🗑️',title:'אירוע נמחק',type:'info'});
 }
@@ -7550,7 +7664,7 @@ const SYNC = (() => {
       _db = firebase.database();
       window._db = _db;
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeGeofences(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
@@ -7703,6 +7817,24 @@ const SYNC = (() => {
   }
 
   // ── Sync MISSIONS from Firebase so all devices see new missions in real-time ──
+  function _subscribeIncidents(){
+    if(!_db) return;
+    _db.ref('tac_incidents').on('value', function(snap){
+      var data=snap.val();
+      if(!data) return;
+      var arr=Array.isArray(data)?data:Object.values(data);
+      if(!arr.length) return;
+      var remoteIds=new Set(arr.map(function(m){return m&&m.id;}).filter(Boolean));
+      var localOnly=(typeof INCIDENTS!=='undefined')?INCIDENTS.filter(function(m){return m&&!remoteIds.has(m.id);}):[];
+      if(typeof INCIDENTS!=='undefined'){
+        INCIDENTS.length=0;
+        arr.filter(Boolean).forEach(function(m){INCIDENTS.push(m);});
+        localOnly.forEach(function(m){INCIDENTS.push(m);});
+      }
+      var c=document.getElementById('rp-body');
+      if(c&&typeof currentPanel!=='undefined'&&currentPanel==='incidents') renderIncidentsP(c);
+    });
+  }
   function _subscribeMissions(){
     if(!_db) return;
     // Restore notification markers from previous sessions
