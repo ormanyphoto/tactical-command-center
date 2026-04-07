@@ -51,7 +51,7 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #topbar-right{flex-shrink:0;display:flex;align-items:center;gap:6px}
 
 /* ── NOTIFICATION SYSTEM ── */
-#notif-modal-overlay{display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);align-items:center;justify-content:center}
+#notif-modal-overlay{display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.72);align-items:center;justify-content:center}
 #notif-modal-overlay.open{display:flex}
 #notif-modal{background:var(--panel);border:1px solid var(--border2);border-radius:16px;width:480px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:0}
 #notif-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border2)}
@@ -6570,9 +6570,12 @@ function selectNotifType(type, el){
 }
 
 function selectNotifTarget(target, el){
+  const prev = _activeNotifTarget;
   _activeNotifTarget = target;
   document.querySelectorAll('.nm-target-chip').forEach(c=>c.classList.remove('sel'));
   if(el) el.classList.add('sel');
+  // Clear individual selections when entering individual mode fresh (not already in it)
+  if(target === 'individual' && prev !== 'individual') _notifSelectedPersonnel = new Set();
   _renderRecipientsList();
 }
 
