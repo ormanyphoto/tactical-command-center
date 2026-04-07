@@ -227,7 +227,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-2-' + '2026040801';
+const CACHE = 'tac-v5-3-' + '2026040702';
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 
@@ -267,7 +267,7 @@ self.addEventListener('fetch', e => {
   if(e.request.mode === 'navigate' ||
      (e.request.headers.get('accept')||'').includes('text/html')){
     e.respondWith(
-      fetch(e.request)
+      fetch(e.request, {cache: 'no-store'})
         .then(res => {
           if(res.ok){ const cl=res.clone(); caches.open(CACHE).then(c=>c.put(e.request,cl)); }
           return res;
