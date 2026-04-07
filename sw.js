@@ -123,8 +123,13 @@ async function startSSE(personId, listenFrom){
 }
 
 async function _showNotif(notif){
-  const icons = { mission:'📋', message:'💬', alert:'⚠️' };
-  const icon  = icons[notif.type] || '📢';
+  // Pick icon based on threat urgency first, then type
+  const t = (notif.threat||'').trim();
+  let icon;
+  if(['חדירת מחבלים','ירי תמ״ס/כטב״מ'].includes(t))       icon = '🚨';
+  else if(['פיגוע','קוד פיגיון','רעידת אדמה'].includes(t))  icon = '⚡';
+  else if(['מחסומי רשת','אביר לילה ב׳','אביר לילה ג׳'].includes(t)) icon = '⚠️';
+  else { const icons = {mission:'📋', message:'💬', alert:'⚠️'}; icon = icons[notif.type]||'📢'; }
   const typeLabel = notif.typeLabel || notif.type || '';
   await self.registration.showNotification(
     icon + ' ' + (notif.title || 'מערכת מבצעים'),
@@ -227,7 +232,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040811';
+const CACHE = 'tac-v5-3-' + '2026040712';
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 

@@ -83,7 +83,15 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #incoming-notif-overlay{display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:center;justify-content:center}
 #incoming-notif-overlay.open{display:flex}
 #incoming-notif-card{background:var(--panel);border:2px solid var(--border2);border-radius:20px;width:340px;max-width:92vw;padding:28px 24px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.7)}
-.inc-icon{font-size:44px;line-height:1}
+.inc-icon{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34px;line-height:1;flex-shrink:0;transition:all 0.3s;background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.15)}
+@keyframes tac-pulse-crit{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,17,17,0.75)}50%{transform:scale(1.12);box-shadow:0 0 0 22px rgba(255,17,17,0)}}
+@keyframes tac-pulse-hi{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,102,0,0.6)}50%{transform:scale(1.07);box-shadow:0 0 0 15px rgba(255,102,0,0)}}
+@keyframes tac-pulse-med{0%,100%{transform:scale(1)}50%{transform:scale(1.04);box-shadow:0 0 12px rgba(224,184,0,0.4)}}
+.inc-icon.urg-3{background:radial-gradient(circle,rgba(255,17,17,0.28) 0%,rgba(255,17,17,0.07) 100%);border:2.5px solid rgba(255,17,17,0.82);animation:tac-pulse-crit 1.1s ease-in-out infinite}
+.inc-icon.urg-2{background:radial-gradient(circle,rgba(255,102,0,0.24) 0%,rgba(255,102,0,0.06) 100%);border:2px solid rgba(255,102,0,0.78);animation:tac-pulse-hi 1.5s ease-in-out infinite}
+.inc-icon.urg-1{background:radial-gradient(circle,rgba(224,184,0,0.22) 0%,rgba(224,184,0,0.05) 100%);border:2px solid rgba(224,184,0,0.65);animation:tac-pulse-med 2.5s ease-in-out infinite}
+.inc-icon.urg-0{background:radial-gradient(circle,rgba(41,197,246,0.2) 0%,rgba(41,197,246,0.05) 100%);border:1.5px solid rgba(41,197,246,0.5)}
+.inc-icon.urg-msg{background:radial-gradient(circle,rgba(176,108,240,0.2) 0%,rgba(176,108,240,0.05) 100%);border:1.5px solid rgba(176,108,240,0.5)}
 .inc-type{font-size:11px;font-weight:800;letter-spacing:0.08em;color:var(--text3);text-transform:uppercase}
 .inc-title{font-size:18px;font-weight:900;color:var(--texthi);line-height:1.3}
 .inc-body{font-size:13px;color:var(--text2);line-height:1.5}
@@ -6922,8 +6930,10 @@ function _showIncomingNotif(notif, fbRef){
   if(nid && _shownNotifIds.has(nid)) return;
   if(nid) _shownNotifIds.add(nid);
   _currentIncomingNotif = {notif, fbRef};
-  const icons = {mission:'📋', message:'💬', alert:'⚠️'};
-  document.getElementById('inc-icon').textContent = icons[notif.type]||'📢';
+  const gfx = _notifGraphic(notif.type, notif.threat);
+  const iconEl = document.getElementById('inc-icon');
+  iconEl.textContent = gfx.emoji;
+  iconEl.className = 'inc-icon ' + gfx.urgClass;
   document.getElementById('inc-type').textContent = notif.typeLabel||notif.type;
   const threatEl = document.getElementById('inc-threat');
   if(threatEl){ if(notif.threat){ threatEl.textContent='⚡ '+notif.threat; threatEl.style.display=''; } else { threatEl.style.display='none'; } }
@@ -6938,10 +6948,13 @@ function _showIncomingNotif(notif, fbRef){
     addrBtn.textContent = '📍 נווט — '+notif.address;
     addrBtn.dataset.addr = notif.address;
   } else if(addrWrap){ addrWrap.style.display='none'; }
-  // Color border by type
+  // Border + shadow by urgency
   const card = document.getElementById('incoming-notif-card');
-  const colors = {mission:'rgba(41,197,246,0.5)', message:'rgba(176,108,240,0.5)', alert:'rgba(255,51,51,0.5)'};
-  card.style.borderColor = colors[notif.type]||'var(--border2)';
+  const urgBorderMap = {3:'rgba(255,17,17,0.65)',2:'rgba(255,102,0,0.6)',1:'rgba(224,184,0,0.55)',0:'rgba(41,197,246,0.45)'};
+  card.style.borderColor = urgBorderMap[gfx.urgency] ?? (gfx.urgency<0 ? 'rgba(176,108,240,0.45)' : 'var(--border2)');
+  card.style.boxShadow = gfx.urgency>=2
+    ? `0 20px 60px ${gfx.color}3a, 0 0 0 1px ${gfx.color}22`
+    : '';
   document.getElementById('incoming-notif-overlay').classList.add('open');
   // Venue picker — show selectable venue buttons if multiple venues
   const venueWrap = document.getElementById('inc-venue-wrap');
@@ -7008,6 +7021,55 @@ function _showIncomingNotif(notif, fbRef){
   }
 }
 
+// ── Notification graphic config (type + threat → urgency level, colors, symbols) ──
+function _notifGraphic(type, threat){
+  const t = (threat||'').trim();
+  if(['חדירת מחבלים','ירי תמ״ס/כטב״מ'].includes(t))
+    return {emoji:'🚨', color:'#ff1111', urgency:3, urgClass:'urg-3', markerSym:'!'};
+  if(['פיגוע','קוד פיגיון','רעידת אדמה'].includes(t))
+    return {emoji:'⚡', color:'#ff6600', urgency:2, urgClass:'urg-2', markerSym:'!'};
+  if(['מחסומי רשת','אביר לילה ב׳','אביר לילה ג׳'].includes(t))
+    return {emoji:'⚠️', color:'#e0b800', urgency:1, urgClass:'urg-1', markerSym:'!'};
+  if(type==='alert')
+    return {emoji:'⚠️', color:'#ff7a1a', urgency:1, urgClass:'urg-1', markerSym:'!'};
+  if(type==='message')
+    return {emoji:'💬', color:'#b06cf0', urgency:-1, urgClass:'urg-msg', markerSym:'M'};
+  return {emoji:'📋', color:'#29c5f6', urgency:0, urgClass:'urg-0', markerSym:'T'};
+}
+
+// ── Lighten a #rrggbb hex color by amt (0-255) ──
+function _lightenHex(hex, amt){
+  try{
+    const h=hex.replace('#','');
+    const r=Math.min(255,parseInt(h.slice(0,2),16)+amt);
+    const g=Math.min(255,parseInt(h.slice(2,4),16)+amt);
+    const b=Math.min(255,parseInt(h.slice(4,6),16)+amt);
+    return '#'+[r,g,b].map(x=>Math.round(x).toString(16).padStart(2,'0')).join('');
+  }catch(e){return hex;}
+}
+
+// ── Build SVG data-URL marker icon (urgency-aware) ──
+function _makeNotifMarkerSVG(color, sym, urgency){
+  const sz=50, cx=25, cy=25;
+  const r = urgency>=3?21:urgency>=2?19:17;
+  const fsize = urgency>=3?'22':urgency>=2?'17':'14';
+  const fw = urgency>=2?'bold':'normal';
+  const sw = urgency>=2?'2.5':'2';
+  const lite = _lightenHex(color, 55);
+  const glow = urgency>=2
+    ? `<circle cx="${cx}" cy="${cy}" r="${r+8}" fill="${color}" fill-opacity="0.18"/>`
+    : '';
+  const ring2 = urgency>=3
+    ? `<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.5"/>`
+    : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}"><defs><radialGradient id="ng" cx="38%" cy="32%" r="65%"><stop offset="0%" stop-color="${lite}"/><stop offset="100%" stop-color="${color}"/></radialGradient></defs>${glow}${ring2}<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#ng)" stroke="rgba(255,255,255,0.9)" stroke-width="${sw}"/><text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" fill="white" font-family="Arial,Helvetica,sans-serif" font-size="${fsize}" font-weight="${fw}">${sym}</text></svg>`;
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(sz, sz),
+    anchor: new google.maps.Point(cx, cy)
+  };
+}
+
 let _notifMapMarkers = {}; // id → google.maps.Marker — NEVER auto-deleted, admin-only removal
 function _removeNotifMarker(id){
   if(_notifMapMarkers[id]){ _notifMapMarkers[id].setMap(null); delete _notifMapMarkers[id]; }
@@ -7015,22 +7077,17 @@ function _removeNotifMarker(id){
 function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, markerId){
   if(!window.map||!window.google) return;
   const mid = markerId || ('nm_'+Date.now().toString(36));
-  const color = venueColor || ({mission:'#29c5f6', message:'#b06cf0', alert:'#ff3333'}[notif&&notif.type]||'#ff3333');
+  const gfx2 = _notifGraphic(notif&&notif.type, notif&&notif.threat);
+  const color = venueColor || gfx2.color;
   const label = venueLabel || notif&&notif.title || address;
   const isAdmin = (typeof AUTH!=='undefined') && AUTH.getUser() &&
     (AUTH.getUser().permsOverride||[]).includes('admin') ||
     ['מפקד יחידה','מפקד חפ״ק'].includes((typeof AUTH!=='undefined'&&AUTH.getUser())?AUTH.getUser().role:'');
+  const markerIcon = _makeNotifMarkerSVG(color, gfx2.markerSym, gfx2.urgency);
   const marker = new google.maps.Marker({
     position:{lat,lng}, map:window.map,
     title: label,
-    icon:{
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 14,
-      fillColor: color,
-      fillOpacity: 0.95,
-      strokeColor: '#fff',
-      strokeWeight: 3
-    },
+    icon: markerIcon,
     zIndex: 9999,
     animation: google.maps.Animation.BOUNCE
   });
@@ -7101,7 +7158,7 @@ function respondToNotif(approved){
     if(notif.sentAt > prev) localStorage.setItem(key, notif.sentAt);
   }
 
-  // Close overlay + reset venue picker state for next notification
+  // Close overlay + reset state for next notification
   document.getElementById('incoming-notif-overlay').classList.remove('open');
   _currentIncomingNotif = null;
   const _ib = document.getElementById('inc-btns');
@@ -7112,6 +7169,11 @@ function respondToNotif(approved){
   }
   const _vw = document.getElementById('inc-venue-wrap');
   if(_vw) _vw.style.display = 'none';
+  // Reset icon + card to neutral state
+  const _ic = document.getElementById('inc-icon');
+  if(_ic) _ic.className = 'inc-icon';
+  const _card = document.getElementById('incoming-notif-card');
+  if(_card){ _card.style.borderColor=''; _card.style.boxShadow=''; }
 
   if(approved){
     // Auto-enable live location
