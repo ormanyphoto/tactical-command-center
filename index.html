@@ -6486,6 +6486,8 @@ function toggleLocPrivacy(){
       const profile=u?{name:u.name,role:u.role||'לוחם',status:'active'}:null;
       SYNC.startPublishing(profile);
     }
+    // Immediately center map and show position locally — don't wait for Firebase roundtrip
+    if(typeof locateMe==='function') setTimeout(locateMe, 300);
     showToast({icon:'📍',title:'מיקום פעיל',sub:'המיקום שלך גלוי לצוות',type:'success'});
   } else {
     if(typeof SYNC!=='undefined') SYNC.stopPublishing();
@@ -7206,9 +7208,18 @@ const SYNC = (() => {
     if(!_db) return;
     _db.ref('tac_geofences').on('value', snap=>{
       const data = snap.val();
-      if(!data) return;
+      // Handle null or empty — all geofences deleted remotely
+      if(!data || (Array.isArray(data) ? !data.length : !Object.keys(data).length)){
+        if(typeof GFS!=='undefined') GFS.length = 0;
+        if(typeof plotGFs==='function'){
+          if(window.map && window._googleReady) plotGFs();
+          else setTimeout(()=>{ if(typeof plotGFs==='function') plotGFs(); }, 1500);
+        }
+        if(typeof renderGfP==='function' && typeof currentPanel!=='undefined' && currentPanel==='geofence')
+          renderGfP(document.getElementById('rp-body'));
+        return;
+      }
       const arr = Array.isArray(data) ? data : Object.values(data);
-      if(!arr.length) return;
       // Replace local GFS with remote, preserving any local-only entries
       const remoteIds = new Set(arr.map(g=>g&&g.id).filter(Boolean));
       const localOnly = (typeof GFS!=='undefined') ? GFS.filter(g=>g&&!remoteIds.has(g.id)) : [];
