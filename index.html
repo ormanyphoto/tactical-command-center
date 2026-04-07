@@ -5606,13 +5606,21 @@ function loadPersonnelFromStorage(){
     const t=localStorage.getItem('tac_teams');
     if(p){
       const saved=JSON.parse(p);
-      // Merge: keep hardcoded entries as base, overlay saved data,
-      // and preserve any extra entries added via Back Office
+      // Merge: hardcoded entries are the base. localStorage overlays edits.
+      // Extra users added via Back Office are appended.
+      // NEVER overwrite a non-empty photo with an empty string —
+      // Firebase is the source of truth for photos.
       const merged=[...PERSONNEL];
       saved.forEach(sp=>{
         const idx=merged.findIndex(hp=>hp.id===sp.id||hp.email===sp.email);
-        if(idx>-1) Object.assign(merged[idx],sp);
-        else merged.push(sp);
+        if(idx>-1){
+          const existingPhoto=merged[idx].photo;
+          Object.assign(merged[idx],sp);
+          // Restore photo if saved entry has none (Firebase will re-apply the real one)
+          if(!merged[idx].photo && existingPhoto) merged[idx].photo=existingPhoto;
+        } else {
+          merged.push(sp);
+        }
       });
       PERSONNEL.splice(0,PERSONNEL.length,...merged);
     }
@@ -7653,10 +7661,14 @@ const SYNC = (() => {
     _db.ref('tac_photos').once('value', snap=>{
       const data = snap.val();
       if(!data) return;
+      let changed=false;
       Object.entries(data).forEach(([pid, url])=>{
         const p = PERSONNEL.find(x=>x.id===pid);
-        if(p && url){ p.photo = url; }
+        if(p && url){ p.photo = url; changed=true; }
       });
+      if(!changed) return;
+      // Persist to localStorage so photos survive page reload without waiting for Firebase
+      if(typeof savePersonnelToStorage==='function') savePersonnelToStorage();
       // Re-render personnel panel if open
       const rpBody = document.getElementById('rp-body');
       if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
