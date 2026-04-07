@@ -104,6 +104,20 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .approvals-section{background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px}
 .approvals-hdr{font-size:12px;font-weight:800;color:#22c55e;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .approval-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.nm-venues-wrap{display:flex;flex-direction:column;gap:8px}
+.nm-venue-row{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px}
+.nm-venue-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.nm-venue-input{flex:1;background:transparent;border:none;outline:none;font-family:var(--font);font-size:13px;color:var(--texthi);direction:rtl}
+.nm-venue-input::placeholder{color:var(--text3)}
+.nm-add-venue-btn{background:rgba(61,255,82,0.1);border:1px dashed var(--accent);color:var(--accent);border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);width:100%;text-align:center;transition:background 0.15s}
+.nm-add-venue-btn:hover{background:rgba(61,255,82,0.2)}
+.nm-venue-del{background:none;border:none;color:var(--text3);font-size:15px;cursor:pointer;padding:0 2px;line-height:1;flex-shrink:0}
+.nm-venue-del:hover{color:var(--danger)}
+.inc-venue-list{display:flex;flex-direction:column;gap:8px;width:100%}
+.inc-venue-btn{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:700;color:var(--texthi);text-align:right;transition:all 0.15s;width:100%}
+.inc-venue-btn:hover{border-color:var(--accent);background:var(--glow)}
+.inc-venue-btn.selected{border-color:var(--accent);background:var(--glow);color:var(--accent)}
+.venue-group-hdr{font-size:11px;font-weight:800;color:var(--text3);padding:4px 0 2px;border-bottom:1px solid var(--border);margin-bottom:2px;display:flex;align-items:center;gap:6px}
 .approval-item:last-child{border-bottom:none}
 .approval-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 6px #22c55e}
 .approval-name{font-size:12px;font-weight:700;color:var(--texthi);flex:1}
@@ -822,10 +836,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
           <div class="nm-label">תוכן</div>
           <textarea class="nm-input nm-textarea" id="nm-body" placeholder="פרטי ההודעה, המשימה או ההתראה..."></textarea>
         </div>
-        <!-- Address -->
+        <!-- Venues -->
         <div>
-          <div class="nm-label">📍 כתובת אירוע <span style="font-weight:500;color:var(--text3)">— תסומן אוטומטית במפה + ניווט ישיר</span></div>
-          <input class="nm-input" id="nm-addr-notif" placeholder="רחוב ומספר, עיר..." autocomplete="off" />
+          <div class="nm-label">📍 זירות אירוע <span style="font-weight:500;color:var(--text3)">— כל זירה תסומן במפה + ניווט ישיר</span></div>
+          <div class="nm-venues-wrap" id="nm-venues-list"></div>
+          <button class="nm-add-venue-btn" onclick="addNotifVenue()" style="margin-top:6px">＋ הוסף זירה נוספת</button>
+          <!-- hidden compat field -->
+          <input type="hidden" id="nm-addr-notif" />
         </div>
         <!-- Target -->
         <div>
@@ -857,8 +874,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div id="inc-addr-wrap" style="display:none;width:100%">
         <button class="inc-addr-btn" id="inc-addr-btn" onclick="openNavToAddress(this.dataset.addr)">📍</button>
       </div>
+      <!-- multi-venue picker — shown when venues.length > 1 -->
+      <div id="inc-venue-wrap" style="display:none;width:100%">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-align:center">בחר את הזירה שאתה מגיע אליה:</div>
+        <div class="inc-venue-list" id="inc-venue-list"></div>
+      </div>
       <div class="inc-sender" id="inc-sender"></div>
-      <div class="inc-btns">
+      <div class="inc-btns" id="inc-btns">
         <button class="inc-approve" onclick="respondToNotif(true)">✅ אשר — מגיע</button>
         <button class="inc-decline" onclick="respondToNotif(false)">❌ לא זמין</button>
       </div>
@@ -6585,11 +6607,70 @@ let _approvalsListener = null;
 let _incomingListener = null;
 let _shownNotifIds = new Set(); // dedup — prevents same notification showing twice
 
+const VENUE_COLORS = ['#29c5f6','#ff7a1a','#a8e800','#b06cf0','#ff4aaa','#00e8b8'];
+function _venueColor(idx){ return VENUE_COLORS[idx % VENUE_COLORS.length]; }
+
+function addNotifVenue(address){
+  const list = document.getElementById('nm-venues-list');
+  if(!list) return;
+  const idx = list.children.length;
+  const color = _venueColor(idx);
+  const label = 'זירה ' + (idx+1);
+  const row = document.createElement('div');
+  row.className = 'nm-venue-row';
+  row.dataset.idx = idx;
+  row.innerHTML = `
+    <div class="nm-venue-dot" style="background:${color}"></div>
+    <input class="nm-venue-input" placeholder="${label} — רחוב ומספר, עיר..." value="${address||''}" autocomplete="off" data-label="${label}" data-color="${color}" />
+    <button class="nm-venue-del" onclick="this.closest('.nm-venue-row').remove();_reindexVenues()" title="הסר זירה">✕</button>`;
+  list.appendChild(row);
+  // Attach Google Autocomplete
+  const inp = row.querySelector('input');
+  if(window.google && google.maps.places){
+    const ac = new google.maps.places.Autocomplete(inp, {
+      componentRestrictions:{country:'il'},
+      fields:['formatted_address','geometry','name'],
+      language:'he'
+    });
+    ac.addListener('place_changed', ()=>{
+      const place = ac.getPlace();
+      if(place && place.formatted_address) inp.value = place.formatted_address;
+    });
+  }
+}
+
+function _reindexVenues(){
+  const list = document.getElementById('nm-venues-list');
+  if(!list) return;
+  [...list.children].forEach((row,i)=>{
+    row.dataset.idx = i;
+    const dot = row.querySelector('.nm-venue-dot');
+    const inp = row.querySelector('input');
+    const color = _venueColor(i);
+    const label = 'זירה '+(i+1);
+    if(dot) dot.style.background = color;
+    if(inp){ inp.dataset.label=label; inp.dataset.color=color; inp.placeholder=label+' — רחוב ומספר, עיר...'; }
+  });
+}
+
+function _getNotifVenues(){
+  const list = document.getElementById('nm-venues-list');
+  if(!list) return [];
+  return [...list.querySelectorAll('.nm-venue-input')]
+    .map((inp,i)=>({
+      id: 'v'+(i+1),
+      label: inp.dataset.label||('זירה '+(i+1)),
+      address: inp.value.trim(),
+      color: inp.dataset.color||_venueColor(i),
+      lat: null, lng: null
+    }))
+    .filter(v=>v.address);
+}
+
 function openNotifModal(){
   // Build team chips
   const row = document.getElementById('nm-target-row');
   if(row){
-    // Remove old team chips (keep 'all')
     row.querySelectorAll('[data-target]:not([data-target="all"])').forEach(c=>c.remove());
     TEAMS.forEach(t=>{
       const chip = document.createElement('div');
@@ -6599,7 +6680,6 @@ function openNotifModal(){
       chip.onclick = ()=>selectNotifTarget('team:'+t.id, chip);
       row.appendChild(chip);
     });
-    // Individual chip
     const indChip = document.createElement('div');
     indChip.className = 'nm-target-chip';
     indChip.dataset.target = 'individual';
@@ -6610,22 +6690,11 @@ function openNotifModal(){
   selectNotifTarget('all', document.querySelector('[data-target="all"]'));
   const threatEl = document.getElementById('nm-threat');
   if(threatEl) threatEl.value = '';
+  // Reset venues — start with one empty venue
+  const venueList = document.getElementById('nm-venues-list');
+  if(venueList){ venueList.innerHTML=''; addNotifVenue(); }
   document.getElementById('notif-modal-overlay').classList.add('open');
-  // Attach Google Places Autocomplete to address field (once)
-  const addrEl = document.getElementById('nm-addr-notif');
-  if(addrEl && !addrEl._acAttached && window.google && google.maps.places){
-    const ac = new google.maps.places.Autocomplete(addrEl, {
-      componentRestrictions:{country:'il'},
-      fields:['formatted_address','geometry','name'],
-      language:'he'
-    });
-    ac.addListener('place_changed', ()=>{
-      const place = ac.getPlace();
-      if(place && place.formatted_address) addrEl.value = place.formatted_address;
-    });
-    addrEl._acAttached = true;
-  }
-  setTimeout(()=>{ const a=document.getElementById('nm-addr-notif'); if(a) a.focus(); }, 50);
+  setTimeout(()=>{ const v=document.querySelector('#nm-venues-list .nm-venue-input'); if(v) v.focus(); }, 50);
 }
 
 function closeNotifModal(){
@@ -6696,77 +6765,76 @@ function toggleNotifRecipient(pid, checked){
 
 function sendNotification(){
   const title = (document.getElementById('nm-title')||{}).value||'';
-  const body = (document.getElementById('nm-body')||{}).value||'';
+  const body  = (document.getElementById('nm-body')||{}).value||'';
   if(!title.trim()){showToast({icon:'⚠️',title:'נא להזין כותרת',type:'warn'});return;}
+
+  const venues = _getNotifVenues();
+  if(!venues.length){showToast({icon:'⚠️',title:'נא להזין לפחות זירה אחת',type:'warn'});return;}
 
   const db = window._db || (typeof SYNC!=='undefined' && SYNC._db);
   if(!db){showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'});return;}
 
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   const senderName = u ? u.name : 'מפקד';
-  const senderId = u ? u.id : '';
-  const notifId = 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
+  const senderId   = u ? u.id   : '';
+  const notifId    = 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   const typeLabels = {mission:'משימה', message:'הודעה', alert:'התראה'};
-  const address = ((document.getElementById('nm-addr-notif')||{}).value||'').trim();
-  const threat  = ((document.getElementById('nm-threat')||{}).value||'').trim();
+  const threat     = ((document.getElementById('nm-threat')||{}).value||'').trim();
 
   _activeNotifId = notifId;
-  const payload = {
-    id: notifId,
-    type: _activeNotifType,
-    typeLabel: typeLabels[_activeNotifType]||_activeNotifType,
-    title: title.trim(),
-    body: body.trim(),
-    address,
-    threat,
-    senderName,
-    senderId,
-    sentAt: Date.now()
-  };
 
-  // Determine recipients
-  let recipientIds = [];
-  if(_activeNotifTarget === 'all'){
-    recipientIds = PERSONNEL.map(p=>p.id);
-  } else {
-    recipientIds = [..._notifSelectedPersonnel];
-  }
-
-  showToast({icon:'📢',title:'שולח הודעה...',sub:title,type:'info',duration:2000});
-
-  // Geocode first (if address), then write to Firebase with lat/lng included
-  function _doSend(){
-    // Store destination for ETA calculations in the approvals panel
-    window._activeNotifDest = {
-      lat: payload.lat||null, lng: payload.lng||null,
-      address: payload.address||''
+  // Geocode all venues, then send
+  let pending = venues.length;
+  function _onAllGeocoded(){
+    const payload = {
+      id: notifId,
+      type: _activeNotifType,
+      typeLabel: typeLabels[_activeNotifType]||_activeNotifType,
+      title: title.trim(),
+      body: body.trim(),
+      threat,
+      venues,                         // full venues array
+      address: venues[0].address,     // compat: primary address
+      lat: venues[0].lat||null,
+      lng: venues[0].lng||null,
+      senderName,
+      senderId,
+      sentAt: Date.now()
     };
-    const writes = recipientIds.map(pid =>
-      db.ref('tac_notifications/'+pid+'/'+notifId).set(payload)
-    );
+
+    // Store active venues for ETA panel
+    window._activeNotifVenues = venues;
+    window._activeNotifDest = { lat: payload.lat, lng: payload.lng, address: payload.address };
+
+    // Determine recipients
+    let recipientIds = (_activeNotifTarget === 'all') ? PERSONNEL.map(p=>p.id) : [..._notifSelectedPersonnel];
+
+    showToast({icon:'📢',title:'שולח הודעה...',sub:title,type:'info',duration:2000});
+
+    const writes = recipientIds.map(pid => db.ref('tac_notifications/'+pid+'/'+notifId).set(payload));
     db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
+
     Promise.all(writes).then(()=>{
       showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
       closeNotifModal();
       if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
       _listenApprovals(notifId);
-      // ── Auto-create mission on map for "mission" type notifications ──
+
+      // Place markers for ALL venues — never remove existing ones
+      venues.forEach(v=>{
+        if(v.lat && v.lng) _placeNotifMarker(v.lat, v.lng, v.address, payload, v.label, v.color, 'notif_'+notifId+'_'+v.id);
+      });
+
+      // Auto-create mission for "mission" type
       if(payload.type === 'mission' && payload.title){
         const mId = 'NM_'+Date.now().toString(36).toUpperCase();
-        // Use geocoded coords, or fall back to current map center
-        let mLat = payload.lat||null;
-        let mLng = payload.lng||null;
-        if(!mLat && window.map){
-          const c = window.map.getCenter();
-          if(c){ mLat = c.lat(); mLng = c.lng(); }
-        }
         MISSIONS.push({
-          id: mId, title: payload.title, type: 'rescue', status: 'active',
-          priority: 'high', teams: [], progress: 0,
-          objective: payload.body||'', address: payload.address||'',
-          lat: mLat, lng: mLng,
-          checklist: [], requiredSkills: [], equipment: '',
-          timeline: [{t: nowT(), txt: 'משימה נוצרה מהתראה — '+payload.senderName}]
+          id:mId, title:payload.title, type:'rescue', status:'active',
+          priority:'high', teams:[], progress:0,
+          objective:payload.body||'', address:payload.address||'',
+          lat:payload.lat, lng:payload.lng,
+          checklist:[], requiredSkills:[], equipment:'',
+          timeline:[{t:nowT(), txt:'משימה נוצרה מהתראה — '+payload.senderName}]
         });
         if(typeof saveToCloud==='function') saveToCloud();
         if(typeof plotMissions==='function') setTimeout(plotMissions, 300);
@@ -6776,19 +6844,21 @@ function sendNotification(){
     }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
   }
 
-  if(address && window._geocoder && window.map){
-    window._geocoder.geocode({address, region:'il'}, (results, status)=>{
-      if(status==='OK' && results[0]){
-        const loc = results[0].geometry.location;
-        payload.lat = loc.lat();
-        payload.lng = loc.lng();
-        _placeNotifMarker(payload.lat, payload.lng, address, payload);
-      }
-      _doSend(); // send after geocode (with or without coords)
-    });
-  } else {
-    _doSend();
-  }
+  // Geocode each venue with address
+  venues.forEach((v,i)=>{
+    if(v.address && window._geocoder){
+      window._geocoder.geocode({address:v.address, region:'il'}, (results, status)=>{
+        if(status==='OK' && results[0]){
+          const loc = results[0].geometry.location;
+          venues[i].lat = loc.lat();
+          venues[i].lng = loc.lng();
+        }
+        if(--pending === 0) _onAllGeocoded();
+      });
+    } else {
+      if(--pending === 0) _onAllGeocoded();
+    }
+  });
 }
 
 /* ── Listen for incoming notifications ── */
@@ -6853,38 +6923,68 @@ function _showIncomingNotif(notif, fbRef){
   const colors = {mission:'rgba(41,197,246,0.5)', message:'rgba(176,108,240,0.5)', alert:'rgba(255,51,51,0.5)'};
   card.style.borderColor = colors[notif.type]||'var(--border2)';
   document.getElementById('incoming-notif-overlay').classList.add('open');
-  // Mark address on map (retry until map is ready)
-  if(notif.address || (notif.lat && notif.lng)){
+  // Venue picker — show selectable venue buttons if multiple venues
+  const venueWrap = document.getElementById('inc-venue-wrap');
+  const venueList = document.getElementById('inc-venue-list');
+  const incBtns   = document.getElementById('inc-btns');
+  window._pendingVenueId = null;
+  if(notif.venues && notif.venues.length > 1 && venueWrap && venueList){
+    venueWrap.style.display = '';
+    venueList.innerHTML = notif.venues.map(v=>`
+      <button class="inc-venue-btn" data-vid="${v.id}" onclick="
+        document.querySelectorAll('.inc-venue-btn').forEach(b=>b.classList.remove('selected'));
+        this.classList.add('selected');
+        window._pendingVenueId='${v.id}';
+        openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}');
+      ">
+        <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
+        <span style="flex:1;text-align:right">${v.label} — ${v.address}</span>
+      </button>`).join('');
+    // Swap approve button to require venue selection
+    if(incBtns) incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true);
+  } else {
+    if(venueWrap) venueWrap.style.display = 'none';
+    if(incBtns) incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true);
+  }
+
+  // Mark ALL venue addresses on map (retry until map is ready)
+  const _venuesToMark = (notif.venues && notif.venues.length > 0) ? notif.venues : (notif.address ? [{address:notif.address, lat:notif.lat, lng:notif.lng, label:'', color:'#ff3333', id:'v1'}] : []);
+  if(_venuesToMark.length){
     const _tryMark = (attempts) => {
       if(window.map && window.google){
-        if(notif.lat && notif.lng){
-          _placeNotifMarker(notif.lat, notif.lng, notif.address||'', notif);
-        } else if(window._geocoder){
-          window._geocoder.geocode({address:notif.address, region:'il'}, (res,st)=>{
-            if(st==='OK' && res[0]){
-              const loc=res[0].geometry.location;
-              _placeNotifMarker(loc.lat(), loc.lng(), notif.address, notif);
-            }
-          });
-        }
+        _venuesToMark.forEach((v,i)=>{
+          const markFn = (lat, lng) => _placeNotifMarker(lat, lng, v.address||'', notif, v.label||notif.title, v.color||'#ff3333', 'inc_'+notif.id+'_'+v.id);
+          if(v.lat && v.lng){
+            markFn(v.lat, v.lng);
+          } else if(v.address && window._geocoder){
+            window._geocoder.geocode({address:v.address, region:'il'}, (res,st)=>{
+              if(st==='OK' && res[0]){ const loc=res[0].geometry.location; markFn(loc.lat(), loc.lng()); }
+            });
+          }
+        });
       } else if(attempts > 0){
         setTimeout(()=>_tryMark(attempts-1), 1000);
       }
     };
-    _tryMark(10); // retry up to 10 seconds
+    _tryMark(10);
   }
 }
 
-// Place a mission/event marker on the map for notification address
-let _notifMapMarker = null;
-function _placeNotifMarker(lat, lng, address, notif){
+let _notifMapMarkers = {}; // id → google.maps.Marker — NEVER auto-deleted, admin-only removal
+function _removeNotifMarker(id){
+  if(_notifMapMarkers[id]){ _notifMapMarkers[id].setMap(null); delete _notifMapMarkers[id]; }
+}
+function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, markerId){
   if(!window.map||!window.google) return;
-  if(_notifMapMarker) _notifMapMarker.setMap(null);
-  const typeColors = {mission:'#29c5f6', message:'#b06cf0', alert:'#ff3333'};
-  const color = typeColors[notif.type]||'#29c5f6';
-  _notifMapMarker = new google.maps.Marker({
+  const mid = markerId || ('nm_'+Date.now().toString(36));
+  const color = venueColor || ({mission:'#29c5f6', message:'#b06cf0', alert:'#ff3333'}[notif&&notif.type]||'#ff3333');
+  const label = venueLabel || notif&&notif.title || address;
+  const isAdmin = (typeof AUTH!=='undefined') && AUTH.getUser() &&
+    (AUTH.getUser().permsOverride||[]).includes('admin') ||
+    ['מפקד יחידה','מפקד חפ״ק'].includes((typeof AUTH!=='undefined'&&AUTH.getUser())?AUTH.getUser().role:'');
+  const marker = new google.maps.Marker({
     position:{lat,lng}, map:window.map,
-    title: notif.title||address,
+    title: label,
     icon:{
       path: google.maps.SymbolPath.CIRCLE,
       scale: 14,
@@ -6896,13 +6996,22 @@ function _placeNotifMarker(lat, lng, address, notif){
     zIndex: 9999,
     animation: google.maps.Animation.BOUNCE
   });
-  setTimeout(()=>{ if(_notifMapMarker) _notifMapMarker.setAnimation(null); }, 3000);
-  // Pan map to marker
+  setTimeout(()=>{ if(marker) marker.setAnimation(null); }, 3000);
+  _notifMapMarkers[mid] = marker;
   window.map.panTo({lat,lng});
-  // Info window
-  const iw = new google.maps.InfoWindow({content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 6px"><b style="font-size:13px">${notif.title||''}</b><br/><span style="font-size:11px;color:#555">📍 ${address}</span></div>`});
-  _notifMapMarker.addListener('click',()=>iw.open(window.map, _notifMapMarker));
-  iw.open(window.map, _notifMapMarker);
+  const threatHtml = (notif&&notif.threat) ? `<div style="font-size:12px;font-weight:700;color:#ff3333;background:rgba(255,51,51,0.08);border-radius:5px;padding:3px 8px;margin-bottom:5px">⚡ ${notif.threat}</div>` : '';
+  const bodyHtml  = (notif&&notif.body)   ? `<div style="font-size:11px;color:#555;margin-bottom:5px;max-height:60px;overflow:hidden;direction:rtl">${notif.body}</div>` : '';
+  const delBtn    = isAdmin ? `<button onclick="_removeNotifMarker('${mid}')" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר זירה (אדמין)</button>` : '';
+  const iw = new google.maps.InfoWindow({content:`
+    <div style="font-family:Heebo,sans-serif;direction:rtl;padding:6px 8px;min-width:200px;max-width:280px">
+      <div style="font-size:13px;font-weight:900;color:${color};margin-bottom:4px">${label}</div>
+      ${threatHtml}${bodyHtml}
+      <div style="font-size:11px;color:#888;margin-bottom:6px">📍 ${address}</div>
+      <button onclick="openNavToAddress('${address.replace(/'/g,"\\'")}');event.stopPropagation()" style="width:100%;padding:8px;background:${color};color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:800;cursor:pointer;font-family:Heebo,sans-serif">🗺️ נווט לזירה</button>
+      ${delBtn}
+    </div>`});
+  marker.addListener('click',()=>iw.open(window.map, marker));
+  iw.open(window.map, marker);
 }
 
 function openNavToAddress(addr){
@@ -6935,6 +7044,7 @@ function respondToNotif(approved){
       role: u.role||'',
       color: u.color||'#29c5f6',
       approved,
+      venueId: window._pendingVenueId || null,
       ts: Date.now()
     });
     // Remove notification from queue (fbRef may be null if notification came via SSE/push)
@@ -7029,16 +7139,50 @@ function _haversineKm(lat1,lng1,lat2,lng2){
   const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
+// ETA cache: key = "personId|lat|lng" → {mins, ts}
+const _etaCache = {};
 function _calcETAString(personId, destLat, destLng){
   if(!destLat||!destLng) return null;
   const loc = (window._liveLocs||{})[personId];
   if(!loc||!loc.lat||!loc.lng) return null;
   if(Date.now()-loc.ts > 300000) return null; // stale > 5 min
+  const cacheKey = personId+'|'+destLat.toFixed(4)+'|'+destLng.toFixed(4);
+  const cached = _etaCache[cacheKey];
+  if(cached && Date.now()-cached.ts < 120000) return cached.str; // 2-min cache
+
+  // Use Google Directions API for accurate road-based ETA
+  if(window.google && google.maps.DirectionsService){
+    const svc = new google.maps.DirectionsService();
+    svc.route({
+      origin: new google.maps.LatLng(loc.lat, loc.lng),
+      destination: new google.maps.LatLng(destLat, destLng),
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS }
+    }, (result, status)=>{
+      if(status==='OK' && result.routes[0] && result.routes[0].legs[0]){
+        const leg = result.routes[0].legs[0];
+        const durSec = (leg.duration_in_traffic||leg.duration).value;
+        const mins = Math.ceil(durSec/60);
+        let str;
+        if(mins < 1) str = 'פחות מ-1 דק\'';
+        else if(mins < 60) str = '~'+mins+' דק\'';
+        else { const h=Math.floor(mins/60),m=mins%60; str='~'+h+'שע\''+(m?' '+m+'דק\'':''); }
+        _etaCache[cacheKey] = {str, ts: Date.now()};
+        // Refresh approvals panel with new ETA
+        const c = document.getElementById('rp-body');
+        if(c && (currentPanel==='units'||currentPanel==='personnel')){
+          const el = c.querySelector('.approvals-section');
+          if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); if(tmp.firstChild) el.replaceWith(tmp.firstChild); }
+        }
+      }
+    });
+  }
+  // While waiting for Directions API, fall back to haversine estimate
   const distKm = _haversineKm(loc.lat, loc.lng, destLat, destLng);
-  const roadKm  = distKm * 1.3; // straight-line → road factor
-  const kmh = (loc.spd > 3) ? Math.max(loc.spd, 10) : 50; // actual speed or 50 km/h default
+  const roadKm = distKm * 1.35;
+  const kmh = (loc.spd > 3) ? Math.max(loc.spd, 10) : 50;
   const mins = Math.round((roadKm / kmh) * 60);
-  if(mins < 1)  return 'פחות מ-1 דק\'';
+  if(mins < 1) return 'פחות מ-1 דק\'';
   if(mins < 60) return '~'+mins+' דק\'';
   const h=Math.floor(mins/60), m=mins%60;
   return '~'+h+'שע\''+(m?' '+m+'דק\'':'');
@@ -7047,32 +7191,74 @@ function _calcETAString(personId, destLat, destLng){
 function renderApprovalsSection(){
   const entries = Object.values(_approvalsData);
   if(!entries.length) return '';
-  const dest = window._activeNotifDest;
-  const hasDest = dest && dest.lat && dest.lng;
-  return `<div class="approvals-section">
-    <div class="approvals-hdr">
-      <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
-      מאשרים ומגיעים (${entries.length})
-      ${hasDest&&dest.address?`<span style="font-size:10px;color:var(--text3);font-weight:400;margin-right:6px">→ ${dest.address}</span>`:''}
-    </div>
-    ${entries.map(e=>{
-      const eta = hasDest ? _calcETAString(e.personId, dest.lat, dest.lng) : null;
-      const hasLoc = !!(window._liveLocs||{})[e.personId];
-      return `<div class="approval-item">
-        <div class="approval-dot"></div>
-        <div style="flex:1;min-width:0">
-          <span class="approval-name">${e.name}</span>
-          <span class="approval-role"> · ${e.role||''}</span>
-        </div>
-        ${eta
-          ? `<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`
-          : hasLoc
-            ? `<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`
-            : `<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`
-        }
-      </div>`;
-    }).join('')}
-  </div>`;
+  const venues = window._activeNotifVenues || [];
+  const dest   = window._activeNotifDest;
+
+  if(venues.length <= 1){
+    // Single-venue: original layout with ETA
+    const hasDest = dest && dest.lat && dest.lng;
+    return `<div class="approvals-section">
+      <div class="approvals-hdr">
+        <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
+        מאשרים ומגיעים (${entries.length})
+        ${hasDest&&dest.address?`<span style="font-size:10px;color:var(--text3);font-weight:400;margin-right:6px">→ ${dest.address}</span>`:''}
+      </div>
+      ${entries.map(e=>{
+        const hasDest2 = hasDest || !!(venues[0]&&venues[0].lat);
+        const eLat = (hasDest&&dest.lat)||(venues[0]&&venues[0].lat)||null;
+        const eLng = (hasDest&&dest.lng)||(venues[0]&&venues[0].lng)||null;
+        const eta = (eLat&&eLng) ? _calcETAString(e.personId, eLat, eLng) : null;
+        return `<div class="approval-item">
+          <div class="approval-dot"></div>
+          <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
+          ${eta?`<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`:`<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Multi-venue: group by chosen venue
+  const byVenue = {};
+  const unassigned = [];
+  entries.forEach(e=>{
+    if(e.venueId){
+      if(!byVenue[e.venueId]) byVenue[e.venueId] = [];
+      byVenue[e.venueId].push(e);
+    } else {
+      unassigned.push(e);
+    }
+  });
+
+  let html = `<div class="approvals-section"><div class="approvals-hdr">
+    <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
+    מאשרים ומגיעים (${entries.length})</div>`;
+
+  venues.forEach(v=>{
+    const group = byVenue[v.id] || [];
+    html += `<div class="venue-group-hdr"><span style="width:10px;height:10px;border-radius:50%;background:${v.color};display:inline-block;flex-shrink:0"></span>${v.label} — ${v.address} <span style="color:var(--accent);margin-right:4px">(${group.length})</span></div>`;
+    if(!group.length){
+      html += `<div style="font-size:11px;color:var(--text3);padding:4px 0 6px">אין מאשרים לזירה זו עדיין</div>`;
+    } else {
+      group.forEach(e=>{
+        const eta = (v.lat&&v.lng) ? _calcETAString(e.personId, v.lat, v.lng) : null;
+        html += `<div class="approval-item">
+          <div class="approval-dot" style="background:${v.color}"></div>
+          <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
+          ${eta?`<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`:`<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`}
+        </div>`;
+      });
+    }
+  });
+
+  if(unassigned.length){
+    html += `<div class="venue-group-hdr">⬜ לא בחרו זירה (${unassigned.length})</div>`;
+    unassigned.forEach(e=>{
+      html += `<div class="approval-item"><div class="approval-dot"></div><div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div><span style="font-size:10px;color:var(--text3)">📍 מגיע</span></div>`;
+    });
+  }
+
+  html += '</div>';
+  return html;
 }
 
 let _markersVisible=true;
@@ -7370,14 +7556,18 @@ const SYNC = (() => {
   }
 
   function rerenderMarkers(){
-    if(!window.map || !window._googleReady) return;
+    if(!window.map || !window._googleReady){
+      // Map not ready yet — schedule a retry (photo load happened before Maps API)
+      setTimeout(rerenderMarkers, 1200);
+      return;
+    }
     const data = window._pendingLocData || {};
     const now = Date.now();
     Object.entries(data).forEach(([uid,d])=>{
       if(!d || now-(d.ts||0)>300000) return;
       _updateLiveMarker(uid, d, uid===_myUid);
     });
-    // Also do a fresh fetch to catch any updates
+    // Fresh fetch from Firebase to catch any live locations not yet in _pendingLocData
     if(_db) _db.ref('tac_locs').once('value', snap=>{
       const fd=snap.val()||{}, fn=Date.now();
       Object.entries(fd).forEach(([uid,d])=>{ if(d&&fn-(d.ts||0)<300000) _updateLiveMarker(uid,d,uid===_myUid); });
@@ -7672,8 +7862,10 @@ const SYNC = (() => {
       // Re-render personnel panel if open
       const rpBody = document.getElementById('rp-body');
       if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
-      // Re-render all live markers so photos appear in bubbles
-      setTimeout(rerenderMarkers, 300);
+      // Re-render all live markers so photos appear in bubbles.
+      // Retry multiple times: on slow-loading mobile the map may not be
+      // ready at 300ms, so we keep trying until window._googleReady is true.
+      [300, 1500, 3500, 7000].forEach(ms => setTimeout(rerenderMarkers, ms));
     });
   }
 
