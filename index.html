@@ -4473,11 +4473,19 @@ function boGeofences(c){
   GFS.forEach(function(gf,i){
     var gfid=gf.id;var gfact=gf.active;
     rows+='<tr><td style="color:'+gf.color+';font-weight:700">'+gfid+'</td><td>'+gf.name+'</td><td>'+gf.type+'</td><td>'+gf.radius+'מ</td><td><span class="badge '+(gfact?'b-active':'b-draft')+'">'+(gfact?'פעיל':'כבוי')+'</span></td><td><div class="actions">';
-    rows+='<button class="act-btn" data-i="'+i+'" onclick="GFS[+this.dataset.i].active=!GFS[+this.dataset.i].active;plotGFs();boGeofences(document.getElementById(&quot;bo-inner&quot;))">'+(gfact?'כבה':'הפעל')+'</button>';
-    rows+='<button class="act-btn del" data-i="'+i+'" onclick="GFS.splice(+this.dataset.i,1);plotGFs();boGeofences(document.getElementById(&quot;bo-inner&quot;))">מחק</button>';
+    rows+='<button class="act-btn" data-i="'+i+'" onclick="GFS[+this.dataset.i].active=!GFS[+this.dataset.i].active;plotGFs();saveGFsToCloud(false);boGeofences(document.getElementById(&quot;bo-inner&quot;))">'+(gfact?'כבה':'הפעל')+'</button>';
+    rows+='<button class="act-btn del" data-i="'+i+'" onclick="GFS.splice(+this.dataset.i,1);plotGFs();saveGFsToCloud(false);boGeofences(document.getElementById(&quot;bo-inner&quot;))">מחק</button>';
     rows+='</div></td></tr>';
   });
-  c.innerHTML='<div class="bo-section"><div class="bo-hd">גיאופנסים</div><table class="bo-table"><thead><tr><th>מזהה</th><th>שם</th><th>סוג</th><th>רדיוס</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var savedAt=window._gfLastSaved?new Date(window._gfLastSaved).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+  c.innerHTML=
+    '<div class="bo-section"><div class="bo-hd">גיאופנסים</div>'
+    +'<table class="bo-table"><thead><tr><th>מזהה</th><th>שם</th><th>סוג</th><th>רדיוס</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'<div style="display:flex;align-items:center;gap:12px;margin-top:14px">'
+    +'<button class="btn-pri" style="font-size:13px;font-weight:700;padding:10px 24px" onclick="saveGFsToCloud(true);setTimeout(()=>boGeofences(document.getElementById(\'bo-inner\')),400)">💾 שמור גיאופנסים</button>'
+    +(savedAt?'<span style="font-size:11px;color:var(--accent)">✓ נשמר ב-'+savedAt+'</span>':'')
+    +'</div>'
+    +'</div>';
 }
 
 
