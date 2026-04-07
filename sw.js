@@ -227,7 +227,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-2-' + '2026040703';
+const CACHE = 'tac-v5-2-' + '2026040801';
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 

@@ -96,7 +96,7 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .inc-addr-btn{width:100%;padding:10px 14px;background:rgba(41,197,246,0.12);border:1.5px solid rgba(41,197,246,0.4);border-radius:10px;color:var(--accent);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--font);transition:all 0.15s;text-align:center}
 .inc-addr-btn:hover{background:rgba(41,197,246,0.22);border-color:var(--accent)}
 /* Emergency button on map */
-#map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:13px;font-weight:900;padding:10px 18px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
+#map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
 #map-emergency-btn:hover{transform:scale(1.04);opacity:0.92}
 @media(max-width:768px){#map-emergency-btn{display:none}}
 
@@ -202,7 +202,7 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #map-act-row{display:flex;flex-direction:row;gap:5px}
 .map-act-btn{width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s;font-family:var(--font)}
 .map-act-btn:hover{background:rgba(41,197,246,0.8)}
-#map-sos-btn{position:absolute;bottom:30px;right:10px;z-index:200;background:rgba(210,0,0,0.9);border:2px solid rgba(255,60,60,0.65);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 22px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(200,0,0,0.5);font-family:var(--font);white-space:nowrap;animation:sosPulse 2.5s ease-in-out infinite;transition:transform 0.12s}
+#map-sos-btn{position:absolute;bottom:30px;right:10px;z-index:200;background:rgba(210,0,0,0.9);border:2px solid rgba(255,60,60,0.65);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(200,0,0,0.5);font-family:var(--font);white-space:nowrap;animation:sosPulse 2.5s ease-in-out infinite;transition:transform 0.12s}
 #map-sos-btn:hover{transform:scale(1.05)}
 @keyframes sosPulse{0%,100%{box-shadow:0 4px 18px rgba(200,0,0,0.5)}55%{box-shadow:0 4px 28px rgba(255,0,0,0.9),0 0 0 5px rgba(255,51,51,0.15)}}
 @media(max-width:768px){#map-action-overlay,#map-sos-btn{display:none}}
@@ -219,6 +219,8 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 .sos-bar-nav:hover{opacity:0.88}
 .sos-bar-ack{background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);flex-shrink:0}
 .sos-bar-ack:hover{background:rgba(255,255,255,0.25)}
+.sos-bar-close{background:none;border:none;color:rgba(255,255,255,0.6);font-size:18px;cursor:pointer;padding:4px 6px;flex-shrink:0;line-height:1}
+.sos-bar-close:hover{color:#fff}
 /* SOS full-screen popup */
 #sos-popup-overlay{display:none;position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.82);backdrop-filter:blur(7px);align-items:center;justify-content:center}
 #sos-popup-overlay.open{display:flex}
@@ -759,6 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     </div>
     <button class="sos-bar-nav" id="sos-bar-nav-btn" onclick="navToSOS()">🗺️ נווט מהיר</button>
     <button class="sos-bar-ack" onclick="acknowledgeSOS()">✓ קיבלתי</button>
+    <button class="sos-bar-close" onclick="dismissSOSBar()" title="סגור">✕</button>
   </div>
 
   <!-- SOS POPUP — full-screen alert for recipients -->
@@ -1507,10 +1510,15 @@ async function _registerPushForUser(personId){
     const perm = await Notification.requestPermission();
     if(perm !== 'granted') return;
 
-    // Tell SW who this user is + when to start listening from
+    // Tell SW who this user is + when to start listening from.
+    // Use the same lookback logic as the in-app listener so the SW
+    // doesn't miss notifications sent while the app was closed.
     const reg = await navigator.serviceWorker.ready;
     if(reg.active){
-      reg.active.postMessage({ type:'SET_USER', personId, listenFrom: Date.now() });
+      const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+personId) || 0);
+      const lookback = Date.now() - (10 * 60 * 1000);
+      const listenFrom = Math.max(lastSeen, lookback);
+      reg.active.postMessage({ type:'SET_USER', personId, listenFrom });
     }
 
     // Register Periodic Background Sync (Android Chrome only)
@@ -1580,11 +1588,16 @@ function onGoogleMapsReady(){
     mapTypeId:'roadmap',
     disableDefaultUI:true,
     gestureHandling:'greedy',
-    clickableIcons:true,
+    clickableIcons:false,
     tilt:0,
-    // Show building footprints + house numbers at high zoom
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
-    styles:[],
+    // Hide POI icons and transit markers — keep only roads, buildings, addresses
+    styles:[
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+    ],
   });
 
   // Night-mode style — keeps building footprints + house numbers visible
@@ -1612,19 +1625,24 @@ function onGoogleMapsReady(){
     {featureType:'water',elementType:'geometry',stylers:[{color:'#0e1626'}]},
     {featureType:'water',elementType:'labels.text.fill',stylers:[{color:'#4e6d70'}]},
   ];
-  if(document.body.classList.contains('night')) map.setOptions({styles:nightStyle});
+  // (full styles applied below after dayStyle/poiHide are defined)
   window._nightStyle=nightStyle;
 
-  // Force Google Maps to show building footprints + address numbers
-  // This is enabled by default on 'roadmap' at zoom 17+; ensure no styles suppress it
-  map.setOptions({
-    styles: document.body.classList.contains('night') ? nightStyle : [
-      // Day mode: show building outlines + house numbers prominently
-      {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
-      {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
-      {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
-    ]
-  });
+  // Apply final map styles (day/night) — always hide POI & transit icons
+  const _poiHide=[
+    {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+    {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+    {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+    {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+  ];
+  const dayStyle=[
+    {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
+    {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
+    {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
+    ..._poiHide
+  ];
+  map.setOptions({styles: document.body.classList.contains('night') ? [...nightStyle,..._poiHide] : dayStyle});
+  window._dayStyle=dayStyle; window._poiHide=_poiHide;
 
   // Map events
   map.addListener('click',onMapClick);
@@ -2140,6 +2158,7 @@ function plotMissions(){
   Object.entries(_markers).filter(([k])=>k.startsWith('m_')).forEach(([k,mk])=>{if(mk)mk.setMap(null);delete _markers[k];});
   
   MISSIONS.forEach(m=>{
+    if(!m||!m.lat||!m.lng) return; // skip missions without coordinates
     const col=SCOLORS[m.status]||'#5a7a90';
     const ico=MICONS[m.type]||'◉';
     // Rich marker: colored circle with type emoji label
@@ -2754,13 +2773,19 @@ function setTheme(m){
   if(dd){dd.classList.toggle('active',m==='day');dd.style.cssText='';}
   localStorage.setItem('tac-v5-theme',m);
   if(map&&window._googleReady){
-    map.setOptions({styles:m==='night'?window._nightStyle||[]:[
-      // Day: show building footprints + house numbers
+    const _ph=window._poiHide||[
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+    ];
+    map.setOptions({styles:m==='night'?[...(window._nightStyle||[]),..._ph]:[
       {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
       {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
       {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
       {featureType:'all',elementType:'labels.text',stylers:[{visibility:'on'}]},
       {featureType:'administrative',elementType:'all',stylers:[{visibility:'on'}]},
+      ..._ph
     ]});
     google.maps.event.trigger(map,'resize');
   }
@@ -2817,7 +2842,7 @@ function addAct(obj){actLog.unshift({time:nowT(),txt:obj.txt,type:obj.type});}
 /* ══════════════════════════════════════════════════
    SOS DISTRESS SYSTEM
 ══════════════════════════════════════════════════ */
-let _sosData=null, _sosMarker=null, _sosListener=null, _sosConfirmPending=false;
+let _sosData=null, _sosMarker=null, _sosListener=null, _sosConfirmPending=false, _sosAcked=null, _sosBarDismissed=null;
 
 function triggerSOS(){
   // Two-tap confirmation to prevent accidents
@@ -2861,10 +2886,12 @@ function triggerSOS(){
   };
 
   if(navigator.geolocation){
+    // Send immediately with last-known position (if available) so SOS is never delayed
+    if(window._lastLat) _write(window._lastLat, window._lastLng, 999);
     navigator.geolocation.getCurrentPosition(
-      pos=>_write(pos.coords.latitude,pos.coords.longitude,Math.round(pos.coords.accuracy)),
-      ()=>_write(window._lastLat||null,window._lastLng||null,999),
-      {enableHighAccuracy:true,timeout:6000,maximumAge:8000}
+      pos=>{ _write(pos.coords.latitude,pos.coords.longitude,Math.round(pos.coords.accuracy)); },
+      ()=>{ if(!window._lastLat) _write(null,null,null); },
+      {enableHighAccuracy:true,timeout:8000,maximumAge:5000}
     );
   } else {
     _write(window._lastLat||null,window._lastLng||null,999);
@@ -2897,23 +2924,27 @@ function _showSOSAlert(sos, isOwn){
   const hasLoc=sos.lat&&sos.lng;
   const locStr=hasLoc?`📍 ${sos.lat.toFixed(5)}, ${sos.lng.toFixed(5)}`:'📍 מיקום לא זמין';
 
-  // SOS top bar (everyone)
+  // SOS top bar — update text always, but skip if user already dismissed (inline style set)
   const bar=document.getElementById('sos-alert-bar');
   if(bar){
     document.getElementById('sos-bar-title').textContent='🆘 מצוקה! — '+name+(isOwn?' (אתה)':'');
     document.getElementById('sos-bar-sub').textContent=locStr+' · '+ts;
     const navBtn=document.getElementById('sos-bar-nav-btn');
     if(navBtn) navBtn.style.display=hasLoc?'':'none';
-    bar.classList.add('active');
+    // Only show bar if user hasn't explicitly dismissed it (inline style = dismissed)
+    if(bar.style.display !== 'none') bar.classList.add('active');
   }
 
   // Full popup for receivers (not sender)
+  // If already acked, update the location text silently (without reopening)
   if(!isOwn){
     document.getElementById('sos-pop-name').textContent=name;
     document.getElementById('sos-pop-meta').textContent=sos.role||'';
     document.getElementById('sos-pop-loc').textContent=locStr;
     document.getElementById('sos-pop-time').textContent='שעה: '+ts;
-    document.getElementById('sos-popup-overlay').classList.add('open');
+    if(_sosAcked !== sos.uid){
+      document.getElementById('sos-popup-overlay').classList.add('open');
+    }
     // Alert sound
     try{
       const ctx=new(window.AudioContext||window.webkitAudioContext)();
@@ -2928,11 +2959,24 @@ function _showSOSAlert(sos, isOwn){
     }catch(e){}
   }
 
-  // Add to alerts panel
+  // Add to alerts panel + activity log
   ALERTS.unshift({type:'danger',body:'🆘 מצוקה — '+name+' · '+ts,level:'high',time:ts});
   if(typeof updateAlertBadge==='function') updateAlertBadge();
+  addAct({txt:'🆘 אות מצוקה — '+name+' · '+locStr+' · '+ts, type:'urgent'});
 
-  // Map marker
+  // Show live avatar marker for SOS sender (in addition to the SOS circle marker)
+  if(hasLoc && typeof _updateLiveMarker==='function'){
+    const uid = sos.uid || ('sos_'+sos.personId);
+    const d = { name: sos.name, role: sos.role||'לוחם', lat: sos.lat, lng: sos.lng,
+                color: '#ff2222', personId: sos.personId||'', status:'urgent', ts: sos.ts||Date.now() };
+    const _tryMark = (t) => {
+      if(window.map && window._googleReady){ _updateLiveMarker(uid, d, false); }
+      else if(t < 10) setTimeout(()=>_tryMark(t+1), 600);
+    };
+    _tryMark(0);
+  }
+
+  // Map SOS circle marker
   if(hasLoc&&window.map&&window.google) _placeSOSMapMarker(sos,ts);
 }
 
@@ -2973,14 +3017,45 @@ function navToSOS(){
 }
 
 function acknowledgeSOS(){
+  if(_sosData){ _sosAcked = _sosData.uid; _sosBarDismissed = _sosData.uid; }
+  // Close popup
   document.getElementById('sos-popup-overlay').classList.remove('open');
-  // Bar stays until SOS is resolved by sender
+  // Force-hide bar with inline style — immune to any subsequent classList.add('active')
+  _hideSOSBar();
+  // Record ack in Firebase
+  const db = window._db;
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(db && _sosData && u){
+    db.ref('tac_sos_acks/'+_sosData.uid+'/'+u.id).set({
+      name: u.name, role: u.role||'', personId: u.id, ts: Date.now()
+    });
+  }
+  // Log to activity log
+  if(_sosData) addAct({txt:'✓ קיבלתי אות מצוקה מ-'+(_sosData.name||'?')+(u?' — '+u.name:''), type:'info'});
+  showToast({icon:'✓',title:'קיבלתי',sub:'אות המצוקה נרשם במערכת',type:'success',duration:3000});
+}
+
+function dismissSOSBar(){
+  if(_sosData) _sosBarDismissed = _sosData.uid;
+  _hideSOSBar();
+}
+
+function _hideSOSBar(){
+  const bar = document.getElementById('sos-alert-bar');
+  if(!bar) return;
+  bar.classList.remove('active');
+  bar.style.display = 'none'; // inline style overrides any CSS class — stays hidden even on Firebase updates
 }
 
 function _clearSOSUI(){
   _sosData=null;
+  _sosAcked=null;
+  _sosBarDismissed=null;
   const bar=document.getElementById('sos-alert-bar');
-  if(bar) bar.classList.remove('active');
+  if(bar){
+    bar.classList.remove('active');
+    bar.style.display = ''; // remove inline override so next SOS can show the bar
+  }
   document.getElementById('sos-popup-overlay').classList.remove('open');
   if(_sosMarker){_sosMarker.setMap(null);_sosMarker=null;}
 }
@@ -3000,7 +3075,18 @@ function goPanel(name){
   const fns={draw:renderDrawP,dashboard:renderDash,missions:renderMsnsP,units:renderUnitsP,comms:renderCommsP,analytics:renderAnalP,incidents:renderIncidentsP,ai:renderAiP,teams:renderTeamsP,personnel:renderPersonnelP,navigation:renderNavigationP,alerts:renderAlertsP,geofence:renderGfP,layers:renderLayersP};
   if(fns[name])fns[name](c);else c.innerHTML=`<p style="color:var(--text3);padding:20px">פאנל ${name}</p>`;
 }
-function closePanel(){document.getElementById('right-panel').classList.add('hidden');}
+function closePanel(){
+  const rp=document.getElementById('right-panel');
+  if(rp){
+    rp.classList.add('hidden');
+    rp.classList.remove('mobile-open'); // slide out on mobile
+  }
+  // Return bottom nav to "מפה" active state on mobile
+  if(window.innerWidth<=1024){
+    document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active',b.dataset.v==='map'));
+    currentView='map';
+  }
+}
 // ── DRAW / MAP PANEL ──
 function renderDrawP(c){
   c.innerHTML=`
@@ -4936,7 +5022,14 @@ function boSettings(c){
     +'</div>';
 }
 
-function saveToCloud(){savePersonnelToStorage();try{localStorage.setItem('tac_v5_state',JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));}catch(e){}}
+function saveToCloud(){
+  savePersonnelToStorage();
+  try{localStorage.setItem('tac_v5_state',JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));}catch(e){}
+  // Write missions to Firebase so all field devices see them instantly
+  if(window._db && typeof MISSIONS!=='undefined'){
+    window._db.ref('tac_missions').set(MISSIONS.length ? MISSIONS : null).catch(()=>{});
+  }
+}
 
 // ── CSV EXPORT / IMPORT ──
 function exportPersonnelCSV(){
@@ -6221,7 +6314,12 @@ function toggleLocPrivacy(){
   localStorage.setItem('tac_loc_privacy', window._locPrivacyOn ? '1' : '0');
   _applyLocPrivacyUI();
   if(window._locPrivacyOn){
-    if(typeof SYNC!=='undefined' && SYNC.connected) SYNC.startPublishing();
+    // Always start publishing when turning on — Firebase SDK handles offline internally
+    if(typeof SYNC!=='undefined'){
+      const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
+      const profile=u?{name:u.name,role:u.role||'לוחם',status:'active'}:null;
+      SYNC.startPublishing(profile);
+    }
     showToast({icon:'📍',title:'מיקום פעיל',sub:'המיקום שלך גלוי לצוות',type:'success'});
   } else {
     if(typeof SYNC!=='undefined') SYNC.stopPublishing();
@@ -6259,6 +6357,7 @@ let _currentIncomingNotif = null;
 let _activeNotifId = null; // last sent notif id
 let _approvalsListener = null;
 let _incomingListener = null;
+let _shownNotifIds = new Set(); // dedup — prevents same notification showing twice
 
 function openNotifModal(){
   // Build team chips
@@ -6416,11 +6515,18 @@ function sendNotification(){
       // ── Auto-create mission on map for "mission" type notifications ──
       if(payload.type === 'mission' && payload.title){
         const mId = 'NM_'+Date.now().toString(36).toUpperCase();
+        // Use geocoded coords, or fall back to current map center
+        let mLat = payload.lat||null;
+        let mLng = payload.lng||null;
+        if(!mLat && window.map){
+          const c = window.map.getCenter();
+          if(c){ mLat = c.lat(); mLng = c.lng(); }
+        }
         MISSIONS.push({
           id: mId, title: payload.title, type: 'rescue', status: 'active',
           priority: 'high', teams: [], progress: 0,
           objective: payload.body||'', address: payload.address||'',
-          lat: payload.lat||null, lng: payload.lng||null,
+          lat: mLat, lng: mLng,
           checklist: [], requiredSkills: [], equipment: '',
           timeline: [{t: nowT(), txt: 'משימה נוצרה מהתראה — '+payload.senderName}]
         });
@@ -6462,19 +6568,31 @@ function listenForIncomingNotifications(){
   if(_incomingListener) return; // already listening
   _incomingListener = true;
 
-  // Only listen for notifications sent from NOW onwards — ignore old DB entries
-  const listenFrom = Date.now();
+  // Use the later of: 10 minutes ago OR last acknowledged notification time.
+  // This prevents re-showing notifications that were already answered in a previous session,
+  // while still catching notifications sent while the app was closed.
+  const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
+  const lookback = Date.now() - (10 * 60 * 1000);
+  const listenFrom = Math.max(lastSeen, lookback);
+
   const ref = db.ref('tac_notifications/'+myPersonId)
                  .orderByChild('sentAt').startAt(listenFrom);
   ref.on('child_added', snap=>{
     const notif = snap.val();
     if(!notif) return;
-    if(notif.sentAt && notif.sentAt < listenFrom) return; // extra guard
+    if(notif.sentAt && notif.sentAt <= lastSeen) return; // already handled in a previous session
+    const notifId = snap.key;
+    if(_shownNotifIds.has(notifId)) return; // already shown (e.g. via SSE/push)
+    // Do NOT add to _shownNotifIds here — let _showIncomingNotif do it after setting _currentIncomingNotif
     _showIncomingNotif(notif, snap.ref);
   });
 }
 
 function _showIncomingNotif(notif, fbRef){
+  // Dedup — if this notif was already shown (e.g. via Firebase listener), skip
+  const nid = notif.id || notif.sentAt;
+  if(nid && _shownNotifIds.has(nid)) return;
+  if(nid) _shownNotifIds.add(nid);
   _currentIncomingNotif = {notif, fbRef};
   const icons = {mission:'📋', message:'💬', alert:'⚠️'};
   document.getElementById('inc-icon').textContent = icons[notif.type]||'📢';
@@ -6579,8 +6697,15 @@ function respondToNotif(approved){
       approved,
       ts: Date.now()
     });
-    // Remove notification from queue
-    fbRef.remove();
+    // Remove notification from queue (fbRef may be null if notification came via SSE/push)
+    if(fbRef) fbRef.remove();
+  }
+
+  // Save last-seen timestamp so this notification won't re-appear next session
+  if(notif.sentAt && myId){
+    const key = 'tac_notif_lastSeen_'+myId;
+    const prev = Number(localStorage.getItem(key) || 0);
+    if(notif.sentAt > prev) localStorage.setItem(key, notif.sentAt);
   }
 
   // Close overlay
@@ -6756,7 +6881,7 @@ const SYNC = (() => {
       _db = firebase.database();
       window._db = _db;
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _hideBanner(); loadPhotos(); })
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
@@ -6773,7 +6898,10 @@ const SYNC = (() => {
     if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
     if('geolocation' in navigator){
       _watchId = navigator.geolocation.watchPosition(pos=>{
-        if(!_db||!_connected||window._locPrivacyOn===false) return;
+        // Always cache last known position for SOS fallback
+        window._lastLat = pos.coords.latitude;
+        window._lastLng = pos.coords.longitude;
+        if(!_db||window._locPrivacyOn===false) return;
         const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
         const d = {
           name:     u ? u.name     : _myProfile.name,
@@ -6815,6 +6943,9 @@ const SYNC = (() => {
       return;
     }
     navigator.geolocation.getCurrentPosition(pos=>{
+      // Cache last known position for SOS fallback
+      window._lastLat = pos.coords.latitude;
+      window._lastLng = pos.coords.longitude;
       const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
       const d = {
         name:     _myProfile.name,
@@ -6838,6 +6969,58 @@ const SYNC = (() => {
       if(window.map && window._googleReady) _updateLiveMarker(_myUid, d, true);
     }, (err)=>{ /* GPS error — silent, timer will retry */ },
     {enableHighAccuracy:true, timeout:10000, maximumAge:3000});
+  }
+
+  // ── Sync MISSIONS from Firebase so all devices see new missions in real-time ──
+  function _subscribeMissions(){
+    if(!_db) return;
+    _db.ref('tac_missions').on('value', snap=>{
+      const data = snap.val();
+      if(!data) return;
+      const arr = Array.isArray(data) ? data : Object.values(data);
+      if(!arr.length) return;
+      // Merge: keep any local missions not yet in Firebase, add remote ones
+      const remoteIds = new Set(arr.map(m=>m&&m.id).filter(Boolean));
+      const localOnly = (typeof MISSIONS!=='undefined') ? MISSIONS.filter(m=>m&&!remoteIds.has(m.id)) : [];
+      if(typeof MISSIONS!=='undefined'){
+        MISSIONS.length = 0;
+        arr.filter(Boolean).forEach(m=>MISSIONS.push(m));
+        localOnly.forEach(m=>MISSIONS.push(m));
+      }
+      if(typeof plotMissions==='function'){
+        if(window.map && window._googleReady){ plotMissions(); }
+        else { setTimeout(()=>{ if(typeof plotMissions==='function') plotMissions(); }, 1500); }
+      }
+    });
+  }
+
+  // ── Auto-start publishing if user has location privacy ON after Firebase connects ──
+  function _autoStartPublishing(){
+    if(window._locPrivacyOn === false) return;
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    if(!u) return; // not logged in — field operatives must approve first
+    const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
+    // Request GPS permission explicitly before starting — this triggers the browser dialog
+    if('geolocation' in navigator){
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          // Permission granted — cache immediately and start publishing
+          window._lastLat = pos.coords.latitude;
+          window._lastLng = pos.coords.longitude;
+          startPublishing(profile);
+          if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+        },
+        () => {
+          // Permission denied — mark location as off, update UI
+          window._locPrivacyOn = false;
+          localStorage.setItem('tac_loc_privacy','0');
+          if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      );
+    } else {
+      startPublishing(profile);
+    }
   }
 
   function _subscribeLocations(){
@@ -7378,6 +7561,12 @@ const FIELD = (() => {
   BIOMETRIC.init();
   if(!AUTH.getUser() && BIOMETRIC.hasSaved() && !_justLoggedOut){
     setTimeout(()=>BIOMETRIC.doFastLogin(), 700);
+  }
+  // Prompt to install PWA (removes browser address bar for full-screen experience)
+  if(!window.matchMedia('(display-mode: standalone)').matches && /Android|iPhone|iPad/i.test(navigator.userAgent)){
+    setTimeout(()=>{
+      showToast({icon:'📲',title:'הוסף למסך הבית',sub:'לחץ שתף ← "הוסף למסך הבית" כדי להסתיר שורת הכתובת',type:'info',duration:9000});
+    }, 2500);
   }
   // Firebase sync
   SYNC.boot();
