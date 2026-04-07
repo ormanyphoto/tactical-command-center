@@ -1,4 +1,4 @@
-// Service Worker — מערכת מבצעים v5.2 + Instant Push via Firebase SSE
+// Service Worker — מערכת מבצעים v5.3 + Instant Push via Firebase SSE
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 

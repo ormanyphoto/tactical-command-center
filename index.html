@@ -7094,7 +7094,7 @@ const SYNC = (() => {
     localStorage.setItem('tac_uid', uid);
     return uid;
   })();
-  let _liveMarkers = {}, _publishTimer = null, _connected = false;
+  let _liveMarkers = {}, _publishTimer = null, _connected = false, _firstPosFix = false;
   let _myProfile = { name:'אנונימי', role:'שדה', status:'active' };
 
   function _setSyncDot(state){ // 'on','warn','off'
@@ -7144,7 +7144,15 @@ const SYNC = (() => {
           ts: Date.now(), uid: _myUid
         };
         _db.ref('tac_locs/'+_myUid).set(d);
-        if(window.map && window._googleReady) _updateLiveMarker(_myUid, d, true);
+        // Show own marker immediately — with retry if map not ready yet
+        const _tryMarker=(tries)=>{
+          if(window.map && window._googleReady){
+            _updateLiveMarker(_myUid, d, true);
+            // Pan to own position on first fix
+            if(!_firstPosFix){ _firstPosFix=true; window.map.panTo({lat:d.lat,lng:d.lng}); }
+          } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
+        };
+        _tryMarker(0);
       }, ()=>{}, {enableHighAccuracy:true, maximumAge:2000, timeout:10000});
     }
     // Keep setInterval as fallback
@@ -7154,6 +7162,7 @@ const SYNC = (() => {
   }
 
   function stopPublishing(){
+    _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
     if(_db) _db.ref('tac_locs/'+_myUid).remove();
   }
