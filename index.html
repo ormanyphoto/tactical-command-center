@@ -794,6 +794,22 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
             <button class="nm-type-btn warn" data-type="alert" onclick="selectNotifType('alert',this)">⚠️ התראה</button>
           </div>
         </div>
+        <!-- Threat type -->
+        <div>
+          <div class="nm-label">סוג האיום</div>
+          <select class="nm-input" id="nm-threat" style="cursor:pointer">
+            <option value="">— בחר סוג איום —</option>
+            <option value="אביר לילה ב׳">🌙 אביר לילה ב׳</option>
+            <option value="אביר לילה ג׳">🌑 אביר לילה ג׳</option>
+            <option value="קוד פיגיון">🗡️ קוד פיגיון</option>
+            <option value="מחסומי רשת">🚧 מחסומי רשת</option>
+            <option value="ירי תמ״ס/כטב״מ">🚀 ירי תמ״ס/כטב״מ</option>
+            <option value="פיגוע">💥 פיגוע</option>
+            <option value="חדירת מחבלים">⚠️ חדירת מחבלים</option>
+            <option value="רעידת אדמה">🌍 רעידת אדמה</option>
+            <option value="אחר">📌 אחר</option>
+          </select>
+        </div>
         <!-- Title -->
         <div>
           <div class="nm-label">כותרת</div>
@@ -833,6 +849,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <div id="incoming-notif-card">
       <div class="inc-icon" id="inc-icon">📋</div>
       <div class="inc-type" id="inc-type">משימה</div>
+      <div id="inc-threat" style="display:none;font-size:13px;font-weight:800;color:var(--danger);background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.35);border-radius:7px;padding:5px 14px;letter-spacing:0.02em"></div>
       <div class="inc-title" id="inc-title"></div>
       <div class="inc-body" id="inc-body"></div>
       <div id="inc-addr-wrap" style="display:none;width:100%">
@@ -6523,6 +6540,8 @@ function openNotifModal(){
     row.appendChild(indChip);
   }
   selectNotifTarget('all', document.querySelector('[data-target="all"]'));
+  const threatEl = document.getElementById('nm-threat');
+  if(threatEl) threatEl.value = '';
   document.getElementById('notif-modal-overlay').classList.add('open');
   // Attach Google Places Autocomplete to address field (once)
   const addrEl = document.getElementById('nm-addr-notif');
@@ -6618,6 +6637,7 @@ function sendNotification(){
   const notifId = 'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   const typeLabels = {mission:'משימה', message:'הודעה', alert:'התראה'};
   const address = ((document.getElementById('nm-addr-notif')||{}).value||'').trim();
+  const threat  = ((document.getElementById('nm-threat')||{}).value||'').trim();
 
   _activeNotifId = notifId;
   const payload = {
@@ -6627,6 +6647,7 @@ function sendNotification(){
     title: title.trim(),
     body: body.trim(),
     address,
+    threat,
     senderName,
     senderId,
     sentAt: Date.now()
@@ -6743,6 +6764,8 @@ function _showIncomingNotif(notif, fbRef){
   const icons = {mission:'📋', message:'💬', alert:'⚠️'};
   document.getElementById('inc-icon').textContent = icons[notif.type]||'📢';
   document.getElementById('inc-type').textContent = notif.typeLabel||notif.type;
+  const threatEl = document.getElementById('inc-threat');
+  if(threatEl){ if(notif.threat){ threatEl.textContent='⚡ '+notif.threat; threatEl.style.display=''; } else { threatEl.style.display='none'; } }
   document.getElementById('inc-title').textContent = notif.title||'';
   document.getElementById('inc-body').textContent = notif.body||'';
   document.getElementById('inc-sender').textContent = 'נשלח על ידי: '+notif.senderName;
