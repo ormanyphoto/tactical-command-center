@@ -2254,8 +2254,26 @@ function plotMissions(){
     });
     mk._type='mission';mk._id=m.id;
 
-    // Build InfoWindow content with teams + personnel
+    // Build InfoWindow content with teams + personnel — day/night aware
     function buildMsnIW(mission){
+      const night = document.body.classList.contains('night');
+      // Palette switches with mode
+      const bg       = night ? '#0d1014' : '#ffffff';
+      const bg2      = night ? '#121620' : '#f5f5f5';
+      const border   = night ? '#1a2838' : '#e0e0e0';
+      const txtHi    = night ? '#d8eef8' : '#111111';
+      const txt      = night ? '#9ab8c8' : '#444444';
+      const txtMute  = night ? '#5a7a90' : '#888888';
+      const divider  = night ? '#1a2838' : '#f0f0f0';
+      const availBg  = night ? 'rgba(61,255,82,0.12)'  : '#e8f5e9';
+      const availClr = night ? '#3dff52' : '#1a8c2e';
+      const nafBg    = night ? 'rgba(255,51,51,0.12)'  : '#fce4ec';
+      const nafClr   = night ? '#ff6060' : '#c62828';
+      const teamBg   = night ? 'rgba(41,197,246,0.12)' : 'rgba(41,197,246,0.10)';
+      const teamClr  = night ? '#29c5f6' : '#0a7cb8';
+      const btnEdit  = night ? '#1a2838' : '#f5f5f5';
+      const btnEditClr = night ? '#9ab8c8' : '#333';
+
       const teamsAssigned=mission.teams||[];
       const teamMembers=PERSONNEL.filter(p=>teamsAssigned.includes(p.unit)||teamsAssigned.includes(p.callsign));
       const membersHtml=teamMembers.length
@@ -2264,47 +2282,47 @@ function plotMissions(){
           const av=p.photo&&p.photo.length>10
             ?`<img src="${p.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid ${p.color||col}"/>`
             :`<div style="width:22px;height:22px;border-radius:50%;background:${p.color||col};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;color:#fff">${initials}</div>`;
-          return `<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #f0f0f0">
+          return `<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid ${divider}">
             ${av}
             <div style="flex:1">
-              <div style="font-size:11px;font-weight:700;color:#222">${p.name}</div>
-              <div style="font-size:9px;color:#888">${p.teamRole||p.role||'—'}</div>
+              <div style="font-size:11px;font-weight:700;color:${txtHi}">${p.name}</div>
+              <div style="font-size:9px;color:${txtMute}">${p.teamRole||p.role||'—'}</div>
             </div>
-            <span style="font-size:9px;padding:1px 5px;border-radius:8px;background:${p.available?'#e8f5e9':'#fce4ec'};color:${p.available?'#1a8c2e':'#c62828'};font-weight:600">${p.available?'זמין':'לא זמין'}</span>
+            <span style="font-size:9px;padding:1px 5px;border-radius:8px;background:${p.available?availBg:nafBg};color:${p.available?availClr:nafClr};font-weight:600">${p.available?'זמין':'לא זמין'}</span>
           </div>`;
         }).join('')
-        :'<div style="font-size:11px;color:#aaa;padding:4px 0">אין חברי צוות</div>';
+        :`<div style="font-size:11px;color:${txtMute};padding:4px 0">אין חברי צוות</div>`;
 
       const teamsHtml=teamsAssigned.length
         ?'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px">'+
-          teamsAssigned.map(t=>`<span style="background:rgba(41,197,246,0.12);border:1px solid rgba(41,197,246,0.4);border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;color:#0a7cb8">${t}</span>`).join('')+
+          teamsAssigned.map(t=>`<span style="background:${teamBg};border:1px solid ${teamClr}66;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;color:${teamClr}">${t}</span>`).join('')+
           '</div>'
-        :'<div style="font-size:10px;color:#aaa;margin-bottom:6px">אין צוות משויך</div>';
+        :`<div style="font-size:10px;color:${txtMute};margin-bottom:6px">אין צוות משויך</div>`;
 
-      return `<div style="font-family:Heebo,Arial,sans-serif;direction:rtl;min-width:240px;max-width:290px;padding:2px">
+      return `<div style="font-family:Heebo,Arial,sans-serif;direction:rtl;min-width:240px;max-width:290px;padding:2px;background:${bg};border-radius:4px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
           <div style="background:${col};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${ico}</div>
           <div style="flex:1">
-            <div style="font-size:10px;font-weight:700;color:#888">${mission.id}</div>
-            <div style="font-size:14px;font-weight:900;color:#111;line-height:1.2">${mission.title}</div>
+            <div style="font-size:10px;font-weight:700;color:${txtMute}">${mission.id}</div>
+            <div style="font-size:14px;font-weight:900;color:${txtHi};line-height:1.2">${mission.title}</div>
           </div>
         </div>
         <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
           <span style="background:${col}22;border:1px solid ${col};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:${col}">${statusHe(mission.status)}</span>
-          <span style="background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:2px 8px;font-size:10px;color:#555">עד׳: ${mission.priority}</span>
-          <span style="background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:2px 8px;font-size:10px;color:#555">${mission.progress||0}%</span>
+          <span style="background:${bg2};border:1px solid ${border};border-radius:4px;padding:2px 8px;font-size:10px;color:${txt}">עד׳: ${mission.priority}</span>
+          <span style="background:${bg2};border:1px solid ${border};border-radius:4px;padding:2px 8px;font-size:10px;color:${txt}">${mission.progress||0}%</span>
         </div>
-        <div style="height:4px;background:#eee;border-radius:2px;margin-bottom:8px">
+        <div style="height:4px;background:${bg2};border-radius:2px;margin-bottom:8px">
           <div style="height:100%;background:${col};width:${mission.progress||0}%;border-radius:2px"></div>
         </div>
-        ${mission.objective?`<div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.5">${mission.objective.slice(0,100)}</div>`:''}
-        <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">צוותות</div>
+        ${mission.objective?`<div style="font-size:11px;color:${txt};margin-bottom:8px;line-height:1.5">${mission.objective.slice(0,100)}</div>`:''}
+        <div style="font-size:10px;font-weight:700;color:${txtMute};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">צוותות</div>
         ${teamsHtml}
-        <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">כוח אדם (${teamMembers.length})</div>
+        <div style="font-size:10px;font-weight:700;color:${txtMute};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">כוח אדם (${teamMembers.length})</div>
         <div style="max-height:140px;overflow-y:auto">${membersHtml}</div>
-        <div style="display:flex;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid #eee">
+        <div style="display:flex;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid ${border}">
           <button onclick="openMsnDetail('${mission.id}')" style="flex:1;background:${col};border:none;border-radius:4px;padding:6px;color:#fff;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">📋 פרטי משימה</button>
-          <button onclick="editMsnModal('${mission.id}')" style="background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:6px 10px;color:#333;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">✏️</button>
+          <button onclick="editMsnModal('${mission.id}')" style="background:${btnEdit};border:1px solid ${border};border-radius:4px;padding:6px 10px;color:${btnEditClr};cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">✏️</button>
         </div>
       </div>`;
     }
@@ -2861,6 +2879,8 @@ function setTheme(m){
       ..._ph
     ]});
     google.maps.event.trigger(map,'resize');
+    // Re-plot missions so InfoWindow colours switch with the theme
+    if(typeof plotMissions==='function') setTimeout(plotMissions, 80);
   }
 }
 (function(){
@@ -6955,8 +6975,11 @@ function _showIncomingNotif(notif, fbRef){
         <span style="flex:1;text-align:right;line-height:1.3">${v.label} — ${v.address}</span>
         ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${i===0&&userLat?'📍 ':''} ${v.distStr}</span>`:''}
       </button>`).join('');
-    // Hide the main approve/decline buttons — venue tap handles approval
-    if(incBtns) incBtns.style.display = 'none';
+    // Hide approve button only — keep "לא זמין" always visible
+    if(incBtns){
+      const approveBtn = incBtns.querySelector('.inc-approve');
+      if(approveBtn) approveBtn.style.display = 'none';
+    }
   } else {
     if(venueWrap) venueWrap.style.display = 'none';
     if(incBtns){ incBtns.style.display = ''; incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true); }
@@ -7082,7 +7105,11 @@ function respondToNotif(approved){
   document.getElementById('incoming-notif-overlay').classList.remove('open');
   _currentIncomingNotif = null;
   const _ib = document.getElementById('inc-btns');
-  if(_ib) _ib.style.display = '';
+  if(_ib){
+    _ib.style.display = '';
+    const _ab = _ib.querySelector('.inc-approve');
+    if(_ab) _ab.style.display = '';
+  }
   const _vw = document.getElementById('inc-venue-wrap');
   if(_vw) _vw.style.display = 'none';
 
