@@ -1691,7 +1691,6 @@ function onGoogleMapsReady(){
   setTimeout(()=>goPanel('draw'),150);
 
   setTimeout(()=>showToast({icon:'✅',title:'מערכת מבצעים v5.3',sub:'Google Maps פעיל · בניינים · עברית · 3D',type:'success',duration:5000}),600);
-  setTimeout(()=>showToast({icon:'⚠️',title:'חדירת גיאופנס',sub:'רכב זוהה בגבולות GF02',type:'warn',duration:7000}),10000);
 }
 
 // ── MAP TYPE ──
@@ -1797,15 +1796,21 @@ function mapZoom(delta){
 function _triggerMapResize(){
   const _doResize = (rerender)=>{
     if(window.map && window.google && google.maps){
+      // Force layout reflow BEFORE triggering Maps resize — critical on mobile
+      const gmapEl = document.getElementById('gmap');
+      if(gmapEl) void gmapEl.offsetHeight;
+      window.dispatchEvent(new Event('resize'));
       google.maps.event.trigger(window.map, 'resize');
       if(window.map.getCenter) window.map.panTo(window.map.getCenter());
       if(rerender && typeof SYNC!=='undefined') SYNC.rerenderMarkers();
     }
   };
-  setTimeout(()=>_doResize(false), 150);
-  setTimeout(()=>_doResize(false), 500);
-  setTimeout(()=>_doResize(true),  1000);
-  setTimeout(()=>_doResize(true),  2500); // final safety pass for slow mobile
+  setTimeout(()=>_doResize(false), 100);
+  setTimeout(()=>_doResize(false), 300);
+  setTimeout(()=>_doResize(false), 700);
+  setTimeout(()=>_doResize(true),  1500);
+  setTimeout(()=>_doResize(true),  3000);
+  setTimeout(()=>_doResize(true),  6000); // safety net for very slow mobile
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -4191,6 +4196,8 @@ function goView(v){
     // Mobile/tablet: always open panel as overlay for all views including מפה
     if(window.innerWidth<=1024) rp.classList.add('mobile-open');
   }
+  // Always re-trigger map resize when switching to map — fixes mobile blank
+  if(v==='map' && typeof _triggerMapResize==='function') _triggerMapResize();
 }
 
 // ─── MISC ───
@@ -6510,7 +6517,13 @@ function _applyLocPrivacyUI(){
 // Apply saved state on load (called after map init)
 function initLocPrivacy(){
   _applyLocPrivacyUI();
-  if(!window._locPrivacyOn && typeof SYNC!=='undefined') SYNC.stopPublishing();
+  if(!window._locPrivacyOn && typeof SYNC!=='undefined'){
+    SYNC.stopPublishing();
+  } else if(window._locPrivacyOn && typeof SYNC!=='undefined'){
+    // Belt-and-suspenders: also trigger here in case Firebase already connected
+    // before initLocPrivacy was called (or auth resolved before session restore)
+    setTimeout(()=>{ if(typeof SYNC!=='undefined') SYNC.autoStartPublishing(); }, 800);
+  }
 }
 
 /* ══════════════════════════════════════════════════
@@ -7055,6 +7068,8 @@ function openMobileMenu(){
 function closeMobileMenu(){
   const d=document.getElementById('mobile-drawer');
   if(d){d.classList.remove('open');}
+  // Re-trigger map resize — drawer closing may reveal map that was hidden during init
+  if(typeof _triggerMapResize==='function') setTimeout(_triggerMapResize, 100);
 }
 function mobileGoView(v){
   closeMobileMenu();
@@ -7155,7 +7170,15 @@ const SYNC = (() => {
           } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
         };
         _tryMarker(0);
-      }, ()=>{}, {enableHighAccuracy:true, maximumAge:2000, timeout:10000});
+      }, err=>{
+        // Permission denied — turn off location toggle
+        if(err && err.code===1){
+          window._locPrivacyOn=false;
+          localStorage.setItem('tac_loc_privacy','0');
+          if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+        }
+        // timeout/unavailable — watchPosition retries automatically
+      }, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
     }
     // Keep setInterval as fallback
     if(_publishTimer) clearInterval(_publishTimer);
@@ -7270,39 +7293,24 @@ const SYNC = (() => {
   }
 
   // ── Auto-start publishing if user has location privacy ON after Firebase connects ──
+  let _autoStartTries = 0;
   function _autoStartPublishing(){
     if(window._locPrivacyOn === false) return;
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-    if(!u) return; // not logged in — field operatives must approve first
-    const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
-    // Request GPS permission explicitly before starting — this triggers the browser dialog
-    if('geolocation' in navigator){
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          // Permission granted — cache immediately and start publishing
-          window._lastLat = pos.coords.latitude;
-          window._lastLng = pos.coords.longitude;
-          startPublishing(profile);
-          if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-          // Center map and show GPS dot immediately (same as manual toggle-on)
-          if(typeof locateMe==='function') setTimeout(locateMe, 400);
-        },
-        err => {
-          if(err && err.code === 1){
-            // Permission explicitly DENIED — disable location
-            window._locPrivacyOn = false;
-            localStorage.setItem('tac_loc_privacy','0');
-            if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-          } else {
-            // Timeout or unavailable (GPS cold start on mobile) — retry silently
-            setTimeout(_autoStartPublishing, 5000);
-          }
-        },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
-      );
-    } else {
-      startPublishing(profile);
+    if(!u){
+      // Auth may not be restored yet (race: Firebase resolves before AUTH.restore())
+      // Retry up to 8 times waiting for session restore
+      if(_autoStartTries++ < 8){ setTimeout(_autoStartPublishing, 1000); }
+      return;
     }
+    _autoStartTries = 0;
+    const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
+    // Call startPublishing directly — same as manual toggle-on.
+    // watchPosition (inside startPublishing) handles permission, caching, and continuous updates.
+    // No need for a separate getCurrentPosition wrapper that adds a 12s delay.
+    startPublishing(profile);
+    if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+    if(typeof locateMe==='function') setTimeout(locateMe, 500);
   }
 
   function rerenderMarkers(){
@@ -7358,27 +7366,116 @@ const SYNC = (() => {
     });
   }
 
-  // Build SVG avatar marker
-  function _avatarSVG(initials, bgColor, ringColor, isMe){
-    const W=48, H=60, cx=24, cy=22, rOuter=20, rInner=17;
-    const pulse = isMe
-      ? `<circle cx="${cx}" cy="${cy}" r="${rOuter+3}" fill="${ringColor}" opacity="0.25"/>`
-      : '';
-    const crown = isMe
-      ? `<text x="${cx}" y="6" text-anchor="middle" font-size="8" fill="#ffd700">👑</text>`
-      : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-      ${pulse}
-      <ellipse cx="${cx}" cy="${H-2}" rx="9" ry="3" fill="rgba(0,0,0,0.28)"/>
-      <circle cx="${cx}" cy="${cy}" r="${rOuter}" fill="${ringColor}"/>
-      <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="${bgColor}"/>
-      ${crown}
-      <text x="${cx}" y="${cy+5}" text-anchor="middle"
-        font-family="Heebo,Arial,sans-serif" font-size="${initials.length>2?9:13}"
-        font-weight="900" fill="#fff">${initials}</text>
-      <polygon points="${cx-7},${cy+rOuter} ${cx},${H-5} ${cx+7},${cy+rOuter}"
-        fill="${ringColor}"/>
-    </svg>`;
+  // Build marker icon using Canvas so photos render correctly at any size
+  // Returns a Promise<{url, W, H}> or falls back to SVG immediately
+  function _buildMarkerIcon(initials, bgColor, ringColor, isMe, photoUrl, fullName, isDayMode, cb){
+    const W=72, labelH=22, bubH=60, H=labelH+bubH;
+    const cx=W/2, bubCy=labelH+22, rOuter=20, rInner=17;
+    const labelBg    = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
+    const labelColor = isDayMode ? '#111111' : '#3dff52';
+    const displayName = (fullName||initials).slice(0,18);
+
+    function _drawOnCanvas(imgEl){
+      const cvs = document.createElement('canvas');
+      cvs.width = W * 2; cvs.height = H * 2; // retina
+      const g = cvs.getContext('2d');
+      g.scale(2, 2);
+
+      // ── Name label ──
+      const nameW = Math.min(W+8, Math.max(48, displayName.length * 6 + 14));
+      const nameX = cx - nameW/2;
+      g.beginPath();
+      // roundRect polyfill for older iOS Safari
+      if(g.roundRect){ g.roundRect(nameX, 2, nameW, 17, 5); }
+      else {
+        const r=5,x=nameX,y=2,w=nameW,h=17;
+        g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.quadraticCurveTo(x+w,y,x+w,y+r);
+        g.lineTo(x+w,y+h-r);g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+        g.lineTo(x+r,y+h);g.quadraticCurveTo(x,y+h,x,y+h-r);
+        g.lineTo(x,y+r);g.quadraticCurveTo(x,y,x+r,y);g.closePath();
+      }
+      g.fillStyle = labelBg;
+      g.fill();
+      g.fillStyle = labelColor;
+      g.font = '700 10px Heebo,Arial,sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'top';
+      g.fillText(displayName, cx, 5.5);
+
+      // ── Pulse ring (me only) ──
+      if(isMe){
+        g.beginPath();
+        g.arc(cx, bubCy, rOuter+5, 0, Math.PI*2);
+        g.fillStyle = ringColor+'38';
+        g.fill();
+      }
+
+      // ── Drop shadow ──
+      g.beginPath();
+      g.ellipse(cx, H-2, 9, 3, 0, 0, Math.PI*2);
+      g.fillStyle = 'rgba(0,0,0,0.28)';
+      g.fill();
+
+      // ── Ring ──
+      g.beginPath();
+      g.arc(cx, bubCy, rOuter, 0, Math.PI*2);
+      g.fillStyle = ringColor;
+      g.fill();
+
+      // ── Arrow / pin tip ──
+      g.beginPath();
+      g.moveTo(cx-7, bubCy+rOuter);
+      g.lineTo(cx, H-5);
+      g.lineTo(cx+7, bubCy+rOuter);
+      g.closePath();
+      g.fillStyle = ringColor;
+      g.fill();
+
+      // ── Inner circle ──
+      g.save();
+      g.beginPath();
+      g.arc(cx, bubCy, rInner, 0, Math.PI*2);
+      g.clip();
+      if(imgEl){
+        // Photo — fill circle
+        g.fillStyle = bgColor;
+        g.fillRect(cx-rInner, bubCy-rInner, rInner*2, rInner*2);
+        g.drawImage(imgEl, cx-rInner, bubCy-rInner, rInner*2, rInner*2);
+      } else {
+        g.fillStyle = bgColor;
+        g.fillRect(cx-rInner, bubCy-rInner, rInner*2, rInner*2);
+        g.restore();
+        // Initials text
+        g.fillStyle = '#fff';
+        g.font = `900 ${initials.length>2?9:13}px Heebo,Arial,sans-serif`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(initials, cx, bubCy+1);
+        g.save();
+      }
+      g.restore();
+
+      // ── Crown (me) ──
+      if(isMe){
+        g.font = '8px sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'top';
+        g.fillText('👑', cx, labelH+1);
+      }
+
+      return cvs.toDataURL('image/png');
+    }
+
+    // With photo: load image first (may be base64 or URL)
+    if(photoUrl && photoUrl.length > 10){
+      const img = new Image();
+      img.onload  = ()=> cb(_drawOnCanvas(img), W, H);
+      img.onerror = ()=> cb(_drawOnCanvas(null), W, H);
+      img.src = photoUrl;
+    } else {
+      // No photo — synchronous
+      cb(_drawOnCanvas(null), W, H);
+    }
   }
 
   function _updateLiveMarker(uid, d, isMe){
@@ -7386,56 +7483,62 @@ const SYNC = (() => {
     const pos  = {lat:d.lat, lng:d.lng};
     const STATUS = {active:'#3dff52', urgent:'#ff3333', standby:'#ffc107', busy:'#ff7a1a'};
     const ringColor = STATUS[d.status] || '#29c5f6';
-    // Look up personnel color by personId or name match
+    // Look up personnel by personId or name
     const person = (typeof PERSONNEL!=='undefined')
       ? (PERSONNEL.find(p=>p.id===d.personId) || PERSONNEL.find(p=>p.name===d.name))
       : null;
-    const bgColor = d.color || (person ? person.color : '#1a3a5c');
+    const bgColor  = d.color || (person ? person.color : '#1a3a5c');
     const initials = (d.name||'?').split(' ').map(w=>w[0]).filter(Boolean).join('').slice(0,2);
-    const svg = _avatarSVG(initials, bgColor, ringColor, !!isMe);
-    const icon = {
-      url: 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),
-      scaledSize: new google.maps.Size(48, 60),
-      anchor: new google.maps.Point(24, 57)
-    };
+    const photoUrl = (person && person.photo) ? person.photo : '';
+    const isDayMode = document.body.classList.contains('day');
 
-    if(!_liveMarkers[uid]){
-      _liveMarkers[uid] = new google.maps.Marker({
-        position:pos, map:window.map,
-        zIndex: isMe ? 800 : 600,
-        icon, title: d.name + (isMe?' (אני)':'')
-      });
-      _liveMarkers[uid]._data = d;
-      _liveMarkers[uid].addListener('click', ()=>{
-        closeAllInfoWindows();
-        const age = Math.round((Date.now()-(d.ts||Date.now()))/1000);
-        const ageStr = age<60 ? age+'ש\'' : Math.round(age/60)+'ד\'';
-        const iw = new google.maps.InfoWindow({content:
-          `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-              <div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};
-                display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>
-              <div>
-                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
-                <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div>
-              </div>
-            </div>
-            <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
-              <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
-              <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
-              <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
-              <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span>
-            </div>
-          </div>`
+    _buildMarkerIcon(initials, bgColor, ringColor, !!isMe, photoUrl, d.name||'', isDayMode, (dataUrl, W, H)=>{
+      const icon = {
+        url: dataUrl,
+        scaledSize: new google.maps.Size(W, H),
+        anchor: new google.maps.Point(W/2, H-5)
+      };
+
+      if(!_liveMarkers[uid]){
+        _liveMarkers[uid] = new google.maps.Marker({
+          position:pos, map:window.map,
+          zIndex: isMe ? 800 : 600,
+          icon, title: d.name + (isMe?' (אני)':'')
         });
-        iw.open(window.map, _liveMarkers[uid]);
-        window._infoWindows.push(iw);
-      });
-    } else {
-      _liveMarkers[uid]._data = d;
-      _liveMarkers[uid].setPosition(pos);
-      _liveMarkers[uid].setIcon(icon);
-    }
+        _liveMarkers[uid]._data = d;
+        _liveMarkers[uid].addListener('click', ()=>{
+          closeAllInfoWindows();
+          const age = Math.round((Date.now()-(d.ts||Date.now()))/1000);
+          const ageStr = age<60 ? age+'ש\'' : Math.round(age/60)+'ד\'';
+          const photoHtml = photoUrl && photoUrl.length>10
+            ? `<img src="${photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
+            : `<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>`;
+          const iw = new google.maps.InfoWindow({content:
+            `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                ${photoHtml}
+                <div>
+                  <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
+                  <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div>
+                </div>
+              </div>
+              <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
+                <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
+                <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
+                <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
+                <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span>
+              </div>
+            </div>`
+          });
+          iw.open(window.map, _liveMarkers[uid]);
+          window._infoWindows.push(iw);
+        });
+      } else {
+        _liveMarkers[uid]._data = d;
+        _liveMarkers[uid].setPosition(pos);
+        _liveMarkers[uid].setIcon(icon);
+      }
+    }); // end _buildMarkerIcon callback
   }
 
   function _showSetupBanner(){
@@ -7517,7 +7620,7 @@ const SYNC = (() => {
     init(_DEFAULT_CFG);
   }
 
-  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
 })();
 
 // ══════════════════════════════════════════════════════════
@@ -7838,6 +7941,8 @@ const FIELD = (() => {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         navigator.serviceWorker.getRegistration().then(reg => reg && reg.update());
+        // Re-trigger map resize on mobile — tab was backgrounded, map needs repaint
+        if(typeof _triggerMapResize==='function') setTimeout(_triggerMapResize, 200);
       }
     });
   }
