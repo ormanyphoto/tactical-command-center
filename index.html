@@ -7024,9 +7024,9 @@ function _showIncomingNotif(notif, fbRef){
 // ── Notification graphic config (type + threat → urgency level, colors, symbols) ──
 function _notifGraphic(type, threat){
   const t = (threat||'').trim();
-  if(['חדירת מחבלים','ירי תמ״ס/כטב״מ'].includes(t))
+  if(['חדירת מחבלים','ירי תמ״ס/כטב״מ','פיגוע'].includes(t))
     return {emoji:'🚨', color:'#ff1111', urgency:3, urgClass:'urg-3', markerSym:'!'};
-  if(['פיגוע','קוד פיגיון','רעידת אדמה'].includes(t))
+  if(['קוד פיגיון','רעידת אדמה'].includes(t))
     return {emoji:'⚡', color:'#ff6600', urgency:2, urgClass:'urg-2', markerSym:'!'};
   if(['מחסומי רשת','אביר לילה ב׳','אביר לילה ג׳'].includes(t))
     return {emoji:'⚠️', color:'#e0b800', urgency:1, urgClass:'urg-1', markerSym:'!'};
