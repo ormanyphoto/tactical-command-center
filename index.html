@@ -7000,8 +7000,6 @@ function _showIncomingNotif(notif, fbRef){
           if(d < minDist){ minDist = d; closestIdx = i; }
         }
       });
-      // Pre-select closest venue
-      if(closestIdx >= 0) window._pendingVenueId = sorted[closestIdx].id;
     }
     // Tapping a venue = auto-confirm arrival at that venue + navigate
     // Keep original venue order — only badge the closest one
@@ -7017,8 +7015,11 @@ function _showIncomingNotif(notif, fbRef){
       const isClosest = userLat && v.lat && v.lng &&
         Math.abs(_haversineKm(userLat, userLng, v.lat, v.lng) - (closestIdx>=0 ? _haversineKm(userLat, userLng, originalOrder[closestIdx]&&originalOrder[closestIdx].lat||0, originalOrder[closestIdx]&&originalOrder[closestIdx].lng||0) : Infinity)) < 0.001;
       const closestMe = userLat && closestIdx>=0 && sorted[closestIdx] && sorted[closestIdx].id === v.id;
+      const navCall = (v.lat && v.lng)
+        ? `openNavToLatLng(${v.lat},${v.lng},'${(v.address||'').replace(/'/g,"\\'")}')`
+        : `openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}')`;
       return `<button class="inc-venue-btn${closestMe?' selected':''}" data-vid="${v.id}"
-        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}')">
+        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);${navCall}">
         <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
         <span style="flex:1;text-align:right;line-height:1.3">${v.label} — ${v.address}</span>
         ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${closestMe?'📍 ':''}${v.distStr}</span>`:''}
@@ -7109,8 +7110,35 @@ function _makeNotifMarkerSVG(color, sym, urgency){
 let _notifMapMarkers = {}; // id → google.maps.Marker — NEVER auto-deleted, admin-only removal
 function _removeNotifMarker(id){
   if(_notifMapMarkers[id]){ _notifMapMarkers[id].setMap(null); delete _notifMapMarkers[id]; }
+  // Remove from Firebase persistence
+  if(window._db) window._db.ref('tac_notif_markers/'+id).remove().catch(()=>{});
 }
-function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, markerId){
+// Save marker data to Firebase for persistence across sessions
+function _persistNotifMarker(mid, lat, lng, address, notif, venueLabel, venueColor){
+  if(!window._db) return;
+  window._db.ref('tac_notif_markers/'+mid).set({
+    mid, lat, lng, address: address||'',
+    type: (notif&&notif.type)||'', threat: (notif&&notif.threat)||'',
+    title: (notif&&notif.title)||'', body: (notif&&notif.body)||'',
+    venueLabel: venueLabel||'', venueColor: venueColor||'#ff3333',
+    savedAt: Date.now()
+  }).catch(()=>{});
+}
+// Load and re-draw all saved notification markers from Firebase
+function _loadPersistedNotifMarkers(){
+  if(!window._db || !window.map || !window.google) return;
+  window._db.ref('tac_notif_markers').once('value', snap=>{
+    const data = snap.val();
+    if(!data) return;
+    Object.values(data).forEach(m=>{
+      if(!m||!m.mid||!m.lat||!m.lng) return;
+      if(_notifMapMarkers[m.mid]) return; // already on map
+      const notif = {type:m.type||'alert', threat:m.threat||'', title:m.title||'', body:m.body||''};
+      _placeNotifMarker(m.lat, m.lng, m.address||'', notif, m.venueLabel||m.title, m.venueColor||'#ff3333', m.mid, true);
+    });
+  });
+}
+function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, markerId, _noSave){
   if(!window.map||!window.google) return;
   const mid = markerId || ('nm_'+Date.now().toString(36));
   const gfx2 = _notifGraphic(notif&&notif.type, notif&&notif.threat);
@@ -7142,7 +7170,11 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
       ${delBtn}
     </div>`});
   marker.addListener('click',()=>iw.open(window.map, marker));
-  iw.open(window.map, marker);
+  // Auto-open only for the first/primary venue marker (markerId contains '_v1' or no '_v')
+  const isFirstVenue = !markerId || markerId.endsWith('_v1') || (!markerId.includes('_v'));
+  if(isFirstVenue) iw.open(window.map, marker);
+  // Persist to Firebase so markers survive page reload
+  if(!_noSave) _persistNotifMarker(mid, lat, lng, address, notif, venueLabel||label, venueColor||color);
 }
 
 function openNavToAddress(addr){
@@ -7150,13 +7182,17 @@ function openNavToAddress(addr){
   const enc = encodeURIComponent(addr);
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(isMobile){
-    // Try Waze; fall back to Google Maps after short delay
-    const wazeUrl = 'waze://?q='+enc+'&navigate=yes';
-    const gmUrl = 'https://maps.google.com/?q='+enc;
-    window.location.href = wazeUrl;
-    setTimeout(()=>window.open(gmUrl,'_blank'), 1500);
+    window.location.href = 'waze://?q='+enc+'&navigate=yes';
   } else {
     window.open('https://maps.google.com/?q='+enc,'_blank');
+  }
+}
+function openNavToLatLng(lat, lng, fallbackAddr){
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(isMobile){
+    window.location.href = `waze://ul?ll=${lat},${lng}&navigate=yes`;
+  } else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,'_blank');
   }
 }
 
@@ -7300,7 +7336,7 @@ function _calcETAString(personId, destLat, destLng){
   if(!destLat||!destLng) return null;
   const loc = (window._liveLocs||{})[personId];
   if(!loc||!loc.lat||!loc.lng) return null;
-  if(Date.now()-loc.ts > 300000) return null; // stale > 5 min
+  if(Date.now()-loc.ts > 86400000) return null; // stale > 24h
   const cacheKey = personId+'|'+destLat.toFixed(4)+'|'+destLng.toFixed(4);
   const cached = _etaCache[cacheKey];
   if(cached && Date.now()-cached.ts < 120000) return cached.str; // 2-min cache
@@ -7669,6 +7705,15 @@ const SYNC = (() => {
   // ── Sync MISSIONS from Firebase so all devices see new missions in real-time ──
   function _subscribeMissions(){
     if(!_db) return;
+    // Restore notification markers from previous sessions
+    const _tryLoadMarkers = (attempts) => {
+      if(window.map && window.google && window._googleReady){
+        _loadPersistedNotifMarkers();
+      } else if(attempts > 0){
+        setTimeout(()=>_tryLoadMarkers(attempts-1), 1500);
+      }
+    };
+    setTimeout(()=>_tryLoadMarkers(8), 2000);
     _db.ref('tac_missions').on('value', snap=>{
       const data = snap.val();
       if(!data) return;
@@ -7719,13 +7764,12 @@ const SYNC = (() => {
     const data = window._pendingLocData || {};
     const now = Date.now();
     Object.entries(data).forEach(([uid,d])=>{
-      if(!d || now-(d.ts||0)>300000) return;
       _updateLiveMarker(uid, d, uid===_myUid);
     });
     // Fresh fetch from Firebase to catch any live locations not yet in _pendingLocData
     if(_db) _db.ref('tac_locs').once('value', snap=>{
       const fd=snap.val()||{}, fn=Date.now();
-      Object.entries(fd).forEach(([uid,d])=>{ if(d&&fn-(d.ts||0)<300000) _updateLiveMarker(uid,d,uid===_myUid); });
+      Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
     });
   }
 
@@ -7738,17 +7782,17 @@ const SYNC = (() => {
       // Expose live locations globally for ETA calculations
       window._liveLocs = window._liveLocs || {};
       Object.entries(data).forEach(([uid,d])=>{
-        if(!d || now-(d.ts||0)>300000){ delete window._liveLocs[d&&d.personId||uid]; return; }
+        if(!d){ delete window._liveLocs[d&&d.personId||uid]; return; }
         const key = d.personId || uid;
         window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
       });
       function _renderAll(){
         Object.entries(data).forEach(([uid,d])=>{
-          if(!d || now - (d.ts||0) > 300000) return;
+          if(!d) return;
           _updateLiveMarker(uid, d, uid===_myUid);
         });
         Object.keys(_liveMarkers).forEach(uid=>{
-          if(!data[uid] || now-(data[uid].ts||0)>300000){
+          if(!data[uid]){
             if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
             delete _liveMarkers[uid];
           }
