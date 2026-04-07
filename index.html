@@ -375,10 +375,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 /* Back Office */
 #bo-wrap{position:fixed;inset:0;z-index:8000;background:var(--bg);display:none;flex-direction:column;direction:rtl}
 #bo-wrap.show{display:flex}
-#bo-topbar{background:var(--panel);border-bottom:1px solid var(--border2);padding:0 16px;height:50px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#bo-topbar{background:var(--panel);border-bottom:1px solid var(--border2);padding:6px 16px 4px;display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+#bo-topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px}
 .bo-logo{font-family:var(--font2);font-size:14px;font-weight:800;color:var(--accent);white-space:nowrap}
-.bo-tabs{display:flex;gap:2px;flex:1;overflow-x:auto}
-.bo-tab{background:none;border:none;padding:6px 12px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:var(--r);font-family:var(--font);white-space:nowrap}
+.bo-tabs{display:flex;gap:3px;flex-wrap:wrap;padding-bottom:2px}
+.bo-tab{background:none;border:none;padding:5px 11px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-radius:var(--r);font-family:var(--font);white-space:nowrap}
 .bo-tab.active{background:var(--panel2);color:var(--accent)}
 .bo-back{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);white-space:nowrap}
 #bo-content{flex:1;overflow-y:auto;padding:20px;direction:rtl}
@@ -664,9 +665,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   .mp-btn{height:38px;padding:0 8px;gap:7px}
   .mp-btn-label{font-size:10.5px}
   #search-wrap{top:8px;left:6px;right:6px;max-width:none}
-  #bo-topbar{height:auto;flex-wrap:wrap;padding:8px}
-  .bo-tabs{flex-wrap:wrap;gap:3px}
-  .bo-tab{padding:5px 10px;font-size:11px}
+  #bo-topbar{padding:5px 10px 3px}
+  .bo-tab{padding:4px 9px;font-size:11px}
   #modal-box{max-width:100%;width:100%;margin:0;border-radius:12px 12px 0 0;position:fixed;bottom:0;max-height:85vh}
   #modal-wrap{align-items:flex-end}
 }
@@ -1055,7 +1055,10 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- BACK OFFICE -->
 <div id="bo-wrap">
   <div id="bo-topbar">
-    <div class="bo-logo">⚙ פאנל ניהול</div>
+    <div id="bo-topbar-row1">
+      <div class="bo-logo">⚙ פאנל ניהול</div>
+      <button class="bo-back" onclick="closeBO()">← חזרה למפה</button>
+    </div>
     <div class="bo-tabs">
       <button class="bo-tab active" onclick="boTab('overview')">📊 סקירה</button>
       <button class="bo-tab" onclick="boTab('missions-bo')">📋 משימות</button>
@@ -1064,13 +1067,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('teams-bo')">🏢 צוותים</button>
       <button class="bo-tab" onclick="boTab('geofences-bo')">⬡ גיאופנסים</button>
       <button class="bo-tab" onclick="boTab('incidents-bo')">🗂️ אירועים</button>
+      <button class="bo-tab" onclick="boTab('comms-bo')">📡 תקשורת</button>
       <button class="bo-tab" onclick="boTab('shifts-bo')">🕐 משמרות</button>
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
       <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
-    <button class="bo-back" onclick="closeBO()">← חזרה למפה</button>
   </div>
   <div id="bo-content"><div class="bo-inner"></div></div>
 </div>
@@ -4350,8 +4353,9 @@ function boTab(tab){
   const handlers={
     'overview':boOverview,'missions-bo':boMissions,'units-bo':boUnits,
     'personnel-bo':boPersonnel,'teams-bo':boTeamsAdmin,'geofences-bo':boGeofences,
-    'incidents-bo':boIncidents,'shifts-bo':boShifts,'permissions-bo':boPermissions,
-    'credentials-bo':boCredentials,'audit-bo':boAudit,'settings-bo':boSettings,
+    'incidents-bo':boIncidents,'comms-bo':boComms,'shifts-bo':boShifts,
+    'permissions-bo':boPermissions,'credentials-bo':boCredentials,
+    'audit-bo':boAudit,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
   if(fn)fn(bi);else bi.innerHTML='<p style="color:var(--text3);padding:20px">לשונית: '+tab+'</p>';
@@ -4961,6 +4965,25 @@ function boAudit(c){
   auditEntries.forEach(function(e){rows+='<tr><td style="color:var(--text3)">'+e.time+'</td><td style="color:var(--accent2)">'+e.user+'</td><td>'+e.action+'</td></tr>';});
   c.innerHTML='<div class="bo-section"><div class="bo-hd">יומן ביקורת</div><table class="bo-table"><thead><tr><th>שעה</th><th>משתמש</th><th>פעולה</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+function boComms(c){
+  c.innerHTML=
+    '<div class="bo-section"><div class="bo-hd">📡 ניהול תקשורת</div>'
+    +'<p style="font-size:13px;color:var(--text3);margin-bottom:16px">ניהול ערוצי תקשורת, הודעות ואותות חירום.</p>'
+    +'</div>'
+    // ── Notifications log ──
+    +'<div class="bo-section"><div class="bo-hd">🔔 הודעות שנשלחו</div>'
+    +'<p style="font-size:12px;color:var(--text3)">הודעות נשלחות דרך לשונית כוח האדם ← בחר איש צוות ← שלח הודעה.</p>'
+    +'</div>'
+    // ── SOS Management ──
+    +'<div class="bo-section"><div class="bo-hd">🆘 ניהול אותות מצוקה</div>'
+    +'<div id="bo-sos-status" style="font-size:13px;color:var(--text2);margin-bottom:12px;min-height:22px"></div>'
+    +'<button id="bo-cancel-sos-btn" style="width:100%;font-size:14px;font-weight:700;padding:11px 0;background:#c0392b;border:none;border-radius:8px;color:#fff;cursor:pointer" '
+    +'onclick="adminCancelAllSOS()">🚫 בטל אות מצוקה לכל המשתמשים</button>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:6px">מחיקת האות תפסיק את ההתראה אצל כל המשתמשים מיידית.</div>'
+    +'</div>';
+  _renderBOSOSStatus();
+}
+
 function boSettings(c){
   var isNight=document.body.classList.contains('night');
   var fbCfg=JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
@@ -5019,16 +5042,7 @@ function boSettings(c){
     +'try{JSON.parse(j);if(typeof PUSH!==\'undefined\')PUSH.saveSA(j);'
     +'showToast({icon:\'🔔\',title:\'Service Account נשמר\',sub:\'Push פעיל לכולם\',type:\'success\'});}catch(e){'
     +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
-    +'</div>'
-    // ── SOS Management ──
-    +'<div class="bo-section" id="bo-sos-mgmt"><div class="bo-hd">🆘 ניהול אותות מצוקה</div>'
-    +'<div id="bo-sos-status" style="font-size:13px;color:var(--text2);margin-bottom:10px;min-height:22px"></div>'
-    +'<button class="btn-danger" id="bo-cancel-sos-btn" style="width:100%;font-size:14px;font-weight:700;padding:11px 0;background:#c0392b;border:none;border-radius:8px;color:#fff;cursor:pointer" '
-    +'onclick="adminCancelAllSOS()">🚫 בטל אות מצוקה לכל המשתמשים</button>'
-    +'<div style="font-size:11px;color:var(--text3);margin-top:6px">מחיקת האות תפסיק את ההתראה אצל כל המשתמשים מיידית.</div>'
     +'</div>';
-  // Populate SOS status dynamically
-  _renderBOSOSStatus();
 }
 
 function _renderBOSOSStatus(){
