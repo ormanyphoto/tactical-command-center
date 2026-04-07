@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.2 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.3 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -695,7 +695,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.2</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.3</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1022,7 +1022,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.2</div>
+    <div id="fm-logo">⬡ מבצעים v5.3</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1688,7 +1688,7 @@ function onGoogleMapsReady(){
   if(rp)rp.classList.remove('hidden');
   setTimeout(()=>goPanel('draw'),150);
 
-  setTimeout(()=>showToast({icon:'✅',title:'מערכת מבצעים v5.2',sub:'Google Maps פעיל · בניינים · עברית · 3D',type:'success',duration:5000}),600);
+  setTimeout(()=>showToast({icon:'✅',title:'מערכת מבצעים v5.3',sub:'Google Maps פעיל · בניינים · עברית · 3D',type:'success',duration:5000}),600);
   setTimeout(()=>showToast({icon:'⚠️',title:'חדירת גיאופנס',sub:'רכב זוהה בגבולות GF02',type:'warn',duration:7000}),10000);
 }
 
