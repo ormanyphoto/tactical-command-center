@@ -3089,6 +3089,7 @@ function closeModal(){document.getElementById('modal-wrap').style.display='none'
 
 // ── PANEL ──
 const PANEL_TITLES={draw:'מפה וכלים',dashboard:'לוח בקרה',missions:'יומן משימות',units:'כוח אדם',comms:'תקשורת',analytics:'אנליטיקה',incidents:'יומן אירועים',ai:'עוזר AI',teams:'ניהול צוותים',personnel:'אנשי צוות',navigation:'ניווט Google',alerts:'התראות',geofence:'גיאופנסים',layers:'שכבות'};
+function _syncTitle(key){currentPanel=key;const t=document.getElementById('rp-title-txt');if(t&&PANEL_TITLES[key])t.textContent=PANEL_TITLES[key];}
 function goPanel(name){
   currentPanel=name;
   const t=document.getElementById('rp-title-txt');if(t)t.textContent=PANEL_TITLES[name]||name;
@@ -3239,6 +3240,7 @@ function renderGfP(c){
 // ── MISSIONS PANEL ──
 function renderMsnsP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('missions');
   const filter=c._f||'all';
   const filtered=MISSIONS.filter(m=>filter==='all'||m.status===filter);
   const statuses=['all','urgent','active','briefing','pending','completed'];
@@ -3432,6 +3434,7 @@ function advMsn(id){
 // ── COMMUNICATIONS ──
 function renderCommsP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('comms');
   const ch=c._ch||'הכל';
   const channels=['הכל','MSN-001','MSN-002','חירום','כל היחידות'];
   c.innerHTML=`
@@ -3960,6 +3963,7 @@ function saveMission(){
 // ─── UNITS ───
 function renderUnitsP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('units');
   const flt=c._flt||'all';
   const statusDef={
     deployed:{lbl:'פרוס',badge:'b-deployed'},
@@ -4072,6 +4076,7 @@ function sendStatus(s){MSGS.unshift({id:Date.now(),from:'עדכון סטטוס',
 // ─── INCIDENTS ───
 function renderIncidentsP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('incidents');
   c.innerHTML=`<div class="sec-hd">יומן אירועים (${INCIDENTS.length})</div>
   <button class="btn-sec" onclick="addTestIncident()" style="margin-bottom:8px">+ דווח אירוע חדש</button>
   ${INCIDENTS.map(inc=>`<div class="inc-item" style="border-right-color:${inc.type==='urgent'?'var(--danger)':inc.type==='warn'?'var(--warn)':inc.type==='rescue'?'var(--purple)':'var(--blue)'}"><div class="inc-hdr"><span class="inc-id">${inc.id}</span><span class="inc-time">${inc.time}</span></div><div class="inc-title">${inc.title}</div><div class="inc-meta">אזור: ${inc.area} | סטטוס: <strong>${inc.status}</strong> | יחידות: ${inc.units.join(', ')}</div></div>`).join('')}`;
@@ -4101,6 +4106,7 @@ function expGeo(){const f=[];drawnLyr.eachLayer(l=>{try{f.push(l.toGeoJSON())}ca
 // ─── GEOFENCE ───
 function renderGfP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('geofence');
   const savedAt = window._gfLastSaved ? new Date(window._gfLastSaved).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : null;
   c.innerHTML=`<div class="sec-hd">גיאופנסים (${GFS.length})</div>
   ${GFS.map((gf,i)=>`<div class="gf-row"><div><div class="gf-nm">${gf.name}</div><div class="gf-mt">${gf.id} · ${gf.type} · ר: ${gf.radius}מ · <span style="color:${gf.active?'var(--accent)':'var(--text3)'}">${gf.active?'פעיל':'כבוי'}</span></div></div><div class="gf-actions"><button class="gf-btn" onclick="panToGF(${gf.lat},${gf.lng})">📍</button><button class="gf-btn" onclick="toggleGF(${i})">${gf.active?'כבה':'הפעל'}</button></div></div>`).join('')}
@@ -5576,6 +5582,7 @@ loadPersonnelFromStorage();
 // ── TEAMS PANEL ──
 function renderTeamsP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('teams');
   c.innerHTML=`
   <!-- Global bar -->
   <div class="teams-global-bar">
@@ -5830,6 +5837,7 @@ function deleteTeam(id){
 
 function renderPersonnelP(c){
   if(!c)c=document.getElementById('rp-body');
+  _syncTitle('personnel');
   const sorted=[...PERSONNEL].sort((a,b)=>a.order-b.order);
   const filterUnit=c._unit||'all';
   const filterAvail=c._avail||'all';
