@@ -37,13 +37,13 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 #sys-clock{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:default;position:relative;padding:0 12px}
 #sys-clock::before,#sys-clock::after{content:'';position:absolute;top:18%;bottom:18%;width:1px;background:linear-gradient(to bottom,transparent,var(--border2) 40%,var(--border2) 60%,transparent)}
 #sys-clock::before{right:0}#sys-clock::after{left:0}
-#sys-clock-inner{display:flex;align-items:baseline;gap:0;font-family:'Courier New',Consolas,monospace;font-weight:900;line-height:1}
-#sys-h,#sys-m{font-size:26px;color:var(--accent);text-shadow:0 0 14px rgba(61,255,82,0.45);min-width:2ch;text-align:center;letter-spacing:0.02em}
-#sys-s{font-size:15px;color:var(--accent2);opacity:.8;min-width:2ch;text-align:center;align-self:flex-end;padding-bottom:3px;letter-spacing:0.02em}
-.sys-sep{font-size:22px;color:var(--accent);opacity:.5;animation:tacBlink 1s step-end infinite;padding:0 2px;align-self:baseline}
-.sys-sep-s{font-size:13px;align-self:flex-end;padding:0 1px 4px}
+#sys-clock-inner{display:flex;align-items:baseline;gap:0;font-family:'Courier New',Consolas,monospace;font-weight:900;line-height:1;direction:ltr}
+#sys-h,#sys-m{font-size:30px;color:var(--accent);text-shadow:0 0 14px rgba(61,255,82,0.45);min-width:2ch;text-align:center;letter-spacing:0.02em}
+#sys-s{font-size:18px;color:var(--accent2);opacity:.8;min-width:2ch;text-align:center;align-self:flex-end;padding-bottom:3px;letter-spacing:0.02em}
+.sys-sep{font-size:26px;color:var(--accent);opacity:.5;animation:tacBlink 1s step-end infinite;padding:0 2px;align-self:baseline}
+.sys-sep-s{font-size:15px;align-self:flex-end;padding:0 1px 4px}
 @keyframes tacBlink{0%,100%{opacity:.45}50%{opacity:.07}}
-#sys-date{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.13em;font-family:var(--font2);text-transform:uppercase}
+#sys-date{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.13em;font-family:var(--font2);text-transform:uppercase;direction:ltr}
 .tb-btn{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s;white-space:nowrap;display:flex;align-items:center;gap:6px}
 .tb-btn:hover{border-color:var(--border3);color:var(--texthi)}
 .tb-btn.tbdanger{border-color:rgba(255,51,51,0.5);color:var(--danger)}
