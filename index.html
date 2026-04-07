@@ -1655,6 +1655,8 @@ function onGoogleMapsReady(){
   ];
   map.setOptions({styles: document.body.classList.contains('night') ? [...nightStyle,..._poiHide] : dayStyle});
   window._dayStyle=dayStyle; window._poiHide=_poiHide;
+  // Expose map on window so SYNC IIFE and other closures can access it
+  window.map = map;
 
   // Map events
   map.addListener('click',onMapClick);
