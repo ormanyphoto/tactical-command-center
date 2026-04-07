@@ -7282,6 +7282,8 @@ const SYNC = (() => {
           window._lastLng = pos.coords.longitude;
           startPublishing(profile);
           if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+          // Center map and show GPS dot immediately (same as manual toggle-on)
+          if(typeof locateMe==='function') setTimeout(locateMe, 400);
         },
         err => {
           if(err && err.code === 1){
