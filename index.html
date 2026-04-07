@@ -6644,6 +6644,11 @@ function sendNotification(){
 
   // Geocode first (if address), then write to Firebase with lat/lng included
   function _doSend(){
+    // Store destination for ETA calculations in the approvals panel
+    window._activeNotifDest = {
+      lat: payload.lat||null, lng: payload.lng||null,
+      address: payload.address||''
+    };
     const writes = recipientIds.map(pid =>
       db.ref('tac_notifications/'+pid+'/'+notifId).set(payload)
     );
@@ -6893,6 +6898,8 @@ function _listenApprovals(notifId){
   const db = window._db;
   if(!db) return;
   if(_approvalsListener) { _approvalsListener(); _approvalsListener=null; }
+  // Clear old ETA refresh timer
+  if(window._etaRefreshTimer){ clearInterval(window._etaRefreshTimer); window._etaRefreshTimer=null; }
   _approvalsData = {};
   const ref = db.ref('tac_notif_responses/'+notifId);
   const handler = ref.on('value', snap=>{
@@ -6908,26 +6915,69 @@ function _listenApprovals(notifId){
     if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
   });
   _approvalsListener = ()=>ref.off('value', handler);
+
+  // Auto-refresh ETA every 20 seconds while people are en-route
+  window._etaRefreshTimer = setInterval(()=>{
+    if(!Object.keys(_approvalsData).length){ clearInterval(window._etaRefreshTimer); window._etaRefreshTimer=null; return; }
+    const c = document.getElementById('rp-body');
+    if(c && (currentPanel==='units'||currentPanel==='personnel')){
+      // Re-render only the approvals section without rebuilding the whole panel
+      const el = c.querySelector('.approvals-section');
+      if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); el.replaceWith(tmp.firstChild); }
+    }
+  }, 20000);
+}
+
+// ── ETA helpers ──
+function _haversineKm(lat1,lng1,lat2,lng2){
+  const R=6371, toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function _calcETAString(personId, destLat, destLng){
+  if(!destLat||!destLng) return null;
+  const loc = (window._liveLocs||{})[personId];
+  if(!loc||!loc.lat||!loc.lng) return null;
+  if(Date.now()-loc.ts > 300000) return null; // stale > 5 min
+  const distKm = _haversineKm(loc.lat, loc.lng, destLat, destLng);
+  const roadKm  = distKm * 1.3; // straight-line → road factor
+  const kmh = (loc.spd > 3) ? Math.max(loc.spd, 10) : 50; // actual speed or 50 km/h default
+  const mins = Math.round((roadKm / kmh) * 60);
+  if(mins < 1)  return 'פחות מ-1 דק\'';
+  if(mins < 60) return '~'+mins+' דק\'';
+  const h=Math.floor(mins/60), m=mins%60;
+  return '~'+h+'שע\''+(m?' '+m+'דק\'':'');
 }
 
 function renderApprovalsSection(){
   const entries = Object.values(_approvalsData);
   if(!entries.length) return '';
+  const dest = window._activeNotifDest;
+  const hasDest = dest && dest.lat && dest.lng;
   return `<div class="approvals-section">
     <div class="approvals-hdr">
       <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
       מאשרים ומגיעים (${entries.length})
+      ${hasDest&&dest.address?`<span style="font-size:10px;color:var(--text3);font-weight:400;margin-right:6px">→ ${dest.address}</span>`:''}
     </div>
-    ${entries.map(e=>`
-      <div class="approval-item">
+    ${entries.map(e=>{
+      const eta = hasDest ? _calcETAString(e.personId, dest.lat, dest.lng) : null;
+      const hasLoc = !!(window._liveLocs||{})[e.personId];
+      return `<div class="approval-item">
         <div class="approval-dot"></div>
         <div style="flex:1;min-width:0">
           <span class="approval-name">${e.name}</span>
           <span class="approval-role"> · ${e.role||''}</span>
         </div>
-        <span class="approval-live">📍 מגיע</span>
-      </div>
-    `).join('')}
+        ${eta
+          ? `<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`
+          : hasLoc
+            ? `<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`
+            : `<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`
+        }
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -7201,6 +7251,13 @@ const SYNC = (() => {
     _db.ref('tac_locs').on('value', snap=>{
       const data = snap.val()||{};
       const now  = Date.now();
+      // Expose live locations globally for ETA calculations
+      window._liveLocs = window._liveLocs || {};
+      Object.entries(data).forEach(([uid,d])=>{
+        if(!d || now-(d.ts||0)>300000){ delete window._liveLocs[d&&d.personId||uid]; return; }
+        const key = d.personId || uid;
+        window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
+      });
       function _renderAll(){
         Object.entries(data).forEach(([uid,d])=>{
           if(!d || now - (d.ts||0) > 300000) return;
