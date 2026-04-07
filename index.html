@@ -5019,7 +5019,62 @@ function boSettings(c){
     +'try{JSON.parse(j);if(typeof PUSH!==\'undefined\')PUSH.saveSA(j);'
     +'showToast({icon:\'🔔\',title:\'Service Account נשמר\',sub:\'Push פעיל לכולם\',type:\'success\'});}catch(e){'
     +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
+    +'</div>'
+    // ── SOS Management ──
+    +'<div class="bo-section" id="bo-sos-mgmt"><div class="bo-hd">🆘 ניהול אותות מצוקה</div>'
+    +'<div id="bo-sos-status" style="font-size:13px;color:var(--text2);margin-bottom:10px;min-height:22px"></div>'
+    +'<button class="btn-danger" id="bo-cancel-sos-btn" style="width:100%;font-size:14px;font-weight:700;padding:11px 0;background:#c0392b;border:none;border-radius:8px;color:#fff;cursor:pointer" '
+    +'onclick="adminCancelAllSOS()">🚫 בטל אות מצוקה לכל המשתמשים</button>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:6px">מחיקת האות תפסיק את ההתראה אצל כל המשתמשים מיידית.</div>'
     +'</div>';
+  // Populate SOS status dynamically
+  _renderBOSOSStatus();
+}
+
+function _renderBOSOSStatus(){
+  const el = document.getElementById('bo-sos-status');
+  if(!el) return;
+  const db = window._db;
+  if(!db){ el.textContent = 'לא מחובר ל-Firebase'; return; }
+  db.ref('tac_sos').once('value').then(snap=>{
+    const data = snap.val();
+    if(!data || !Object.keys(data).length){
+      el.innerHTML = '<span style="color:#3dff52">✓ אין אותות מצוקה פעילים</span>';
+      const btn = document.getElementById('bo-cancel-sos-btn');
+      if(btn) btn.disabled = true;
+    } else {
+      const entries = Object.values(data).filter(s=>s&&s.active);
+      if(!entries.length){
+        el.innerHTML = '<span style="color:#3dff52">✓ אין אותות מצוקה פעילים</span>';
+        const btn = document.getElementById('bo-cancel-sos-btn');
+        if(btn) btn.disabled = true;
+      } else {
+        const names = entries.map(s=>'<b style="color:#ff4444">'+(s.name||s.uid||'?')+'</b> ('+ new Date(s.ts||0).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) +')').join(', ');
+        el.innerHTML = '⚠️ אות מצוקה פעיל: ' + names;
+      }
+    }
+  }).catch(()=>{ el.textContent = 'שגיאה בקריאת נתונים'; });
+}
+
+function adminCancelAllSOS(){
+  const db = window._db;
+  if(!db){ showToast({icon:'⚠️',title:'לא מחובר',sub:'אין חיבור ל-Firebase',type:'error'}); return; }
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!confirm('האם לבטל את כל אותות המצוקה הפעילים?\nהפעולה תפסיק את ההתראה אצל כל המשתמשים.')) return;
+  db.ref('tac_sos').remove()
+    .then(()=>{
+      // Also clear acks so next SOS starts fresh
+      return db.ref('tac_sos_acks').remove();
+    })
+    .then(()=>{
+      _clearSOSUI();
+      showToast({icon:'✅',title:'אות המצוקה בוטל',sub:'ההתראה הופסקה אצל כל המשתמשים',type:'success',duration:5000});
+      addAct({txt:'🚫 מנהל '+(u?u.name:'')+'  ביטל את אות המצוקה לכולם', type:'warn'});
+      _renderBOSOSStatus();
+    })
+    .catch(err=>{
+      showToast({icon:'⚠️',title:'שגיאה בביטול',sub:err.message||'',type:'error'});
+    });
 }
 
 function saveToCloud(){
@@ -6698,7 +6753,12 @@ function respondToNotif(approved){
       ts: Date.now()
     });
     // Remove notification from queue (fbRef may be null if notification came via SSE/push)
-    if(fbRef) fbRef.remove();
+    if(fbRef){
+      fbRef.remove();
+    } else if(notif.id){
+      // Fallback: delete directly by path so it won't re-appear after page refresh
+      db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{});
+    }
   }
 
   // Save last-seen timestamp so this notification won't re-appear next session
