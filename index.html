@@ -1172,10 +1172,11 @@ let PERSONNEL=[
   {id:'P17927',name:'משה שבח',phone:'054-772-8885',email:'shevach.100@gmail.com',loginPassword:'Tac7927!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:34,lat:32.03745,lng:34.76965},
   {id:'P17928',name:'גיא יפה',phone:'052-672-0784',email:'guyyaffear@gmail.com',loginPassword:'Tac7928!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:35,lat:32.08305,lng:34.79155},
   {id:'P17929',name:'יהונתן כהן',phone:'054-911-0402',email:'ykhn8811@gmail.com',loginPassword:'Tac7929!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:36,lat:32.08965,lng:34.78705},
-  {id:'P17930',name:'חיים ג׳ורנו',phone:'054-243-3079',email:'chaimgorno@gmail.com',loginPassword:'Tac7930!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:37,lat:32.06325,lng:34.7593}
+  {id:'P17930',name:'חיים ג׳ורנו',phone:'054-243-3079',email:'chaimgorno@gmail.com',loginPassword:'Tac7930!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:37,lat:32.06325,lng:34.7593},
+  {id:'P17931',name:'חפ״ק מחוזית',phone:'',email:'yakamtlv@gmail.com',loginPassword:'Tac7931!',unit:'מחוזית ת״א',role:'חפ״ק',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:38,lat:32.0667,lng:34.7818}
 ];
 let DEPARTMENTS=[
-  {id:'D00',name:'מחוזית ת"א',color:'#29c5f6',commander:'P17892',desc:'מפקדת מחוז תל אביב — יחידה מרכזית קבועה',phone:'03-0000000',location:'מטה מחוז תל אביב',capacity:50,members:['P17892','P17893','P17894','P17896','P17897','P17898','P17899','P17900','P17901','P17902','P17903','P17904','P17905','P17906','P17907','P17908','P17909','P17910','P17911','P17912','P17913','P17914','P17915','P17916','P17917','P17918','P17919','P17920','P17921','P17922','P17923','P17924','P17925','P17926','P17927','P17928','P17929','P17930'],fixed:true},
+  {id:'D00',name:'מחוזית ת"א',color:'#29c5f6',commander:'P17892',desc:'מפקדת מחוז תל אביב — יחידה מרכזית קבועה',phone:'03-0000000',location:'מטה מחוז תל אביב',capacity:50,members:['P17892','P17893','P17894','P17896','P17897','P17898','P17899','P17900','P17901','P17902','P17903','P17904','P17905','P17906','P17907','P17908','P17909','P17910','P17911','P17912','P17913','P17914','P17915','P17916','P17917','P17918','P17919','P17920','P17921','P17922','P17923','P17924','P17925','P17926','P17927','P17928','P17929','P17930','P17931'],fixed:true},
 ];
 let SHIFTS=[
   {id:'S01',name:'משמרת א׳ — בוקר',hours:'06:00–14:00',commander:'U07',department:'D01',units:['U01','U02','U03'],coverage:87,status:'active',color:'#3dff52',notes:''},
@@ -5603,7 +5604,18 @@ function loadPersonnelFromStorage(){
   try{
     const p=localStorage.getItem('tac_personnel');
     const t=localStorage.getItem('tac_teams');
-    if(p){const d=JSON.parse(p);PERSONNEL.splice(0,PERSONNEL.length,...d);}
+    if(p){
+      const saved=JSON.parse(p);
+      // Merge: keep hardcoded entries as base, overlay saved data,
+      // and preserve any extra entries added via Back Office
+      const merged=[...PERSONNEL];
+      saved.forEach(sp=>{
+        const idx=merged.findIndex(hp=>hp.id===sp.id||hp.email===sp.email);
+        if(idx>-1) Object.assign(merged[idx],sp);
+        else merged.push(sp);
+      });
+      PERSONNEL.splice(0,PERSONNEL.length,...merged);
+    }
     if(t){const d=JSON.parse(t);TEAMS.splice(0,TEAMS.length,...d);}
   }catch(e){}
 }
