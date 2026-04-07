@@ -1490,7 +1490,6 @@ const AUTH = (() => {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = '';
       applyPerms();
-      // Maps was initialised while #app was hidden → force a resize so tiles render
       _triggerMapResize();
       // Start field mode if on mobile (now that user is authenticated)
       if(typeof FIELD !== 'undefined') FIELD.boot();
@@ -1674,15 +1673,14 @@ function onGoogleMapsReady(){
   });
 
   // Trigger resize so map fills container correctly after init
-  google.maps.event.trigger(map,'resize');
+  // Uses multiple passes — critical for mobile where #app may have been display:none during init
+  _triggerMapResize();
 
   // Draw everything
   plotMissions();
   plotUnits();
   plotGFs();
   startAutoTrack();
-  // Re-render any location markers that arrived before map was ready
-  setTimeout(()=>{ if(typeof SYNC!=='undefined') SYNC.rerenderMarkers(); }, 800);
   if(typeof initLocPrivacy==='function') initLocPrivacy();
   if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 1500);
   if(typeof listenForSOS==='function') setTimeout(listenForSOS, 1500);
@@ -1806,10 +1804,10 @@ function _triggerMapResize(){
       if(rerender && typeof SYNC!=='undefined') SYNC.rerenderMarkers();
     }
   };
-  // First pass — let browser flush the display change
-  setTimeout(()=>_doResize(false), 200);
-  // Second pass — mobile browsers often need more time; also re-render markers
-  setTimeout(()=>_doResize(true), 800);
+  setTimeout(()=>_doResize(false), 150);
+  setTimeout(()=>_doResize(false), 500);
+  setTimeout(()=>_doResize(true),  1000);
+  setTimeout(()=>_doResize(true),  2500); // final safety pass for slow mobile
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -7833,7 +7831,7 @@ const FIELD = (() => {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = '';
     AUTH.applyPerms();
-    setTimeout(()=>_triggerMapResize(), 100);
+    _triggerMapResize();
     setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_autoUser.name.split(' ')[0],sub:_autoUser.role||'לוחם',type:'success',duration:3000}), 400);
     setTimeout(()=>{ if(typeof listenForIncomingNotifications==='function') listenForIncomingNotifications(); }, 800);
     if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
