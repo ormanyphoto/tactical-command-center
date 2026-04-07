@@ -609,11 +609,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #mobile-drawer{position:fixed;inset:0;z-index:9000;display:none;direction:rtl}
 #mobile-drawer.open{display:block}
 #mobile-drawer-bg{position:absolute;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px)}
-#mobile-drawer-panel{position:absolute;top:0;right:0;bottom:0;width:280px;background:var(--panel);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1)}
+#mobile-drawer-panel{position:absolute;top:0;right:0;bottom:0;width:280px;background:var(--panel);border-left:1px solid var(--border2);display:flex;flex-direction:column;overflow:visible;transform:translateX(100%);transition:transform 0.28s cubic-bezier(0.4,0,0.2,1)}
 #mobile-drawer.open #mobile-drawer-panel{transform:translateX(0)}
-#mobile-drawer-header{background:var(--panel2);border-bottom:1px solid var(--border2);padding:16px 18px;display:flex;align-items:center;justify-content:space-between}
-#mobile-drawer-logo{font-family:var(--font2);font-weight:900;font-size:15px;color:var(--accent)}
-#mobile-drawer-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:22px;line-height:1}
+#mobile-drawer-close{position:absolute;top:12px;left:-44px;z-index:10;background:var(--panel);border:1px solid var(--border2);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--text2);cursor:pointer;font-size:18px;line-height:1;box-shadow:0 2px 10px rgba(0,0,0,0.4)}
 #mobile-drawer-nav{flex:1;overflow-y:auto;padding:10px 0}
 .mob-nav-item{display:flex;align-items:center;gap:12px;padding:14px 20px;font-size:15px;font-weight:700;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border);transition:all 0.12s;font-family:var(--font)}
 .mob-nav-item:hover,.mob-nav-item.active{background:var(--panel2);color:var(--accent)}
@@ -871,10 +869,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   <div id="mobile-drawer">
     <div id="mobile-drawer-bg" onclick="closeMobileMenu()"></div>
     <div id="mobile-drawer-panel">
-      <div id="mobile-drawer-header">
-        <div id="mobile-drawer-logo">⬡ מערכת מבצעים v5.2</div>
-        <button id="mobile-drawer-close" onclick="closeMobileMenu()">✕</button>
-      </div>
+      <button id="mobile-drawer-close" onclick="closeMobileMenu()">✕</button>
       <!-- Logged-in user card -->
       <div id="mob-user-card">
         <div id="mob-user-avatar">?</div>
@@ -1686,6 +1681,8 @@ function onGoogleMapsReady(){
   plotUnits();
   plotGFs();
   startAutoTrack();
+  // Re-render any location markers that arrived before map was ready
+  setTimeout(()=>{ if(typeof SYNC!=='undefined') SYNC.rerenderMarkers(); }, 800);
   if(typeof initLocPrivacy==='function') initLocPrivacy();
   if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 1500);
   if(typeof listenForSOS==='function') setTimeout(listenForSOS, 1500);
@@ -1802,16 +1799,17 @@ function mapZoom(delta){
 // ── Map resize helper — call whenever #app transitions from display:none to visible ──
 // Google Maps silently renders into a 0×0 box while hidden; this forces a correct repaint.
 function _triggerMapResize(){
-  const _doResize = ()=>{
+  const _doResize = (rerender)=>{
     if(window.map && window.google && google.maps){
       google.maps.event.trigger(window.map, 'resize');
       if(window.map.getCenter) window.map.panTo(window.map.getCenter());
+      if(rerender && typeof SYNC!=='undefined') SYNC.rerenderMarkers();
     }
   };
   // First pass — let browser flush the display change
-  setTimeout(_doResize, 200);
-  // Second pass — mobile browsers often need more time after layout reflow
-  setTimeout(_doResize, 800);
+  setTimeout(()=>_doResize(false), 200);
+  // Second pass — mobile browsers often need more time; also re-render markers
+  setTimeout(()=>_doResize(true), 800);
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -7271,23 +7269,44 @@ const SYNC = (() => {
           startPublishing(profile);
           if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
         },
-        () => {
-          // Permission denied — mark location as off, update UI
-          window._locPrivacyOn = false;
-          localStorage.setItem('tac_loc_privacy','0');
-          if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+        err => {
+          if(err && err.code === 1){
+            // Permission explicitly DENIED — disable location
+            window._locPrivacyOn = false;
+            localStorage.setItem('tac_loc_privacy','0');
+            if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+          } else {
+            // Timeout or unavailable (GPS cold start on mobile) — retry silently
+            setTimeout(_autoStartPublishing, 5000);
+          }
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
       );
     } else {
       startPublishing(profile);
     }
   }
 
+  function rerenderMarkers(){
+    if(!window.map || !window._googleReady) return;
+    const data = window._pendingLocData || {};
+    const now = Date.now();
+    Object.entries(data).forEach(([uid,d])=>{
+      if(!d || now-(d.ts||0)>300000) return;
+      _updateLiveMarker(uid, d, uid===_myUid);
+    });
+    // Also do a fresh fetch to catch any updates
+    if(_db) _db.ref('tac_locs').once('value', snap=>{
+      const fd=snap.val()||{}, fn=Date.now();
+      Object.entries(fd).forEach(([uid,d])=>{ if(d&&fn-(d.ts||0)<300000) _updateLiveMarker(uid,d,uid===_myUid); });
+    });
+  }
+
   function _subscribeLocations(){
     if(!_db) return;
     _db.ref('tac_locs').on('value', snap=>{
       const data = snap.val()||{};
+      window._pendingLocData = data; // store for re-render when map becomes ready
       const now  = Date.now();
       // Expose live locations globally for ETA calculations
       window._liveLocs = window._liveLocs || {};
@@ -7315,7 +7334,7 @@ const SYNC = (() => {
         let tries = 0;
         const t = setInterval(()=>{
           if(window.map && window._googleReady){ clearInterval(t); _renderAll(); }
-          else if(++tries > 20) clearInterval(t);
+          else if(++tries > 120) clearInterval(t); // retry up to 60s
         }, 500);
       }
     });
@@ -7480,7 +7499,7 @@ const SYNC = (() => {
     init(_DEFAULT_CFG);
   }
 
-  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, get connected(){ return _connected; }, myUid:_myUid };
 })();
 
 // ══════════════════════════════════════════════════════════
