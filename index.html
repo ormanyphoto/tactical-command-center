@@ -916,6 +916,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <!-- MAP WRAP -->
     <div id="map-wrap">
       <div id="gmap"></div>
+      <!-- Map loading indicator — hidden once Google Maps fires onGoogleMapsReady -->
+      <div id="map-loading" style="position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);gap:12px;pointer-events:none">
+        <div style="width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <span style="font-size:13px;font-weight:700;color:var(--text3);font-family:var(--font)">טוען מפה...</span>
+      </div>
       <!-- Zoom overlay buttons -->
       <div id="map-zoom-overlay" style="position:absolute;bottom:90px;left:10px;z-index:200;display:flex;flex-direction:column;gap:6px">
         <button onclick="mapZoom(1)" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(41,197,246,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">＋</button>
@@ -1564,6 +1569,9 @@ let miniMapOn=false;
 window._googleReady=false;
 function onGoogleMapsReady(){
   window._googleReady=true;
+  // Hide loading indicator immediately
+  const ml=document.getElementById('map-loading');
+  if(ml) ml.style.display='none';
   // Shared Geocoder instance — used everywhere instead of raw REST fetch
   window._geocoder=new google.maps.Geocoder();
   // Israel bounding box — biases all geocoding calls toward Israel
@@ -1793,12 +1801,12 @@ function mapZoom(delta){
 
 // ── Map resize helper — call whenever #app transitions from display:none to visible ──
 // Google Maps silently renders into a 0×0 box while hidden; this forces a correct repaint.
+let _mapResizeInterval = null;
 function _triggerMapResize(){
   const _doResize = (rerender)=>{
     if(window.map && window.google && google.maps){
-      // Force layout reflow BEFORE triggering Maps resize — critical on mobile
       const gmapEl = document.getElementById('gmap');
-      if(gmapEl) void gmapEl.offsetHeight;
+      if(gmapEl) void gmapEl.offsetHeight; // force reflow
       window.dispatchEvent(new Event('resize'));
       google.maps.event.trigger(window.map, 'resize');
       if(window.map.getCenter) window.map.panTo(window.map.getCenter());
@@ -1810,7 +1818,25 @@ function _triggerMapResize(){
   setTimeout(()=>_doResize(false), 700);
   setTimeout(()=>_doResize(true),  1500);
   setTimeout(()=>_doResize(true),  3000);
-  setTimeout(()=>_doResize(true),  6000); // safety net for very slow mobile
+  setTimeout(()=>_doResize(true),  6000);
+
+  // Persistent interval — keeps retrying every 2s until map tiles are confirmed visible
+  // Handles slow Google Maps API load on mobile (can take > 6s on slow connections)
+  if(_mapResizeInterval) clearInterval(_mapResizeInterval);
+  let _retries = 0;
+  _mapResizeInterval = setInterval(()=>{
+    _retries++;
+    if(window.map && window.google && google.maps){
+      _doResize(_retries % 3 === 0); // rerender markers every 3rd pass
+      // Stop once map has tiles (div is non-empty = API loaded and rendered)
+      const gmapEl = document.getElementById('gmap');
+      if(gmapEl && gmapEl.children.length > 0){
+        clearInterval(_mapResizeInterval);
+        _mapResizeInterval = null;
+      }
+    }
+    if(_retries > 60) { clearInterval(_mapResizeInterval); _mapResizeInterval = null; } // 2min max
+  }, 2000);
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -7609,9 +7635,11 @@ const SYNC = (() => {
         const p = PERSONNEL.find(x=>x.id===pid);
         if(p && url){ p.photo = url; }
       });
-      // Re-render wherever photos are shown
+      // Re-render personnel panel if open
       const rpBody = document.getElementById('rp-body');
       if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
+      // Re-render all live markers so photos appear in bubbles
+      setTimeout(rerenderMarkers, 300);
     });
   }
 
