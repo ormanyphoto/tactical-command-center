@@ -2492,6 +2492,13 @@ function _applyPos(pos, method){
   set('gw-lat', ll.lat.toFixed(5)+'°');
   set('gw-lng', ll.lng.toFixed(5)+'°');
   set('gw-acc', acc+'מ ('+_methodHe(method)+')');
+  // When location-sharing is ON the avatar bubble already shows the user's position —
+  // hide the plain green dot so they don't overlap.
+  if(window._locPrivacyOn){
+    if(gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
+    return;
+  }
+  // Privacy OFF — show the simple dot (user sees own position privately)
   const icon={path:google.maps.SymbolPath.CIRCLE,scale:9,
     fillColor:method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107',
     fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2};
@@ -6511,14 +6518,14 @@ function toggleLocPrivacy(){
   localStorage.setItem('tac_loc_privacy', window._locPrivacyOn ? '1' : '0');
   _applyLocPrivacyUI();
   if(window._locPrivacyOn){
+    // Remove the plain green dot — avatar bubble will show position instead
+    if(typeof gpsMarker!=='undefined' && gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
     // Always start publishing when turning on — Firebase SDK handles offline internally
     if(typeof SYNC!=='undefined'){
       const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
       const profile=u?{name:u.name,role:u.role||'לוחם',status:'active'}:null;
       SYNC.startPublishing(profile);
     }
-    // Immediately center map and show position locally — don't wait for Firebase roundtrip
-    if(typeof locateMe==='function') setTimeout(locateMe, 300);
     showToast({icon:'📍',title:'מיקום פעיל',sub:'המיקום שלך גלוי לצוות',type:'success'});
   } else {
     if(typeof SYNC!=='undefined') SYNC.stopPublishing();
@@ -7191,8 +7198,17 @@ const SYNC = (() => {
         const _tryMarker=(tries)=>{
           if(window.map && window._googleReady){
             _updateLiveMarker(_myUid, d, true);
-            // Pan to own position on first fix
-            if(!_firstPosFix){ _firstPosFix=true; window.map.panTo({lat:d.lat,lng:d.lng}); }
+            // On first fix: center map on user — zoom in on mobile/tablet
+            if(!_firstPosFix){
+              _firstPosFix=true;
+              const isMobile = window.innerWidth <= 1024;
+              if(isMobile){
+                window.map.setCenter({lat:d.lat,lng:d.lng});
+                window.map.setZoom(17);
+              } else {
+                window.map.panTo({lat:d.lat,lng:d.lng});
+              }
+            }
           } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
         };
         _tryMarker(0);
