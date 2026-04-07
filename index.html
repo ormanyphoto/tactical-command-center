@@ -296,6 +296,9 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #rp-body{flex:1;overflow-y:auto;padding:10px 12px;direction:rtl}
 .rp-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;margin-right:auto}
 .rp-close:hover{color:var(--danger)}
+.rp-close-x{display:inline}
+.rp-close-map{display:none}
+@media(max-width:1024px){.rp-close-x{display:none}.rp-close-map{display:inline}}
 .sec-hd{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:10px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
 .btn-pri{width:100%;background:var(--glow);border:1px solid var(--accent);border-radius:var(--r);padding:8px;font-size:13px;font-weight:700;color:var(--accent);cursor:pointer;font-family:var(--font);transition:all 0.12s;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-pri:hover{background:rgba(61,255,82,0.2)}
@@ -639,6 +642,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .mob-nav-item:hover,.mob-nav-item.active{background:var(--panel2);color:var(--accent)}
 .mob-nav-item .mob-icon{font-size:20px;width:28px;text-align:center;flex-shrink:0}
 #mobile-drawer-footer{padding:14px 18px;border-top:1px solid var(--border2);display:flex;gap:8px;align-items:center}
+/* Mobile/tablet: panel close bar */
+@media(max-width:1024px){
+  #rp-header{display:flex!important;align-items:stretch;padding:0;background:var(--panel);border-bottom:1.5px solid var(--border2);flex-shrink:0}
+  #rp-title{display:flex;align-items:center;width:100%;padding:0 12px;gap:8px;min-height:44px}
+  #rp-title-txt{font-size:13px;font-weight:800;color:var(--texthi);flex:1;direction:rtl;text-align:right}
+  .rp-close{background:rgba(41,197,246,0.12);border:1px solid rgba(41,197,246,0.3);border-radius:8px;color:var(--accent);padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--font);white-space:nowrap;margin-right:0}
+  .rp-close:hover{background:rgba(41,197,246,0.22)}
+}
 #bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--panel);border-top:1px solid var(--border2);z-index:500;flex-direction:row;align-items:stretch}
 .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:none;background:none;font-family:var(--font);color:var(--text3);font-size:10px;font-weight:700;transition:all 0.12s;padding:4px 2px}
 .bn-item:hover,.bn-item.active{color:var(--accent)}
@@ -656,7 +667,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #logo-title{font-size:16px!important}
   #logo-sub{font-size:10px!important}
   #logo-hex{font-size:24px!important}
-  #rp-header{display:none}
 }
 @media (max-width:1024px){
   /* Tablet + Mobile: panel slides in as overlay */
@@ -680,7 +690,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #main{padding-bottom:60px}
   #topbar-logo-wrap{width:auto;border-left:none}
   #logo-hex{display:none}
-  #rp-header{display:none}
   #topbar-logo{font-size:13px;white-space:nowrap}
   .tb-btn{padding:7px 10px;font-size:12px}
   .tb-btn.tbdanger{padding:7px 12px}
@@ -915,6 +924,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button id="mob-bio-clear" onclick="BIOMETRIC.clear();closeMobileMenu()">מחק</button>
       </div>
       <nav id="mobile-drawer-nav">
+        <div class="mob-nav-item" onclick="closeMobileMenu()" style="background:rgba(41,197,246,0.08);border-bottom:1px solid rgba(41,197,246,0.2);color:var(--accent);justify-content:center;gap:6px"><span class="mob-icon" style="font-size:16px">✕</span>סגור תפריט</div>
         <div class="mob-nav-item active" onclick="mobileGoView('map')"><span class="mob-icon">🗺️</span>מפה</div>
         <div class="mob-nav-item" onclick="mobileGoView('missions')"><span class="mob-icon">📋</span>משימות</div>
         <div class="mob-nav-item" onclick="mobileGoView('units')"><span class="mob-icon">👥</span>כוחות</div>
@@ -1061,7 +1071,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div id="rp-header">
         <div id="rp-title">
           <span id="rp-title-txt">מפה וכלים</span>
-          <button class="rp-close" onclick="closePanel()">✕</button>
+          <button class="rp-close" onclick="closePanel()"><span class="rp-close-x">✕</span><span class="rp-close-map">🗺️ מפה</span></button>
         </div>
       </div>
       <div id="rp-body"></div>
@@ -6980,14 +6990,40 @@ function _showIncomingNotif(notif, fbRef){
         return da - db2;
       });
     }
+    // Find closest venue index (for badge only — order stays original)
+    let closestIdx = -1;
+    if(userLat && userLng){
+      let minDist = Infinity;
+      sorted.forEach((v,i)=>{
+        if(v.lat && v.lng){
+          const d = _haversineKm(userLat, userLng, v.lat, v.lng);
+          if(d < minDist){ minDist = d; closestIdx = i; }
+        }
+      });
+      // Pre-select closest venue
+      if(closestIdx >= 0) window._pendingVenueId = sorted[closestIdx].id;
+    }
     // Tapping a venue = auto-confirm arrival at that venue + navigate
-    venueList.innerHTML = sorted.map((v,i)=>`
-      <button class="inc-venue-btn${i===0&&userLat?' selected':''}" data-vid="${v.id}"
+    // Keep original venue order — only badge the closest one
+    const originalOrder = [...notif.venues].map(v=>{
+      let distStr = '';
+      if(userLat && userLng && v.lat && v.lng){
+        const km = _haversineKm(userLat, userLng, v.lat, v.lng);
+        distStr = km < 1 ? Math.round(km*1000)+'מ׳' : km.toFixed(1)+'ק״מ';
+      }
+      return {...v, distStr};
+    });
+    venueList.innerHTML = originalOrder.map((v,i)=>{
+      const isClosest = userLat && v.lat && v.lng &&
+        Math.abs(_haversineKm(userLat, userLng, v.lat, v.lng) - (closestIdx>=0 ? _haversineKm(userLat, userLng, originalOrder[closestIdx]&&originalOrder[closestIdx].lat||0, originalOrder[closestIdx]&&originalOrder[closestIdx].lng||0) : Infinity)) < 0.001;
+      const closestMe = userLat && closestIdx>=0 && sorted[closestIdx] && sorted[closestIdx].id === v.id;
+      return `<button class="inc-venue-btn${closestMe?' selected':''}" data-vid="${v.id}"
         onclick="window._pendingVenueId='${v.id}';respondToNotif(true);openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}')">
         <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
         <span style="flex:1;text-align:right;line-height:1.3">${v.label} — ${v.address}</span>
-        ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${i===0&&userLat?'📍 ':''} ${v.distStr}</span>`:''}
-      </button>`).join('');
+        ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${closestMe?'📍 ':''}${v.distStr}</span>`:''}
+      </button>`;
+    }).join('');
     // Hide approve button only — keep "לא זמין" always visible
     if(incBtns){
       const approveBtn = incBtns.querySelector('.inc-approve');
@@ -7199,6 +7235,17 @@ function respondToNotif(approved){
       );
     }
     showToast({icon:'✅',title:'אישרת — מגיע!',sub:'מיקום חי הופעל אוטומטית',type:'success',duration:5000});
+    // On mobile/tablet: close side panel, go to map, show venue markers
+    if(window.innerWidth <= 1024){
+      setTimeout(()=>{
+        closeMobileMenu();
+        const rp = document.getElementById('right-panel');
+        if(rp){ rp.classList.remove('mobile-open'); rp.classList.add('hidden'); }
+        currentView = 'map';
+        document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active', b.dataset.v==='map'));
+        if(typeof _triggerMapResize === 'function') _triggerMapResize();
+      }, 350);
+    }
   } else {
     showToast({icon:'❌',title:'לא זמין',sub:'הוגדרת כלא זמין',type:'info'});
   }
