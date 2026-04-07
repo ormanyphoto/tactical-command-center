@@ -6930,21 +6930,36 @@ function _showIncomingNotif(notif, fbRef){
   window._pendingVenueId = null;
   if(notif.venues && notif.venues.length > 1 && venueWrap && venueList){
     venueWrap.style.display = '';
-    venueList.innerHTML = notif.venues.map(v=>`
-      <button class="inc-venue-btn" data-vid="${v.id}" onclick="
-        document.querySelectorAll('.inc-venue-btn').forEach(b=>b.classList.remove('selected'));
-        this.classList.add('selected');
-        window._pendingVenueId='${v.id}';
-        openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}');
-      ">
+    // Sort venues by distance from user's last known position (closest first)
+    const userLat = window._lastLat, userLng = window._lastLng;
+    const sorted = [...notif.venues].map(v=>{
+      let distStr = '';
+      if(userLat && userLng && v.lat && v.lng){
+        const km = _haversineKm(userLat, userLng, v.lat, v.lng);
+        distStr = km < 1 ? Math.round(km*1000)+'מ׳' : km.toFixed(1)+'ק״מ';
+      }
+      return {...v, distStr};
+    });
+    if(userLat && userLng){
+      sorted.sort((a,b)=>{
+        const da = (a.lat&&a.lng) ? _haversineKm(userLat,userLng,a.lat,a.lng) : 999;
+        const db2 = (b.lat&&b.lng) ? _haversineKm(userLat,userLng,b.lat,b.lng) : 999;
+        return da - db2;
+      });
+    }
+    // Tapping a venue = auto-confirm arrival at that venue + navigate
+    venueList.innerHTML = sorted.map((v,i)=>`
+      <button class="inc-venue-btn${i===0&&userLat?' selected':''}" data-vid="${v.id}"
+        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);openNavToAddress('${(v.address||'').replace(/'/g,"\\'")}')">
         <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
-        <span style="flex:1;text-align:right">${v.label} — ${v.address}</span>
+        <span style="flex:1;text-align:right;line-height:1.3">${v.label} — ${v.address}</span>
+        ${v.distStr?`<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(61,255,82,0.1);border-radius:5px;padding:2px 6px">${i===0&&userLat?'📍 ':''} ${v.distStr}</span>`:''}
       </button>`).join('');
-    // Swap approve button to require venue selection
-    if(incBtns) incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true);
+    // Hide the main approve/decline buttons — venue tap handles approval
+    if(incBtns) incBtns.style.display = 'none';
   } else {
     if(venueWrap) venueWrap.style.display = 'none';
-    if(incBtns) incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true);
+    if(incBtns){ incBtns.style.display = ''; incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true); }
   }
 
   // Mark ALL venue addresses on map (retry until map is ready)
@@ -7063,9 +7078,13 @@ function respondToNotif(approved){
     if(notif.sentAt > prev) localStorage.setItem(key, notif.sentAt);
   }
 
-  // Close overlay
+  // Close overlay + reset venue picker state for next notification
   document.getElementById('incoming-notif-overlay').classList.remove('open');
   _currentIncomingNotif = null;
+  const _ib = document.getElementById('inc-btns');
+  if(_ib) _ib.style.display = '';
+  const _vw = document.getElementById('inc-venue-wrap');
+  if(_vw) _vw.style.display = 'none';
 
   if(approved){
     // Auto-enable live location
