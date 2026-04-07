@@ -1067,7 +1067,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('teams-bo')">🏢 צוותים</button>
       <button class="bo-tab" onclick="boTab('geofences-bo')">⬡ גיאופנסים</button>
       <button class="bo-tab" onclick="boTab('incidents-bo')">🗂️ אירועים</button>
-      <button class="bo-tab" onclick="boTab('comms-bo')">📡 תקשורת</button>
       <button class="bo-tab" onclick="boTab('shifts-bo')">🕐 משמרות</button>
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
       <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
@@ -3457,7 +3456,19 @@ function renderCommsP(c){
   <div style="display:flex;gap:8px">
     <input type="text" id="msg-txt" placeholder="הקלד הודעה לשידור..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;color:var(--texthi);font-size:14px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.key==='Enter')sendMsg()"/>
     <button onclick="sendMsg()" style="background:var(--glow);border:2px solid var(--accent);border-radius:var(--r);padding:12px 20px;color:var(--accent);cursor:pointer;font-size:20px;font-weight:900;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='rgba(61,255,82,0.2)'" onmouseout="this.style.background='var(--glow)'">📤</button>
-  </div>`;
+  </div>
+  <!-- SOS MANAGEMENT -->
+  <div class="sec-hd" style="margin-top:18px">🆘 ניהול אות מצוקה</div>
+  <div id="comms-sos-status" style="font-size:13px;color:var(--text2);margin:8px 0 10px;min-height:20px">
+    ${_sosData && _sosData.active
+      ? `<span style="color:#ff4444">⚠️ אות מצוקה פעיל — <b>${_sosData.name||'?'}</b> (${new Date(_sosData.ts||0).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})})</span>`
+      : '<span style="color:#3dff52">✓ אין אות מצוקה פעיל</span>'}
+  </div>
+  <button onclick="adminCancelAllSOS()"
+    ${_sosData && _sosData.active ? '' : 'disabled'}
+    style="width:100%;font-size:13px;font-weight:700;padding:10px 0;border-radius:8px;border:none;cursor:${_sosData && _sosData.active ? 'pointer' : 'default'};background:${_sosData && _sosData.active ? '#c0392b' : 'var(--panel2)'};color:${_sosData && _sosData.active ? '#fff' : 'var(--text3)'}">
+    🚫 בטל אות מצוקה לכולם
+  </button>`;
 }
 function sendMsg(){
   const ch=document.getElementById('msg-ch')?.value||'הכל';
@@ -4353,7 +4364,7 @@ function boTab(tab){
   const handlers={
     'overview':boOverview,'missions-bo':boMissions,'units-bo':boUnits,
     'personnel-bo':boPersonnel,'teams-bo':boTeamsAdmin,'geofences-bo':boGeofences,
-    'incidents-bo':boIncidents,'comms-bo':boComms,'shifts-bo':boShifts,
+    'incidents-bo':boIncidents,'shifts-bo':boShifts,
     'permissions-bo':boPermissions,'credentials-bo':boCredentials,
     'audit-bo':boAudit,'settings-bo':boSettings,
   };
@@ -4965,24 +4976,6 @@ function boAudit(c){
   auditEntries.forEach(function(e){rows+='<tr><td style="color:var(--text3)">'+e.time+'</td><td style="color:var(--accent2)">'+e.user+'</td><td>'+e.action+'</td></tr>';});
   c.innerHTML='<div class="bo-section"><div class="bo-hd">יומן ביקורת</div><table class="bo-table"><thead><tr><th>שעה</th><th>משתמש</th><th>פעולה</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
-function boComms(c){
-  c.innerHTML=
-    '<div class="bo-section"><div class="bo-hd">📡 ניהול תקשורת</div>'
-    +'<p style="font-size:13px;color:var(--text3);margin-bottom:16px">ניהול ערוצי תקשורת, הודעות ואותות חירום.</p>'
-    +'</div>'
-    // ── Notifications log ──
-    +'<div class="bo-section"><div class="bo-hd">🔔 הודעות שנשלחו</div>'
-    +'<p style="font-size:12px;color:var(--text3)">הודעות נשלחות דרך לשונית כוח האדם ← בחר איש צוות ← שלח הודעה.</p>'
-    +'</div>'
-    // ── SOS Management ──
-    +'<div class="bo-section"><div class="bo-hd">🆘 ניהול אותות מצוקה</div>'
-    +'<div id="bo-sos-status" style="font-size:13px;color:var(--text2);margin-bottom:12px;min-height:22px"></div>'
-    +'<button id="bo-cancel-sos-btn" style="width:100%;font-size:14px;font-weight:700;padding:11px 0;background:#c0392b;border:none;border-radius:8px;color:#fff;cursor:pointer" '
-    +'onclick="adminCancelAllSOS()">🚫 בטל אות מצוקה לכל המשתמשים</button>'
-    +'<div style="font-size:11px;color:var(--text3);margin-top:6px">מחיקת האות תפסיק את ההתראה אצל כל המשתמשים מיידית.</div>'
-    +'</div>';
-  _renderBOSOSStatus();
-}
 
 function boSettings(c){
   var isNight=document.body.classList.contains('night');
@@ -5084,7 +5077,9 @@ function adminCancelAllSOS(){
       _clearSOSUI();
       showToast({icon:'✅',title:'אות המצוקה בוטל',sub:'ההתראה הופסקה אצל כל המשתמשים',type:'success',duration:5000});
       addAct({txt:'🚫 מנהל '+(u?u.name:'')+'  ביטל את אות המצוקה לכולם', type:'warn'});
-      _renderBOSOSStatus();
+      // Refresh comms panel if open
+      const rpBody = document.getElementById('rp-body');
+      if(rpBody && typeof renderCommsP === 'function' && currentView === 'comms') renderCommsP(rpBody);
     })
     .catch(err=>{
       showToast({icon:'⚠️',title:'שגיאה בביטול',sub:err.message||'',type:'error'});
