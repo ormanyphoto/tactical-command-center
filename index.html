@@ -689,7 +689,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <body class="night">
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="display:none">
+<div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
     <div id="login-subtitle">כוננות מחוזית ת"א · v5.2</div>
@@ -732,7 +732,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="nav-tab" data-v="units" onclick="goView('units')">👥 כוחות</button>
       <button class="nav-tab" data-v="comms" onclick="goView('comms')">📡 תקשורת</button>
       <button class="nav-tab" data-v="incidents" onclick="goView('incidents')">🗂️ יומן</button>
-      <button class="nav-tab" data-v="analytics" onclick="goView('analytics')">📈 אנליטיקה</button>
       <button class="nav-tab" data-v="teams" onclick="goView('teams')">🏢 צוותים</button>
       <button class="nav-tab" data-v="personnel" onclick="goView('personnel')">👤 אנשי צוות</button>
       <button class="nav-tab" data-v="navigation" onclick="goView('navigation')">🧭 ניווט</button>
@@ -875,7 +874,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div class="mob-nav-item" onclick="mobileGoView('units')"><span class="mob-icon">👥</span>כוחות</div>
         <div class="mob-nav-item" onclick="mobileGoView('comms')"><span class="mob-icon">📡</span>תקשורת</div>
         <div class="mob-nav-item" onclick="mobileGoView('incidents')"><span class="mob-icon">🗂️</span>יומן אירועים</div>
-        <div class="mob-nav-item" onclick="mobileGoView('analytics')"><span class="mob-icon">📈</span>אנליטיקה</div>
         <div class="mob-nav-item" onclick="mobileGoView('teams')"><span class="mob-icon">🏢</span>צוותים</div>
         <div class="mob-nav-item" onclick="mobileGoView('personnel')"><span class="mob-icon">👤</span>אנשי צוות</div>
         <div class="mob-nav-item" onclick="mobileGoView('navigation')"><span class="mob-icon">🧭</span>ניווט</div>
@@ -1071,6 +1069,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
       <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
+      <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
   </div>
@@ -1782,14 +1781,16 @@ function mapZoom(delta){
 // ── Map resize helper — call whenever #app transitions from display:none to visible ──
 // Google Maps silently renders into a 0×0 box while hidden; this forces a correct repaint.
 function _triggerMapResize(){
-  // Small delay so the browser can flush the display:'' style change first
-  setTimeout(()=>{
+  const _doResize = ()=>{
     if(window.map && window.google && google.maps){
       google.maps.event.trigger(window.map, 'resize');
-      // Re-centre so the viewport doesn't drift
       if(window.map.getCenter) window.map.panTo(window.map.getCenter());
     }
-  }, 150);
+  };
+  // First pass — let browser flush the display change
+  setTimeout(_doResize, 200);
+  // Second pass — mobile browsers often need more time after layout reflow
+  setTimeout(_doResize, 800);
 }
 
 function mapGoTo(lat,lng,zoom){
@@ -4399,7 +4400,7 @@ function boTab(tab){
     'personnel-bo':boPersonnel,'teams-bo':boTeamsAdmin,'geofences-bo':boGeofences,
     'incidents-bo':boIncidents,'shifts-bo':boShifts,
     'permissions-bo':boPermissions,'credentials-bo':boCredentials,
-    'audit-bo':boAudit,'settings-bo':boSettings,
+    'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
   if(fn)fn(bi);else bi.innerHTML='<p style="color:var(--text3);padding:20px">לשונית: '+tab+'</p>';
@@ -5016,6 +5017,41 @@ function boAudit(c){
   var rows='';
   auditEntries.forEach(function(e){rows+='<tr><td style="color:var(--text3)">'+e.time+'</td><td style="color:var(--accent2)">'+e.user+'</td><td>'+e.action+'</td></tr>';});
   c.innerHTML='<div class="bo-section"><div class="bo-hd">יומן ביקורת</div><table class="bo-table"><thead><tr><th>שעה</th><th>משתמש</th><th>פעולה</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function boAnalytics(c){
+  const act=MISSIONS.filter(m=>m.status==='active').length;
+  const urg=MISSIONS.filter(m=>m.status==='urgent').length;
+  const done=MISSIONS.filter(m=>m.status==='completed').length;
+  const dep=UNITS.filter(u=>u.status==='deployed').length;
+  const avail=PERSONNEL.filter(p=>p.available).length;
+  const regions=[['תל אביב',8],['ירושלים',5],['חיפה',3],['נגב',2],['גליל',2],['יש"ע',4]];
+  const types=[['מעצר',3],['מעקב',2],['תנועה',2],['חילוץ',1],['ליווי',1]];
+  c.innerHTML=
+    '<div class="bo-section"><div class="bo-hd">📊 סטטוס כללי</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px">'
+    +'<div class="bo-stat-card" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--danger)">'+urg+'</div><div style="font-size:11px;color:var(--text3)">דחופות</div></div>'
+    +'<div class="bo-stat-card" style="background:rgba(61,255,82,0.06);border:1px solid rgba(61,255,82,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+act+'</div><div style="font-size:11px;color:var(--text3)">פעילות</div></div>'
+    +'<div class="bo-stat-card" style="background:rgba(41,197,246,0.06);border:1px solid rgba(41,197,246,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--blue)">'+dep+'</div><div style="font-size:11px;color:var(--text3)">פרוסים</div></div>'
+    +'<div class="bo-stat-card" style="background:rgba(176,108,240,0.06);border:1px solid rgba(176,108,240,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:11px;color:var(--text3)">זמינים</div></div>'
+    +'</div></div>'
+    +'<div class="bo-section"><div class="bo-hd">סטטוס משימות</div>'
+    +['urgent','active','briefing','pending','completed'].map(s=>{
+      const n=MISSIONS.filter(m=>m.status===s).length;
+      const colors={urgent:'var(--danger)',active:'var(--accent)',briefing:'var(--blue)',pending:'var(--warn)',completed:'var(--text3)'};
+      const labels={urgent:'דחופות',active:'פעילות',briefing:'בריפינג',pending:'ממתינות',completed:'הושלמו'};
+      return '<div class="bc-row"><span class="bc-lbl">'+labels[s]+'</span><div class="bc-track"><div class="bc-fill" style="background:'+colors[s]+';width:'+Math.min(100,n*20)+'%"></div></div><span class="bc-val">'+n+'</span></div>';
+    }).join('')
+    +'</div>'
+    +'<div class="bo-section"><div class="bo-hd">אירועים לפי אזור</div>'
+    +regions.map(([l,v])=>'<div class="bc-row"><span class="bc-lbl">'+l+'</span><div class="bc-track"><div class="bc-fill" style="background:var(--accent2);width:'+v*10+'%"></div></div><span class="bc-val">'+v+'</span></div>').join('')
+    +'</div>'
+    +'<div class="bo-section"><div class="bo-hd">סוגי משימות</div>'
+    +types.map(([l,v])=>'<div class="bc-row"><span class="bc-lbl">'+l+'</span><div class="bc-track"><div class="bc-fill" style="background:var(--blue);width:'+v*25+'%"></div></div><span class="bc-val">'+v+'</span></div>').join('')
+    +'</div>'
+    +'<div class="bo-section"><div class="bo-hd">ייצוא</div>'
+    +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="expReport()">⬇ דוח משמרת</button><button class="btn-sec" onclick="expGeo()">⬇ GeoJSON</button></div>'
+    +'</div>';
 }
 
 function boSettings(c){
