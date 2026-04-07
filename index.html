@@ -7223,8 +7223,7 @@ function _makeNotifMarkerSVG(color, sym, urgency){
 
 let _notifMapMarkers = {}; // id → google.maps.Marker — NEVER auto-deleted, admin-only removal
 function _removeNotifMarker(id){
-  if(_notifMapMarkers[id]){ _notifMapMarkers[id].setMap(null); delete _notifMapMarkers[id]; }
-  // Remove from Firebase persistence
+  // Only delete from Firebase — the child_removed listener handles map removal for ALL users instantly
   if(window._db) window._db.ref('tac_notif_markers/'+id).remove().catch(()=>{});
 }
 // Save marker data to Firebase for persistence across sessions
@@ -7239,17 +7238,30 @@ function _persistNotifMarker(mid, lat, lng, address, notif, venueLabel, venueCol
   }).catch(()=>{});
 }
 // Load and re-draw all saved notification markers from Firebase
+// Uses real-time listeners so admin removals propagate instantly to all users
 function _loadPersistedNotifMarkers(){
   if(!window._db || !window.map || !window.google) return;
-  window._db.ref('tac_notif_markers').once('value', snap=>{
-    const data = snap.val();
-    if(!data) return;
-    Object.values(data).forEach(m=>{
-      if(!m||!m.mid||!m.lat||!m.lng) return;
-      if(_notifMapMarkers[m.mid]) return; // already on map
-      const notif = {type:m.type||'alert', threat:m.threat||'', title:m.title||'', body:m.body||''};
-      _placeNotifMarker(m.lat, m.lng, m.address||'', notif, m.venueLabel||m.title, m.venueColor||'#ff3333', m.mid, true);
-    });
+  // Detach any previous listener to avoid duplicates on re-call
+  if(window._notifMarkersRef) window._notifMarkersRef.off();
+  window._notifMarkersRef = window._db.ref('tac_notif_markers');
+
+  // child_added fires for every existing entry on connect, then for each new one
+  window._notifMarkersRef.on('child_added', snap=>{
+    const m = snap.val();
+    if(!m||!m.mid||!m.lat||!m.lng) return;
+    if(_notifMapMarkers[m.mid]) return; // already on map
+    const notif = {type:m.type||'alert', threat:m.threat||'', title:m.title||'', body:m.body||''};
+    _placeNotifMarker(m.lat, m.lng, m.address||'', notif, m.venueLabel||m.title, m.venueColor||'#ff3333', m.mid, true);
+  });
+
+  // child_removed fires immediately when admin deletes — removes marker from map for ALL users
+  window._notifMarkersRef.on('child_removed', snap=>{
+    const m = snap.val();
+    if(!m||!m.mid) return;
+    if(_notifMapMarkers[m.mid]){
+      _notifMapMarkers[m.mid].setMap(null);
+      delete _notifMapMarkers[m.mid];
+    }
   });
 }
 function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, markerId, _noSave){
