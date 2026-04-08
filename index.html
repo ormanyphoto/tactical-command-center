@@ -3040,28 +3040,29 @@ const ALERT_SOUNDS=[
   {id:'ping',    he:'פינג דחוף',     desc:'פינג גבוה × 2'},
   {id:'silent',  he:'ללא צליל',      desc:'ללא צליל'},
 ];
-function getAlertSound(){ return localStorage.getItem('tac_alert_sound')||'triple'; }
-function setAlertSound(id){
-  localStorage.setItem('tac_alert_sound',id);
-  if(window._db) window._db.ref('tac_alert_sound').set(id).catch(()=>{});
+const SOUND_DEFAULTS = {sos:'siren', mission:'triple', alert:'alarm', message:'ping'};
+function getAlertSoundForType(type){
+  return localStorage.getItem('tac_sound_'+(type||'alert')) || SOUND_DEFAULTS[type] || 'triple';
 }
-function _saveAlertSoundUI(id){
-  setAlertSound(id);
+function setAlertSoundForType(type, id){
+  localStorage.setItem('tac_sound_'+type, id);
+  if(window._db) window._db.ref('tac_sounds/'+type).set(id).catch(()=>{});
+}
+// Legacy aliases (used by existing calls)
+function getAlertSound(){ return getAlertSoundForType('alert'); }
+function setAlertSound(id){ setAlertSoundForType('alert', id); }
+function _saveSoundForType(type){
+  const sel = document.getElementById('sound-sel-'+type);
+  if(!sel) return;
+  const id = sel.value;
+  setAlertSoundForType(type, id);
+  const typeLabels = {sos:'מצוקה', mission:'משימה', alert:'התראה', message:'הודעה'};
   const s = ALERT_SOUNDS.find(x=>x.id===id);
-  showToast({icon:'🔔',title:'צליל נשמר — '+(s?s.he:id),type:'success',duration:2500});
-  // Refresh just the sound list rows without re-rendering the whole panel
-  const list = document.getElementById('alert-sound-list');
-  if(!list) return;
-  list.querySelectorAll('[data-sound-id]').forEach(row=>{
-    const rid = row.dataset.soundId;
-    const isSel = rid===id;
-    row.style.borderColor = isSel?'var(--accent)':'var(--border1)';
-    row.style.background = isSel?'rgba(29,108,255,0.08)':'transparent';
-    const label = row.querySelector('.sound-name');
-    if(label) label.style.color = isSel?'var(--accent)':'var(--text1)';
-    const btn = row.querySelector('.sound-select-btn');
-    if(btn){ btn.textContent=isSel?'✓ פעיל':'בחר'; btn.className=(isSel?'btn-pri':'btn-sec')+' sound-select-btn'; btn.style.cssText='padding:4px 12px;font-size:12px;margin:0'; }
-  });
+  showToast({icon:'🔔',title:'צליל נשמר'+(s?' — '+s.he:''),sub:typeLabels[type]||type,type:'success',duration:2000});
+}
+function _previewSoundForType(type){
+  const sel = document.getElementById('sound-sel-'+type);
+  if(sel) _playAlertSound(sel.value);
 }
 function _playAlertSound(id){
   if(!id||id==='silent') return;
@@ -3238,8 +3239,8 @@ function _showSOSAlert(sos, isOwn){
     if(_sosAcked !== sos.uid){
       document.getElementById('sos-popup-overlay').classList.add('open');
     }
-    // Alert sound + vibration
-    _playAlertSound('siren');
+    // Alert sound + vibration — use type-specific sound
+    _playAlertSound(getAlertSoundForType('sos'));
     if('vibrate' in navigator) navigator.vibrate([500,200,500,200,1000]);
   }
 
@@ -5458,21 +5459,20 @@ function boSettings(c){
     +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
     +'</div>'
     // ── Alert Sound Settings ──
-    +'<div class="bo-section"><div class="bo-hd">🔔 צליל התראה לאירועי חירום ומצוקה</div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">הצליל שישמע אצל כל המשתמשים כאשר מתקבלת הודעת חירום או אות מצוקה.</div>'
-    +'<div id="alert-sound-list" style="display:flex;flex-direction:column;gap:6px">'
-    +ALERT_SOUNDS.map(s=>{
-      const isSel = (localStorage.getItem('tac_alert_sound')||'triple')===s.id;
-      const emoji = s.id==='siren'?'🚨':s.id==='triple'?'📣':s.id==='alarm'?'🔥':s.id==='warble'?'〰️':s.id==='horn'?'📯':s.id==='ping'?'🔔':'🔇';
-      return '<div data-sound-id="'+s.id+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid '+(isSel?'var(--accent)':'var(--border1)')+';background:'+(isSel?'rgba(29,108,255,0.08)':'transparent')+'">'
-        +'<span style="font-size:18px">'+emoji+'</span>'
-        +'<div style="flex:1"><div class="sound-name" style="font-size:13px;font-weight:600;color:'+(isSel?'var(--accent)':'var(--text1)')+'">'+s.he+'</div>'
-        +'<div style="font-size:11px;color:var(--text3)">'+s.desc+'</div></div>'
-        +'<button class="act-btn" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="_playAlertSound(\''+s.id+'\')">▶ נגן</button>'
-        +'<button class="'+(isSel?'btn-pri':'btn-sec')+' sound-select-btn" style="padding:4px 12px;font-size:12px;margin:0" onclick="_saveAlertSoundUI(\''+s.id+'\')">'+(isSel?'✓ פעיל':'בחר')+'</button>'
+    +'<div class="bo-section"><div class="bo-hd">🔔 צלילי התראה לפי סוג הודעה</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6">בחר צליל שונה לכל סוג אירוע. הגדרות נשמרות לכל המכשירים.</div>'
+    +[{id:'sos',he:'מצוקה',icon:'🆘'},{id:'mission',he:'משימה',icon:'📋'},{id:'alert',he:'התראה',icon:'⚠️'},{id:'message',he:'הודעה',icon:'💬'}].map(t=>{
+      const cur = getAlertSoundForType(t.id);
+      const opts = ALERT_SOUNDS.map(s=>'<option value="'+s.id+'"'+(s.id===cur?' selected':'')+'>'+s.he+'</option>').join('');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--border1);margin-bottom:6px">'
+        +'<span style="font-size:20px;min-width:26px;text-align:center">'+t.icon+'</span>'
+        +'<div style="font-size:13px;font-weight:600;min-width:52px;color:var(--text1)">'+t.he+'</div>'
+        +'<select id="sound-sel-'+t.id+'" class="form-inp" style="flex:1;padding:4px 8px;font-size:12px;height:32px">'+opts+'</select>'
+        +'<button class="act-btn" style="padding:4px 10px;font-size:12px;white-space:nowrap" onclick="_previewSoundForType(\''+t.id+'\')">▶ נגן</button>'
+        +'<button class="btn-pri" style="padding:4px 12px;font-size:12px;margin:0;white-space:nowrap" onclick="_saveSoundForType(\''+t.id+'\')">💾 שמור</button>'
         +'</div>';
     }).join('')
-    +'</div></div>';
+    +'</div>';
 }
 
 function _renderBOSOSStatus(){
@@ -7221,8 +7221,8 @@ function _showIncomingNotif(notif, fbRef){
     ? `0 20px 60px ${gfx.color}3a, 0 0 0 1px ${gfx.color}22`
     : '';
   document.getElementById('incoming-notif-overlay').classList.add('open');
-  // Alert sound + vibration
-  _playAlertSound(getAlertSound());
+  // Alert sound + vibration — use type-specific sound
+  _playAlertSound(getAlertSoundForType(notif.type||'alert'));
   if('vibrate' in navigator) navigator.vibrate([300,100,300,100,600]);
   // Venue picker — show selectable venue buttons if multiple venues
   const venueWrap = document.getElementById('inc-venue-wrap');
@@ -7988,10 +7988,12 @@ const SYNC = (() => {
 
   function _subscribeAlertSound(){
     if(!_db) return;
-    _db.ref('tac_alert_sound').once('value', snap=>{
-      const val = snap.val();
-      if(val && typeof val==='string' && typeof setAlertSound==='function'){
-        localStorage.setItem('tac_alert_sound', val);
+    _db.ref('tac_sounds').once('value', snap=>{
+      const data = snap.val();
+      if(data && typeof data==='object'){
+        Object.entries(data).forEach(([type, id])=>{
+          if(id && typeof id==='string') localStorage.setItem('tac_sound_'+type, id);
+        });
       }
     });
   }
