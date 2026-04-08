@@ -288,6 +288,7 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #loc-privacy-btn.loc-priv-off .lp-switch{background:#4b4b4b}
 #loc-privacy-btn.loc-priv-off .lp-knob{left:3px}
 @media(max-width:1024px){#loc-privacy-btn{display:flex}}
+@media(min-width:768px) and (max-width:1024px){#loc-privacy-btn{top:10px;left:auto;right:10px}}
 #toast-container{position:fixed;bottom:60px;left:16px;z-index:9990;display:flex;flex-direction:column;gap:6px;pointer-events:none;direction:rtl}
 .toast{background:var(--panel);border:1px solid var(--border3);border-radius:var(--r);padding:10px 14px;font-size:13px;font-weight:500;color:var(--texthi);box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:all;display:flex;align-items:center;gap:9px;min-width:220px;max-width:320px;direction:rtl;animation:toastIn 0.3s ease}
 .toast.fadeout{animation:toastOut 0.3s ease forwards}
