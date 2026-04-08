@@ -7398,7 +7398,12 @@ function _makeNotifMarkerSVG(color, sym, urgency){
 
 let _notifMapMarkers = {}; // id → google.maps.Marker — NEVER auto-deleted, admin-only removal
 function _removeNotifMarker(id){
-  // Only delete from Firebase — the child_removed listener handles map removal for ALL users instantly
+  // Remove from local map immediately so UI responds on first click
+  if(_notifMapMarkers && _notifMapMarkers[id]){
+    _notifMapMarkers[id].setMap(null);
+    delete _notifMapMarkers[id];
+  }
+  // Remove from Firebase — propagates to all other devices via child_removed listener
   if(window._db) window._db.ref('tac_notif_markers/'+id).remove().catch(()=>{});
 }
 function _confirmRemoveNotifMarker(id, typeLabel){
@@ -7466,7 +7471,7 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
   const threatHtml = (notif&&notif.threat) ? `<div style="font-size:12px;font-weight:700;color:#ff3333;background:rgba(255,51,51,0.08);border-radius:5px;padding:3px 8px;margin-bottom:5px">⚡ ${notif.threat}</div>` : '';
   const bodyHtml  = (notif&&notif.body)   ? `<div style="font-size:11px;color:#555;margin-bottom:5px;max-height:60px;overflow:hidden;direction:rtl">${notif.body}</div>` : '';
   const typeLabel = notif&&notif.type==='mission'?'המשימה':notif&&notif.type==='message'?'ההודעה':notif&&notif.type==='alert'?'ההתראה':'הזירה';
-  const delBtn    = isAdmin ? `<button id="delbtn_${mid}" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר ${typeLabel}</button>` : '';
+  const delBtn    = isAdmin ? `<button id="delbtn_${mid}" onclick="_confirmRemoveNotifMarker('${mid}','${typeLabel}')" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר ${typeLabel}</button>` : '';
   const iwId = 'iw_'+mid;
   const navBtnJs = (lat && lng)
     ? `openNavToLatLng(${lat},${lng},'${address.replace(/'/g,"\\'")}');event.stopPropagation()`
@@ -7483,19 +7488,17 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
       ${delBtn}
     </div>`});
   marker.addListener('click',()=>iw.open(window.map, marker));
-  // Wire buttons via domready — required on mobile (Maps intercepts first tap on raw onclick)
+  // Wire buttons via domready — onclick handles desktop, touchend handles mobile
   google.maps.event.addListener(iw, 'domready', ()=>{
     const closeBtn = document.getElementById(iwId+'_close');
     if(closeBtn){
-      const doClose = (e)=>{ e.stopPropagation(); e.preventDefault(); iw.close(); };
-      closeBtn.onclick = doClose;
-      closeBtn.addEventListener('touchend', doClose, {passive:false});
+      closeBtn.onclick = (e)=>{ e.stopPropagation(); iw.close(); };
+      closeBtn.addEventListener('touchend', (e)=>{ e.stopPropagation(); e.preventDefault(); iw.close(); }, {passive:false});
     }
     const delBtnEl = document.getElementById('delbtn_'+mid);
     if(delBtnEl){
-      const doDel = (e)=>{ e.stopPropagation(); e.preventDefault(); _confirmRemoveNotifMarker(mid, typeLabel); };
-      delBtnEl.onclick = doDel;
-      delBtnEl.addEventListener('touchend', doDel, {passive:false});
+      // touchend for mobile (Maps swallows first tap on raw onclick on some devices)
+      delBtnEl.addEventListener('touchend', (e)=>{ e.stopPropagation(); e.preventDefault(); _confirmRemoveNotifMarker(mid, typeLabel); }, {passive:false});
     }
   });
   // Persist to Firebase so markers survive page reload
