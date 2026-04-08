@@ -3027,6 +3027,76 @@ function _gpsErr(err, ctx){
 // ── HELPERS ──
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function statusHe(s){return{urgent:'דחוף',active:'פעיל',pending:'ממתין',completed:'הושלם',briefing:'בריפינג',draft:'טיוטה',debrief:'דיבריפינג'}[s]||s;}
+
+// ══════════════════════════════════════════════════
+//  ALERT SOUND ENGINE
+// ══════════════════════════════════════════════════
+const ALERT_SOUNDS=[
+  {id:'siren',   he:'סירנה',         desc:'גל עולה ויורד — 3 מחזורים'},
+  {id:'triple',  he:'שלוש צפירות',   desc:'שלושה פולסים חדים'},
+  {id:'alarm',   he:'אזעקת שריפה',   desc:'רצף מהיר 8 פולסים'},
+  {id:'warble',  he:'גלים',          desc:'גל אלקטרוני כפול'},
+  {id:'horn',    he:'קרן',           desc:'קרן אחת חזקה'},
+  {id:'ping',    he:'פינג דחוף',     desc:'פינג גבוה × 2'},
+  {id:'silent',  he:'ללא צליל',      desc:'ללא צליל'},
+];
+function getAlertSound(){ return localStorage.getItem('tac_alert_sound')||'triple'; }
+function setAlertSound(id){
+  localStorage.setItem('tac_alert_sound',id);
+  if(window._db) window._db.ref('tac_alert_sound').set(id).catch(()=>{});
+}
+function _playAlertSound(id){
+  if(!id||id==='silent') return;
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const mk=(freq,type,start,dur,vol)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type=type||'sine'; o.frequency.value=freq;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(vol||0.45,ctx.currentTime+start);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+      o.start(ctx.currentTime+start); o.stop(ctx.currentTime+start+dur);
+      return o;
+    };
+    if(id==='siren'){
+      [0,0.65,1.3].forEach(t=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.type='sawtooth'; o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(440,ctx.currentTime+t);
+        o.frequency.linearRampToValueAtTime(900,ctx.currentTime+t+0.32);
+        o.frequency.linearRampToValueAtTime(440,ctx.currentTime+t+0.64);
+        g.gain.setValueAtTime(0.5,ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.64);
+        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+0.64);
+      });
+    } else if(id==='triple'){
+      [0,0.28,0.56].forEach(t=>mk(920,'square',t,0.2,0.5));
+    } else if(id==='alarm'){
+      for(let i=0;i<8;i++) mk(i%2===0?880:660,'square',i*0.11,0.09,0.4);
+    } else if(id==='warble'){
+      [0,0.55].forEach(t=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.type='sine'; o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(1300,ctx.currentTime+t);
+        o.frequency.exponentialRampToValueAtTime(550,ctx.currentTime+t+0.25);
+        o.frequency.exponentialRampToValueAtTime(1300,ctx.currentTime+t+0.5);
+        g.gain.setValueAtTime(0.5,ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.5);
+        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+0.5);
+      });
+    } else if(id==='horn'){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sawtooth'; o.connect(g); g.connect(ctx.destination);
+      o.frequency.setValueAtTime(220,ctx.currentTime);
+      o.frequency.linearRampToValueAtTime(350,ctx.currentTime+0.12);
+      g.gain.setValueAtTime(0.6,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.85);
+      o.start(ctx.currentTime); o.stop(ctx.currentTime+0.85);
+    } else if(id==='ping'){
+      [0,0.35].forEach(t=>mk(1400,'sine',t,0.28,0.45));
+    }
+  }catch(e){}
+}
 function typeHe(t){return{arrest:'מעצר',surveillance:'מעקב',escort:'ליווי',traffic:'תנועה',rescue:'חילוץ'}[t]||t;}
 function nowT(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
 function addAct(obj){actLog.unshift({time:nowT(),txt:obj.txt,type:obj.type});}
@@ -3073,7 +3143,21 @@ function triggerSOS(){
 
   const _write=(lat,lng,acc)=>{
     if(lat) rec.lat=lat; if(lng) rec.lng=lng; if(acc) rec.acc=acc;
-    if(db) db.ref('tac_sos/'+rec.uid).set(rec);
+    if(db) db.ref('tac_sos/'+rec.uid).set(rec).then(()=>{
+      // FCM push to all other personnel so closed-app devices are woken up
+      if(typeof PUSH!=='undefined' && PUSH.hasSA()){
+        const others = PERSONNEL.map(p=>p.id).filter(id=>id!==rec.personId);
+        if(others.length){
+          PUSH.sendPush(others, {
+            type:'sos', typeLabel:'מצוקה', id:'sos_'+rec.uid,
+            title:'🆘 אות מצוקה — '+rec.name,
+            body: (rec.lat&&rec.lng) ? '📍 '+rec.lat.toFixed(5)+', '+rec.lng.toFixed(5) : 'מיקום לא זמין',
+            senderName:rec.name, sentAt:rec.ts,
+            lat:rec.lat||null, lng:rec.lng||null
+          });
+        }
+      }
+    }).catch(()=>{});
   };
 
   if(navigator.geolocation){
@@ -3136,18 +3220,9 @@ function _showSOSAlert(sos, isOwn){
     if(_sosAcked !== sos.uid){
       document.getElementById('sos-popup-overlay').classList.add('open');
     }
-    // Alert sound
-    try{
-      const ctx=new(window.AudioContext||window.webkitAudioContext)();
-      [0,0.3,0.6].forEach(t=>{
-        const o=ctx.createOscillator(),g=ctx.createGain();
-        o.connect(g);g.connect(ctx.destination);
-        o.frequency.value=880;
-        g.gain.setValueAtTime(0.4,ctx.currentTime+t);
-        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+0.25);
-        o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.25);
-      });
-    }catch(e){}
+    // Alert sound + vibration
+    _playAlertSound('siren');
+    if('vibrate' in navigator) navigator.vibrate([500,200,500,200,1000]);
   }
 
   // Add to alerts panel + activity log
@@ -5363,7 +5438,22 @@ function boSettings(c){
     +'try{JSON.parse(j);if(typeof PUSH!==\'undefined\')PUSH.saveSA(j);'
     +'showToast({icon:\'🔔\',title:\'Service Account נשמר\',sub:\'Push פעיל לכולם\',type:\'success\'});}catch(e){'
     +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
-    +'</div>';
+    +'</div>'
+    // ── Alert Sound Settings ──
+    +'<div class="bo-section"><div class="bo-hd">🔔 צליל התראה לאירועי חירום ומצוקה</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">הצליל שישמע אצל כל המשתמשים כאשר מתקבלת הודעת חירום או אות מצוקה.</div>'
+    +'<div id="alert-sound-list" style="display:flex;flex-direction:column;gap:6px">'
+    +ALERT_SOUNDS.map(s=>{
+      const isSel = (localStorage.getItem('tac_alert_sound')||'triple')===s.id;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid '+(isSel?'var(--accent)':'var(--border1)')+';background:'+(isSel?'rgba(29,108,255,0.08)':'transparent')+';cursor:pointer" onclick="setAlertSound(\''+s.id+'\');boSettings(document.getElementById(\'rp-body\'))">'
+        +'<span style="font-size:18px">'+(s.id==='siren'?'🚨':s.id==='triple'?'📣':s.id==='alarm'?'🔥':s.id==='warble'?'〰️':s.id==='horn'?'📯':s.id==='ping'?'🔔':'🔇')+'</span>'
+        +'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:'+(isSel?'var(--accent)':'var(--text1)')+'">'+s.he+'</div>'
+        +'<div style="font-size:11px;color:var(--text3)">'+s.desc+'</div></div>'
+        +(isSel?'<span style="font-size:11px;color:var(--accent);font-weight:700">✓ פעיל</span>':'')
+        +'<button class="act-btn" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();_playAlertSound(\''+s.id+'\')">▶ תצוגה</button>'
+        +'</div>';
+    }).join('')
+    +'</div></div>';
 }
 
 function _renderBOSOSStatus(){
@@ -7112,6 +7202,9 @@ function _showIncomingNotif(notif, fbRef){
     ? `0 20px 60px ${gfx.color}3a, 0 0 0 1px ${gfx.color}22`
     : '';
   document.getElementById('incoming-notif-overlay').classList.add('open');
+  // Alert sound + vibration
+  _playAlertSound(getAlertSound());
+  if('vibrate' in navigator) navigator.vibrate([300,100,300,100,600]);
   // Venue picker — show selectable venue buttons if multiple venues
   const venueWrap = document.getElementById('inc-venue-wrap');
   const venueList = document.getElementById('inc-venue-list');
@@ -7725,7 +7818,7 @@ const SYNC = (() => {
       _db = firebase.database();
       window._db = _db;
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _subscribeTeams(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
@@ -7871,6 +7964,16 @@ const SYNC = (() => {
       // Re-render teams panel if open
       const c = document.getElementById('rp-body');
       if(c && typeof currentPanel!=='undefined' && currentPanel==='teams') renderTeamsP(c);
+    });
+  }
+
+  function _subscribeAlertSound(){
+    if(!_db) return;
+    _db.ref('tac_alert_sound').once('value', snap=>{
+      const val = snap.val();
+      if(val && typeof val==='string' && typeof setAlertSound==='function'){
+        localStorage.setItem('tac_alert_sound', val);
+      }
     });
   }
 

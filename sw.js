@@ -131,7 +131,7 @@ async function _showNotif(notif){
   if(['חדירת מחבלים','ירי תמ״ס/כטב״מ','פיגוע'].includes(t))  icon = '🚨';
   else if(['קוד פיגיון','רעידת אדמה'].includes(t))           icon = '⚡';
   else if(['מחסומי רשת','אביר לילה ב׳','אביר לילה ג׳'].includes(t)) icon = '⚠️';
-  else { const icons = {mission:'📋', message:'💬', alert:'⚠️'}; icon = icons[notif.type]||'📢'; }
+  else { const icons = {mission:'📋', message:'💬', alert:'⚠️', sos:'🆘'}; icon = icons[notif.type]||'📢'; }
   const typeLabel = notif.typeLabel || notif.type || '';
   await self.registration.showNotification(
     icon + ' ' + (notif.title || 'מערכת מבצעים'),
@@ -234,7 +234,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040718';
+const CACHE = 'tac-v5-3-' + '2026040901';
 const BASE  = '/tactical-command-center/';
 const SHELL = [BASE, BASE + 'index.html'];
 
