@@ -3045,6 +3045,24 @@ function setAlertSound(id){
   localStorage.setItem('tac_alert_sound',id);
   if(window._db) window._db.ref('tac_alert_sound').set(id).catch(()=>{});
 }
+function _saveAlertSoundUI(id){
+  setAlertSound(id);
+  const s = ALERT_SOUNDS.find(x=>x.id===id);
+  showToast({icon:'🔔',title:'צליל נשמר — '+(s?s.he:id),type:'success',duration:2500});
+  // Refresh just the sound list rows without re-rendering the whole panel
+  const list = document.getElementById('alert-sound-list');
+  if(!list) return;
+  list.querySelectorAll('[data-sound-id]').forEach(row=>{
+    const rid = row.dataset.soundId;
+    const isSel = rid===id;
+    row.style.borderColor = isSel?'var(--accent)':'var(--border1)';
+    row.style.background = isSel?'rgba(29,108,255,0.08)':'transparent';
+    const label = row.querySelector('.sound-name');
+    if(label) label.style.color = isSel?'var(--accent)':'var(--text1)';
+    const btn = row.querySelector('.sound-select-btn');
+    if(btn){ btn.textContent=isSel?'✓ פעיל':'בחר'; btn.className=(isSel?'btn-pri':'btn-sec')+' sound-select-btn'; btn.style.cssText='padding:4px 12px;font-size:12px;margin:0'; }
+  });
+}
 function _playAlertSound(id){
   if(!id||id==='silent') return;
   try{
@@ -5445,12 +5463,13 @@ function boSettings(c){
     +'<div id="alert-sound-list" style="display:flex;flex-direction:column;gap:6px">'
     +ALERT_SOUNDS.map(s=>{
       const isSel = (localStorage.getItem('tac_alert_sound')||'triple')===s.id;
-      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid '+(isSel?'var(--accent)':'var(--border1)')+';background:'+(isSel?'rgba(29,108,255,0.08)':'transparent')+';cursor:pointer" onclick="setAlertSound(\''+s.id+'\');boSettings(document.getElementById(\'rp-body\'))">'
-        +'<span style="font-size:18px">'+(s.id==='siren'?'🚨':s.id==='triple'?'📣':s.id==='alarm'?'🔥':s.id==='warble'?'〰️':s.id==='horn'?'📯':s.id==='ping'?'🔔':'🔇')+'</span>'
-        +'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:'+(isSel?'var(--accent)':'var(--text1)')+'">'+s.he+'</div>'
+      const emoji = s.id==='siren'?'🚨':s.id==='triple'?'📣':s.id==='alarm'?'🔥':s.id==='warble'?'〰️':s.id==='horn'?'📯':s.id==='ping'?'🔔':'🔇';
+      return '<div data-sound-id="'+s.id+'" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid '+(isSel?'var(--accent)':'var(--border1)')+';background:'+(isSel?'rgba(29,108,255,0.08)':'transparent')+'">'
+        +'<span style="font-size:18px">'+emoji+'</span>'
+        +'<div style="flex:1"><div class="sound-name" style="font-size:13px;font-weight:600;color:'+(isSel?'var(--accent)':'var(--text1)')+'">'+s.he+'</div>'
         +'<div style="font-size:11px;color:var(--text3)">'+s.desc+'</div></div>'
-        +(isSel?'<span style="font-size:11px;color:var(--accent);font-weight:700">✓ פעיל</span>':'')
-        +'<button class="act-btn" style="padding:4px 10px;font-size:11px" onclick="event.stopPropagation();_playAlertSound(\''+s.id+'\')">▶ תצוגה</button>'
+        +'<button class="act-btn" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="_playAlertSound(\''+s.id+'\')">▶ נגן</button>'
+        +'<button class="'+(isSel?'btn-pri':'btn-sec')+' sound-select-btn" style="padding:4px 12px;font-size:12px;margin:0" onclick="_saveAlertSoundUI(\''+s.id+'\')">'+(isSel?'✓ פעיל':'בחר')+'</button>'
         +'</div>';
     }).join('')
     +'</div></div>';
