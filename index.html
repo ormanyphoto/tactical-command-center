@@ -116,7 +116,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 /* Emergency button on map */
 #map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
 #map-emergency-btn:hover{transform:scale(1.04);opacity:0.92}
-@media(max-width:768px){#map-emergency-btn{width:130px;font-size:13px;padding:9px 0;bottom:76px}}
+@media(max-width:767px){#map-emergency-btn{display:none}}
+@media(min-width:768px) and (max-width:1024px){#map-emergency-btn{width:140px;font-size:13px;padding:9px 0;bottom:72px}}
 .bn-item.bn-emergency{color:#1d6cff}
 .bn-item.bn-emergency:hover,.bn-item.bn-emergency.active{color:#5096ff}
 
