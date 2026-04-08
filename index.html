@@ -239,7 +239,9 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 #map-sos-btn{position:absolute;bottom:30px;right:10px;z-index:200;background:rgba(210,0,0,0.9);border:2px solid rgba(255,60,60,0.65);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(200,0,0,0.5);font-family:var(--font);white-space:nowrap;animation:sosPulse 2.5s ease-in-out infinite;transition:transform 0.12s}
 #map-sos-btn:hover{transform:scale(1.05)}
 @keyframes sosPulse{0%,100%{box-shadow:0 4px 18px rgba(200,0,0,0.5)}55%{box-shadow:0 4px 28px rgba(255,0,0,0.9),0 0 0 5px rgba(255,51,51,0.15)}}
-@media(max-width:768px){#map-action-overlay,#map-sos-btn{display:none}}
+@media(max-width:767px){#map-action-overlay,#map-sos-btn{display:none}}
+/* Tablet (768-1024): SOS button visible, positioned below emergency button */
+@media(min-width:768px) and (max-width:1024px){#map-sos-btn{bottom:28px;width:140px;font-size:13px;padding:9px 0}}
 /* ── SOS DISTRESS SYSTEM ── */
 #sos-alert-bar{display:none;position:fixed;top:62px;left:0;right:0;z-index:8500;background:rgba(190,0,0,0.97);color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(255,80,80,0.5);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl}
 #sos-alert-bar.active{display:flex;animation:sosBarPulse 1.4s ease-in-out infinite}
@@ -7370,6 +7372,24 @@ function _removeNotifMarker(id){
   // Only delete from Firebase — the child_removed listener handles map removal for ALL users instantly
   if(window._db) window._db.ref('tac_notif_markers/'+id).remove().catch(()=>{});
 }
+function _confirmRemoveNotifMarker(id, typeLabel, btnEl){
+  // Inline confirmation — transforms the button into "sure?" + Yes/Cancel
+  if(!btnEl) return;
+  const orig = btnEl.innerHTML;
+  btnEl.innerHTML =
+    '<span style="font-weight:500">האם למחוק את '+typeLabel+'?</span> '
+    +'<span onclick="event.stopPropagation();_removeNotifMarker(\''+id+'\');btnEl=null" '
+    +'style="background:#ff2222;color:#fff;border-radius:4px;padding:2px 10px;cursor:pointer;font-weight:700;margin:0 4px">✓ כן</span>'
+    +'<span onclick="event.stopPropagation();this.closest(\'button\').innerHTML=\''+orig.replace(/'/g,"\\'")+'\';" '
+    +'style="background:#555;color:#fff;border-radius:4px;padding:2px 10px;cursor:pointer">ביטול</span>';
+  btnEl.setAttribute('onclick', '');
+  // wire Yes
+  const yesBtn = btnEl.querySelector('span:nth-child(2)');
+  if(yesBtn) yesBtn.onclick = (e)=>{ e.stopPropagation(); _removeNotifMarker(id); };
+  // wire Cancel
+  const noBtn = btnEl.querySelector('span:nth-child(3)');
+  if(noBtn) noBtn.onclick = (e)=>{ e.stopPropagation(); btnEl.innerHTML = orig; btnEl.setAttribute('onclick','_confirmRemoveNotifMarker(\''+id+'\',\''+typeLabel+'\',this)'); };
+}
 // Save marker data to Firebase for persistence across sessions
 function _persistNotifMarker(mid, lat, lng, address, notif, venueLabel, venueColor){
   if(!window._db) return;
@@ -7430,7 +7450,8 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
   window.map.panTo({lat,lng});
   const threatHtml = (notif&&notif.threat) ? `<div style="font-size:12px;font-weight:700;color:#ff3333;background:rgba(255,51,51,0.08);border-radius:5px;padding:3px 8px;margin-bottom:5px">⚡ ${notif.threat}</div>` : '';
   const bodyHtml  = (notif&&notif.body)   ? `<div style="font-size:11px;color:#555;margin-bottom:5px;max-height:60px;overflow:hidden;direction:rtl">${notif.body}</div>` : '';
-  const delBtn    = isAdmin ? `<button onclick="_removeNotifMarker('${mid}')" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר זירה (אדמין)</button>` : '';
+  const typeLabel = notif&&notif.type==='mission'?'המשימה':notif&&notif.type==='message'?'ההודעה':notif&&notif.type==='alert'?'ההתראה':'הזירה';
+  const delBtn    = isAdmin ? `<button id="delbtn_${mid}" onclick="_confirmRemoveNotifMarker('${mid}','${typeLabel}',this)" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר ${typeLabel}</button>` : '';
   const iwId = 'iw_'+mid;
   const navBtnJs = (lat && lng)
     ? `openNavToLatLng(${lat},${lng},'${address.replace(/'/g,"\\'")}');event.stopPropagation()`
@@ -7439,7 +7460,7 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
     <div style="font-family:Heebo,sans-serif;direction:rtl;padding:6px 8px;min-width:200px;max-width:280px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="font-size:13px;font-weight:900;color:${color}">${label}</div>
-        <button onclick="document.getElementById('${iwId}_close')&&document.getElementById('${iwId}_close').click();event.stopPropagation()" id="${iwId}_close" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;padding:0 0 0 6px;line-height:1" title="הסתר חלונית">✕</button>
+        <button id="${iwId}_close" style="background:none;border:none;color:#888;font-size:16px;cursor:pointer;padding:0 0 0 6px;line-height:1" title="סגור">✕</button>
       </div>
       ${threatHtml}${bodyHtml}
       <div style="font-size:11px;color:#888;margin-bottom:6px">📍 ${address}</div>
@@ -7447,7 +7468,7 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
       ${delBtn}
     </div>`});
   marker.addListener('click',()=>iw.open(window.map, marker));
-  // Wire close button to actually close the InfoWindow
+  // Wire close button after InfoWindow is in DOM
   google.maps.event.addListener(iw, 'domready', ()=>{
     const btn = document.getElementById(iwId+'_close');
     if(btn) btn.onclick = (e)=>{ e.stopPropagation(); iw.close(); };
