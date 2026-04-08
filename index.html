@@ -3055,6 +3055,14 @@ function setAlertSoundForType(type, id){
 // Legacy aliases (used by existing calls)
 function getAlertSound(){ return getAlertSoundForType('alert'); }
 function setAlertSound(id){ setAlertSoundForType('alert', id); }
+function getVibrationOn(){ return localStorage.getItem('tac_vibration') !== '0'; }
+function setVibrationOn(on){
+  localStorage.setItem('tac_vibration', on ? '1' : '0');
+  if(window._db) window._db.ref('tac_vibration').set(on ? '1' : '0').catch(()=>{});
+}
+function _vibrate(pattern){
+  if('vibrate' in navigator && getVibrationOn()) navigator.vibrate(pattern);
+}
 function _saveSoundForType(type){
   const sel = document.getElementById('sound-sel-'+type);
   if(!sel) return;
@@ -3245,7 +3253,7 @@ function _showSOSAlert(sos, isOwn){
     }
     // Alert sound + vibration — use type-specific sound
     _playAlertSound(getAlertSoundForType('sos'));
-    if('vibrate' in navigator) navigator.vibrate([500,200,500,200,1000]);
+    _vibrate([500,200,500,200,1000]);
   }
 
   // Add to alerts panel + activity log
@@ -5476,6 +5484,10 @@ function boSettings(c){
         +'<button class="btn-pri" style="padding:4px 12px;font-size:12px;margin:0;white-space:nowrap" onclick="_saveSoundForType(\''+t.id+'\')">💾 שמור</button>'
         +'</div>';
     }).join('')
+    // ── Vibration toggle ──
+    +'<div class="config-row" style="margin-top:10px"><div><div class="config-lbl">📳 רטט עם צלצול</div><div class="config-desc">רטט במכשיר בעת קבלת התראה</div></div>'
+    +'<label class="toggle"><input type="checkbox" id="cfg-vibration" '+(getVibrationOn()?'checked':'')+' onchange="setVibrationOn(this.checked);showToast({icon:\'📳\',title:this.checked?\'רטט פעיל\':\'רטט כבוי\',type:\'success\',duration:1500})"><span class="toggle-slider"></span></label>'
+    +'</div>'
     +'</div>';
 }
 
@@ -7227,7 +7239,7 @@ function _showIncomingNotif(notif, fbRef){
   document.getElementById('incoming-notif-overlay').classList.add('open');
   // Alert sound + vibration — use type-specific sound
   _playAlertSound(getAlertSoundForType(notif.type||'alert'));
-  if('vibrate' in navigator) navigator.vibrate([300,100,300,100,600]);
+  _vibrate([300,100,300,100,600]);
   // Venue picker — show selectable venue buttons if multiple venues
   const venueWrap = document.getElementById('inc-venue-wrap');
   const venueList = document.getElementById('inc-venue-list');
@@ -7374,23 +7386,9 @@ function _removeNotifMarker(id){
   // Only delete from Firebase — the child_removed listener handles map removal for ALL users instantly
   if(window._db) window._db.ref('tac_notif_markers/'+id).remove().catch(()=>{});
 }
-function _confirmRemoveNotifMarker(id, typeLabel, btnEl){
-  // Inline confirmation — transforms the button into "sure?" + Yes/Cancel
-  if(!btnEl) return;
-  const orig = btnEl.innerHTML;
-  btnEl.innerHTML =
-    '<span style="font-weight:500">האם למחוק את '+typeLabel+'?</span> '
-    +'<span onclick="event.stopPropagation();_removeNotifMarker(\''+id+'\');btnEl=null" '
-    +'style="background:#ff2222;color:#fff;border-radius:4px;padding:2px 10px;cursor:pointer;font-weight:700;margin:0 4px">✓ כן</span>'
-    +'<span onclick="event.stopPropagation();this.closest(\'button\').innerHTML=\''+orig.replace(/'/g,"\\'")+'\';" '
-    +'style="background:#555;color:#fff;border-radius:4px;padding:2px 10px;cursor:pointer">ביטול</span>';
-  btnEl.setAttribute('onclick', '');
-  // wire Yes
-  const yesBtn = btnEl.querySelector('span:nth-child(2)');
-  if(yesBtn) yesBtn.onclick = (e)=>{ e.stopPropagation(); _removeNotifMarker(id); };
-  // wire Cancel
-  const noBtn = btnEl.querySelector('span:nth-child(3)');
-  if(noBtn) noBtn.onclick = (e)=>{ e.stopPropagation(); btnEl.innerHTML = orig; btnEl.setAttribute('onclick','_confirmRemoveNotifMarker(\''+id+'\',\''+typeLabel+'\',this)'); };
+function _confirmRemoveNotifMarker(id, typeLabel){
+  _removeNotifMarker(id);
+  showToast({icon:'🗑️', title: typeLabel+' הוסרה מהמפה', type:'info', duration:2500});
 }
 // Save marker data to Firebase for persistence across sessions
 function _persistNotifMarker(mid, lat, lng, address, notif, venueLabel, venueColor){
@@ -7453,7 +7451,7 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
   const threatHtml = (notif&&notif.threat) ? `<div style="font-size:12px;font-weight:700;color:#ff3333;background:rgba(255,51,51,0.08);border-radius:5px;padding:3px 8px;margin-bottom:5px">⚡ ${notif.threat}</div>` : '';
   const bodyHtml  = (notif&&notif.body)   ? `<div style="font-size:11px;color:#555;margin-bottom:5px;max-height:60px;overflow:hidden;direction:rtl">${notif.body}</div>` : '';
   const typeLabel = notif&&notif.type==='mission'?'המשימה':notif&&notif.type==='message'?'ההודעה':notif&&notif.type==='alert'?'ההתראה':'הזירה';
-  const delBtn    = isAdmin ? `<button id="delbtn_${mid}" onclick="_confirmRemoveNotifMarker('${mid}','${typeLabel}',this)" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר ${typeLabel}</button>` : '';
+  const delBtn    = isAdmin ? `<button onclick="_confirmRemoveNotifMarker('${mid}','${typeLabel}')" style="margin-top:4px;width:100%;padding:6px;background:#cc0000;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🗑️ הסר ${typeLabel}</button>` : '';
   const iwId = 'iw_'+mid;
   const navBtnJs = (lat && lng)
     ? `openNavToLatLng(${lat},${lng},'${address.replace(/'/g,"\\'")}');event.stopPropagation()`
