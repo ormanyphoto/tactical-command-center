@@ -6867,7 +6867,9 @@ function openNotifModal(){
   const venueList = document.getElementById('nm-venues-list');
   if(venueList){ venueList.innerHTML=''; addNotifVenue(); }
   document.getElementById('notif-modal-overlay').classList.add('open');
-  setTimeout(()=>{ const v=document.querySelector('#nm-venues-list .nm-venue-input'); if(v) v.focus(); }, 50);
+  if(window.innerWidth > 1024){
+    setTimeout(()=>{ const v=document.querySelector('#nm-venues-list .nm-venue-input'); if(v) v.focus(); }, 50);
+  }
 }
 
 function closeNotifModal(){
