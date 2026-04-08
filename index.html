@@ -5794,6 +5794,15 @@ function savePersonnelToStorage(){
     localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL));
     localStorage.setItem('tac_teams', JSON.stringify(TEAMS));
   }catch(e){}
+  // Sync team assignments to Firebase so they survive refresh and work across devices
+  if(window._db){
+    const units = {};
+    PERSONNEL.forEach(p=>{ if(p.unit) units[p.id]=p.unit; });
+    window._db.ref('tac_teams_sync').set({
+      teams: TEAMS.length ? TEAMS : null,
+      units: Object.keys(units).length ? units : null
+    }).catch(()=>{});
+  }
 }
 function loadPersonnelFromStorage(){
   try{
@@ -7716,7 +7725,7 @@ const SYNC = (() => {
       _db = firebase.database();
       window._db = _db;
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
+        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _subscribeTeams(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
@@ -7833,6 +7842,38 @@ const SYNC = (() => {
   }
 
   // ── Sync GEOFENCES from Firebase so all devices see enable/disable in real-time ──
+  function _subscribeTeams(){
+    if(!_db) return;
+    _db.ref('tac_teams_sync').once('value', snap=>{
+      const data = snap.val();
+      if(!data) return;
+      let changed = false;
+      // Restore TEAMS
+      if(data.teams && Array.isArray(data.teams) && data.teams.length){
+        const remoteIds = new Set(data.teams.map(t=>t.id));
+        const localOnly = TEAMS.filter(t=>!remoteIds.has(t.id));
+        TEAMS.splice(0, TEAMS.length, ...data.teams, ...localOnly);
+        changed = true;
+      }
+      // Restore unit assignments to PERSONNEL
+      if(data.units && typeof data.units==='object'){
+        Object.entries(data.units).forEach(([pid, unit])=>{
+          const p = PERSONNEL.find(x=>x.id===pid);
+          if(p && unit){ p.unit = unit; changed = true; }
+        });
+      }
+      if(!changed) return;
+      // Persist to localStorage for offline fallback (without re-writing to Firebase)
+      try{
+        localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL));
+        localStorage.setItem('tac_teams', JSON.stringify(TEAMS));
+      }catch(e){}
+      // Re-render teams panel if open
+      const c = document.getElementById('rp-body');
+      if(c && typeof currentPanel!=='undefined' && currentPanel==='teams') renderTeamsP(c);
+    });
+  }
+
   function _subscribeGeofences(){
     if(!_db) return;
     _db.ref('tac_geofences').on('value', snap=>{
