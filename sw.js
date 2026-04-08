@@ -61,7 +61,9 @@ async function startSSE(personId, listenFrom){
       let   buf = '', eventType = null, isFirst = true;
 
       while(true){
-        const { done, value } = await reader.read();
+        // 65-second timeout: if Firebase goes silent (hung connection), reconnect
+        const _readTimeout = new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('SSE read timeout'),{name:'SSETimeout'})),65000));
+        const { done, value } = await Promise.race([reader.read(), _readTimeout]);
         if(done){ scheduleReconnect(3000); break; }
 
         buf += decoder.decode(value, { stream: true });

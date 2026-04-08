@@ -116,7 +116,9 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 /* Emergency button on map */
 #map-emergency-btn{position:absolute;bottom:84px;right:10px;z-index:200;background:#1d6cff;border:2px solid rgba(80,140,255,0.55);border-radius:12px;color:#fff;font-size:14px;font-weight:900;padding:11px 0;width:160px;text-align:center;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(29,108,255,0.5);font-family:var(--font);white-space:nowrap;transition:transform 0.12s,opacity 0.12s}
 #map-emergency-btn:hover{transform:scale(1.04);opacity:0.92}
-@media(max-width:768px){#map-emergency-btn{display:none}}
+@media(max-width:768px){#map-emergency-btn{width:130px;font-size:13px;padding:9px 0;bottom:76px}}
+.bn-item.bn-emergency{color:#1d6cff}
+.bn-item.bn-emergency:hover,.bn-item.bn-emergency.active{color:#5096ff}
 
 /* Approvals section in כוחות panel */
 .approvals-section{background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px}
@@ -946,6 +948,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </nav>
       <div id="mobile-drawer-footer">
         <button class="tb-btn tbdanger" style="flex:1;justify-content:center" onclick="triggerSOS();closeMobileMenu()">🆘 מצוקה</button>
+        <button class="tb-btn" id="mob-emergency-btn" style="flex:1;justify-content:center;display:none;border-color:rgba(29,108,255,0.55);color:#1d6cff" onclick="openNotifModal();closeMobileMenu()">📢 חירום</button>
         <button class="tb-btn" id="mob-admin-btn" style="flex:1;justify-content:center" onclick="openBO();closeMobileMenu()">⚙ ניהול</button>
         <button class="tb-btn" style="padding:7px 10px" onclick="setTheme(document.body.classList.contains('night')?'day':'night')" title="יום/לילה">🌙</button>
       </div>
@@ -958,6 +961,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     <button class="bn-item" data-v="personnel" onclick="mobileGoView('personnel')"><span class="bn-icon">👤</span>אנשי צוות</button>
     <button class="bn-item" data-v="missions" onclick="mobileGoView('missions')"><span class="bn-icon">📋</span>משימות</button>
     <button class="bn-item" data-v="comms" onclick="mobileGoView('comms')"><span class="bn-icon">📡</span>תקשורת</button>
+    <button class="bn-item bn-emergency" id="bn-emergency-btn" onclick="openNotifModal()" style="display:none"><span class="bn-icon">📢</span>חירום</button>
     <button class="bn-item bn-sos" onclick="triggerSOS()"><span class="bn-icon">🆘</span>מצוקה</button>
   </div>
 
@@ -996,7 +1000,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button onclick="locateMe()" title="מרכז עלי" style="width:36px;height:36px;border-radius:50%;background:rgba(7,9,10,0.82);border:1px solid rgba(255,255,255,0.18);color:#fff;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:background 0.15s" onmouseenter="this.style.background='rgba(168,232,0,0.85)'" onmouseleave="this.style.background='rgba(7,9,10,0.82)'">🎯</button>
       </div>
       <!-- Emergency notification button + SOS button bottom-right -->
-      <button id="map-emergency-btn" onclick="openNotifModal()">📢 הודעת חירום</button>
+      <button id="map-emergency-btn" onclick="openNotifModal()" style="display:none">📢 הודעת חירום</button>
       <button id="map-sos-btn" onclick="triggerSOS()">🆘 לחצן מצוקה</button>
       <!-- Location privacy toggle — mobile/tablet only -->
       <div id="loc-privacy-btn" class="loc-priv-on" onclick="toggleLocPrivacy()">
@@ -1603,6 +1607,14 @@ const AUTH = (() => {
     // Show/hide admin button in mobile drawer based on permissions
     const mobAdminBtn = document.getElementById('mob-admin-btn');
     if(mobAdminBtn) mobAdminBtn.style.display = isAdmin ? '' : 'none';
+    // Emergency notification button — visible on all screen sizes for create_mission users
+    const canNotify = perms.includes('create_mission');
+    const mapEmergBtn = document.getElementById('map-emergency-btn');
+    if(mapEmergBtn) mapEmergBtn.style.display = canNotify ? '' : 'none';
+    const bnEmergBtn = document.getElementById('bn-emergency-btn');
+    if(bnEmergBtn) bnEmergBtn.style.display = canNotify ? 'flex' : 'none';
+    const mobEmergBtn = document.getElementById('mob-emergency-btn');
+    if(mobEmergBtn) mobEmergBtn.style.display = canNotify ? '' : 'none';
     // Set field identity for GPS sharing
     localStorage.setItem('tac_field_name', _user.name);
     localStorage.setItem('tac_field_role', _user.role||'לוחם');
@@ -2543,13 +2555,13 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
         ${avHtml}
         <div>
-          <div style="font-size:15px;font-weight:800;color:${color};margin-bottom:2px">${name}</div>
-          <div style="font-size:11px;color:#666;margin-bottom:4px">${role||rank}${team?' · '+team:''}</div>
-          <span style="font-size:10px;background:${(status==='deployed'||status==='on-duty')?'#e8f5e9':'#fce4ec'};color:${(status==='deployed'||status==='on-duty')?'#1a8c2e':'#c62828'};padding:2px 9px;border-radius:10px;font-weight:700">${statusLbl[status]||status}</span>
+          <div style="font-size:15px;font-weight:800;color:${color};margin-bottom:2px">${escHtml(name)}</div>
+          <div style="font-size:11px;color:#666;margin-bottom:4px">${escHtml(role||rank)}${team?' · '+escHtml(team):''}</div>
+          <span style="font-size:10px;background:${(status==='deployed'||status==='on-duty')?'#e8f5e9':'#fce4ec'};color:${(status==='deployed'||status==='on-duty')?'#1a8c2e':'#c62828'};padding:2px 9px;border-radius:10px;font-weight:700">${escHtml(statusLbl[status]||status)}</span>
         </div>
       </div>
-      ${skills&&skills.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">${skills.map(s=>`<span style="background:#f5f5f5;border:1px solid #ddd;border-radius:3px;padding:1px 5px;font-size:10px">${s}</span>`).join('')}</div>`:''}
-      ${mission?`<div style="font-size:10px;color:#1a8c2e;font-weight:600;margin-bottom:6px">📋 ${mission}</div>`:''}
+      ${skills&&skills.length?`<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px">${skills.map(s=>`<span style="background:#f5f5f5;border:1px solid #ddd;border-radius:3px;padding:1px 5px;font-size:10px">${escHtml(s)}</span>`).join('')}</div>`:''}
+      ${mission?`<div style="font-size:10px;color:#1a8c2e;font-weight:600;margin-bottom:6px">📋 ${escHtml(mission)}</div>`:''}
       <div style="display:flex;gap:5px;margin-top:6px">
         <button onclick="startDragPerson('${id}')" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:3px 8px;color:#0a7cb8;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">↕ גרור</button>
         <button onclick="movePersonByAddress('${personnelId||id}')" style="background:#f5f5f5;border:1px solid #ccc;border-radius:4px;padding:3px 8px;color:#333;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">📍 כתובת</button>
@@ -2575,7 +2587,7 @@ function plotGFs(){
       fillColor:gf.color,fillOpacity:0.06,
     });
     const iw=new google.maps.InfoWindow({
-      content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:2px"><div style="font-size:13px;font-weight:700;color:${gf.color}">${gf.name}</div><div style="font-size:11px;color:#888">רדיוס: ${gf.radius}מ · ${gf.type}</div></div>`,
+      content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:2px"><div style="font-size:13px;font-weight:700;color:${gf.color}">${escHtml(gf.name)}</div><div style="font-size:11px;color:#888">רדיוס: ${escHtml(gf.radius)}מ · ${escHtml(gf.type)}</div></div>`,
       position:{lat:gf.lat,lng:gf.lng},
     });
     c.addListener('click',()=>{closeAllInfoWindows();iw.open(map);_infoWindows.push(iw);});
@@ -3013,6 +3025,7 @@ function _gpsErr(err, ctx){
 }
 
 // ── HELPERS ──
+function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function statusHe(s){return{urgent:'דחוף',active:'פעיל',pending:'ממתין',completed:'הושלם',briefing:'בריפינג',draft:'טיוטה',debrief:'דיבריפינג'}[s]||s;}
 function typeHe(t){return{arrest:'מעצר',surveillance:'מעקב',escort:'ליווי',traffic:'תנועה',rescue:'חילוץ'}[t]||t;}
 function nowT(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
@@ -3581,7 +3594,8 @@ function editMsnModal(id){
 function advMsn(id){
   const m=MISSIONS.find(x=>x.id===id);if(!m)return;
   const seq=['draft','briefing','pending','active','completed'];
-  const i=seq.indexOf(m.status);m.status=seq[Math.min(i+1,seq.length-1)];
+  const i=seq.indexOf(typeof m.status==='string'?m.status:'');
+  if(i===-1){m.status='draft';}else{m.status=seq[Math.min(i+1,seq.length-1)];}
   plotMissions();renderMsnsP(document.getElementById('rp-body'));showToast({icon:'📋',title:m.id+' קודם',sub:statusHe(m.status),type:'success'});
 }
 
@@ -3754,7 +3768,7 @@ function renderAiP(c){
       +'<button class="f-btn" data-q="מי הכוחות הזמינים כרגע?" onclick="aiQuick(this.dataset.q)">✅ כוחות זמינים</button>'
     +'</div>'
     +'<div style="display:flex;gap:5px">'
-      +'<input type="text" id="ai-inp" placeholder="שאל שאלה מבצעית..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.keyCode===13||event.key=="Enter")sendAiMsg()"/>'
+      +'<input type="text" id="ai-inp" placeholder="שאל שאלה מבצעית..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.keyCode===13||event.key===&quot;Enter&quot;)sendAiMsg()"/>'
       +'<button onclick="sendAiMsg()" id="ai-send-btn" style="background:var(--glow);border:1px solid var(--accent);border-radius:var(--r);padding:7px 12px;color:var(--accent);cursor:pointer;font-size:16px;font-weight:700;flex-shrink:0">⬅</button>'
       +'<button onclick="clearAiChat()" style="background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--text3);cursor:pointer;font-size:12px;flex-shrink:0">🗑️</button>'
     +'</div>';
@@ -3795,9 +3809,16 @@ async function sendAiMsg(){
       +' התראות: '+JSON.stringify(ALERTS)
       +' אירועים: '+JSON.stringify(INCIDENTS.map(function(i){return {id:i.id,title:i.title,status:i.status,type:i.type};}));
     const systemPrompt='אתה עוזר AI טקטי של כוננות מחוז תל אביב. אתה מסייע לקצינים בניתוח מצב, פריסת כוחות וקבלת החלטות מבצעיות. ענה בעברית בתמצות ובבהירות. המידע הנוכחי: '+ctx;
+    const _aiApiKey = localStorage.getItem('tac_anthropic_key')||'';
+    if(!_aiApiKey){ throw new Error('מפתח API לא הוגדר. הגדר בהגדרות מערכת.'); }
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': _aiApiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:1000,
@@ -4295,7 +4316,7 @@ function renderAnalP(c){
   <button class="btn-sec" onclick="expGeo()">⬇ GeoJSON</button>`;
 }
 function expReport(){alert('דוח סיכום משמרת\n\nמשימות פעילות: '+MISSIONS.filter(m=>m.status==='active').length+'\nיחידות פרוסות: '+UNITS.filter(u=>u.status==='deployed').length+'\nהתראות: '+ALERTS.length+'\nשעה: '+nowT()+'Z\n\nמייצא...')}
-function expGeo(){const f=[];drawnLyr.eachLayer(l=>{try{f.push(l.toGeoJSON())}catch(e){}});msnLyr.eachLayer(l=>{try{f.push(l.toGeoJSON())}catch(e){}});const b=new Blob([JSON.stringify({type:'FeatureCollection',features:f},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='tactical_ops_israel.geojson';a.click()}
+function expGeo(){const f=[];if(typeof drawnLyr!=='undefined'&&drawnLyr&&drawnLyr.eachLayer)drawnLyr.eachLayer(l=>{try{f.push(l.toGeoJSON())}catch(e){}});if(typeof msnLyr!=='undefined'&&msnLyr&&msnLyr.eachLayer)msnLyr.eachLayer(l=>{try{f.push(l.toGeoJSON())}catch(e){}});const b=new Blob([JSON.stringify({type:'FeatureCollection',features:f},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='tactical_ops_israel.geojson';a.click()}
 
 // ─── GEOFENCE ───
 function renderGfP(c){
@@ -4394,8 +4415,8 @@ function goView(v){
 }
 
 // ─── MISC ───
-function toggleRP(){const rp=document.getElementById('right-panel');const btn=document.getElementById('panel-toggle');rp.classList.toggle('hidden');btn.textContent=rp.classList.contains('hidden')?'◀':'▶';setTimeout(()=>map.invalidateSize(),250)}
-function clearAll(){drawnLyr.clearLayers();showToast({icon:'🗑️',title:'כל השכבות נוקו',type:'info'})}
+function toggleRP(){const rp=document.getElementById('right-panel');const btn=document.getElementById('panel-toggle');rp.classList.toggle('hidden');btn.textContent=rp.classList.contains('hidden')?'◀':'▶';setTimeout(()=>{if(map&&window.google)google.maps.event.trigger(map,'resize');},250)}
+function clearAll(){if(typeof drawnLyr!=='undefined'&&drawnLyr&&drawnLyr.clearLayers)drawnLyr.clearLayers();showToast({icon:'🗑️',title:'כל השכבות נוקו',type:'info'})}
 function homeView(){if(map)map.setCenter({lat:32.0667,lng:34.7818});if(map)map.setZoom(17);}function homeIsrael(){if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1});}async function _doNominatimSearch(q){if(!q)return;try{const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=il&format=json&limit=5&accept-language=he`);const data=await r.json();const sr=document.getElementById('search-results');sr.innerHTML='';if(!data.length){sr.innerHTML='<div class="sr-item" style="color:var(--text3)">לא נמצאו תוצאות</div>';sr.style.display='block';return}data.forEach(p=>{const d=document.createElement('div');d.className='sr-item';d.textContent=p.display_name.split(',').slice(0,2).join(', ');d.onclick=()=>{if(map&&window.google)map.setCenter({lat:+p.lat,lng:+p.lon});if(map)map.setZoom(18);sr.style.display='none';document.getElementById('search-input').value=p.display_name.split(',')[0];if(map&&window.google){const iw=new google.maps.InfoWindow({content:'<div style="font-family:Heebo,sans-serif;font-size:13px;direction:rtl;color:#1a8c2e;font-weight:700">'+p.display_name.split(',')[0]+'</div>',position:{lat:+p.lat,lng:+p.lon}});iw.open(map);_infoWindows.push(iw);}};sr.appendChild(d)});sr.style.display='block'}catch(e){}}
 document.addEventListener('click',e=>{if(!e.target.closest('#search-wrap'))document.getElementById('search-results').style.display='none'});
 
@@ -6878,18 +6899,18 @@ function _renderRecipientsList(){
   let recipients = [];
   if(_activeNotifTarget === 'all'){
     recipients = PERSONNEL.slice();
-    wrap.style.display = 'none'; // no need to show list for all
+    if(wrap) wrap.style.display = 'none'; // no need to show list for all
     if(countEl) countEl.textContent = '('+recipients.length+' אנשים)';
     _notifSelectedPersonnel = new Set(recipients.map(p=>p.id));
     return;
   } else if(_activeNotifTarget === 'individual'){
     recipients = PERSONNEL.slice();
-    wrap.style.display = '';
+    if(wrap) wrap.style.display = '';
   } else if(_activeNotifTarget.startsWith('team:')){
     const teamId = _activeNotifTarget.split(':')[1];
     const team = TEAMS.find(t=>t.id===teamId);
     if(team) recipients = PERSONNEL.filter(p=>p.unit===team.name);
-    wrap.style.display = '';
+    if(wrap) wrap.style.display = '';
     // Auto-select all team members
     _notifSelectedPersonnel = new Set(recipients.map(p=>p.id));
   }
