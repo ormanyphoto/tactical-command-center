@@ -1448,10 +1448,8 @@ const BIOMETRIC = (() => {
         _triggerMapResize();
         if(typeof FIELD !== 'undefined') FIELD.boot();
         if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
-        if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
-          const _u2 = AUTH.getUser();
-          if(_u2) setTimeout(()=>_registerPushForUser(_u2.id), 800);
-        }
+        const _u2 = AUTH.getUser();
+        if(_u2) setTimeout(()=>_registerPushForUser(_u2.id), 800);
         const u = AUTH.getUser();
         setTimeout(()=>{
           if(typeof showToast==='function') showToast({icon:'🔑',title:'ברוך הבא, '+(u?u.name.split(' ')[0]:saved.name),sub:'כניסה מהירה · כוננות מחוזית ת"א',type:'success',duration:4000});
@@ -1641,10 +1639,8 @@ const AUTH = (() => {
       setTimeout(()=>{ if(typeof BIOMETRIC!=='undefined') BIOMETRIC.offerRegister(_user); }, 2000);
       // Start listening for incoming notifications now that user is authenticated
       if(typeof listenForIncomingNotifications==='function') setTimeout(listenForIncomingNotifications, 500);
-      // Register SW background polling + push permission
-      if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
-        setTimeout(()=>_registerPushForUser(_user.id), 800);
-      }
+      // Register SW background polling + push permission (all devices)
+      setTimeout(()=>_registerPushForUser(_user.id), 800);
     } else {
       err.textContent = '⚠️ אימייל או סיסמה שגויים';
       document.getElementById('login-pass').value = '';
@@ -5456,20 +5452,39 @@ function boSettings(c){
     +'</div></div>'
     // ── FCM Push Notifications ──
     +'<div class="bo-section"><div class="bo-hd">🔔 Push Notifications — FCM v1</div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.7">'
-    +'להפעלת Push כשהאפליקציה סגורה, הדבק את ה-<b>Service Account JSON</b>:<br/>'
-    +'Firebase Console → Project Settings → <b>Service accounts</b> → <b>Generate new private key</b></div>'
+    // Status row
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Service Account</div>'
+    +'<div style="font-size:12px;font-weight:700;color:'+(typeof PUSH!=='undefined'&&PUSH.hasSA()?'#3dff52':'#ff6b6b')+'">'+( typeof PUSH!=='undefined'&&PUSH.hasSA() ? '✅ מוגדר' : '❌ חסר')+'</div></div>'
+    +'<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
+    +'<div style="font-size:12px;font-weight:700;color:'+((typeof Notification!=="undefined"&&Notification.permission==="granted")?'#3dff52':'#ffc107')+'">'+(typeof Notification!=='undefined'?(Notification.permission==='granted'?'✅ פעיל':Notification.permission==='denied'?'🚫 חסום':'⏳ לא הופעל'):'לא נתמך')+'</div></div>'
+    +'</div>'
+    // Enable push button (if not granted)
+    +((typeof Notification!=='undefined'&&Notification.permission!=='granted')
+      ? '<button class="btn-pri" style="width:100%;margin-bottom:10px" onclick="var u=AUTH.getUser();if(u)_registerPushForUser(u.id).then(()=>boSettings(document.getElementById(\'rp-body\')));else Notification.requestPermission()">🔔 הפעל Push Notifications במכשיר זה</button>'
+      : '')
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.7">'
+    +'<b>שלב 1:</b> כל משתמש צריך ללחוץ על "הפעל Push" במכשיר שלו<br/>'
+    +'<b>שלב 2:</b> הדבק Service Account JSON מ: <a href="https://console.firebase.google.com/project/tactical-command-center/settings/serviceaccounts/adminsdk" target="_blank" style="color:var(--accent)">Firebase Console → Service accounts</a> ← לחץ <b>Generate new private key</b></div>'
     +'<div class="form-g"><label style="font-size:11px">📋 Service Account JSON</label>'
-    +'<textarea id="cfg-sa-json" rows="5" class="form-inp" style="font-size:10px;font-family:monospace;direction:ltr;resize:vertical" placeholder=\'{"type":"service_account","project_id":"...","private_key":"...","client_email":"...",...}\'>'
+    +'<textarea id="cfg-sa-json" rows="4" class="form-inp" style="font-size:10px;font-family:monospace;direction:ltr;resize:vertical" placeholder=\'{"type":"service_account","project_id":"tactical-command-center","private_key":"-----BEGIN PRIVATE KEY-----\\n...","client_email":"..."}\'>'
     +(localStorage.getItem('tac_sa_json')||'')
     +'</textarea></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin:4px 0 10px">✅ VAPID key מוגדר אוטומטית</div>'
-    +'<button class="btn-pri" style="margin-top:2px" onclick="'
+    +'<div style="display:flex;gap:8px;margin-top:6px">'
+    +'<button class="btn-pri" style="flex:1" onclick="'
     +'var j=document.getElementById(\'cfg-sa-json\').value.trim();'
     +'try{JSON.parse(j);if(typeof PUSH!==\'undefined\')PUSH.saveSA(j);'
+    +'boSettings(document.getElementById(\'rp-body\'));'
     +'showToast({icon:\'🔔\',title:\'Service Account נשמר\',sub:\'Push פעיל לכולם\',type:\'success\'});}catch(e){'
-    +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור Service Account</button>'
-    +'</div>'
+    +'showToast({icon:\'⚠️\',title:\'JSON לא תקין\',type:\'error\'});}">💾 שמור</button>'
+    +'<button class="btn-sec" style="flex:1;margin:0" onclick="(async()=>{'
+    +'if(typeof PUSH===\'undefined\'||!PUSH.hasSA()){showToast({icon:\'⚠️\',title:\'Service Account חסר\',type:\'error\'});return;}'
+    +'const u=AUTH.getUser();if(!u){showToast({icon:\'⚠️\',title:\'לא מחובר\',type:\'error\'});return;}'
+    +'await PUSH.sendPush([u.id],{type:\'alert\',typeLabel:\'בדיקה\',id:\'test_\'+Date.now(),title:\'🔔 בדיקת Push\',body:\'Push Notifications פועל בהצלחה!\',senderName:u.name,sentAt:Date.now()});'
+    +'showToast({icon:\'📤\',title:\'Push נשלח\',sub:\'בדוק את הטלפון שלך\',type:\'success\'});})()">📤 שלח בדיקה אליי</button>'
+    +'</div></div>'
     // ── Alert Sound Settings ──
     +'<div class="bo-section"><div class="bo-hd">🔔 צלילי התראה לפי סוג הודעה</div>'
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6">בחר צליל שונה לכל סוג אירוע. הגדרות נשמרות לכל המכשירים.</div>'
@@ -8782,9 +8797,7 @@ const FIELD = (() => {
     _triggerMapResize();
     setTimeout(()=>showToast({icon:'🔓',title:'ברוך הבא, '+_autoUser.name.split(' ')[0],sub:_autoUser.role||'לוחם',type:'success',duration:3000}), 400);
     setTimeout(()=>{ if(typeof listenForIncomingNotifications==='function') listenForIncomingNotifications(); }, 800);
-    if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<=1024){
-      setTimeout(()=>_registerPushForUser(_autoUser.id), 1200);
-    }
+    setTimeout(()=>_registerPushForUser(_autoUser.id), 1200);
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
