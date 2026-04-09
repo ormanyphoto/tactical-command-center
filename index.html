@@ -7135,11 +7135,18 @@ function sendNotification(){
 
   let db = window._db;
   if(!db && typeof SYNC!=='undefined'){
-    // Retry boot if DB not ready
     SYNC.boot();
     db = window._db;
   }
-  if(!db){showToast({icon:'⚠️',title:'אין חיבור לשרת — נסה לרענן את הדף',type:'warn'});return;}
+  if(!db){
+    // Diagnostic — show exactly what failed
+    const fb = typeof firebase!=='undefined';
+    const apps = fb ? firebase.apps.length : 0;
+    const sy = typeof SYNC!=='undefined';
+    const err = window._syncInitError || '';
+    showToast({icon:'⚠️',title:'אין חיבור לשרת',sub:`firebase:${fb} apps:${apps} SYNC:${sy} err:${err}`,type:'warn',duration:8000});
+    return;
+  }
 
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   const senderName = u ? u.name : 'מפקד';
@@ -7961,7 +7968,7 @@ const SYNC = (() => {
         // Don't set _connected=false — HTTP reads still work without WebSocket
       });
       return true;
-    } catch(e){ console.warn('[SYNC]',e); _setSyncDot('warn'); return false; }
+    } catch(e){ console.warn('[SYNC]',e); window._syncInitError=e.message||String(e); _setSyncDot('warn'); return false; }
   }
 
   let _watchId = null;
