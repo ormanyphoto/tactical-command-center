@@ -8286,56 +8286,55 @@ const SYNC = (() => {
   }
 
   // Build marker icon as pure SVG data URL — no canvas transparency issues
+  // Build marker icon using Canvas — works on all mobile browsers
   function _buildMarkerIcon(initials, bgColor, ringColor, isMe, photoUrl, fullName, isDayMode, cb){
+    const S=2; // retina scale
     const W=72, labelH=22, bubH=60, H=labelH+bubH;
     const cx=W/2, bubCy=labelH+22, rOuter=20, rInner=17;
     const labelBg    = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
-    const labelColor = isDayMode ? '%23111111' : '%233dff52';
-    const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    const displayName = esc((fullName||initials).slice(0,18));
-    const nameW = Math.min(W+8, Math.max(48, (fullName||initials).length * 6 + 14));
-    const nameX = cx - nameW/2;
-    const fontSize = initials.length>2 ? 9 : 13;
+    const labelColor = isDayMode ? '#111111' : '#3dff52';
+    const displayName = (fullName||initials).slice(0,18);
 
-    function _makeSVG(photoDataUrl){
-      const pulse = isMe ? `<circle cx="${cx}" cy="${bubCy}" r="${rOuter+5}" fill="${ringColor}" fill-opacity="0.22"/>` : '';
-      const crown = isMe ? `<text x="${cx}" y="${labelH+10}" text-anchor="middle" font-size="8">👑</text>` : '';
-      const inner = photoDataUrl
-        ? `<image href="${photoDataUrl}" x="${cx-rInner}" y="${bubCy-rInner}" width="${rInner*2}" height="${rInner*2}" clip-path="url(%23clip-inner)"/>`
-        : `<circle cx="${cx}" cy="${bubCy}" r="${rInner}" fill="${bgColor}"/>
-           <text x="${cx}" y="${bubCy+1}" text-anchor="middle" dominant-baseline="central" fill="white" font-weight="900" font-size="${fontSize}" font-family="Heebo,Arial,sans-serif">${esc(initials)}</text>`;
-
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-        <defs><clipPath id="clip-inner"><circle cx="${cx}" cy="${bubCy}" r="${rInner}"/></clipPath></defs>
-        <rect x="${nameX}" y="2" width="${nameW}" height="17" rx="5" fill="${labelBg}"/>
-        <text x="${cx}" y="14" text-anchor="middle" fill="${labelColor}" font-weight="700" font-size="10" font-family="Heebo,Arial,sans-serif">${displayName}</text>
-        ${pulse}
-        <ellipse cx="${cx}" cy="${H-2}" rx="9" ry="3" fill="rgba(0,0,0,0.28)"/>
-        <circle cx="${cx}" cy="${bubCy}" r="${rOuter}" fill="${ringColor}"/>
-        <polygon points="${cx-7},${bubCy+rOuter} ${cx},${H-5} ${cx+7},${bubCy+rOuter}" fill="${ringColor}"/>
-        ${inner}
-        ${crown}
-      </svg>`;
-      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    function _draw(imgEl){
+      const cvs = document.createElement('canvas');
+      cvs.width = W*S; cvs.height = H*S;
+      const g = cvs.getContext('2d');
+      g.scale(S,S);
+      // Name label
+      const nameW = Math.min(W+8, Math.max(48, displayName.length*6+14));
+      const nameX = cx-nameW/2;
+      g.beginPath();
+      if(g.roundRect) g.roundRect(nameX,2,nameW,17,5);
+      else { const r=5,x=nameX,y=2,w=nameW,h=17; g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.quadraticCurveTo(x+w,y,x+w,y+r);g.lineTo(x+w,y+h-r);g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);g.lineTo(x+r,y+h);g.quadraticCurveTo(x,y+h,x,y+h-r);g.lineTo(x,y+r);g.quadraticCurveTo(x,y,x+r,y);g.closePath(); }
+      g.fillStyle=labelBg; g.fill();
+      g.fillStyle=labelColor; g.font='700 10px Heebo,Arial,sans-serif'; g.textAlign='center'; g.textBaseline='top';
+      g.fillText(displayName, cx, 5.5);
+      // Pulse (me)
+      if(isMe){ g.beginPath(); g.arc(cx,bubCy,rOuter+5,0,Math.PI*2); g.fillStyle=ringColor+'38'; g.fill(); }
+      // Shadow
+      g.beginPath(); g.ellipse(cx,H-2,9,3,0,0,Math.PI*2); g.fillStyle='rgba(0,0,0,0.28)'; g.fill();
+      // Ring + pin
+      g.beginPath(); g.arc(cx,bubCy,rOuter,0,Math.PI*2); g.fillStyle=ringColor; g.fill();
+      g.beginPath(); g.moveTo(cx-7,bubCy+rOuter); g.lineTo(cx,H-5); g.lineTo(cx+7,bubCy+rOuter); g.closePath(); g.fillStyle=ringColor; g.fill();
+      // Inner circle
+      g.save(); g.beginPath(); g.arc(cx,bubCy,rInner,0,Math.PI*2); g.clip();
+      if(imgEl){ g.drawImage(imgEl, cx-rInner, bubCy-rInner, rInner*2, rInner*2); }
+      else { g.fillStyle=bgColor; g.fillRect(cx-rInner,bubCy-rInner,rInner*2,rInner*2); g.restore();
+        g.fillStyle='#fff'; g.font=`900 ${initials.length>2?9:13}px Heebo,Arial,sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+        g.fillText(initials, cx, bubCy+1); g.save(); }
+      g.restore();
+      // Crown (me)
+      if(isMe){ g.font='8px sans-serif'; g.textAlign='center'; g.textBaseline='top'; g.fillText('👑',cx,labelH+1); }
+      return cvs.toDataURL('image/png');
     }
 
     if(photoUrl && photoUrl.length > 10){
-      // Photo: need to embed as base64 in SVG
-      if(photoUrl.startsWith('data:')){
-        cb(_makeSVG(photoUrl), W, H);
-      } else {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = ()=>{
-          const c = document.createElement('canvas'); c.width=rInner*2*2; c.height=rInner*2*2;
-          const g = c.getContext('2d'); g.drawImage(img,0,0,c.width,c.height);
-          cb(_makeSVG(c.toDataURL('image/jpeg',0.8)), W, H);
-        };
-        img.onerror = ()=> cb(_makeSVG(null), W, H);
-        img.src = photoUrl;
-      }
+      const img = new Image();
+      img.onload  = ()=> cb(_draw(img), W, H);
+      img.onerror = ()=> cb(_draw(null), W, H);
+      img.src = photoUrl;
     } else {
-      cb(_makeSVG(null), W, H);
+      cb(_draw(null), W, H);
     }
   }
 
