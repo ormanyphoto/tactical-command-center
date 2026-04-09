@@ -2,8 +2,8 @@
   "name": "מערכת מבצעים v5.3",
   "short_name": "מבצעים",
   "description": "מערכת ניהול מבצעים טקטית – כוננות מחוזית",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#07090a",
@@ -15,8 +15,8 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "מפה", "url": "/?view=map", "description": "פתח מפה" },
-    { "name": "SOS", "url": "/?sos=1", "description": "חירום SOS" }
+    { "name": "מפה", "url": "./?view=map", "description": "פתח מפה" },
+    { "name": "SOS", "url": "./?sos=1", "description": "חירום SOS" }
   ],
   "categories": ["navigation", "utilities"],
   "prefer_related_applications": false
