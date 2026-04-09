@@ -1,6 +1,6 @@
 // Service Worker — מערכת מבצעים v5.3 + Instant Push via Firebase SSE
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
+importScripts('firebase-app-compat.js');
+importScripts('firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey:            "AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E",
@@ -235,7 +235,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040904';
+const CACHE = 'tac-v5-3-' + '2026040905';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 const SHELL = [BASE, BASE + 'index.html'];
