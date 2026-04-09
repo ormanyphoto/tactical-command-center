@@ -21,13 +21,24 @@ jobs:
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
-      - name: Write service account key
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+      - name: Write and validate service account key
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SA_JSON" > /tmp/sa.json
+          python3 -c "
+          import json
+          sa = json.load(open('/tmp/sa.json'))
+          print('type:', sa.get('type'))
+          print('email:', sa.get('client_email'))
+          print('project:', sa.get('project_id'))
+          "
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --project tactical-command-center --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+        run: |
+          firebase deploy --only hosting --project tactical-command-center --non-interactive --debug 2>&1 | tail -30
 
       - name: Cleanup
         if: always()
