@@ -3004,10 +3004,10 @@ function _gpsErr(err, ctx){
     document.getElementById('modal-body').innerHTML=
       '<p style="font-size:13px;color:var(--text2);line-height:1.7">GPS דורש חיבור מאובטח (HTTPS).<br/>'
       +'פתח את האפליקציה דרך:<br/>'
-      +'<a href="https://ormanyphoto.github.io/tactical-command-center/" target="_blank" style="color:var(--accent);word-break:break-all">'
+      +'<a href="https://tactical-command-center.web.app/" target="_blank" style="color:var(--accent);word-break:break-all">'
       +'ormanyphoto.github.io/tactical-command-center/</a></p>';
     document.getElementById('modal-ok').textContent='פתח HTTPS';
-    modalCB=()=>window.open('https://ormanyphoto.github.io/tactical-command-center/','_blank');
+    modalCB=()=>window.open('https://tactical-command-center.web.app/','_blank');
     document.getElementById('modal-wrap').style.display='flex';
     return;
   }
@@ -5447,7 +5447,7 @@ function boSettings(c){
     +(fbCfg.projectId?'<div class="config-row"><div><div class="config-lbl">פרויקט</div><div class="config-desc" style="font-family:monospace">'+fbCfg.projectId+'</div></div></div>':'')
     +'<div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.6">'
     +'📱 <b>להתקנה בנייד:</b> פתח את הכתובת ב-Safari/Chrome ובחר "הוסף למסך הבית"<br/>'
-    +'🔗 <b>קישור:</b> <span style="color:var(--accent);word-break:break-all">https://ormanyphoto.github.io/tactical-command-center/</span>'
+    +'🔗 <b>קישור:</b> <span style="color:var(--accent);word-break:break-all">https://tactical-command-center.web.app/</span>'
     +'</div></div>'
     // ── Field Identity ──
     +'<div class="bo-section"><div class="bo-hd">👤 זהות שדה</div>'
@@ -7932,9 +7932,12 @@ const SYNC = (() => {
       firebase.auth().signInAnonymously()
         .then(()=>{ console.log('[SYNC] auth OK'); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
-      // connection state
+      // connection state — WebSocket indicator only, don't block operations
       _db.ref('.info/connected').on('value', s=>{
-        _connected=s.val(); _setSyncDot(_connected?'on':'warn');
+        const ws = s.val();
+        _setSyncDot(ws ? 'on' : 'warn');
+        if(ws) _connected = true;
+        // Don't set _connected=false — HTTP reads still work without WebSocket
       });
       return true;
     } catch(e){ console.warn('[SYNC]',e); _setSyncDot('warn'); return false; }
