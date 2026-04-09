@@ -13,11 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -26,14 +21,26 @@ jobs:
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
-      - name: Deploy to Firebase Hosting
+      - name: Write service account and set credentials
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          firebase deploy --only hosting --project tactical-command-center --non-interactive 2>&1 | tee /tmp/out.txt
-          EXIT=${PIPESTATUS[0]}
-          if [ $EXIT -ne 0 ]; then
-            echo "## Firebase Error" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat /tmp/out.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            exit $EXIT
-          fi
+          printf '%s' "$SA_JSON" > /tmp/sa.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json" >> $GITHUB_ENV
+          echo "GOOGLE_CLOUD_PROJECT=tactical-command-center" >> $GITHUB_ENV
+          python3 -c "import json; sa=json.load(open('/tmp/sa.json')); print('SA email:', sa['client_email']); print('SA project:', sa['project_id'])"
+
+      - name: Test Firebase auth
+        run: |
+          firebase projects:list 2>&1 | tee /tmp/projects.txt
+          echo "## firebase projects:list output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/projects.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Deploy to Firebase Hosting
+        run: firebase deploy --only hosting --project tactical-command-center --non-interactive
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/sa.json
