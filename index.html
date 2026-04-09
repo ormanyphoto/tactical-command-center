@@ -8286,27 +8286,33 @@ const SYNC = (() => {
   }
 
   // Build marker icon as pure SVG data URL — no canvas transparency issues
-  // ── HTML OverlayView marker — zero rendering artifacts on mobile ──
-  class _HtmlMarker extends google.maps.OverlayView {
-    constructor(pos, html, zIndex, uid){
-      super();
-      this._pos = pos; this._html = html; this._zIndex = zIndex; this._uid = uid; this._div = null;
-    }
-    onAdd(){
-      this._div = document.createElement('div');
-      this._div.style.cssText = 'position:absolute;cursor:pointer;transform:translate(-50%,-100%);z-index:'+(this._zIndex||600);
-      this._div.innerHTML = this._html;
-      this.getPanes().overlayMouseTarget.appendChild(this._div);
-    }
-    draw(){
-      if(!this._div) return;
-      const p = this.getProjection().fromLatLngToDivPixel(this._pos);
-      if(p){ this._div.style.left=p.x+'px'; this._div.style.top=p.y+'px'; }
-    }
-    onRemove(){ if(this._div){ this._div.remove(); this._div=null; } }
-    setPosition(pos){ this._pos=pos; this.draw(); }
-    updateHtml(html){ if(this._div) this._div.innerHTML=html; this._html=html; }
-    getDiv(){ return this._div; }
+  // ── HTML OverlayView marker — lazy class definition (Google Maps loads async) ──
+  let _HtmlMarkerClass = null;
+  function _getHtmlMarkerClass(){
+    if(_HtmlMarkerClass) return _HtmlMarkerClass;
+    if(!window.google || !google.maps || !google.maps.OverlayView) return null;
+    _HtmlMarkerClass = class extends google.maps.OverlayView {
+      constructor(pos, html, zIndex, uid){
+        super();
+        this._pos = pos; this._html = html; this._zIndex = zIndex; this._uid = uid; this._div = null;
+      }
+      onAdd(){
+        this._div = document.createElement('div');
+        this._div.style.cssText = 'position:absolute;cursor:pointer;transform:translate(-50%,-100%);z-index:'+(this._zIndex||600);
+        this._div.innerHTML = this._html;
+        this.getPanes().overlayMouseTarget.appendChild(this._div);
+      }
+      draw(){
+        if(!this._div) return;
+        const p = this.getProjection().fromLatLngToDivPixel(this._pos);
+        if(p){ this._div.style.left=p.x+'px'; this._div.style.top=p.y+'px'; }
+      }
+      onRemove(){ if(this._div){ this._div.remove(); this._div=null; } }
+      setPosition(pos){ this._pos=pos; this.draw(); }
+      updateHtml(html){ if(this._div) this._div.innerHTML=html; this._html=html; }
+      getDiv(){ return this._div; }
+    };
+    return _HtmlMarkerClass;
   }
 
   function _markerHtml(initials, bgColor, ringColor, isMe, photoUrl, name, isDayMode){
@@ -8348,16 +8354,18 @@ const SYNC = (() => {
     const html = _markerHtml(initials, bgColor, ringColor, !!isMe, photoUrl, d.name||'', isDayMode);
 
     if(!_liveMarkers[uid]){
-      const marker = new _HtmlMarker(pos, html, isMe?800:600, uid);
+      const MarkerCls = _getHtmlMarkerClass();
+      if(!MarkerCls){ console.warn('[MARKER] Google Maps not ready yet'); return; }
+      const marker = new MarkerCls(pos, html, isMe?800:600, uid);
       marker.setMap(window.map);
       _liveMarkers[uid] = marker;
       _liveMarkers[uid]._data = d;
-      // Click handler
-      google.maps.event.addDomListener(marker.getDiv ? marker : document, 'click', function(){
-        setTimeout(()=>{
-          const div = marker.getDiv();
-          if(!div) return;
-          div.onclick = ()=>{
+      // Click handler — attach after overlay is added to DOM
+      google.maps.event.addListener(marker, 'onAdd_done', ()=>{});
+      const _attachClick = ()=>{
+        const div = marker.getDiv();
+        if(!div){ setTimeout(_attachClick, 200); return; }
+        div.onclick = ()=>{
             closeAllInfoWindows();
             const age = Math.round((Date.now()-(d.ts||Date.now()))/1000);
             const ageStr = age<60 ? age+'ש\'' : Math.round(age/60)+'ד\'';
@@ -8383,9 +8391,9 @@ const SYNC = (() => {
             });
             iw.open(window.map, new google.maps.Marker({position:pos,map:window.map,visible:false}));
             window._infoWindows.push(iw);
-          };
-        }, 100);
-      });
+        };
+      };
+      setTimeout(_attachClick, 300);
     } else {
       _liveMarkers[uid]._data = d;
       _liveMarkers[uid].setPosition(pos);
