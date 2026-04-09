@@ -7121,8 +7121,13 @@ function sendNotification(){
   const venues = _getNotifVenues();
   if(!venues.length){showToast({icon:'⚠️',title:'נא להזין לפחות זירה אחת',type:'warn'});return;}
 
-  const db = window._db || (typeof SYNC!=='undefined' && SYNC._db);
-  if(!db){showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'});return;}
+  let db = window._db;
+  if(!db && typeof SYNC!=='undefined'){
+    // Retry boot if DB not ready
+    SYNC.boot();
+    db = window._db;
+  }
+  if(!db){showToast({icon:'⚠️',title:'אין חיבור לשרת — נסה לרענן את הדף',type:'warn'});return;}
 
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   const senderName = u ? u.name : 'מפקד';
@@ -8385,6 +8390,7 @@ const SYNC = (() => {
         _liveMarkers[uid] = new google.maps.Marker({
           position:pos, map:window.map,
           zIndex: isMe ? 800 : 600,
+          optimized: false,
           icon, title: d.name + (isMe?' (אני)':'')
         });
         _liveMarkers[uid]._data = d;
