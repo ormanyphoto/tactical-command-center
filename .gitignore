@@ -1,2 +1,6 @@
 .claude/settings.local.json
 .claude/serve.py
+# Firebase service account keys — NEVER commit these
+*firebase-adminsdk*.json
+*service-account*.json
+tactical-command-center-*.json
