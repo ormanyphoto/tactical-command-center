@@ -235,7 +235,7 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040902';
+const CACHE = 'tac-v5-3-' + '2026040903';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 const SHELL = [BASE, BASE + 'index.html'];

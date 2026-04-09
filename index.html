@@ -7918,8 +7918,14 @@ const SYNC = (() => {
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
       window._db = _db;
+      // Start all read subscriptions immediately (DB allows public reads)
+      _connected=true; _setSyncDot('on');
+      _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
+      _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
+      _hideBanner(); loadPhotos(); _autoStartPublishing();
+      // Auth for writes (location publishing, etc.)
       firebase.auth().signInAnonymously()
-        .then(()=>{ _connected=true; _setSyncDot('on'); _subscribeLocations(); _subscribeMissions(); _subscribeIncidents(); _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound(); _hideBanner(); loadPhotos(); _autoStartPublishing(); })
+        .then(()=>{ console.log('[SYNC] auth OK'); })
         .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
       // connection state
       _db.ref('.info/connected').on('value', s=>{
