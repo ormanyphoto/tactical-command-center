@@ -8286,62 +8286,45 @@ const SYNC = (() => {
   }
 
   // Build marker icon as pure SVG data URL — no canvas transparency issues
-  // ── HTML OverlayView marker — lazy class definition (Google Maps loads async) ──
-  let _HtmlMarkerClass = null;
-  function _getHtmlMarkerClass(){
-    if(_HtmlMarkerClass) return _HtmlMarkerClass;
-    if(!window.google || !google.maps || !google.maps.OverlayView) return null;
-    _HtmlMarkerClass = class extends google.maps.OverlayView {
-      constructor(pos, html, zIndex, uid){
-        super();
-        this._pos = pos; this._html = html; this._zIndex = zIndex; this._uid = uid; this._div = null;
-      }
-      onAdd(){
-        this._div = document.createElement('div');
-        this._div.style.cssText = 'position:absolute;cursor:pointer;transform:translate(-50%,-100%);z-index:'+(this._zIndex||600);
-        this._div.innerHTML = this._html;
-        this.getPanes().overlayMouseTarget.appendChild(this._div);
-      }
-      draw(){
-        if(!this._div) return;
-        const p = this.getProjection().fromLatLngToDivPixel(this._pos);
-        if(p){ this._div.style.left=p.x+'px'; this._div.style.top=p.y+'px'; }
-      }
-      onRemove(){ if(this._div){ this._div.remove(); this._div=null; } }
-      setPosition(pos){ this._pos=pos; this.draw(); }
-      updateHtml(html){ if(this._div) this._div.innerHTML=html; this._html=html; }
-      getDiv(){ return this._div; }
-    };
-    return _HtmlMarkerClass;
-  }
-
-  function _markerHtml(initials, bgColor, ringColor, isMe, photoUrl, name, isDayMode){
+  // ── Simple Canvas marker icon — proven to work on GitHub Pages ──
+  function _buildMarkerIcon(initials, bgColor, ringColor, isMe, photoUrl, fullName, isDayMode, cb){
+    const W=72, labelH=22, bubH=60, H=labelH+bubH;
+    const cx=W/2, bubCy=labelH+22, rOuter=20, rInner=17;
     const labelBg = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
-    const labelColor = isDayMode ? '#111' : '#3dff52';
-    const displayName = (name||initials).slice(0,18);
-    const pulse = isMe ? `<div style="position:absolute;top:50%;left:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:${ringColor};opacity:0.18"></div>` : '';
-    const inner = (photoUrl && photoUrl.length>10)
-      ? `<img src="${photoUrl}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div style="display:none;width:34px;height:34px;border-radius:50%;background:${bgColor};align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;font-family:Heebo,sans-serif">${initials}</div>`
-      : `<div style="width:34px;height:34px;border-radius:50%;background:${bgColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:${initials.length>2?9:13}px;color:#fff;font-family:Heebo,sans-serif">${initials}</div>`;
-    const crown = isMe ? '<div style="position:absolute;top:-2px;left:50%;transform:translateX(-50%);font-size:8px;line-height:1">👑</div>' : '';
-    return `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto">
-      <div style="padding:2px 8px;border-radius:5px;background:${labelBg};margin-bottom:3px;white-space:nowrap">
-        <span style="font-size:10px;font-weight:700;color:${labelColor};font-family:Heebo,sans-serif">${displayName}</span>
-      </div>
-      <div style="position:relative;display:flex;align-items:center;justify-content:center">
-        ${pulse}
-        <div style="width:40px;height:40px;border-radius:50%;background:${ringColor};display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 2px 6px rgba(0,0,0,0.35)">
-          ${inner}
-          ${crown}
-        </div>
-      </div>
-      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${ringColor};margin-top:-1px"></div>
-    </div>`;
+    const labelColor = isDayMode ? '#111111' : '#3dff52';
+    const displayName = (fullName||initials).slice(0,18);
+    function _draw(imgEl){
+      const cvs=document.createElement('canvas'); cvs.width=W*2; cvs.height=H*2;
+      const g=cvs.getContext('2d'); g.scale(2,2);
+      // Label
+      const nw=Math.min(W+8,Math.max(48,displayName.length*6+14)), nx=cx-nw/2;
+      g.beginPath();
+      if(g.roundRect) g.roundRect(nx,2,nw,17,5);
+      else{const r=5,x=nx,y=2,w=nw,h=17;g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.quadraticCurveTo(x+w,y,x+w,y+r);g.lineTo(x+w,y+h-r);g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);g.lineTo(x+r,y+h);g.quadraticCurveTo(x,y+h,x,y+h-r);g.lineTo(x,y+r);g.quadraticCurveTo(x,y,x+r,y);g.closePath();}
+      g.fillStyle=labelBg;g.fill();
+      g.fillStyle=labelColor;g.font='700 10px Heebo,Arial,sans-serif';g.textAlign='center';g.textBaseline='top';
+      g.fillText(displayName,cx,5.5);
+      if(isMe){g.beginPath();g.arc(cx,bubCy,rOuter+5,0,Math.PI*2);g.fillStyle=ringColor+'38';g.fill();}
+      g.beginPath();g.ellipse(cx,H-2,9,3,0,0,Math.PI*2);g.fillStyle='rgba(0,0,0,0.28)';g.fill();
+      g.beginPath();g.arc(cx,bubCy,rOuter,0,Math.PI*2);g.fillStyle=ringColor;g.fill();
+      g.beginPath();g.moveTo(cx-7,bubCy+rOuter);g.lineTo(cx,H-5);g.lineTo(cx+7,bubCy+rOuter);g.closePath();g.fillStyle=ringColor;g.fill();
+      g.save();g.beginPath();g.arc(cx,bubCy,rInner,0,Math.PI*2);g.clip();
+      if(imgEl){g.drawImage(imgEl,cx-rInner,bubCy-rInner,rInner*2,rInner*2);}
+      else{g.fillStyle=bgColor;g.fillRect(cx-rInner,bubCy-rInner,rInner*2,rInner*2);g.restore();
+        g.fillStyle='#fff';g.font=`900 ${initials.length>2?9:13}px Heebo,Arial,sans-serif`;g.textAlign='center';g.textBaseline='middle';
+        g.fillText(initials,cx,bubCy+1);g.save();}
+      g.restore();
+      if(isMe){g.font='8px sans-serif';g.textAlign='center';g.textBaseline='top';g.fillText('👑',cx,labelH+1);}
+      return cvs.toDataURL('image/png');
+    }
+    if(photoUrl&&photoUrl.length>10){
+      const img=new Image();img.onload=()=>cb(_draw(img),W,H);img.onerror=()=>cb(_draw(null),W,H);img.src=photoUrl;
+    } else { cb(_draw(null),W,H); }
   }
 
   function _updateLiveMarker(uid, d, isMe){
-    if(!d.lat||!d.lng) return;
-    const pos = new google.maps.LatLng(d.lat, d.lng);
+    if(!d.lat||!d.lng||!window.google||!google.maps) return;
+    const pos = {lat:d.lat, lng:d.lng};
     const STATUS = {active:'#3dff52', urgent:'#ff3333', standby:'#ffc107', busy:'#ff7a1a'};
     const ringColor = STATUS[d.status] || '#29c5f6';
     const person = (typeof PERSONNEL!=='undefined')
@@ -8351,54 +8334,42 @@ const SYNC = (() => {
     const initials = (d.name||'?').split(' ').map(w=>w[0]).filter(Boolean).join('').slice(0,2);
     const photoUrl = (person && person.photo) ? person.photo : '';
     const isDayMode = document.body.classList.contains('day');
-    const html = _markerHtml(initials, bgColor, ringColor, !!isMe, photoUrl, d.name||'', isDayMode);
 
-    if(!_liveMarkers[uid]){
-      const MarkerCls = _getHtmlMarkerClass();
-      if(!MarkerCls){ console.warn('[MARKER] Google Maps not ready yet'); return; }
-      const marker = new MarkerCls(pos, html, isMe?800:600, uid);
-      marker.setMap(window.map);
-      _liveMarkers[uid] = marker;
-      _liveMarkers[uid]._data = d;
-      // Click handler — attach after overlay is added to DOM
-      google.maps.event.addListener(marker, 'onAdd_done', ()=>{});
-      const _attachClick = ()=>{
-        const div = marker.getDiv();
-        if(!div){ setTimeout(_attachClick, 200); return; }
-        div.onclick = ()=>{
-            closeAllInfoWindows();
-            const age = Math.round((Date.now()-(d.ts||Date.now()))/1000);
-            const ageStr = age<60 ? age+'ש\'' : Math.round(age/60)+'ד\'';
-            const photoHtml = photoUrl && photoUrl.length>10
-              ? `<img src="${photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
-              : `<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>`;
-            const iw = new google.maps.InfoWindow({content:
-              `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                  ${photoHtml}
-                  <div>
-                    <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
-                    <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div>
-                  </div>
-                </div>
-                <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
-                  <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
-                  <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
-                  <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
-                  <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span>
-                </div>
-              </div>`
-            });
-            iw.open(window.map, new google.maps.Marker({position:pos,map:window.map,visible:false}));
-            window._infoWindows.push(iw);
-        };
-      };
-      setTimeout(_attachClick, 300);
-    } else {
-      _liveMarkers[uid]._data = d;
-      _liveMarkers[uid].setPosition(pos);
-      _liveMarkers[uid].updateHtml(html);
-    }
+    _buildMarkerIcon(initials, bgColor, ringColor, !!isMe, photoUrl, d.name||'', isDayMode, (dataUrl, W, H)=>{
+      const icon = { url:dataUrl, scaledSize:new google.maps.Size(W,H), anchor:new google.maps.Point(W/2,H-5) };
+      if(!_liveMarkers[uid]){
+        _liveMarkers[uid] = new google.maps.Marker({
+          position:pos, map:window.map, zIndex:isMe?800:600, optimized:false,
+          icon, title:d.name+(isMe?' (אני)':'')
+        });
+        _liveMarkers[uid]._data = d;
+        _liveMarkers[uid].addListener('click', ()=>{
+          closeAllInfoWindows();
+          const age=Math.round((Date.now()-(d.ts||Date.now()))/1000);
+          const ageStr=age<60?age+'ש\'':Math.round(age/60)+'ד\'';
+          const ph=photoUrl&&photoUrl.length>10
+            ?`<img src="${photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
+            :`<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>`;
+          const iw=new google.maps.InfoWindow({content:
+            `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${ph}<div>
+                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
+                <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div></div></div>
+              <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
+                <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
+                <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
+                <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
+                <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span></div></div>`
+          });
+          iw.open(window.map, _liveMarkers[uid]);
+          window._infoWindows.push(iw);
+        });
+      } else {
+        _liveMarkers[uid]._data = d;
+        _liveMarkers[uid].setPosition(pos);
+        _liveMarkers[uid].setIcon(icon);
+      }
+    });
   }
 
   function _showSetupBanner(){
