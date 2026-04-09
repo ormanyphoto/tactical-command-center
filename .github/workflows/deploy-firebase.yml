@@ -13,6 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -21,14 +26,7 @@ jobs:
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
-      - name: Write service account
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
-
       - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
-        run: firebase deploy --only hosting --project tactical-command-center
-
-      - name: Cleanup
-        if: always()
-        run: rm -f /tmp/sa.json
+        run: |
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          firebase deploy --only hosting --project tactical-command-center --token "$ACCESS_TOKEN" --non-interactive
