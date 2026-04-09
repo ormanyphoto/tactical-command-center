@@ -29,8 +29,17 @@ jobs:
       - name: Deploy to Firebase Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
-        run: firebase deploy --only hosting --project tactical-command-center --non-interactive
+        run: |
+          firebase deploy --only hosting --project tactical-command-center --non-interactive 2>&1 | tee /tmp/firebase_out.txt
+          EXIT=${PIPESTATUS[0]}
+          if [ $EXIT -ne 0 ]; then
+            echo "## Firebase Deploy Error" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -50 /tmp/firebase_out.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit $EXIT
+          fi
 
       - name: Cleanup
         if: always()
-        run: rm -f /tmp/sa.json
+        run: rm -f /tmp/sa.json /tmp/firebase_out.txt
