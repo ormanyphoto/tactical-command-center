@@ -185,6 +185,7 @@ self.addEventListener('notificationclick', e => {
 
 // ── Page → SW messages ──
 self.addEventListener('message', async e => {
+  if(e.origin && e.origin !== self.location.origin) return;
   if(!e.data) return;
   switch(e.data.type){
     case 'SKIP_WAITING':

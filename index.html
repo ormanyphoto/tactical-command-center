@@ -1395,12 +1395,13 @@ const BIOMETRIC = (() => {
       const saved = {
         credId: _b64url(cred.rawId),
         email: u.email,
-        // Simple obfuscation — keeps it off plain text in storage inspector
-        pass: btoa(unescape(encodeURIComponent(u.loginPassword||''))),
         name: u.name,
         ts: Date.now(),
+        // password is NOT stored in localStorage — kept in sessionStorage only for this tab session
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(saved));
+      // Keep password in sessionStorage (cleared when tab closes) for fast-login this session
+      sessionStorage.setItem('tac_bio_pass', btoa(unescape(encodeURIComponent(u.loginPassword||''))));
       _pendingUser = null;
       _updateUI();
       if(typeof showToast==='function') showToast({icon:'🔑',title:'כניסה מהירה נשמרה!',sub:'בפעם הבאה הכנסו עם טביעת אצבע / קוד מכשיר',type:'success',duration:4000});
@@ -1439,8 +1440,9 @@ const BIOMETRIC = (() => {
           timeout: 60000,
         }
       });
-      // Device verified — decode stored creds and log in
-      const pass = decodeURIComponent(escape(atob(saved.pass||'')));
+      // Device verified — get password from sessionStorage (preferred) or fall back to legacy localStorage field
+      const _bioPassRaw = sessionStorage.getItem('tac_bio_pass') || saved.pass || '';
+      const pass = decodeURIComponent(escape(atob(_bioPassRaw)));
       if(typeof AUTH!=='undefined' && AUTH.login(saved.email, pass)){
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = '';
@@ -3132,6 +3134,8 @@ function addAct(obj){actLog.unshift({time:nowT(),txt:obj.txt,type:obj.type});}
    SOS DISTRESS SYSTEM
 ══════════════════════════════════════════════════ */
 let _sosData=null, _sosMarker=null, _sosListener=null, _sosConfirmPending=false, _sosAcked=null, _sosBarDismissed=null;
+let _sosLastSent=0;    // rate limiting
+let _notifLastSent=0;  // rate limiting
 
 function triggerSOS(){
   // Two-tap confirmation to prevent accidents
@@ -3150,6 +3154,14 @@ function triggerSOS(){
   _sosConfirmPending=false;
   const b=document.getElementById('map-sos-btn');
   if(b){b.innerHTML='🆘 לחצן מצוקה';b.style.background='';}
+
+  // Rate limit: max 1 SOS per 30 seconds
+  const now=Date.now();
+  if(now-_sosLastSent < 30000){
+    showToast({icon:'⏳',title:'המתן '+(Math.ceil((30000-(now-_sosLastSent))/1000))+' שניות לפני שידור נוסף',type:'warn',duration:3000});
+    return;
+  }
+  _sosLastSent=now;
 
   const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
   const db=window._db;
@@ -4938,7 +4950,7 @@ function addShiftModal(){
 }
 function editShiftModal(id){
   const sh=SHIFTS.find(s=>s.id===id);if(!sh)return;
-  document.getElementById('modal-ttl').innerHTML='✏️ עריכת משמרת: '+sh.name;
+  document.getElementById('modal-ttl').textContent='✏️ עריכת משמרת: '+sh.name;
   const [startH,endH]=sh.hours.split('–');
   document.getElementById('modal-body').innerHTML=`
     <div class="form-g"><label>שם משמרת</label><input type="text" id="sh-name" value="${sh.name}"/></div>
@@ -4975,7 +4987,7 @@ function deleteShift(id){
 function addToShiftModal(shId){
   const sh=SHIFTS.find(s=>s.id===shId);if(!sh)return;
   const avail=PERSONNEL.filter(p=>!sh.units.includes(p.id));
-  document.getElementById('modal-ttl').innerHTML='+ הוסף למשמרת: '+sh.name;
+  document.getElementById('modal-ttl').textContent='+ הוסף למשמרת: '+sh.name;
   document.getElementById('modal-body').innerHTML='<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
     +avail.map(p=>'<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer" onclick="addPersonToShift(this.dataset.shid,this.dataset.pid)" data-shid="'+shId+'" data-pid="'+p.id+'">'
       +'<div style="width:28px;height:28px;border-radius:50%;background:'+(p.color||'#9ab8c8')+'22;border:2px solid '+(p.color||'#9ab8c8')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:'+(p.color||'#9ab8c8')+'">'+p.name.split(' ').map(w=>w[0]).join('').slice(0,2)+'</div>'
@@ -5089,8 +5101,9 @@ function addDeptModal(){
 }
 function editDeptModal(id){
   var dept=DEPARTMENTS.find(function(d){return d.id===id;});if(!dept)return;
-  document.getElementById('modal-ttl').innerHTML='✏️ עריכת יחידה: '+dept.name;
-  document.getElementById('modal-body').innerHTML='<div class="form-g"><label>שם יחידה</label><input type="text" id="dd-name" value="'+dept.name+'"/></div>'
+  document.getElementById('modal-ttl').textContent='✏️ עריכת יחידה: '+dept.name;
+  document.getElementById('modal-body').innerHTML='<div class="form-g"><label>שם יחידה</label><input type="text" id="dd-name"/></div>';
+  document.getElementById('dd-name').value = dept.name;
     +'<div class="form-g"><label>תיאור</label><input type="text" id="dd-desc" value="'+(dept.desc||'')+'"/></div>'
     +'<div class="form-row"><div class="form-g"><label>טלפון</label><input type="tel" id="dd-phone" value="'+(dept.phone||'')+'"/></div>'
     +'<div class="form-g"><label>מיקום</label><input type="text" id="dd-loc" value="'+(dept.location||'')+'"/></div></div>'
@@ -5114,7 +5127,7 @@ function deleteDept(id){
 function addPersonToDept(deptId){
   var dept=DEPARTMENTS.find(function(d){return d.id===deptId;});if(!dept)return;
   var avail=PERSONNEL.filter(function(p){return p.unit!==dept.name;});
-  document.getElementById('modal-ttl').innerHTML='+ הוסף ל-'+dept.name;
+  document.getElementById('modal-ttl').textContent='+ הוסף ל-'+dept.name;
   var listHtml=avail.map(function(p){
     var initials=p.name.split(' ').map(function(w){return w[0];}).join('').slice(0,2);
     return '<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;margin-bottom:4px" data-pid="'+p.id+'" data-dn="'+dept.name+'" onclick="assignPersonToDept(this.dataset.pid,this.dataset.dn)">'
@@ -6098,7 +6111,7 @@ function addMemberToTeamModal(tid){
   const t=TEAMS.find(x=>x.id===tid);if(!t)return;
   const available=PERSONNEL.filter(p=>!p.unit||p.unit===''||p.unit===t.name===false);
   const all=PERSONNEL.filter(p=>p.unit!==t.name);
-  document.getElementById('modal-ttl').innerHTML='+ הוסף חבר לצוות: '+t.name;
+  document.getElementById('modal-ttl').textContent='+ הוסף חבר לצוות: '+t.name;
   document.getElementById('modal-body').innerHTML=`
     <div class="form-g" style="margin-bottom:10px">
       <input type="text" id="member-search" placeholder="חפש שם..." style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none" oninput="filterMemberList(this.value,'${tid}')"/>
@@ -6136,7 +6149,7 @@ function addFromListModal(tid){
   const t=TEAMS.find(x=>x.id===tid);if(!t)return;
   const all=PERSONNEL.filter(p=>p.unit!==t.name);
   const selected=new Set();
-  document.getElementById('modal-ttl').innerHTML='+ הוסף מרשימה: '+t.name;
+  document.getElementById('modal-ttl').textContent='+ הוסף מרשימה: '+t.name;
   document.getElementById('modal-body').innerHTML=`
     <div class="form-g" style="margin-bottom:8px">
       <input type="text" placeholder="חפש שם..." style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none" oninput="filterMemberList(this.value,'${tid}')"/>
@@ -7089,6 +7102,13 @@ function toggleNotifRecipient(pid, checked){
 }
 
 function sendNotification(){
+  const now10 = Date.now();
+  if(now10 - _notifLastSent < 10000){
+    showToast({icon:'⏳',title:'המתן '+(Math.ceil((10000-(now10-_notifLastSent))/1000))+' שניות לפני שליחה נוספת',type:'warn',duration:3000});
+    return;
+  }
+  _notifLastSent = now10;
+
   const title = (document.getElementById('nm-title')||{}).value||'';
   const body  = (document.getElementById('nm-body')||{}).value||'';
   if(!title.trim()){showToast({icon:'⚠️',title:'נא להזין כותרת',type:'warn'});return;}
