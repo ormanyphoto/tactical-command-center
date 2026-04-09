@@ -7238,17 +7238,28 @@ function listenForIncomingNotifications(){
   const lookback = Date.now() - (10 * 60 * 1000);
   const listenFrom = Math.max(lastSeen, lookback);
 
-  const ref = db.ref('tac_notifications/'+myPersonId)
-                 .orderByChild('sentAt').startAt(listenFrom);
+  const notifRef = db.ref('tac_notifications/'+myPersonId);
+  const ref = notifRef.orderByChild('sentAt').startAt(listenFrom);
   ref.on('child_added', snap=>{
     const notif = snap.val();
     if(!notif) return;
-    if(notif.sentAt && notif.sentAt <= lastSeen) return; // already handled in a previous session
+    if(notif.sentAt && notif.sentAt <= lastSeen) return;
     const notifId = snap.key;
-    if(_shownNotifIds.has(notifId)) return; // already shown (e.g. via SSE/push)
-    // Do NOT add to _shownNotifIds here — let _showIncomingNotif do it after setting _currentIncomingNotif
+    if(_shownNotifIds.has(notifId)) return;
     _showIncomingNotif(notif, snap.ref);
   });
+
+  // Polling fallback — check every 8s in case real-time (WebSocket) is down
+  setInterval(()=>{
+    notifRef.orderByChild('sentAt').startAt(Date.now() - 60000).once('value', snap=>{
+      const data = snap.val();
+      if(!data) return;
+      Object.entries(data).forEach(([nid, notif])=>{
+        if(!notif || _shownNotifIds.has(nid)) return;
+        _showIncomingNotif(notif, notifRef.child(nid));
+      });
+    });
+  }, 8000);
 }
 
 function _showIncomingNotif(notif, fbRef){
@@ -8220,6 +8231,14 @@ const SYNC = (() => {
 
   function _subscribeLocations(){
     if(!_db) return;
+    // Polling fallback — refresh locations every 10s in case WebSocket is down
+    setInterval(()=>{
+      if(!_db || !window.map || !window._googleReady) return;
+      _db.ref('tac_locs').once('value', snap=>{
+        const fd=snap.val()||{};
+        Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+      });
+    }, 10000);
     _db.ref('tac_locs').on('value', snap=>{
       const data = snap.val()||{};
       window._pendingLocData = data; // store for re-render when map becomes ready
@@ -8268,7 +8287,8 @@ const SYNC = (() => {
     function _drawOnCanvas(imgEl){
       const cvs = document.createElement('canvas');
       cvs.width = W * 2; cvs.height = H * 2; // retina
-      const g = cvs.getContext('2d');
+      const g = cvs.getContext('2d', {alpha: true});
+      g.clearRect(0, 0, cvs.width, cvs.height);
       g.scale(2, 2);
 
       // ── Name label ──
