@@ -137,8 +137,8 @@ async function _showNotif(notif){
     icon + ' ' + (notif.title || 'מערכת מבצעים'),
     {
       body:    (typeLabel ? '['+typeLabel+'] ' : '') + (notif.body || ''),
-      icon:    '/tactical-command-center/icon-192.png',
-      badge:   '/tactical-command-center/icon-192.png',
+      icon:    BASE + 'icon-192.png',
+      badge:   BASE + 'icon-192.png',
       dir:     'rtl', lang: 'he',
       tag:     notif.id || 'tac-notif',
       renotify: true,
@@ -178,7 +178,7 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type:'window', includeUncontrolled:true }).then(list => {
       const win = list.find(c => c.url.includes('tactical-command-center'));
-      return win ? win.focus() : clients.openWindow('/tactical-command-center/');
+      return win ? win.focus() : clients.openWindow(BASE);
     })
   );
 });
@@ -235,8 +235,9 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040901';
-const BASE  = '/tactical-command-center/';
+const CACHE = 'tac-v5-3-' + '2026040902';
+// Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
+const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 const SHELL = [BASE, BASE + 'index.html'];
 
 self.addEventListener('install', e => {
