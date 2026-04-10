@@ -133,23 +133,31 @@ async function _showNotif(notif){
   else if(['מחסומי רשת','אביר לילה ב׳','אביר לילה ג׳'].includes(t)) icon = '⚠️';
   else { const icons = {mission:'📋', message:'💬', alert:'⚠️', sos:'🆘'}; icon = icons[notif.type]||'📢'; }
   const typeLabel = notif.typeLabel || notif.type || '';
-  await self.registration.showNotification(
-    icon + ' ' + (notif.title || 'מערכת מבצעים'),
-    {
-      body:    (typeLabel ? '['+typeLabel+'] ' : '') + (notif.body || ''),
-      icon:    BASE + 'icon-192.png',
-      badge:   BASE + 'icon-192.png',
-      dir:     'rtl', lang: 'he',
-      tag:     notif.id || 'tac-notif',
-      renotify: true,
-      vibrate: [200, 100, 200, 100, 200],
-      data:    notif,
-      actions: [
-        { action: 'open',   title: '📂 פתח' },
-        { action: 'ack',    title: '✓ קיבלתי' }
-      ]
-    }
-  );
+  try {
+    await self.registration.showNotification(
+      icon + ' ' + (notif.title || 'מערכת מבצעים'),
+      {
+        body:    (typeLabel ? '['+typeLabel+'] ' : '') + (notif.body || ''),
+        icon:    BASE + 'icon-192.png',
+        badge:   BASE + 'icon-192.png',
+        dir:     'rtl', lang: 'he',
+        tag:     notif.id || 'tac-notif',
+        renotify: true,
+        requireInteraction: true,   // stays on screen until user interacts
+        silent: false,               // force sound even in silent mode
+        vibrate: [400, 150, 400, 150, 800, 150, 400],  // aggressive pattern
+        timestamp: Date.now(),
+        data:    notif,
+        actions: [
+          { action: 'open',   title: '📂 פתח' },
+          { action: 'ack',    title: '✓ קיבלתי' }
+        ]
+      }
+    );
+    console.log('[SW] Notification shown:', notif.title);
+  } catch(e){
+    console.error('[SW] showNotification failed:', e);
+  }
 }
 
 // ── Notification click → Waze navigation or open app ──
@@ -221,21 +229,50 @@ self.addEventListener('periodicsync', async e => {
   }
 });
 
-// ── FCM background message (future/fallback) ──
+// ── FCM background message ──
 messaging.onBackgroundMessage(payload => {
   const d = payload.data || {};
   const n = payload.notification || {};
   _showNotif({
     id: d.notifId, type: d.type, typeLabel: d.typeLabel,
     title: d.title || n.title, body: d.body || n.body,
-    senderName: d.senderName, sentAt: Number(d.sentAt) || Date.now()
+    senderName: d.senderName, sentAt: Number(d.sentAt) || Date.now(),
+    lat: d.lat ? Number(d.lat) : null,
+    lng: d.lng ? Number(d.lng) : null,
+    address: d.address || ''
   });
+});
+
+// ── Standard Web Push event — backup for when onBackgroundMessage doesn't fire ──
+self.addEventListener('push', event => {
+  console.log('[SW] Push event received');
+  let data = {};
+  try {
+    if(event.data){
+      try { data = event.data.json(); } catch(e){ data = {body: event.data.text()}; }
+    }
+  } catch(e){ console.warn('[SW] push data parse error', e); }
+  // FCM nests real data under .data
+  const d = data.data || data || {};
+  const n = data.notification || {};
+  event.waitUntil(_showNotif({
+    id: d.notifId || n.tag || ('push_'+Date.now()),
+    type: d.type || 'alert',
+    typeLabel: d.typeLabel || 'התראה',
+    title: d.title || n.title || 'מערכת מבצעים',
+    body: d.body || n.body || '',
+    senderName: d.senderName || '',
+    sentAt: Number(d.sentAt) || Date.now(),
+    lat: d.lat ? Number(d.lat) : null,
+    lng: d.lng ? Number(d.lng) : null,
+    address: d.address || ''
+  }));
 });
 
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026041010';
+const CACHE = 'tac-v5-3-' + '2026041011';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install

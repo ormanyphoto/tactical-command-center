@@ -7629,29 +7629,60 @@ function sendNotification(){
 
     showToast({icon:'📢',title:'שולח הודעה...',sub:title,type:'info',duration:2000});
 
-    const writes = recipientIds.map(pid => db.ref('tac_notifications/'+pid+'/'+notifId).set(payload));
-    db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
+    // Dual-write strategy: REST API (authoritative) + SDK (real-time listeners)
+    // Using REST directly ensures the write actually reaches the server with a verifiable HTTP response
+    const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    async function _restWriteNotif(pid){
+      const url = DB_REST+'/tac_notifications/'+pid+'/'+notifId+'.json';
+      const resp = await fetch(url, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      if(!resp.ok){
+        const txt = await resp.text();
+        throw new Error('REST '+resp.status+' for '+pid+': '+txt.slice(0,100));
+      }
+      return true;
+    }
 
-    Promise.all(writes).then(()=>{
+    // Fire SDK write in parallel (for real-time listeners on other devices)
+    try { db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName}); } catch(e){}
+
+    // REST writes (primary — guaranteed delivery)
+    const restPromises = recipientIds.map(_restWriteNotif);
+
+    Promise.all(restPromises).then(()=>{
       auditLog('שליחת התראה: '+title.trim(),'info',recipientIds.length+' נמענים');
+      // Verify by reading back one random recipient — sanity check
+      const checkPid = recipientIds[Math.floor(Math.random()*recipientIds.length)];
+      fetch(DB_REST+'/tac_notifications/'+checkPid+'/'+notifId+'.json')
+        .then(r=>r.json())
+        .then(data=>{
+          if(!data || !data.title){
+            console.error('[SEND] VERIFY FAILED — data not persisted:', data);
+            showToast({icon:'⚠️',title:'אזהרה: ייתכן שההודעה לא נשמרה',sub:'בדוק חיבור',type:'warn',duration:8000});
+          } else {
+            console.log('[SEND] Verified — data persisted for '+checkPid);
+          }
+        }).catch(()=>{});
+
       const hasSA = typeof PUSH !== 'undefined' && PUSH.hasSA && PUSH.hasSA();
       showToast({
         icon:'📤',
         title:'נשלח ל-'+recipientIds.length+' אנשים',
-        sub: hasSA ? 'התראת Push פעילה' : 'ללא Push — נמענים יראו בפתיחת האפליקציה',
+        sub: hasSA ? '✅ Push פעיל' : '⚠️ ללא Push — נמענים יראו בפתיחת האפליקציה',
         type:'success',
-        duration:4000
+        duration:5000
       });
       closeNotifModal();
       if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
       _listenApprovals(notifId);
 
-      // Place markers for ALL venues — never remove existing ones
       venues.forEach(v=>{
         if(v.lat && v.lng) _placeNotifMarker(v.lat, v.lng, v.address, payload, v.label, v.color, 'notif_'+notifId+'_'+v.id);
       });
 
-      // Auto-create mission for "mission" type
       if(payload.type === 'mission' && payload.title){
         const mId = 'NM_'+Date.now().toString(36).toUpperCase();
         MISSIONS.push({
@@ -7668,9 +7699,9 @@ function sendNotification(){
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
     }).catch(err=>{
-      console.error('[SEND]',err);
+      console.error('[SEND] REST write failed:',err);
       auditLog('שגיאת שליחה','warn',String(err&&err.message||err));
-      showToast({icon:'❌',title:'שגיאה בשליחה',sub:String(err&&err.message||err).slice(0,80),type:'danger',duration:8000});
+      showToast({icon:'❌',title:'שגיאה בשליחה',sub:String(err&&err.message||err).slice(0,120),type:'danger',duration:10000});
     });
   }
 
@@ -7732,21 +7763,27 @@ function listenForIncomingNotifications(){
     });
   }
 
-  // Polling fallback — always reset on re-call to guarantee it's running
+  // Polling fallback — REST API direct (doesn't depend on SDK or WebSocket)
   if(_notifPollTimer) clearInterval(_notifPollTimer);
-  _notifPollTimer = setInterval(()=>{
+  const REST_BASE = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  _notifPollTimer = setInterval(async ()=>{
     if(!_isMobileDevice()) return;
-    const db2 = window._db;
-    if(!db2) return;
-    db2.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(Date.now() - 120000).once('value', snap=>{
-      const data = snap.val();
+    try{
+      const resp = await fetch(REST_BASE+'/tac_notifications/'+myPersonId+'.json');
+      if(!resp.ok) return;
+      const data = await resp.json();
       if(!data) return;
+      const cutoff = Date.now() - 10*60*1000; // last 10 min
       Object.entries(data).forEach(([nid, notif])=>{
         if(!notif || _shownNotifIds.has(nid)) return;
-        _showIncomingNotif(notif, db2.ref('tac_notifications/'+myPersonId+'/'+nid));
+        if(notif.sentAt && notif.sentAt < cutoff) return; // too old
+        if(notif.sentAt && notif.sentAt <= lastSeen) return; // already seen
+        // Create a pseudo-ref for respondToNotif compatibility
+        const fbRef = window._db ? window._db.ref('tac_notifications/'+myPersonId+'/'+nid) : null;
+        _showIncomingNotif(notif, fbRef);
       });
-    });
-  }, 5000);
+    }catch(e){ console.warn('[NOTIF poll]',e); }
+  }, 3000); // poll every 3 seconds for urgent delivery
 
   // Also run polling immediately on first call to catch notifications sent just now
   if(window._notifPollInitial !== true){
