@@ -2910,9 +2910,11 @@ function _startWatch(onUpdate){
         _locWatchInterval=setInterval(()=>{
           _wifiLocate(onUpdate, ()=>_ipLocate(onUpdate,null));
         }, 15000);
+        window.gpsWatchId = gpsWatchId; // mirror for wrapper checks
       },
       {enableHighAccuracy:true, timeout:12000, maximumAge:3000}
     );
+    window.gpsWatchId = gpsWatchId; // mirror for wrapper checks
   } else {
     // No geolocation API at all — poll IP every 30s
     _ipLocate(onUpdate, null);
@@ -2923,6 +2925,7 @@ function _startWatch(onUpdate){
 function _stopWatch(){
   if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
   if(_locWatchInterval){ clearInterval(_locWatchInterval); _locWatchInterval=null; }
+  window.gpsWatchId = null; // mirror for wrapper checks
 }
 
 // ── GPS TRACKING ──
@@ -7824,72 +7827,72 @@ function listenForIncomingNotifications(){
   }
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
   const db = window._db;
-  if(!myPersonId || !db){
+  if(!myPersonId){
+    // Not logged in yet — retry
     setTimeout(listenForIncomingNotifications, 2000);
     return;
   }
-  console.log('[NOTIF] listening for', myPersonId, '(mobile)');
+  console.log('[NOTIF] listener active for', myPersonId, '(mobile)');
+  window._notifListenerActive = true;
 
-  const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
-  const lookback = Date.now() - (10 * 60 * 1000);
-  const listenFrom = Math.max(lastSeen, lookback);
-
-  const notifRef = db.ref('tac_notifications/'+myPersonId);
-
-  // Set up real-time listener only once
-  if(!_incomingListener){
+  // Firebase SDK listener (only if db is ready) — real-time push via websocket
+  if(db && !_incomingListener){
     _incomingListener = true;
-    const ref = notifRef.orderByChild('sentAt').startAt(listenFrom);
+    const lastSeenInit = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
+    const lookback = Date.now() - (10 * 60 * 1000);
+    const listenFrom = Math.max(lastSeenInit, lookback);
+    const ref = db.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom);
     ref.on('child_added', snap=>{
       if(!_isMobileDevice()) return;
       const notif = snap.val();
       if(!notif) return;
-      if(notif.sentAt && notif.sentAt <= lastSeen) return;
       const notifId = snap.key;
+      // Re-read lastSeen every time (user may have responded to prior notif)
+      const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
+      if(notif.sentAt && notif.sentAt <= ls) return;
       if(_shownNotifIds.has(notifId)) return;
+      console.log('[NOTIF sdk] new', notifId, notif.title);
       _showIncomingNotif(notif, snap.ref);
     });
   }
 
-  // Polling fallback — REST API direct (doesn't depend on SDK or WebSocket)
+  // REST polling — fast, reliable, independent of Firebase SDK state
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   const REST_BASE = 'https://tactical-command-center-default-rtdb.firebaseio.com';
-  _notifPollTimer = setInterval(async ()=>{
+  const _poll = async () => {
     if(!_isMobileDevice()) return;
+    const pid = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
+    if(!pid) return;
     try{
-      const resp = await fetch(REST_BASE+'/tac_notifications/'+myPersonId+'.json');
+      const resp = await fetch(REST_BASE+'/tac_notifications/'+pid+'.json?_='+Date.now(), {cache:'no-store'});
       if(!resp.ok) return;
       const data = await resp.json();
       if(!data) return;
-      const cutoff = Date.now() - 10*60*1000; // last 10 min
+      // Re-read lastSeen each poll so responses from prior notif are honored
+      const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+pid) || 0);
+      const cutoff = Date.now() - 30*60*1000; // 30-min window
       Object.entries(data).forEach(([nid, notif])=>{
-        if(!notif || _shownNotifIds.has(nid)) return;
-        if(notif.sentAt && notif.sentAt < cutoff) return; // too old
-        if(notif.sentAt && notif.sentAt <= lastSeen) return; // already seen
-        // Create a pseudo-ref for respondToNotif compatibility
-        const fbRef = window._db ? window._db.ref('tac_notifications/'+myPersonId+'/'+nid) : null;
+        if(!notif) return;
+        if(_shownNotifIds.has(nid)) return;
+        if(notif.sentAt && notif.sentAt < cutoff) return;
+        if(notif.sentAt && notif.sentAt <= ls) return;
+        console.log('[NOTIF poll] new', nid, notif.title);
+        const fbRef = window._db ? window._db.ref('tac_notifications/'+pid+'/'+nid) : null;
         _showIncomingNotif(notif, fbRef);
       });
     }catch(e){ console.warn('[NOTIF poll]',e); }
-  }, 3000); // poll every 3 seconds for urgent delivery
-
-  // Also run polling immediately on first call to catch notifications sent just now
-  if(window._notifPollInitial !== true){
-    window._notifPollInitial = true;
-    setTimeout(()=>{
-      const db3 = window._db;
-      if(!db3 || !_isMobileDevice()) return;
-      db3.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom).once('value', snap=>{
-        const data = snap.val();
-        if(!data) return;
-        Object.entries(data).forEach(([nid, notif])=>{
-          if(!notif || _shownNotifIds.has(nid)) return;
-          _showIncomingNotif(notif, db3.ref('tac_notifications/'+myPersonId+'/'+nid));
-        });
-      });
-    }, 800);
-  }
+  };
+  _notifPollTimer = setInterval(_poll, 2000); // every 2 seconds
+  _poll(); // immediate first poll
 }
+
+// Restart listener on tab-visible — catches any notifications missed while backgrounded
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && _isMobileDevice()){
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    if(u) setTimeout(listenForIncomingNotifications, 200);
+  }
+});
 
 function _showIncomingNotif(notif, fbRef){
   // Dedup — if this notif was already shown (e.g. via Firebase listener), skip
@@ -10737,6 +10740,15 @@ const FIELD = (() => {
     if(lbl) lbl.textContent='מחפש מיקום...';
     document.getElementById('fm-accuracy-pill').classList.add('visible');
 
+    // Start Firebase publishing ONCE (it has its own watchPosition loop).
+    // Previously this was called on every position update, which created a
+    // new watch each time and caused location flicker + state confusion.
+    SYNC.startPublishing({
+      name:localStorage.getItem('tac_field_name')||'שדה',
+      role:localStorage.getItem('tac_field_role')||'שדה',
+      status:_status
+    });
+
     function _onPos(pos, method){
       const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
       const acc=Math.round(pos.coords.accuracy);
@@ -10758,14 +10770,10 @@ const FIELD = (() => {
         if(!_fMarker){_fMarker=new google.maps.Marker({position:ll,map:_fmap,icon,zIndex:500});}
         else{_fMarker.setPosition(ll);_fMarker.setIcon(icon);}
       }
-      // Push to Firebase
-      SYNC.startPublishing({
-        name:localStorage.getItem('tac_field_name')||'שדה',
-        role:localStorage.getItem('tac_field_role')||'שדה',
-        status:_status, method
-      });
+      // SYNC.startPublishing has its own watch that pushes to Firebase —
+      // we don't need to call it here. Only update local UI.
     }
-    // Use global cascade: GPS → WiFi → IP
+    // Use global cascade: GPS → WiFi → IP for FIELD UI updates only
     _startWatch(_onPos);
     // Keep _watchId reference for legacy stop check
     _watchId = gpsWatchId || 1;
@@ -10953,7 +10961,10 @@ const FIELD = (() => {
     _origToggleGPS && _origToggleGPS();
     const name=localStorage.getItem('tac_field_name')||'פיקוד';
     const role=localStorage.getItem('tac_field_role')||'מפקד';
-    if(window.gpsWatchId !== null){
+    // State after toggle: either watch is active (truthy id) or both cleared (null/undefined/0).
+    // Use the mirrored window.gpsWatchId (set by _startWatch/_stopWatch) to detect state.
+    const gpsOn = window.gpsWatchId != null;
+    if(gpsOn){
       // GPS just turned ON — start publishing
       SYNC.startPublishing({name, role, status:'active'});
     } else {
