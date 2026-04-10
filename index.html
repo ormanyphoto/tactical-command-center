@@ -1828,26 +1828,17 @@ async function _registerPushForUser(personId, verbose){
 }
 
 // Banner prompting user to enable push
-function _pushBannerShow(mode){
-  // mode: 'register' (not granted) or 'test' (granted, needs verification)
+function _pushBannerShow(){
   const isMobile = (typeof _isMobileDevice === 'function') ? _isMobileDevice() : (window.innerWidth <= 1024);
   if(!isMobile) return;
-  let b = document.getElementById('push-banner');
-  if(b) b.remove(); // recreate with current mode
-  b = document.createElement('div');
+  if(document.getElementById('push-banner')) return; // already shown
+  const b = document.createElement('div');
   b.id = 'push-banner';
   b.style.cssText = 'position:fixed;bottom:70px;left:10px;right:10px;background:#ff6b00;color:#fff;padding:14px 16px;border-radius:14px;z-index:9400;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;box-shadow:0 6px 24px rgba(255,107,0,0.5);direction:rtl';
-  if(mode === 'test'){
-    b.innerHTML = '<div style="margin-bottom:10px">🔔 אמת שהתראות Push פועלות</div>'
-      +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">לחץ לביצוע בדיקה + רישום מחדש</div>'
-      +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">🔄 בדוק ורשום מחדש</button>'
-      +'<button onclick="document.getElementById(\'push-banner\').remove();localStorage.setItem(\'tac_push_dismissed\',\'1\')" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור (לא להציג שוב)</button>';
-  } else {
-    b.innerHTML = '<div style="margin-bottom:10px">🔔 התראות Push לא פעילות</div>'
-      +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">תקבל הודעות חירום רק כשהאפליקציה פתוחה</div>'
-      +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">הפעל התראות</button>'
-      +'<button onclick="document.getElementById(\'push-banner\').remove()" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור</button>';
-  }
+  b.innerHTML = '<div style="margin-bottom:10px">🔔 התראות Push לא פעילות</div>'
+    +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">הפעל כדי לקבל התראות בכל מצב — גם כשהאפליקציה סגורה או המכשיר נעול</div>'
+    +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">הפעל התראות</button>'
+    +'<button onclick="document.getElementById(\'push-banner\').remove();localStorage.setItem(\'tac_push_dismissed\',\'1\')" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור (לא להציג שוב)</button>';
   document.body.appendChild(b);
 }
 async function _enablePush(){
@@ -1882,20 +1873,26 @@ function _checkPushStatus(){
   if(!u) return;
   if(typeof _isMobileDevice === 'function' && !_isMobileDevice()) return;
   if(!('Notification' in window)) return;
-  // If user explicitly dismissed, don't show again this session
+  // If user explicitly dismissed, never show again
   if(localStorage.getItem('tac_push_dismissed') === '1') return;
-  if(Notification.permission !== 'granted'){
+  // Permission denied → show register banner (only way to fix it)
+  if(Notification.permission === 'denied'){
     _pushBannerShow('register');
     return;
   }
-  // Permission granted — check if token exists AND was verified this session
-  const verified = localStorage.getItem('tac_push_verified') === '1';
+  // Permission not asked yet → show register banner
+  if(Notification.permission === 'default'){
+    _pushBannerShow('register');
+    return;
+  }
+  // Permission granted → check if token exists in Firebase
   fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json')
     .then(r=>r.json())
     .then(saved=>{
       if(!saved){
-        // Token missing — try to register silently
+        // Token missing — try to register silently first
         if(typeof PUSH !== 'undefined') PUSH.requestAndSaveToken(u.id, false);
+        // If still missing after 3s, show banner
         setTimeout(async ()=>{
           try{
             const r2 = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json');
@@ -1903,10 +1900,9 @@ function _checkPushStatus(){
             if(!s2) _pushBannerShow('register');
           }catch(e){}
         }, 3000);
-      } else if(!verified){
-        // Token exists but user hasn't verified it works this session
-        _pushBannerShow('test');
       } else {
+        // Token exists → all good, hide banner and mark verified
+        localStorage.setItem('tac_push_verified','1');
         const b = document.getElementById('push-banner'); if(b) b.remove();
       }
     }).catch(()=>{});
