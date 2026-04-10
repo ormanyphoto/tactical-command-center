@@ -7602,47 +7602,78 @@ function sendNotification(){
 }
 
 /* ── Listen for incoming notifications ── */
+function _isMobileDevice(){
+  // True mobile OR narrow viewport (tablet in portrait)
+  return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 1024;
+}
+let _notifPollTimer = null;
 function listenForIncomingNotifications(){
+  // Only show notification popups on mobile/tablet (desktop users should NOT see popups)
+  if(!_isMobileDevice()){
+    console.log('[NOTIF] Skipping popup listener on desktop');
+    return;
+  }
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
   const db = window._db;
   if(!myPersonId || !db){
-    // Retry once DB/auth is ready
     setTimeout(listenForIncomingNotifications, 2000);
     return;
   }
-  console.log('[NOTIF] listening for', myPersonId, 'db:', !!db);
-  if(_incomingListener) return; // already listening
-  _incomingListener = true;
+  console.log('[NOTIF] listening for', myPersonId, '(mobile)');
 
-  // Use the later of: 10 minutes ago OR last acknowledged notification time.
-  // This prevents re-showing notifications that were already answered in a previous session,
-  // while still catching notifications sent while the app was closed.
   const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
   const lookback = Date.now() - (10 * 60 * 1000);
   const listenFrom = Math.max(lastSeen, lookback);
 
   const notifRef = db.ref('tac_notifications/'+myPersonId);
-  const ref = notifRef.orderByChild('sentAt').startAt(listenFrom);
-  ref.on('child_added', snap=>{
-    const notif = snap.val();
-    if(!notif) return;
-    if(notif.sentAt && notif.sentAt <= lastSeen) return;
-    const notifId = snap.key;
-    if(_shownNotifIds.has(notifId)) return;
-    _showIncomingNotif(notif, snap.ref);
-  });
 
-  // Polling fallback — check every 8s in case real-time (WebSocket) is down
-  setInterval(()=>{
-    notifRef.orderByChild('sentAt').startAt(Date.now() - 60000).once('value', snap=>{
+  // Set up real-time listener only once
+  if(!_incomingListener){
+    _incomingListener = true;
+    const ref = notifRef.orderByChild('sentAt').startAt(listenFrom);
+    ref.on('child_added', snap=>{
+      if(!_isMobileDevice()) return;
+      const notif = snap.val();
+      if(!notif) return;
+      if(notif.sentAt && notif.sentAt <= lastSeen) return;
+      const notifId = snap.key;
+      if(_shownNotifIds.has(notifId)) return;
+      _showIncomingNotif(notif, snap.ref);
+    });
+  }
+
+  // Polling fallback — always reset on re-call to guarantee it's running
+  if(_notifPollTimer) clearInterval(_notifPollTimer);
+  _notifPollTimer = setInterval(()=>{
+    if(!_isMobileDevice()) return;
+    const db2 = window._db;
+    if(!db2) return;
+    db2.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(Date.now() - 120000).once('value', snap=>{
       const data = snap.val();
       if(!data) return;
       Object.entries(data).forEach(([nid, notif])=>{
         if(!notif || _shownNotifIds.has(nid)) return;
-        _showIncomingNotif(notif, notifRef.child(nid));
+        _showIncomingNotif(notif, db2.ref('tac_notifications/'+myPersonId+'/'+nid));
       });
     });
-  }, 8000);
+  }, 5000);
+
+  // Also run polling immediately on first call to catch notifications sent just now
+  if(window._notifPollInitial !== true){
+    window._notifPollInitial = true;
+    setTimeout(()=>{
+      const db3 = window._db;
+      if(!db3 || !_isMobileDevice()) return;
+      db3.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom).once('value', snap=>{
+        const data = snap.val();
+        if(!data) return;
+        Object.entries(data).forEach(([nid, notif])=>{
+          if(!notif || _shownNotifIds.has(nid)) return;
+          _showIncomingNotif(notif, db3.ref('tac_notifications/'+myPersonId+'/'+nid));
+        });
+      });
+    }, 800);
+  }
 }
 
 function _showIncomingNotif(notif, fbRef){
