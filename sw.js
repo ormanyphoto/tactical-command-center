@@ -235,10 +235,21 @@ messaging.onBackgroundMessage(payload => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026040905';
+const CACHE = 'tac-v5-3-' + '2026040906';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
-const SHELL = [BASE, BASE + 'index.html'];
+// Full offline shell — all critical assets pre-cached on install
+const SHELL = [
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.json',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
+  BASE + 'firebase-app-compat.js',
+  BASE + 'firebase-database-compat.js',
+  BASE + 'firebase-auth-compat.js',
+  BASE + 'firebase-messaging-compat.js'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(

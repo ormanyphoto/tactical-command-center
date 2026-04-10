@@ -637,6 +637,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .live-marker-ring{animation:lmpulse 2s infinite}
 /* Firebase setup banner */
 #fb-setup-banner{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a2838;border:1px solid #ffc107;border-radius:12px;padding:12px 16px;z-index:8000;color:#ffc107;font-size:12px;font-weight:700;font-family:'Heebo',sans-serif;direction:rtl;text-align:center;display:none;max-width:320px;width:90vw}
+#offline-banner{position:fixed;top:0;left:0;right:0;background:#ff6b00;color:#fff;padding:8px 14px;font-size:13px;font-weight:700;font-family:'Heebo',sans-serif;direction:rtl;text-align:center;z-index:9500;display:none;box-shadow:0 2px 10px rgba(255,107,0,0.4)}
+#offline-banner.show{display:block;animation:slideDown 0.3s}
+@keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 #fb-setup-banner button{background:#ffc107;color:#07090a;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:8px;width:100%}
 /* Sync status dot in topbar */
 #sync-dot{width:8px;height:8px;border-radius:50%;background:#344858;flex-shrink:0;transition:background 0.3s}
@@ -744,12 +747,15 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 }
 </style>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
 </head>
 <body class="night">
 
 <!-- ROTATE OVERLAY — mobile landscape blocker -->
 <div id="rotate-overlay"><span class="rot-icon">📱</span><span class="rot-txt">סובב את המכשיר למצב אנכי</span></div>
+
+<!-- OFFLINE BANNER -->
+<div id="offline-banner">📡 מצב אופליין — פעולות יסתנכרנו ברגע שהחיבור יחזור <span id="offline-queue-count"></span></div>
 
 <!-- LOGIN SCREEN -->
 <div id="login-screen" style="display:flex">
@@ -1000,7 +1006,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
           if(!window._googleReady && !_mapsRetried){
             _mapsRetried=true;
             var s=document.createElement('script');
-            s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
+            s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
             s.onerror=function(){
               var ml=document.getElementById('map-loading');
               if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
@@ -1065,6 +1071,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div class="mp-group-label">כלים</div>
         <button class="mp-btn" onclick="toggleMarkersVisibility()" id="markers-toggle-btn" title="הצג/הסתר סמנים">👁️</button>
         <button class="mp-btn" onclick="toggleGeofenceVisibility()" id="geo-toggle-btn" title="הצג/הסתר גיאופנסים">⬡</button>
+        <button class="mp-btn" onclick="toggleHeatmap()" id="heatmap-btn" title="מפת חום אירועים">🔥</button>
         <button class="mp-btn" onclick="goPanel('draw')" title="כלי ציור גבולות">✏️</button>
         <button class="mp-btn" onclick="takeMapSnapshot()" title="צלם מפה">📸</button>
         <div class="mp-divider"></div>
@@ -1179,6 +1186,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('shifts-bo')">🕐 משמרות</button>
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
       <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
+      <button class="bo-tab" onclick="boTab('vehicles-bo')">🚗 רכבים</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
@@ -1321,11 +1329,92 @@ const actLog=[
   {time:'09:45',txt:'MSN-005: חילוץ הושלם',type:'completed'},
   {time:'08:31',txt:'MSN-001: פרימטר הוקם',type:'active'},
 ];
-const auditEntries=[
-  {time:'10:22:04',user:'U03',action:'שידור SOS',type:'danger'},
-  {time:'10:20:11',user:'U04',action:'עדכון סטטוס MSN-002',type:'info'},
-  {time:'09:55:30',user:'מערכת',action:'MSN-005 הושלמה',type:'success'},
-];
+// ══════════════════════════════════════════════════════════
+// OFFLINE MODE — Detection + Sync Queue
+// ══════════════════════════════════════════════════════════
+let _offlineQueue = [];
+try{ _offlineQueue = JSON.parse(localStorage.getItem('tac_offline_queue')||'[]'); }catch(e){}
+
+function _updateOfflineUI(){
+  const banner = document.getElementById('offline-banner');
+  if(!banner) return;
+  const online = navigator.onLine;
+  const count = _offlineQueue.length;
+  banner.classList.toggle('show', !online);
+  const cnt = document.getElementById('offline-queue-count');
+  if(cnt) cnt.textContent = count>0 ? '('+count+' פעולות ממתינות)' : '';
+}
+function _queueOfflineAction(type, path, data){
+  _offlineQueue.push({type, path, data, ts:Date.now()});
+  try{ localStorage.setItem('tac_offline_queue', JSON.stringify(_offlineQueue)); }catch(e){}
+  _updateOfflineUI();
+}
+async function _flushOfflineQueue(){
+  if(!navigator.onLine || !window._db || !_offlineQueue.length) return;
+  const queue = _offlineQueue.slice();
+  _offlineQueue = [];
+  try{ localStorage.setItem('tac_offline_queue', JSON.stringify([])); }catch(e){}
+  for(const item of queue){
+    try{
+      if(item.type==='set') await window._db.ref(item.path).set(item.data);
+      else if(item.type==='update') await window._db.ref(item.path).update(item.data);
+      else if(item.type==='push') await window._db.ref(item.path).push(item.data);
+      else if(item.type==='remove') await window._db.ref(item.path).remove();
+    }catch(e){
+      // Re-queue failed item
+      _offlineQueue.push(item);
+    }
+  }
+  try{ localStorage.setItem('tac_offline_queue', JSON.stringify(_offlineQueue)); }catch(e){}
+  _updateOfflineUI();
+  if(queue.length > _offlineQueue.length){
+    const synced = queue.length - _offlineQueue.length;
+    showToast({icon:'☁️',title:'סונכרנו '+synced+' פעולות',type:'success'});
+    if(typeof auditLog==='function') auditLog('סנכרון תור אופליין','info',synced+' פעולות');
+  }
+}
+window.addEventListener('online', ()=>{
+  _updateOfflineUI();
+  showToast({icon:'🌐',title:'החיבור חזר',type:'success',duration:2500});
+  setTimeout(_flushOfflineQueue, 800);
+});
+window.addEventListener('offline', ()=>{
+  _updateOfflineUI();
+  showToast({icon:'📡',title:'מצב אופליין',sub:'פעולות יישמרו מקומית',type:'warn',duration:4000});
+});
+setTimeout(_updateOfflineUI, 500);
+setInterval(_flushOfflineQueue, 15000);
+
+let auditEntries=[];
+// Audit log — persistent Firebase-backed log of all significant actions
+function auditLog(action, type, details){
+  try{
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const entry = {
+      ts: Date.now(),
+      time: nowT() + ':' + String(new Date().getSeconds()).padStart(2,'0'),
+      user: u ? u.name : 'מערכת',
+      userId: u ? u.id : '',
+      action: action || '',
+      type: type || 'info',
+      details: details || ''
+    };
+    auditEntries.unshift(entry);
+    if(auditEntries.length > 500) auditEntries.length = 500;
+    const auditPath = 'tac_audit/'+entry.ts+'_'+Math.random().toString(36).slice(2,7);
+    if(window._db && navigator.onLine){
+      window._db.ref(auditPath).set(entry).catch(()=>_queueOfflineAction('set',auditPath,entry));
+    } else {
+      _queueOfflineAction('set',auditPath,entry);
+    }
+    try{ localStorage.setItem('tac_audit_local', JSON.stringify(auditEntries.slice(0,100))); }catch(e){}
+  }catch(e){ console.warn('[AUDIT]',e); }
+}
+// Load from localStorage on boot
+try{
+  const cached = localStorage.getItem('tac_audit_local');
+  if(cached) auditEntries = JSON.parse(cached)||[];
+}catch(e){}
 let MSGS=[
   {id:1,from:'מערכת',ch:'כל היחידות',body:'ברוכים הבאים למערכת מבצעים מחוזית ת"א. המערכת פעילה.',time:'00:00',type:'broadcast'},
 ];
@@ -1548,14 +1637,16 @@ const AUTH = (() => {
   function login(email, password){
     const em = (email||'').trim().toLowerCase();
     const u = PERSONNEL.find(p => p.email && p.email.toLowerCase()===em && p.loginPassword===password);
-    if(!u) return false;
+    if(!u){ if(typeof auditLog==='function') auditLog('ניסיון כניסה נכשל','warn',em); return false; }
     _user = u;
     localStorage.setItem('tac_auth_id', u.id);
     localStorage.setItem('tac_auth_em', u.email);
+    if(typeof auditLog==='function') auditLog('כניסה למערכת','success',u.email);
     return true;
   }
 
   function logout(){
+    if(typeof auditLog==='function' && _user) auditLog('יציאה מהמערכת','info','');
     _user = null;
     localStorage.removeItem('tac_auth_id');
     localStorage.removeItem('tac_auth_em');
@@ -3186,6 +3277,7 @@ function triggerSOS(){
     return;
   }
   _sosLastSent=now;
+  auditLog('שידור SOS','danger','');
 
   const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
   const db=window._db;
@@ -4701,7 +4793,7 @@ function statusHe(s){return {urgent:'דחוף',active:'פעיל',pending:'ממת
 function statusUnitHe(s){return {deployed:'פרוס','on-duty':'בתפקיד','off-duty':'חופשי',unavailable:'לא זמין'}[s]||s}
 function typeHe(t){return {arrest:'מעצר',surveillance:'מעקב',escort:'ליווי',traffic:'ניידות',rescue:'חילוץ',default:'כללי'}[t]||t}
 function stageLbl(s){return {draft:'טיוטה',briefing:'בריפינג',active:'פעיל',debrief:'דיבריפינג',completed:'הושלם'}[s]||s}
-function addAuditEntry(u,a){auditEntries.unshift({time:nowT()+':'+String(new Date().getSeconds()).padStart(2,'0'),user:u,action:a,type:'info'})}
+function addAuditEntry(u,a){ auditLog(a, 'info', ''); }
 
 // ─── (map init moved to onGoogleMapsReady — see GOOGLE MAPS INIT section above) ───
 
@@ -4770,6 +4862,7 @@ function boTab(tab){
     'personnel-bo':boPersonnel,'teams-bo':boTeamsAdmin,'geofences-bo':boGeofences,
     'incidents-bo':boIncidents,'shifts-bo':boShifts,
     'permissions-bo':boPermissions,'credentials-bo':boCredentials,
+    'vehicles-bo':boVehicles,
     'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
@@ -5393,10 +5486,163 @@ function boPermissions(c){
     _renderPermsTable(Object.keys(lsSaved).length ? lsSaved : defaults);
   }
 }
+// ── VEHICLES MANAGEMENT ──
+const VEHICLE_TYPES = {
+  private:{label:'רכב פרטי',icon:'🚗'},
+  jeep:{label:'ג\'יפ',icon:'🚙'},
+  police:{label:'ניידת משטרה',icon:'🚓'},
+  motorcycle:{label:'אופנוע',icon:'🏍️'}
+};
+function boVehicles(c){
+  const filter = (window._vehFilter||'').toLowerCase();
+  const typeFilter = window._vehTypeFilter||'';
+  const withVeh = PERSONNEL.filter(p=>p.vehiclePlate || p.vehicleType);
+  const filtered = withVeh.filter(p=>{
+    if(typeFilter && p.vehicleType!==typeFilter) return false;
+    if(!filter) return true;
+    return (p.name||'').toLowerCase().includes(filter)
+        || (p.vehiclePlate||'').toLowerCase().includes(filter)
+        || (p.unit||'').toLowerCase().includes(filter);
+  });
+  // Stats
+  const total = withVeh.length;
+  const police = withVeh.filter(p=>p.vehiclePoliceApproved).length;
+  const byType = {};
+  withVeh.forEach(p=>{ if(p.vehicleType) byType[p.vehicleType]=(byType[p.vehicleType]||0)+1; });
+
+  let rows = '';
+  filtered.forEach(p=>{
+    const t = VEHICLE_TYPES[p.vehicleType] || {label:'—',icon:'❓'};
+    const badge = p.vehiclePoliceApproved
+      ? '<span style="background:rgba(61,255,82,0.12);color:var(--accent);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ מאושר</span>'
+      : '<span style="color:var(--text3);font-size:11px">לא מאושר</span>';
+    rows += '<tr>'
+      +'<td style="font-weight:600">'+escHtml(p.name||'')+'</td>'
+      +'<td style="color:var(--text3)">'+escHtml(p.unit||'—')+'</td>'
+      +'<td style="font-family:monospace">'+escHtml(p.vehiclePlate||'—')+'</td>'
+      +'<td>'+t.icon+' '+t.label+'</td>'
+      +'<td>'+badge+'</td>'
+      +'<td style="color:var(--text3);font-size:11px">'+escHtml(p.vehicleMileage||'—')+'</td>'
+      +'<td style="color:var(--text3);font-size:11px">'+escHtml(p.vehicleFuel||'—')+'</td>'
+      +'<td style="color:var(--text3);font-size:11px">'+escHtml(p.vehicleNextService||'—')+'</td>'
+      +'<td><button class="act-btn" onclick="editPersonModal(\''+p.id+'\')" title="ערוך">✏️</button></td>'
+      +'</tr>';
+  });
+  const statCards = Object.entries(VEHICLE_TYPES).map(([k,v])=>
+    '<div class="bo-stat-card" style="background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:12px;text-align:center">'
+    +'<div style="font-size:24px">'+v.icon+'</div>'
+    +'<div style="font-size:22px;font-weight:900;color:var(--accent)">'+(byType[k]||0)+'</div>'
+    +'<div style="font-size:11px;color:var(--text3)">'+v.label+'</div></div>'
+  ).join('');
+
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd">🚗 ניהול רכבים ('+total+' סה"כ)</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">'+statCards+'</div>'
+    +'<div style="background:rgba(61,255,82,0.06);border:1px solid rgba(61,255,82,0.2);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px">'
+    +'✅ <b>'+police+'</b> רכבים מאושרים לשימוש משטרתי מתוך '+total
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'
+    +'<input type="text" placeholder="חיפוש..." value="'+(window._vehFilter||'')+'" oninput="window._vehFilter=this.value;boVehicles(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;flex:1;min-width:200px"/>'
+    +'<select onchange="window._vehTypeFilter=this.value;boVehicles(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px">'
+    +'<option value="">כל הסוגים</option>'
+    +Object.entries(VEHICLE_TYPES).map(([k,v])=>'<option value="'+k+'"'+(typeFilter===k?' selected':'')+'>'+v.icon+' '+v.label+'</option>').join('')
+    +'</select>'
+    +'<button class="btn-sec" onclick="_exportVehiclesCSV()" style="padding:6px 14px;font-size:12px">⬇️ ייצוא CSV</button>'
+    +'</div>'
+    +'<div style="max-height:55vh;overflow-y:auto">'
+    +'<table class="bo-table"><thead><tr><th>שם</th><th>יחידה</th><th>מס\' רכב</th><th>סוג</th><th>אישור משטרתי</th><th>ק"מ</th><th>דלק</th><th>טיפול הבא</th><th>פעולות</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:30px">אין רכבים רשומים</td></tr>')+'</tbody></table>'
+    +'</div></div>';
+}
+function _exportVehiclesCSV(){
+  const withVeh = PERSONNEL.filter(p=>p.vehiclePlate || p.vehicleType);
+  const csv = [['שם','יחידה','מספר רכב','סוג','מאושר משטרתית','ק"מ','דלק','טיפול הבא','הערות']]
+    .concat(withVeh.map(p=>[
+      p.name||'', p.unit||'', p.vehiclePlate||'',
+      (VEHICLE_TYPES[p.vehicleType]||{}).label||'',
+      p.vehiclePoliceApproved?'כן':'לא',
+      p.vehicleMileage||'', p.vehicleFuel||'',
+      p.vehicleNextService||'', p.vehicleNotes||''
+    ]))
+    .map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const b = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'vehicles_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast({icon:'⬇️',title:'רכבים יוצאו',sub:withVeh.length+' רשומות',type:'success'});
+}
+
 function boAudit(c){
-  var rows='';
-  auditEntries.forEach(function(e){rows+='<tr><td style="color:var(--text3)">'+e.time+'</td><td style="color:var(--accent2)">'+e.user+'</td><td>'+e.action+'</td></tr>';});
-  c.innerHTML='<div class="bo-section"><div class="bo-hd">יומן ביקורת</div><table class="bo-table"><thead><tr><th>שעה</th><th>משתמש</th><th>פעולה</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  // Load from Firebase
+  if(window._db){
+    window._db.ref('tac_audit').limitToLast(300).once('value', snap=>{
+      const data = snap.val()||{};
+      const fromFb = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
+      if(fromFb.length) auditEntries = fromFb;
+      _renderAudit(c);
+    }).catch(()=>_renderAudit(c));
+  } else { _renderAudit(c); }
+}
+function _renderAudit(c){
+  const typeColors = {danger:'var(--danger)',warn:'var(--warn)',success:'var(--accent)',info:'var(--blue)'};
+  const typeIcons = {danger:'🚨',warn:'⚠️',success:'✅',info:'ℹ️'};
+  const filter = (window._auditFilter||'').toLowerCase();
+  const typeFilter = window._auditTypeFilter||'';
+  const filtered = auditEntries.filter(e=>{
+    if(typeFilter && e.type!==typeFilter) return false;
+    if(!filter) return true;
+    return (e.action||'').toLowerCase().includes(filter)
+        || (e.user||'').toLowerCase().includes(filter)
+        || (e.details||'').toLowerCase().includes(filter);
+  });
+  const fmtDate = ts => {
+    if(!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleDateString('he-IL')+' '+d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  };
+  let rows='';
+  filtered.forEach(e=>{
+    const color = typeColors[e.type]||'var(--text2)';
+    const icon = typeIcons[e.type]||'•';
+    rows += '<tr>'
+      +'<td style="color:var(--text3);white-space:nowrap;font-family:monospace;font-size:11px">'+(e.ts?fmtDate(e.ts):escHtml(e.time||''))+'</td>'
+      +'<td style="color:var(--accent2);font-weight:600">'+escHtml(e.user||'')+'</td>'
+      +'<td style="color:'+color+'">'+icon+' '+escHtml(e.action||'')+'</td>'
+      +'<td style="color:var(--text3);font-size:11px">'+escHtml(e.details||'')+'</td>'
+      +'</tr>';
+  });
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<span>📜 יומן ביקורת ('+filtered.length+' רשומות)</span>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<input type="text" placeholder="חיפוש..." value="'+(window._auditFilter||'')+'" oninput="window._auditFilter=this.value;boAudit(document.getElementById(\'bo-inner\'))" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px"/>'
+    +'<select onchange="window._auditTypeFilter=this.value;boAudit(document.getElementById(\'bo-inner\'))" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px">'
+    +'<option value="">כל הסוגים</option>'
+    +'<option value="danger"'+(typeFilter==='danger'?' selected':'')+'>🚨 דחוף</option>'
+    +'<option value="warn"'+(typeFilter==='warn'?' selected':'')+'>⚠️ אזהרה</option>'
+    +'<option value="success"'+(typeFilter==='success'?' selected':'')+'>✅ הצלחה</option>'
+    +'<option value="info"'+(typeFilter==='info'?' selected':'')+'>ℹ️ מידע</option>'
+    +'</select>'
+    +'<button class="btn-sec" onclick="_exportAuditCSV()" style="padding:4px 12px;font-size:12px">⬇️ ייצוא CSV</button>'
+    +'</div></div>'
+    +'<div style="max-height:60vh;overflow-y:auto">'
+    +'<table class="bo-table"><thead><tr><th>תאריך/שעה</th><th>משתמש</th><th>פעולה</th><th>פרטים</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div></div>';
+}
+function _exportAuditCSV(){
+  const csv = [['תאריך','משתמש','סוג','פעולה','פרטים']]
+    .concat(auditEntries.map(e=>[
+      e.ts?new Date(e.ts).toLocaleString('he-IL'):(e.time||''),
+      e.user||'', e.type||'', e.action||'', e.details||''
+    ]))
+    .map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const b = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'audit_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast({icon:'⬇️',title:'יומן הביקורת יוצא',sub:auditEntries.length+' רשומות',type:'success'});
 }
 
 function boAnalytics(c){
@@ -6841,6 +7087,12 @@ function editPersonModal(id){
         </label>
       </div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="form-g"><label>ק"מ</label><input type="text" id="ep-vmileage" value="${(p.vehicleMileage||'').replace(/"/g,'&quot;')}" placeholder="123,456"/></div>
+      <div class="form-g"><label>מצב דלק</label><input type="text" id="ep-vfuel" value="${(p.vehicleFuel||'').replace(/"/g,'&quot;')}" placeholder="3/4"/></div>
+      <div class="form-g"><label>טיפול הבא</label><input type="text" id="ep-vservice" value="${(p.vehicleNextService||'').replace(/"/g,'&quot;')}" placeholder="DD/MM/YYYY"/></div>
+    </div>
+    <div class="form-g"><label>הערות לרכב</label><input type="text" id="ep-vnotes" value="${(p.vehicleNotes||'').replace(/"/g,'&quot;')}" placeholder="פגיעה, תקלה, הערה..."/></div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
   const _callerPanel = currentPanel;
   const _boOpen = document.getElementById('bo-wrap')?.classList.contains('show');
@@ -6854,6 +7106,10 @@ function editPersonModal(id){
     p.vehiclePlate=document.getElementById('ep-vplate').value;
     p.vehicleType=document.getElementById('ep-vtype').value;
     p.vehiclePoliceApproved=document.getElementById('ep-vpolice').checked;
+    p.vehicleMileage=(document.getElementById('ep-vmileage')||{}).value||'';
+    p.vehicleFuel=(document.getElementById('ep-vfuel')||{}).value||'';
+    p.vehicleNextService=(document.getElementById('ep-vservice')||{}).value||'';
+    p.vehicleNotes=(document.getElementById('ep-vnotes')||{}).value||'';
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
     if(window._pendingPhoto){p.photo=window._pendingPhoto;window._pendingPhoto='';}
@@ -7215,6 +7471,7 @@ function sendNotification(){
     db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName});
 
     Promise.all(writes).then(()=>{
+      auditLog('שליחת התראה: '+title.trim(),'info',recipientIds.length+' נמענים');
       showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
       closeNotifModal();
       if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
@@ -7894,6 +8151,77 @@ function toggleGeofenceVisibility(){
 }
 function takeMapSnapshot(){
   showToast({icon:'📸',title:'צילום מפה',sub:'שמור ידנית עם Print Screen',type:'info'});
+}
+
+// ── HEATMAP OF INCIDENTS ──
+let _heatmapLayer = null;
+function toggleHeatmap(){
+  if(!window.map || !google.maps.visualization){
+    showToast({icon:'⚠️',title:'שכבת חזות לא זמינה',sub:'המפה עדיין נטענת',type:'warn'});
+    return;
+  }
+  const btn = document.getElementById('heatmap-btn');
+  if(_heatmapLayer && _heatmapLayer.getMap()){
+    _heatmapLayer.setMap(null);
+    if(btn) btn.style.borderColor='';
+    showToast({icon:'🔥',title:'מפת חום הוסתרה',type:'info'});
+    return;
+  }
+  // Build data from INCIDENTS + SOS history + NOTIF markers
+  const points = [];
+  (INCIDENTS||[]).forEach(inc=>{
+    if(inc.lat && inc.lng){
+      const weight = inc.type==='urgent'?5 : inc.type==='warn'?3 : inc.type==='rescue'?4 : 2;
+      points.push({location:new google.maps.LatLng(inc.lat,inc.lng), weight});
+    }
+  });
+  // Also include notification markers (past events)
+  if(window._db){
+    window._db.ref('tac_notif_markers').once('value', snap=>{
+      const data = snap.val()||{};
+      Object.values(data).forEach(n=>{
+        if(n && n.lat && n.lng){
+          const weight = n.type==='sos'?10 : n.type==='mission'?4 : n.type==='alert'?5 : 2;
+          points.push({location:new google.maps.LatLng(n.lat,n.lng), weight});
+        }
+      });
+      _showHeatmap(points);
+    }).catch(()=>_showHeatmap(points));
+  } else {
+    _showHeatmap(points);
+  }
+}
+function _showHeatmap(points){
+  if(!points.length){
+    showToast({icon:'ℹ️',title:'אין נתונים להצגה',sub:'לא נמצאו אירועים עם מיקום',type:'info'});
+    return;
+  }
+  if(_heatmapLayer) _heatmapLayer.setMap(null);
+  _heatmapLayer = new google.maps.visualization.HeatmapLayer({
+    data: points,
+    map: window.map,
+    radius: 40,
+    opacity: 0.72,
+    gradient: [
+      'rgba(0, 255, 255, 0)',
+      'rgba(0, 255, 255, 1)',
+      'rgba(0, 191, 255, 1)',
+      'rgba(0, 127, 255, 1)',
+      'rgba(0, 63, 255, 1)',
+      'rgba(0, 0, 255, 1)',
+      'rgba(63, 0, 191, 1)',
+      'rgba(127, 0, 127, 1)',
+      'rgba(191, 0, 63, 1)',
+      'rgba(255, 0, 0, 1)',
+      'rgba(255, 127, 0, 1)',
+      'rgba(255, 191, 0, 1)',
+      'rgba(255, 255, 0, 1)'
+    ]
+  });
+  const btn = document.getElementById('heatmap-btn');
+  if(btn) btn.style.borderColor='var(--danger)';
+  showToast({icon:'🔥',title:'מפת חום פעילה',sub:points.length+' אירועים',type:'success'});
+  auditLog('הצגת מפת חום אירועים','info',points.length+' נקודות');
 }
 
 // ── ADDRESS AUTOCOMPLETE — Google Places API ──
