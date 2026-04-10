@@ -10429,7 +10429,7 @@ const SYNC = (() => {
 // PUSH — Firebase Cloud Messaging (background notifications)
 // ══════════════════════════════════════════════════════════
 const PUSH = (() => {
-  const VAPID_KEY = 'BEe5hc-jpVaWhwss8GpGbr9iN-8DiqktMPlfSWksq6zOMDlHMFsdifUFfPXNbp2QTvL-Dx1nzklzx-CdwSki28';
+  const VAPID_KEY = 'BEe5hc-jPvaWhwss8GpGbr9iN-8DiqkxtMPlfSWksq6zOMDlHMFsdifuFfPXNbp2QTvL-Dx1nzkIzx-CdwSki28';
   let _messaging = null, _token = null;
   let _sa = null; // service account JSON
 
@@ -10575,6 +10575,15 @@ const PUSH = (() => {
   }
 
   // ── FCM token registration ──
+  // Validate VAPID key format (must be 87 chars base64url → 65 bytes, starting 0x04)
+  function _validateVapidKey(key){
+    try{
+      const pad = '='.repeat((4 - key.length % 4) % 4);
+      const b64 = (key + pad).replace(/-/g,'+').replace(/_/g,'/');
+      const bin = atob(b64);
+      return bin.length === 65 && bin.charCodeAt(0) === 0x04;
+    }catch(e){ return false; }
+  }
   async function requestAndSaveToken(userId, verbose){
     const _log = (msg, data) => {
       console.log('[PUSH]', msg, data||'');
@@ -10583,11 +10592,15 @@ const PUSH = (() => {
     const _err = (msg, data) => {
       console.error('[PUSH]', msg, data||'');
       if(typeof auditLog==='function') auditLog('Push registration: '+msg, 'warn', String(data||''));
-      if(typeof showToast==='function') showToast({icon:'⚠️',title:msg,sub:String(data||'').slice(0,100),type:'warn',duration:6000});
+      if(typeof showToast==='function') showToast({icon:'⚠️',title:msg,sub:String(data||'').slice(0,100),type:'warn',duration:8000});
     };
     try{
       if(!('Notification' in window)){ _err('Notification API לא נתמך'); return null; }
       if(!firebase.messaging){ _err('firebase.messaging לא זמין'); return null; }
+      if(!_validateVapidKey(VAPID_KEY)){
+        _err('מפתח VAPID לא תקין','אורך='+VAPID_KEY.length+' — צריך להיות 87 תווים. צור מפתח חדש ב-Firebase Console → Cloud Messaging');
+        return null;
+      }
       _log('בודק הרשאה...');
       const perm = await Notification.requestPermission();
       if(perm!=='granted'){ _err('הרשאת התראות נדחתה', 'perm='+perm); return null; }
