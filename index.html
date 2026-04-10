@@ -1075,6 +1075,18 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button class="mp-btn" onclick="goPanel('draw')" title="כלי ציור גבולות">✏️</button>
         <button class="mp-btn" onclick="takeMapSnapshot()" title="צלם מפה">📸</button>
         <div class="mp-divider"></div>
+        <div class="mp-group-label">שכבות טקטיות</div>
+        <button class="mp-btn" onclick="togglePOILayer('hospital')" id="poi-hospital-btn" title="בתי חולים">🏥</button>
+        <button class="mp-btn" onclick="togglePOILayer('police')" id="poi-police-btn" title="תחנות משטרה">🚔</button>
+        <button class="mp-btn" onclick="togglePOILayer('gas_station')" id="poi-gas-btn" title="תחנות דלק">⛽</button>
+        <button class="mp-btn" onclick="togglePOILayer('fire_station')" id="poi-fire-btn" title="תחנות כיבוי">🚒</button>
+        <div class="mp-divider"></div>
+        <div class="mp-group-label">פקודה</div>
+        <button class="mp-btn" onclick="startRouteDraw()" id="route-btn" title="שרטוט מסלול פקודה">🧭</button>
+        <button class="mp-btn" onclick="startClosedAreaDraw()" id="closed-area-btn" title="סמן אזור סגור">🚫</button>
+        <button class="mp-btn" onclick="enterCommandWall()" title="מסך מפקד מלא">🖥️</button>
+        <button class="mp-btn" onclick="quickEmergency()" title="מצב חירום מהיר" style="border-color:var(--danger);color:var(--danger)">⚡</button>
+        <div class="mp-divider"></div>
       </div>
       <!-- Search -->
       <div id="search-wrap">
@@ -1187,6 +1199,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('permissions-bo')">🔐 הרשאות</button>
       <button class="bo-tab" onclick="boTab('credentials-bo')">🔑 סיסמאות</button>
       <button class="bo-tab" onclick="boTab('vehicles-bo')">🚗 רכבים</button>
+      <button class="bo-tab" onclick="boTab('equipment-bo')">🎒 מחסן ציוד</button>
+      <button class="bo-tab" onclick="boTab('templates-bo')">📝 תבניות</button>
+      <button class="bo-tab" onclick="boTab('chat-bo')">💬 צ'אט צוות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
@@ -2341,6 +2356,7 @@ function showCtxMenu(latLng, pixel){
     {icon:'🧭',label:'נווט לנקודה זו',           action:`closeAllInfoWindows();goPanel('navigation');setTimeout(()=>{const t=document.getElementById('nav-to');if(t)t.value='${lat}, ${lng}';},100)`},
     {icon:'📏',label:'מדוד מרחק מכאן',           action:`closeAllInfoWindows();activateTool('route');addRoutePoint(_ctxLatLng);showToast({icon:'📏',title:'מצב מדידה',sub:'לחץ נקודות נוספות למסלול',type:'info'})`},
     {icon:'📋',label:'העתק קואורדינטות',         action:`closeAllInfoWindows();navigator.clipboard.writeText('${lat}, ${lng}');showToast({icon:'📋',title:'הועתק',sub:'${lat}°צ, ${lng}°מ',type:'success',duration:2000})`},
+    {icon:'👁️',label:'Street View',              action:`closeAllInfoWindows();openStreetView(${latLng.lat()},${latLng.lng()})`},
     {icon:'🌍',label:'פתח ב-Google Maps',        action:`closeAllInfoWindows();window.open('https://maps.google.com/?q=${lat},${lng}','_blank')`},
   ];
   const isDark=document.body.classList.contains('night');
@@ -4155,6 +4171,14 @@ function openNewMsnModal(){
   body+='</div></div>';
   // NOTES
   body+='<div class="form-g"><label>הערות משימה</label><textarea id="nm-notes" placeholder="חשוד פח״ע..." style="height:55px;font-size:12px;direction:rtl"></textarea></div>';
+  // #17 SCHEDULING
+  body+='<div class="form-g"><label>🕐 תזמון (אופציונלי) — השאר ריק למשימה מיידית</label><input type="datetime-local" id="nm-scheduled" style="font-family:var(--font)"/></div>';
+  // #18 APPLY TEMPLATE
+  if(typeof MISSION_TEMPLATES!=='undefined' && MISSION_TEMPLATES.length){
+    var tplOpts='<option value="">— השתמש בתבנית —</option>';
+    MISSION_TEMPLATES.forEach(t=>{ tplOpts+='<option value="'+t.id+'">'+t.name+'</option>'; });
+    body+='<div class="form-g"><label>📝 תבנית משימה</label><select id="nm-tpl" onchange="applyMsnTemplate(this.value)" style="background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;width:100%">'+tplOpts+'</select></div>';
+  }
   // HIDDEN FIELDS
   body+='<input type="hidden" id="nm-type" value="arrest"/>';
   body+='<input type="hidden" id="nm-id" value="MSN-'+String(MISSIONS.length+1).padStart(3,'0')+'"/>';
@@ -4348,17 +4372,24 @@ function saveMission(){
       plotMissions();
     }).catch(function(){});
   }
+  var schedEl = document.getElementById('nm-scheduled');
+  var scheduledAt = schedEl && schedEl.value ? new Date(schedEl.value).getTime() : null;
+  var isScheduled = scheduledAt && scheduledAt > Date.now();
   MISSIONS.push({
-    id:id,title:title,type:type,status:status,priority:priority,
+    id:id,title:title,type:type,status:isScheduled?'scheduled':status,priority:priority,
     teams:_nmAssignedTeams.slice(),
     progress:0,
     objective:obj+(addr?'\nמיקום: '+addr:'')+(notes?'\nהערות: '+notes:''),
     requiredSkills:reqSkills,
     equipment:equip,
     address:addr,lat:lat,lng:lng,
-    checklist:[],
-    timeline:[{t:nowT(),txt:'משימה נוצרה'}+(addr?{t:nowT(),txt:'מיקום: '+addr}:[])]
+    checklist:(window._pendingTemplate && window._pendingTemplate.checklist || []).map(s=>({txt:s,done:false})),
+    scheduledAt:scheduledAt,
+    report:null,
+    timeline:[{t:nowT(),txt:isScheduled?'משימה תוזמנה ל-'+new Date(scheduledAt).toLocaleString('he-IL'):'משימה נוצרה'}]
   });
+  window._pendingTemplate = null;
+  auditLog((isScheduled?'תזמון משימה: ':'יצירת משימה: ')+title,'info','');
   plotMissions();
   var sm=document.getElementById('s-msn');if(sm)sm.textContent=MISSIONS.length;
   addAct({txt:'משימה חדשה: '+title,type:status});
@@ -4863,6 +4894,7 @@ function boTab(tab){
     'incidents-bo':boIncidents,'shifts-bo':boShifts,
     'permissions-bo':boPermissions,'credentials-bo':boCredentials,
     'vehicles-bo':boVehicles,
+    'equipment-bo':boEquipment,'templates-bo':boTemplates,'chat-bo':boChat,
     'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
@@ -7093,6 +7125,17 @@ function editPersonModal(id){
       <div class="form-g"><label>טיפול הבא</label><input type="text" id="ep-vservice" value="${(p.vehicleNextService||'').replace(/"/g,'&quot;')}" placeholder="DD/MM/YYYY"/></div>
     </div>
     <div class="form-g"><label>הערות לרכב</label><input type="text" id="ep-vnotes" value="${(p.vehicleNotes||'').replace(/"/g,'&quot;')}" placeholder="פגיעה, תקלה, הערה..."/></div>
+    <div class="form-g" style="background:var(--panel2);padding:10px;border-radius:8px">
+      <label style="font-weight:700;color:var(--accent2);margin-bottom:8px;display:block">🎒 ציוד אישי</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-helmet" ${p.eqHelmet?'checked':''}/>🪖 כובע מגן</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-vest" ${p.eqVest?'checked':''}/>🦺 אפוד</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-night" ${p.eqNight?'checked':''}/>🌙 ציוד לילה</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-bodycam" ${p.eqBodyCam?'checked':''}/>📹 מצלמת גוף</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-radio" ${p.eqRadio?'checked':''}/>📻 מכשיר קשר</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-medkit" ${p.eqMedkit?'checked':''}/>⛑️ ערכה רפואית</label>
+      </div>
+    </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
   const _callerPanel = currentPanel;
   const _boOpen = document.getElementById('bo-wrap')?.classList.contains('show');
@@ -7110,6 +7153,12 @@ function editPersonModal(id){
     p.vehicleFuel=(document.getElementById('ep-vfuel')||{}).value||'';
     p.vehicleNextService=(document.getElementById('ep-vservice')||{}).value||'';
     p.vehicleNotes=(document.getElementById('ep-vnotes')||{}).value||'';
+    p.eqHelmet=document.getElementById('ep-eq-helmet').checked;
+    p.eqVest=document.getElementById('ep-eq-vest').checked;
+    p.eqNight=document.getElementById('ep-eq-night').checked;
+    p.eqBodyCam=document.getElementById('ep-eq-bodycam').checked;
+    p.eqRadio=document.getElementById('ep-eq-radio').checked;
+    p.eqMedkit=document.getElementById('ep-eq-medkit').checked;
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
     if(window._pendingPhoto){p.photo=window._pendingPhoto;window._pendingPhoto='';}
@@ -8223,6 +8272,570 @@ function _showHeatmap(points){
   showToast({icon:'🔥',title:'מפת חום פעילה',sub:points.length+' אירועים',type:'success'});
   auditLog('הצגת מפת חום אירועים','info',points.length+' נקודות');
 }
+
+// ══════════════════════════════════════════════════════════
+// #4 TACTICAL POI LAYERS — hospitals, police, gas, fire stations
+// ══════════════════════════════════════════════════════════
+const _poiLayers = {}; // type → array of markers
+const _poiIcons = {
+  hospital:{icon:'🏥',color:'#ff3333',label:'בית חולים'},
+  police:{icon:'🚔',color:'#1d6cff',label:'תחנת משטרה'},
+  gas_station:{icon:'⛽',color:'#ff7a1a',label:'תחנת דלק'},
+  fire_station:{icon:'🚒',color:'#ff6b00',label:'תחנת כיבוי'}
+};
+function togglePOILayer(type){
+  if(!window.map || !google.maps.places){
+    showToast({icon:'⚠️',title:'מפה לא מוכנה',type:'warn'});
+    return;
+  }
+  const btnMap = {hospital:'poi-hospital-btn',police:'poi-police-btn',gas_station:'poi-gas-btn',fire_station:'poi-fire-btn'};
+  const btn = document.getElementById(btnMap[type]);
+  if(_poiLayers[type] && _poiLayers[type].length){
+    _poiLayers[type].forEach(m=>m.setMap(null));
+    _poiLayers[type]=[];
+    if(btn) btn.style.borderColor='';
+    showToast({icon:_poiIcons[type].icon,title:_poiIcons[type].label+' הוסתר',type:'info'});
+    return;
+  }
+  const svc = new google.maps.places.PlacesService(window.map);
+  svc.nearbySearch({
+    location: window.map.getCenter(),
+    radius: 10000,
+    type: type
+  }, (results, status)=>{
+    if(status !== google.maps.places.PlacesServiceStatus.OK || !results){
+      showToast({icon:'⚠️',title:'לא נמצאו תוצאות',sub:_poiIcons[type].label,type:'warn'});
+      return;
+    }
+    _poiLayers[type]=[];
+    results.forEach(place=>{
+      if(!place.geometry || !place.geometry.location) return;
+      const m = new google.maps.Marker({
+        position:place.geometry.location,
+        map:window.map,
+        title:place.name,
+        label:{text:_poiIcons[type].icon,fontSize:'18px'},
+        icon:{path:google.maps.SymbolPath.CIRCLE,scale:14,fillColor:_poiIcons[type].color,fillOpacity:0.88,strokeColor:'#fff',strokeWeight:2}
+      });
+      m.addListener('click',()=>{
+        const iw = new google.maps.InfoWindow({content:
+          '<div style="direction:rtl;font-family:Heebo,sans-serif;padding:6px 8px;min-width:180px">'
+          +'<div style="font-weight:800;color:'+_poiIcons[type].color+'">'+_poiIcons[type].icon+' '+(place.name||_poiIcons[type].label)+'</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:3px">'+(place.vicinity||'')+'</div>'
+          +(place.rating?'<div style="font-size:11px;margin-top:3px">⭐ '+place.rating+'</div>':'')
+          +'<button onclick="openStreetView('+place.geometry.location.lat()+','+place.geometry.location.lng()+')" style="margin-top:6px;background:var(--accent);color:#07090a;border:none;border-radius:5px;padding:5px 10px;font-weight:700;cursor:pointer;font-size:11px">👁️ Street View</button>'
+          +'</div>'
+        });
+        iw.open(window.map,m);
+      });
+      _poiLayers[type].push(m);
+    });
+    if(btn) btn.style.borderColor=_poiIcons[type].color;
+    showToast({icon:_poiIcons[type].icon,title:_poiIcons[type].label,sub:results.length+' נמצאו',type:'success'});
+    auditLog('הצגת שכבת '+_poiIcons[type].label,'info',results.length+' נקודות');
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// #15 STREET VIEW
+// ══════════════════════════════════════════════════════════
+function openStreetView(lat, lng){
+  const pano = document.getElementById('street-view-pano');
+  if(!pano){
+    const div = document.createElement('div');
+    div.id = 'street-view-pano';
+    div.style.cssText = 'position:fixed;inset:0;z-index:9800;display:none;background:#000';
+    div.innerHTML = '<button onclick="closeStreetView()" style="position:absolute;top:12px;right:12px;z-index:10;background:rgba(0,0,0,0.75);color:#fff;border:1px solid #fff;border-radius:50%;width:40px;height:40px;font-size:18px;cursor:pointer">✕</button><div id="sv-container" style="width:100%;height:100%"></div>';
+    document.body.appendChild(div);
+  }
+  const panoEl = document.getElementById('street-view-pano');
+  panoEl.style.display = 'block';
+  new google.maps.StreetViewPanorama(document.getElementById('sv-container'), {
+    position:{lat,lng}, pov:{heading:0,pitch:0}, zoom:1
+  });
+  auditLog('Street View נפתח','info',lat.toFixed(4)+','+lng.toFixed(4));
+}
+function closeStreetView(){ const p=document.getElementById('street-view-pano'); if(p) p.style.display='none'; }
+
+// ══════════════════════════════════════════════════════════
+// #13 COMMAND ROUTES — draw route and broadcast to teams
+// ══════════════════════════════════════════════════════════
+let _cmdRouteDrawing = false, _cmdRoutePoints = [], _cmdRoutePolyline = null, _cmdRouteMarkers = [];
+function startRouteDraw(){
+  if(_cmdRouteDrawing){ finishRouteDraw(); return; }
+  _cmdRouteDrawing = true;
+  _cmdRoutePoints = [];
+  _cmdRouteMarkers.forEach(m=>m.setMap(null));
+  _cmdRouteMarkers = [];
+  if(_cmdRoutePolyline) _cmdRoutePolyline.setMap(null);
+  const btn = document.getElementById('route-btn');
+  if(btn) btn.style.borderColor='var(--accent)';
+  showToast({icon:'🧭',title:'לחץ על המפה להוספת נקודות',sub:'לחץ שוב 🧭 לסיום ושליחה',type:'info',duration:5000});
+  window._cmdRouteClickHandler = window.map.addListener('click', e=>{
+    if(!_cmdRouteDrawing) return;
+    _cmdRoutePoints.push(e.latLng);
+    const m = new google.maps.Marker({position:e.latLng,map:window.map,label:String(_cmdRoutePoints.length),
+      icon:{path:google.maps.SymbolPath.CIRCLE,scale:12,fillColor:'#29c5f6',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2}});
+    _cmdRouteMarkers.push(m);
+    if(_cmdRoutePoints.length>=2){
+      if(_cmdRoutePolyline) _cmdRoutePolyline.setMap(null);
+      _cmdRoutePolyline = new google.maps.Polyline({path:_cmdRoutePoints,map:window.map,strokeColor:'#29c5f6',strokeOpacity:0.85,strokeWeight:5,icons:[{icon:{path:google.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:4},offset:'50%',repeat:'100px'}]});
+    }
+  });
+}
+function finishRouteDraw(){
+  _cmdRouteDrawing = false;
+  if(window._cmdRouteClickHandler) google.maps.event.removeListener(window._cmdRouteClickHandler);
+  const btn = document.getElementById('route-btn');
+  if(btn) btn.style.borderColor='';
+  if(_cmdRoutePoints.length<2){
+    showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',type:'warn'});
+    return;
+  }
+  const routeName = prompt('שם המסלול:','מסלול פקודה '+new Date().toLocaleTimeString('he-IL'));
+  if(!routeName) return;
+  const routeData = {
+    id:'route_'+Date.now(),
+    name:routeName,
+    points:_cmdRoutePoints.map(p=>({lat:p.lat(),lng:p.lng()})),
+    createdBy:(AUTH.getUser()||{}).name||'מפקד',
+    createdAt:Date.now()
+  };
+  if(window._db){
+    window._db.ref('tac_routes/'+routeData.id).set(routeData).catch(()=>_queueOfflineAction('set','tac_routes/'+routeData.id,routeData));
+  }
+  auditLog('שרטוט מסלול פקודה: '+routeName,'info',_cmdRoutePoints.length+' נקודות');
+  showToast({icon:'🧭',title:'המסלול נשמר ושודר',sub:routeName,type:'success'});
+}
+
+// ══════════════════════════════════════════════════════════
+// #12 CLOSED AREA TAGGING — draw a circle and tag as blocked
+// ══════════════════════════════════════════════════════════
+let _closedAreaDrawing = false;
+function startClosedAreaDraw(){
+  if(_closedAreaDrawing){ _closedAreaDrawing=false; const b=document.getElementById('closed-area-btn'); if(b)b.style.borderColor=''; return; }
+  _closedAreaDrawing = true;
+  const btn = document.getElementById('closed-area-btn');
+  if(btn) btn.style.borderColor='var(--danger)';
+  showToast({icon:'🚫',title:'לחץ על המפה למרכז האזור הסגור',type:'info',duration:4000});
+  const lst = window.map.addListener('click', e=>{
+    if(!_closedAreaDrawing) return;
+    _closedAreaDrawing = false;
+    google.maps.event.removeListener(lst);
+    if(btn) btn.style.borderColor='';
+    const name = prompt('שם האזור הסגור:','אזור סגור '+new Date().toLocaleTimeString('he-IL'));
+    if(!name) return;
+    const radius = parseInt(prompt('רדיוס במטרים:','200')||'200',10);
+    const gf = {
+      id:'gf_'+Date.now(),name:name,type:'closed',color:'#ff3333',
+      active:true,lat:e.latLng.lat(),lng:e.latLng.lng(),radius:radius,
+      closed:true,closedReason:'אזור סגור — כניסה אסורה'
+    };
+    if(typeof GFS !== 'undefined') GFS.push(gf);
+    const circle = new google.maps.Circle({
+      map:window.map,center:{lat:gf.lat,lng:gf.lng},radius:radius,
+      fillColor:'#ff3333',fillOpacity:0.18,strokeColor:'#ff3333',strokeWeight:2,strokeOpacity:0.8
+    });
+    if(!window.geofenceCircles) window.geofenceCircles=[];
+    window.geofenceCircles.push(circle);
+    if(window._db) window._db.ref('tac_geofences/'+gf.id).set(gf).catch(()=>_queueOfflineAction('set','tac_geofences/'+gf.id,gf));
+    auditLog('סימון אזור סגור: '+name,'warn',radius+'מ רדיוס');
+    showToast({icon:'🚫',title:'אזור סגור סומן',sub:name,type:'danger'});
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// #16 QUICK EMERGENCY MODE — one button: SOS + share location + record
+// ══════════════════════════════════════════════════════════
+function quickEmergency(){
+  if(!confirm('מצב חירום מהיר:\n• שידור SOS\n• שיתוף מיקום חי\n• התראה למפקד\n\nלהמשיך?')) return;
+  // 1. Trigger SOS (double-call to skip confirmation)
+  _sosConfirmPending = true;
+  triggerSOS();
+  // 2. Enable location publishing
+  if(window._locPrivacyOn === false){
+    window._locPrivacyOn = true;
+    localStorage.setItem('tac_loc_privacy','1');
+    if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+    if(typeof SYNC!=='undefined') SYNC.autoStartPublishing();
+  }
+  // 3. Send urgent notification to command
+  const u = AUTH.getUser();
+  if(u && window._db){
+    const commanders = PERSONNEL.filter(p=>(p.permsOverride||[]).includes('admin') && p.id!==u.id).map(p=>p.id);
+    commanders.forEach(cid=>{
+      const nid = 'emerg_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      window._db.ref('tac_notifications/'+cid+'/'+nid).set({
+        id:nid,type:'alert',typeLabel:'חירום מהיר',
+        title:'🚨 מצב חירום: '+u.name,
+        body:'הופעל מצב חירום מהיר. בדוק מיקום ופנה מיידית.',
+        senderName:u.name,senderId:u.id,sentAt:Date.now()
+      }).catch(()=>{});
+    });
+  }
+  auditLog('מצב חירום מהיר הופעל','danger','');
+  showToast({icon:'⚡',title:'מצב חירום פעיל',sub:'SOS + מיקום + התראה למפקד',type:'danger',duration:6000});
+}
+
+// ══════════════════════════════════════════════════════════
+// #17/18/19 MISSION TEMPLATES, QUEUE, REPORTS — shared store
+// ══════════════════════════════════════════════════════════
+let MISSION_TEMPLATES = [];
+try{ MISSION_TEMPLATES = JSON.parse(localStorage.getItem('tac_msn_templates')||'[]'); }catch(e){}
+function _saveTemplates(){
+  try{ localStorage.setItem('tac_msn_templates',JSON.stringify(MISSION_TEMPLATES)); }catch(e){}
+  if(window._db) window._db.ref('tac_mission_templates').set(MISSION_TEMPLATES).catch(()=>{});
+}
+function boTemplates(c){
+  if(window._db && !MISSION_TEMPLATES.length){
+    window._db.ref('tac_mission_templates').once('value',s=>{
+      const v=s.val(); if(Array.isArray(v)){ MISSION_TEMPLATES=v; _renderTemplates(c); }
+    }).catch(()=>_renderTemplates(c));
+  }
+  _renderTemplates(c);
+}
+function _renderTemplates(c){
+  const DEFAULTS = [
+    {id:'tpl_arrest',name:'מעצר חשוד',type:'מעצר',priority:'high',requiredSkills:['נהג','נהיגה מבצעית'],equipment:['רובה','אפוד'],checklist:['אבטחת היקף','זיהוי חשוד','מעצר','ליווי לתחנה']},
+    {id:'tpl_chase',name:'מרדף',type:'מעקב',priority:'urgent',requiredSkills:['נהג','נהיגה מבצעית','קשר'],equipment:['רכב מהיר','מקלט'],checklist:['זיהוי רכב','מעקב','חסימה','מעצר']},
+    {id:'tpl_rescue',name:'חילוץ',type:'חילוץ',priority:'high',requiredSkills:['medic'],equipment:['ערכת חילוץ','חמ"ל רפואי'],checklist:['הערכת מצב','חילוץ','טיפול ראשוני','פינוי']}
+  ];
+  if(!MISSION_TEMPLATES.length) MISSION_TEMPLATES = DEFAULTS.slice();
+  let rows='';
+  MISSION_TEMPLATES.forEach((t,i)=>{
+    rows += '<tr>'
+      +'<td style="font-weight:600">'+escHtml(t.name)+'</td>'
+      +'<td>'+escHtml(t.type||'')+'</td>'
+      +'<td>'+escHtml(t.priority||'')+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+(t.requiredSkills||[]).join(', ')+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+(t.equipment||[]).join(', ')+'</td>'
+      +'<td><button class="act-btn" onclick="useTemplate(\''+t.id+'\')" title="השתמש">📋</button>'
+      +'<button class="act-btn del" onclick="delTemplate(\''+t.id+'\')">✕</button></td>'
+      +'</tr>';
+  });
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span>📝 תבניות משימה ('+MISSION_TEMPLATES.length+')</span>'
+    +'<button class="btn-sec" onclick="addTemplateModal()">+ תבנית חדשה</button>'
+    +'</div>'
+    +'<table class="bo-table"><thead><tr><th>שם</th><th>סוג</th><th>עדיפות</th><th>כישורים</th><th>ציוד</th><th>פעולות</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div>';
+}
+function addTemplateModal(){
+  document.getElementById('modal-ttl').textContent='📝 תבנית משימה חדשה';
+  document.getElementById('modal-body').innerHTML='<div class="form-g"><label>שם תבנית *</label><input type="text" id="tpl-name"/></div>'
+    +'<div class="form-g"><label>סוג</label><input type="text" id="tpl-type" placeholder="מעצר, חילוץ, מעקב..."/></div>'
+    +'<div class="form-g"><label>עדיפות</label><select id="tpl-prio"><option value="urgent">דחופה</option><option value="high">גבוהה</option><option value="normal">רגילה</option></select></div>'
+    +'<div class="form-g"><label>כישורים (מופרד בפסיקים)</label><input type="text" id="tpl-skills"/></div>'
+    +'<div class="form-g"><label>ציוד (מופרד בפסיקים)</label><input type="text" id="tpl-eq"/></div>'
+    +'<div class="form-g"><label>שלבים (שורה לכל שלב)</label><textarea id="tpl-check" rows="4"></textarea></div>';
+  modalCB=()=>{
+    const name = document.getElementById('tpl-name').value.trim();
+    if(!name) return;
+    MISSION_TEMPLATES.push({
+      id:'tpl_'+Date.now(),
+      name,
+      type:document.getElementById('tpl-type').value,
+      priority:document.getElementById('tpl-prio').value,
+      requiredSkills:document.getElementById('tpl-skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+      equipment:document.getElementById('tpl-eq').value.split(',').map(s=>s.trim()).filter(Boolean),
+      checklist:document.getElementById('tpl-check').value.split('\n').map(s=>s.trim()).filter(Boolean)
+    });
+    _saveTemplates();
+    auditLog('תבנית משימה נוצרה: '+name,'info','');
+    boTemplates(document.getElementById('bo-inner'));
+    showToast({icon:'📝',title:'תבנית נשמרה',type:'success'});
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+function delTemplate(id){
+  if(!confirm('למחוק תבנית?')) return;
+  MISSION_TEMPLATES = MISSION_TEMPLATES.filter(t=>t.id!==id);
+  _saveTemplates();
+  boTemplates(document.getElementById('bo-inner'));
+}
+function useTemplate(id){
+  const t = MISSION_TEMPLATES.find(x=>x.id===id);
+  if(!t) return;
+  showToast({icon:'📋',title:'תבנית מוחלת: '+t.name,sub:'פתח טופס משימה חדשה',type:'info'});
+  window._pendingTemplate = t;
+  if(typeof openNewMsnModal==='function') openNewMsnModal();
+  setTimeout(()=>applyMsnTemplate(t.id),200);
+}
+function applyMsnTemplate(tplId){
+  const t = MISSION_TEMPLATES.find(x=>x.id===tplId);
+  if(!t) return;
+  const title = document.getElementById('nm-title');
+  if(title && !title.value) title.value = t.name;
+  const prio = document.getElementById('nm-prio');
+  if(prio && t.priority){
+    const m = {urgent:'קריטית',high:'גבוה',normal:'בינוני'};
+    prio.value = m[t.priority]||'בינוני';
+  }
+  const eq = document.getElementById('nm-equip');
+  if(eq) eq.value = (t.equipment||[]).join(', ');
+  (t.requiredSkills||[]).forEach(skill=>{
+    const cb = document.querySelector('.skills-req-grid input[value="'+skill+'"]');
+    if(cb){ cb.checked=true; if(cb.closest('label')) cb.closest('label').classList.add('checked'); }
+  });
+  window._pendingTemplate = t;
+  showToast({icon:'📋',title:'תבנית הוחלה: '+t.name,type:'success'});
+}
+
+// #19 END-OF-MISSION REPORT
+function openMissionReportModal(mid){
+  const m = (MISSIONS||[]).find(x=>x.id===mid);
+  if(!m){ showToast({icon:'⚠️',title:'משימה לא נמצאה',type:'warn'}); return; }
+  const r = m.report || {};
+  document.getElementById('modal-ttl').textContent='📋 דו"ח סיום: '+m.title;
+  document.getElementById('modal-body').innerHTML = ''
+    +'<div class="form-g"><label>סיכום מה קרה *</label><textarea id="rep-summary" rows="4" placeholder="תיאור מהלך המשימה...">'+escHtml(r.summary||'')+'</textarea></div>'
+    +'<div class="form-row">'
+    +'<div class="form-g"><label>משך (דקות)</label><input type="number" id="rep-duration" value="'+(r.duration||'')+'"/></div>'
+    +'<div class="form-g"><label>נפגעים</label><input type="number" id="rep-casualties" value="'+(r.casualties||0)+'"/></div>'
+    +'<div class="form-g"><label>מעצרים</label><input type="number" id="rep-arrests" value="'+(r.arrests||0)+'"/></div>'
+    +'</div>'
+    +'<div class="form-g"><label>לקחים ומה ללמוד</label><textarea id="rep-lessons" rows="3">'+escHtml(r.lessons||'')+'</textarea></div>'
+    +'<div class="form-g"><label>תוצאה</label><select id="rep-outcome"><option value="success" '+(r.outcome==='success'?'selected':'')+'>✅ הצליחה</option><option value="partial" '+(r.outcome==='partial'?'selected':'')+'>⚠️ חלקית</option><option value="failed" '+(r.outcome==='failed'?'selected':'')+'>❌ נכשלה</option></select></div>';
+  modalCB=()=>{
+    m.report = {
+      summary:document.getElementById('rep-summary').value,
+      duration:parseInt(document.getElementById('rep-duration').value||0,10),
+      casualties:parseInt(document.getElementById('rep-casualties').value||0,10),
+      arrests:parseInt(document.getElementById('rep-arrests').value||0,10),
+      lessons:document.getElementById('rep-lessons').value,
+      outcome:document.getElementById('rep-outcome').value,
+      submittedAt:Date.now(),
+      submittedBy:(AUTH.getUser()||{}).name||''
+    };
+    m.status = 'completed';
+    if(typeof v5Save==='function') v5Save();
+    auditLog('דו"ח סיום משימה: '+m.title,'success',m.report.outcome);
+    showToast({icon:'📋',title:'דו"ח נשמר',sub:m.title,type:'success'});
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+
+// #17 Mission queue processor — checks every minute for scheduled missions
+setInterval(()=>{
+  if(typeof MISSIONS==='undefined') return;
+  const now = Date.now();
+  MISSIONS.forEach(m=>{
+    if(m.status==='scheduled' && m.scheduledAt && m.scheduledAt<=now){
+      m.status = 'active';
+      m.timeline = m.timeline||[];
+      m.timeline.push({t:nowT(),txt:'המשימה הופעלה אוטומטית'});
+      auditLog('משימה מתוזמנת הופעלה: '+m.title,'info','');
+      showToast({icon:'⏰',title:'משימה הופעלה',sub:m.title,type:'success',duration:5000});
+      if(typeof v5Save==='function') v5Save();
+    }
+  });
+}, 60000);
+
+// ══════════════════════════════════════════════════════════
+// #26/27 EQUIPMENT — personal gear + shared warehouse
+// ══════════════════════════════════════════════════════════
+let EQUIPMENT_ITEMS = []; // warehouse items
+try{ EQUIPMENT_ITEMS = JSON.parse(localStorage.getItem('tac_equipment')||'[]'); }catch(e){}
+function _saveEquipment(){
+  try{ localStorage.setItem('tac_equipment',JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+  if(window._db) window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS).catch(()=>{});
+}
+function boEquipment(c){
+  if(window._db && !EQUIPMENT_ITEMS.length){
+    window._db.ref('tac_equipment').once('value',s=>{
+      const v=s.val(); if(Array.isArray(v)){ EQUIPMENT_ITEMS=v; }
+      _renderEquipment(c);
+    }).catch(()=>_renderEquipment(c));
+  } else _renderEquipment(c);
+}
+function _renderEquipment(c){
+  const filter = (window._eqFilter||'').toLowerCase();
+  const items = EQUIPMENT_ITEMS.filter(e=>{
+    if(!filter) return true;
+    return (e.name||'').toLowerCase().includes(filter) || (e.holder||'').toLowerCase().includes(filter);
+  });
+  let rows='';
+  items.forEach((it,i)=>{
+    const status = it.holder ? '<span style="color:var(--warn)">בשימוש</span>' : '<span style="color:var(--accent)">זמין</span>';
+    rows += '<tr>'
+      +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
+      +'<td>'+escHtml(it.category||'')+'</td>'
+      +'<td>'+escHtml(it.serial||'')+'</td>'
+      +'<td>'+status+'</td>'
+      +'<td>'+escHtml(it.holder||'—')+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
+      +'<td><button class="act-btn" onclick="toggleEquipmentHolder(\''+it.id+'\')" title="החזר/הוצא">⇄</button>'
+      +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+      +'</tr>';
+  });
+  const stats = {available:EQUIPMENT_ITEMS.filter(e=>!e.holder).length, inUse:EQUIPMENT_ITEMS.filter(e=>e.holder).length};
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span>🎒 מחסן ציוד ('+EQUIPMENT_ITEMS.length+' פריטים)</span>'
+    +'<button class="btn-sec" onclick="addEquipmentModal()">+ פריט חדש</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'<div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+stats.available+'</div><div style="font-size:11px;color:var(--text3)">זמין</div></div>'
+    +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+stats.inUse+'</div><div style="font-size:11px;color:var(--text3)">בשימוש</div></div>'
+    +'</div>'
+    +'<input type="text" placeholder="חיפוש..." value="'+(window._eqFilter||'')+'" oninput="window._eqFilter=this.value;boEquipment(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin-bottom:10px"/>'
+    +'<table class="bo-table"><thead><tr><th>פריט</th><th>קטגוריה</th><th>סריאלי</th><th>סטטוס</th><th>מחזיק</th><th>תאריך הוצאה</th><th>פעולות</th></tr></thead><tbody>'
+    +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">אין פריטים</td></tr>')
+    +'</tbody></table></div>';
+}
+function addEquipmentModal(){
+  document.getElementById('modal-ttl').textContent='🎒 פריט ציוד חדש';
+  document.getElementById('modal-body').innerHTML='<div class="form-g"><label>שם פריט *</label><input type="text" id="eq-name"/></div>'
+    +'<div class="form-g"><label>קטגוריה</label><select id="eq-cat"><option>רדיו</option><option>ציוד רפואי</option><option>נשק</option><option>סולם</option><option>ערכת חילוץ</option><option>ציוד לילה</option><option>אחר</option></select></div>'
+    +'<div class="form-g"><label>מספר סריאלי</label><input type="text" id="eq-serial"/></div>'
+    +'<div class="form-g"><label>הערות</label><input type="text" id="eq-notes"/></div>';
+  modalCB=()=>{
+    const name = document.getElementById('eq-name').value.trim();
+    if(!name) return;
+    EQUIPMENT_ITEMS.push({
+      id:'eq_'+Date.now(),name,
+      category:document.getElementById('eq-cat').value,
+      serial:document.getElementById('eq-serial').value,
+      notes:document.getElementById('eq-notes').value,
+      holder:'',takenAt:null
+    });
+    _saveEquipment();
+    auditLog('פריט ציוד נוסף: '+name,'info','');
+    boEquipment(document.getElementById('bo-inner'));
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+function delEquipment(id){
+  if(!confirm('למחוק פריט?')) return;
+  EQUIPMENT_ITEMS = EQUIPMENT_ITEMS.filter(e=>e.id!==id);
+  _saveEquipment();
+  boEquipment(document.getElementById('bo-inner'));
+}
+function toggleEquipmentHolder(id){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===id);
+  if(!it) return;
+  if(it.holder){
+    it.holder=''; it.takenAt=null;
+    auditLog('החזרת ציוד: '+it.name,'info','');
+  } else {
+    const holder = prompt('שם מחזיק:',AUTH.getUser()?AUTH.getUser().name:'');
+    if(!holder) return;
+    it.holder = holder; it.takenAt = Date.now();
+    auditLog('הוצאת ציוד: '+it.name,'info',holder);
+  }
+  _saveEquipment();
+  boEquipment(document.getElementById('bo-inner'));
+}
+
+// ══════════════════════════════════════════════════════════
+// #7 GROUP CHAT — realtime team chat via Firebase
+// ══════════════════════════════════════════════════════════
+let _chatUnsub = null, _chatCurrentTeam = '';
+function boChat(c){
+  const teams = (typeof TEAMS!=='undefined')?TEAMS:[];
+  if(!_chatCurrentTeam && teams.length) _chatCurrentTeam = teams[0].id;
+  let tabsHtml = teams.map(t=>'<button class="bo-tab '+(_chatCurrentTeam===t.id?'active':'')+'" onclick="switchChatTeam(\''+t.id+'\')" style="background:'+(_chatCurrentTeam===t.id?t.color:'')+';color:'+(_chatCurrentTeam===t.id?'#07090a':'')+'">'+escHtml(t.name)+'</button>').join('');
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd">💬 צ\'אט צוותים</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">'+tabsHtml+'</div>'
+    +'<div id="chat-msgs" style="height:400px;overflow-y:auto;background:var(--panel2);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px"></div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px">'
+    +'<input type="text" id="chat-input" placeholder="הקלד הודעה..." style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font)" onkeydown="if(event.key===\'Enter\')sendChatMsg()"/>'
+    +'<button class="btn-pri" onclick="sendChatMsg()" style="padding:9px 18px">שלח</button>'
+    +'</div></div>';
+  if(_chatCurrentTeam) _subscribeChat(_chatCurrentTeam);
+}
+function switchChatTeam(teamId){
+  _chatCurrentTeam = teamId;
+  boChat(document.getElementById('bo-inner'));
+}
+function _subscribeChat(teamId){
+  if(_chatUnsub) _chatUnsub();
+  if(!window._db) return;
+  const ref = window._db.ref('tac_chat/'+teamId).orderByChild('ts').limitToLast(50);
+  const handler = ref.on('value', snap=>{
+    const data = snap.val()||{};
+    const msgs = Object.values(data).sort((a,b)=>(a.ts||0)-(b.ts||0));
+    const box = document.getElementById('chat-msgs');
+    if(!box) return;
+    const me = (AUTH.getUser()||{}).id;
+    box.innerHTML = msgs.map(m=>{
+      const isMe = m.userId===me;
+      return '<div style="align-self:'+(isMe?'flex-start':'flex-end')+';max-width:75%;background:'+(isMe?'var(--accent)':'var(--panel)')+';color:'+(isMe?'#07090a':'var(--text)')+';padding:8px 12px;border-radius:12px;font-size:13px"><div style="font-weight:700;font-size:11px;opacity:0.8">'+escHtml(m.user||'')+'</div>'+escHtml(m.body||'')+'<div style="font-size:10px;opacity:0.6;margin-top:3px">'+new Date(m.ts||Date.now()).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'</div></div>';
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  });
+  _chatUnsub = ()=>window._db.ref('tac_chat/'+teamId).off('value', handler);
+}
+function sendChatMsg(){
+  const input = document.getElementById('chat-input');
+  if(!input || !input.value.trim() || !_chatCurrentTeam) return;
+  const u = AUTH.getUser();
+  const msg = {
+    user:u?u.name:'אנונימי', userId:u?u.id:'',
+    body:input.value.trim(), ts:Date.now()
+  };
+  if(window._db){
+    window._db.ref('tac_chat/'+_chatCurrentTeam).push(msg).catch(()=>_queueOfflineAction('push','tac_chat/'+_chatCurrentTeam,msg));
+  }
+  input.value = '';
+  auditLog('הודעת צ\'אט נשלחה','info','');
+}
+
+// ══════════════════════════════════════════════════════════
+// #31 COMMAND WALL — fullscreen overview mode
+// ══════════════════════════════════════════════════════════
+function enterCommandWall(){
+  let wall = document.getElementById('command-wall');
+  if(!wall){
+    wall = document.createElement('div');
+    wall.id = 'command-wall';
+    wall.style.cssText = 'position:fixed;inset:0;z-index:9700;background:#07090a;color:#fff;font-family:Heebo,sans-serif;direction:rtl;display:none;overflow:hidden;padding:20px';
+    wall.innerHTML = '<button onclick="exitCommandWall()" style="position:absolute;top:12px;left:12px;background:rgba(255,255,255,0.08);border:1px solid var(--border2);color:#fff;padding:8px 16px;border-radius:8px;cursor:pointer;z-index:10">✕ סגור</button>'
+      +'<div style="text-align:center;margin-bottom:20px"><h1 style="color:var(--accent);margin:0;font-size:32px">🖥️ מסך מפקד</h1><div id="cw-time" style="font-size:18px;color:var(--text2);margin-top:6px"></div></div>'
+      +'<div id="cw-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;height:calc(100vh - 140px)"></div>';
+    document.body.appendChild(wall);
+  }
+  wall.style.display = 'block';
+  _updateCommandWall();
+  if(window._cwInterval) clearInterval(window._cwInterval);
+  window._cwInterval = setInterval(_updateCommandWall, 3000);
+  auditLog('מסך מפקד הופעל','info','');
+}
+function exitCommandWall(){
+  const wall = document.getElementById('command-wall');
+  if(wall) wall.style.display='none';
+  if(window._cwInterval){ clearInterval(window._cwInterval); window._cwInterval=null; }
+}
+function _updateCommandWall(){
+  const t = document.getElementById('cw-time');
+  if(t) t.textContent = new Date().toLocaleString('he-IL');
+  const g = document.getElementById('cw-grid');
+  if(!g) return;
+  const activeMsn = (MISSIONS||[]).filter(m=>m.status==='active'||m.status==='urgent').length;
+  const urgMsn = (MISSIONS||[]).filter(m=>m.status==='urgent').length;
+  const openInc = (INCIDENTS||[]).filter(i=>i.status!=='סגור').length;
+  const liveUsers = Object.keys(_liveLocs||{}).length;
+  const availPersonnel = PERSONNEL.filter(p=>p.available).length;
+  const totalPersonnel = PERSONNEL.length;
+  const recentAudit = auditEntries.slice(0,5);
+  g.innerHTML = ''
+    +'<div style="background:#0d1014;border:1px solid #1a2838;border-radius:12px;padding:20px"><div style="font-size:14px;color:var(--text3);margin-bottom:8px">משימות פעילות</div><div style="font-size:56px;font-weight:900;color:var(--accent)">'+activeMsn+'</div><div style="font-size:13px;color:var(--danger);margin-top:6px">🚨 '+urgMsn+' דחופות</div></div>'
+    +'<div style="background:#0d1014;border:1px solid #1a2838;border-radius:12px;padding:20px"><div style="font-size:14px;color:var(--text3);margin-bottom:8px">כוחות חיים</div><div style="font-size:56px;font-weight:900;color:var(--blue)">'+liveUsers+'</div><div style="font-size:13px;color:var(--text3);margin-top:6px">🟢 '+availPersonnel+'/'+totalPersonnel+' זמינים</div></div>'
+    +'<div style="background:#0d1014;border:1px solid #1a2838;border-radius:12px;padding:20px"><div style="font-size:14px;color:var(--text3);margin-bottom:8px">אירועים פתוחים</div><div style="font-size:56px;font-weight:900;color:var(--warn)">'+openInc+'</div><div style="font-size:13px;color:var(--text3);margin-top:6px">יומן אירועים</div></div>'
+    +'<div style="grid-column:span 3;background:#0d1014;border:1px solid #1a2838;border-radius:12px;padding:20px;overflow:hidden"><div style="font-size:14px;color:var(--text3);margin-bottom:12px">📜 פעילות אחרונה</div>'
+    +recentAudit.map(e=>'<div style="font-size:14px;padding:6px 0;border-bottom:1px solid #1a2838"><span style="color:var(--text3);font-family:monospace;margin-left:12px">'+(e.ts?new Date(e.ts).toLocaleTimeString('he-IL'):e.time||'')+'</span><span style="color:var(--accent2);margin-left:12px">'+escHtml(e.user||'')+'</span><span>'+escHtml(e.action||'')+'</span></div>').join('')
+    +'</div>';
+}
+
+// ══════════════════════════════════════════════════════════
+// #32 SMART WATCH — enhanced push metadata for wearables
+// ══════════════════════════════════════════════════════════
+// When sendPush is called, we enrich the payload with fields wearables recognize:
+// badge, vibrate pattern, requireInteraction, actions. Already added in PUSH.sendPush webpush config.
+// Smart watches (Wear OS, Apple Watch) automatically mirror web push notifications when the phone is paired.
+// No additional code needed — the PUSH.sendPush() already includes actions:[{open},{ack}] which show on watch.
 
 // ── ADDRESS AUTOCOMPLETE — Google Places API ──
 // ── INIT ──
