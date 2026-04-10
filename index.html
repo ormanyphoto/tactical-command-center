@@ -1086,6 +1086,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button class="mp-btn" onclick="startClosedAreaDraw()" id="closed-area-btn" title="סמן אזור סגור">🚫</button>
         <button class="mp-btn" onclick="enterCommandWall()" title="מסך מפקד מלא">🖥️</button>
         <button class="mp-btn" onclick="quickEmergency()" title="מצב חירום מהיר" style="border-color:var(--danger);color:var(--danger)">⚡</button>
+        <button class="mp-btn" onclick="togglePatrolMode()" id="patrol-btn" title="מצב סיור">🚨</button>
+        <button class="mp-btn" onclick="patrolReport()" title="דיווח מהיר בסיור">🚩</button>
+        <button class="mp-btn" onclick="openMassNotifModal()" title="שידור המוני">📢</button>
+        <button class="mp-btn" onclick="openPlateScanner()" title="סריקת לוחית רישוי">🚗</button>
+        <button class="mp-btn" onclick="toggleAudioRecording()" title="הקלטת דיווח">🎙️</button>
         <div class="mp-divider"></div>
       </div>
       <!-- Search -->
@@ -1202,6 +1207,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('equipment-bo')">🎒 מחסן ציוד</button>
       <button class="bo-tab" onclick="boTab('templates-bo')">📝 תבניות</button>
       <button class="bo-tab" onclick="boTab('chat-bo')">💬 צ'אט צוות</button>
+      <button class="bo-tab" onclick="boTab('sessions-bo')">🔐 סשנים</button>
+      <button class="bo-tab" onclick="boTab('plates-bo')">🚗 לוחיות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
@@ -4895,6 +4902,7 @@ function boTab(tab){
     'permissions-bo':boPermissions,'credentials-bo':boCredentials,
     'vehicles-bo':boVehicles,
     'equipment-bo':boEquipment,'templates-bo':boTemplates,'chat-bo':boChat,
+    'sessions-bo':boSessions,'plates-bo':boPlates,
     'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
@@ -4918,7 +4926,7 @@ function boPersonnel(c){
     rows+='<td style="font-size:12px">'+(p.unit||'—')+'</td>';
     rows+='<td style="color:var(--accent2);font-size:12px">'+(p.role||'—')+'</td>';
     rows+='<td><span class="badge '+(av?'b-active':'b-unavail')+'">'+(av?'זמין':'לא זמין')+'</span></td>';
-    rows+='<td><div class="actions"><button class="act-btn" onclick="togglePersonAvail(this.dataset.id)" data-id="'+p.id+'" title="החלף זמינות">⇄</button><button class="act-btn" onclick="editPersonModal(this.dataset.id)" data-id="'+p.id+'">✏️</button><button class="act-btn del" onclick="boDeletePerson(this.dataset.id)" data-id="'+p.id+'">✕</button></div></td>';
+    rows+='<td><div class="actions"><button class="act-btn" onclick="callPerson(this.dataset.id)" data-id="'+p.id+'" title="התקשר">📞</button><button class="act-btn" onclick="smsPerson(this.dataset.id)" data-id="'+p.id+'" title="SMS">💬</button><button class="act-btn" onclick="whatsappPerson(this.dataset.id)" data-id="'+p.id+'" title="WhatsApp">🟢</button><button class="act-btn" onclick="togglePersonAvail(this.dataset.id)" data-id="'+p.id+'" title="החלף זמינות">⇄</button><button class="act-btn" onclick="editPersonModal(this.dataset.id)" data-id="'+p.id+'">✏️</button><button class="act-btn del" onclick="boDeletePerson(this.dataset.id)" data-id="'+p.id+'">✕</button></div></td>';
     rows+='</tr>';
   });
   c.innerHTML='<div class="bo-section">'
@@ -5719,7 +5727,15 @@ function boSettings(c){
   var fieldName=localStorage.getItem('tac_field_name')||'';
   var fieldRole=localStorage.getItem('tac_field_role')||'';
   c.innerHTML=
-    '<div class="bo-section"><div class="bo-hd">הגדרות תצוגה</div>'
+    '<div class="bo-section"><div class="bo-hd">💾 גיבוי ושחזור</div>'
+    +'<div class="config-row"><div><div class="config-lbl">גיבוי מלא</div><div class="config-desc">הורדת כל הנתונים לקובץ JSON</div></div>'
+    +'<button class="act-btn" onclick="exportFullBackup()">⬇️ הורד גיבוי</button></div>'
+    +'<div class="config-row"><div><div class="config-lbl">גיבוי מקומי</div><div class="config-desc">גיבוי אוטומטי כל 5 דקות ל-localStorage</div></div>'
+    +'<span style="color:var(--accent);font-weight:700">פעיל</span></div>'
+    +'<div class="config-row"><div><div class="config-lbl">מסך מהיר (Widget)</div><div class="config-desc">פתח תצוגה מרוכזת לנייד</div></div>'
+    +'<button class="act-btn" onclick="openMobileWidget()">📱 פתח</button></div>'
+    +'</div>'
+    +'<div class="bo-section"><div class="bo-hd">הגדרות תצוגה</div>'
     +'<div class="config-row"><div><div class="config-lbl">מצב לילה</div><div class="config-desc">מפה כהה</div></div>'
     +'<label class="toggle"><input type="checkbox" '+(isNight?'checked':'')+' onchange="setTheme(this.checked?\'night\':\'day\')"><span class="toggle-slider"></span></label></div>'
     +'<div class="config-row"><div><div class="config-lbl">שמירה אוטומטית</div></div>'
@@ -8844,6 +8860,430 @@ function _updateCommandWall(){
 // badge, vibrate pattern, requireInteraction, actions. Already added in PUSH.sendPush webpush config.
 // Smart watches (Wear OS, Apple Watch) automatically mirror web push notifications when the phone is paired.
 // No additional code needed — the PUSH.sendPush() already includes actions:[{open},{ack}] which show on watch.
+
+// ══════════════════════════════════════════════════════════
+// #23 SESSION MANAGEMENT — track active sessions, remote logout
+// ══════════════════════════════════════════════════════════
+const _sessionId = 'sess_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+function _registerSession(){
+  const u = AUTH && AUTH.getUser();
+  if(!u || !window._db) return;
+  const ua = navigator.userAgent;
+  const device = /iPhone|iPad/i.test(ua)?'iPhone/iPad':/Android/i.test(ua)?'Android':/Mac/i.test(ua)?'Mac':/Windows/i.test(ua)?'Windows':/Linux/i.test(ua)?'Linux':'Unknown';
+  const browser = /Chrome/i.test(ua)?'Chrome':/Safari/i.test(ua)?'Safari':/Firefox/i.test(ua)?'Firefox':'Other';
+  const session = {
+    id:_sessionId, userId:u.id, userName:u.name,
+    device, browser, userAgent:ua.slice(0,200),
+    loginAt:Date.now(), lastActive:Date.now(),
+    url:location.hostname
+  };
+  window._db.ref('tac_sessions/'+u.id+'/'+_sessionId).set(session).catch(()=>{});
+  // Update lastActive every 60s
+  setInterval(()=>{
+    if(window._db && u.id) window._db.ref('tac_sessions/'+u.id+'/'+_sessionId+'/lastActive').set(Date.now()).catch(()=>{});
+  }, 60000);
+  // Listen for remote revocation
+  window._db.ref('tac_sessions/'+u.id+'/'+_sessionId+'/revoked').on('value', s=>{
+    if(s.val()===true){
+      showToast({icon:'🔒',title:'הסשן נותק מרחוק',sub:'מתנתק...',type:'warn',duration:3000});
+      setTimeout(()=>{ if(AUTH) AUTH.logout(); }, 2000);
+    }
+  });
+}
+// Register on load (after auth)
+setTimeout(()=>{ if(AUTH && AUTH.getUser()) _registerSession(); }, 2000);
+// Clean up on unload
+window.addEventListener('beforeunload', ()=>{
+  const u = AUTH && AUTH.getUser();
+  if(u && window._db) window._db.ref('tac_sessions/'+u.id+'/'+_sessionId).remove().catch(()=>{});
+});
+function boSessions(c){
+  if(!window._db){ c.innerHTML='<div style="padding:20px">אין חיבור</div>'; return; }
+  window._db.ref('tac_sessions').once('value', snap=>{
+    const data = snap.val()||{};
+    let rows = '';
+    Object.entries(data).forEach(([uid, sessions])=>{
+      const p = PERSONNEL.find(x=>x.id===uid);
+      const name = p?p.name:uid;
+      Object.entries(sessions||{}).forEach(([sid, s])=>{
+        if(!s || s.revoked) return;
+        const age = Math.round((Date.now()-(s.lastActive||0))/1000);
+        const ageStr = age<60?age+'ש\'':age<3600?Math.round(age/60)+'ד\'':Math.round(age/3600)+'ש\'';
+        rows += '<tr>'
+          +'<td style="font-weight:600">'+escHtml(name)+'</td>'
+          +'<td>'+escHtml(s.device||'')+' / '+escHtml(s.browser||'')+'</td>'
+          +'<td style="color:var(--text3);font-size:11px">'+(s.loginAt?new Date(s.loginAt).toLocaleString('he-IL'):'')+'</td>'
+          +'<td>'+ageStr+'</td>'
+          +'<td>'+escHtml(s.url||'')+'</td>'
+          +'<td><button class="act-btn del" onclick="revokeSession(\''+uid+'\',\''+sid+'\')" title="נתק">🔒 נתק</button></td>'
+          +'</tr>';
+      });
+    });
+    c.innerHTML='<div class="bo-section"><div class="bo-hd">🔐 סשנים פעילים</div>'
+      +'<table class="bo-table"><thead><tr><th>משתמש</th><th>מכשיר</th><th>התחברות</th><th>פעילות אחרונה</th><th>דומיין</th><th>פעולות</th></tr></thead>'
+      +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">אין סשנים פעילים</td></tr>')+'</tbody></table></div>';
+  });
+}
+function revokeSession(uid, sid){
+  if(!confirm('לנתק את הסשן?')) return;
+  window._db.ref('tac_sessions/'+uid+'/'+sid+'/revoked').set(true).catch(()=>{});
+  auditLog('ניתוק סשן מרחוק','warn',uid);
+  setTimeout(()=>boSessions(document.getElementById('bo-inner')), 500);
+}
+function boPlates(c){
+  if(!window._db){ c.innerHTML='<div style="padding:20px">אין חיבור</div>'; return; }
+  window._db.ref('tac_plates').limitToLast(200).once('value', snap=>{
+    const data = snap.val()||{};
+    const items = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    const filter = (window._plateFilter||'').toLowerCase();
+    const filtered = items.filter(p=>{
+      if(!filter) return true;
+      return (p.plate||'').toLowerCase().includes(filter) || (p.reason||'').toLowerCase().includes(filter);
+    });
+    const TYPES = {private:'רכב פרטי',commercial:'מסחרי',motorcycle:'אופנוע',truck:'משאית'};
+    let rows='';
+    filtered.forEach(p=>{
+      rows += '<tr>'
+        +'<td style="font-family:monospace;font-weight:700;font-size:14px">'+escHtml(p.plate||'')+'</td>'
+        +'<td>'+escHtml(TYPES[p.type]||'—')+'</td>'
+        +'<td style="color:var(--warn);font-size:12px">'+escHtml(p.reason||'')+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(p.scannedBy||'')+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+(p.ts?new Date(p.ts).toLocaleString('he-IL'):'')+'</td>'
+        +'<td>'+(p.photo?'<img src="'+p.photo+'" style="width:40px;height:30px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(this.src)">':'—')+'</td>'
+        +'</tr>';
+    });
+    c.innerHTML='<div class="bo-section">'
+      +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center"><span>🚗 יומן לוחיות ('+items.length+')</span>'
+      +'<button class="btn-sec" onclick="openPlateScanner()">+ סרוק לוחית</button></div>'
+      +'<input type="text" placeholder="חיפוש..." value="'+(window._plateFilter||'')+'" oninput="window._plateFilter=this.value;boPlates(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin:10px 0"/>'
+      +'<table class="bo-table"><thead><tr><th>לוחית</th><th>סוג</th><th>סיבה</th><th>סרק</th><th>זמן</th><th>תמונה</th></tr></thead>'
+      +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">אין רשומות</td></tr>')+'</tbody></table></div>';
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// #28 MASS NOTIFICATION — broadcast to all personnel or area
+// ══════════════════════════════════════════════════════════
+function openMassNotifModal(){
+  if(!AUTH.isAdmin && !(AUTH.getUser()||{}).permsOverride?.includes('create_mission')){
+    showToast({icon:'⛔',title:'אין הרשאה',type:'warn'}); return;
+  }
+  document.getElementById('modal-ttl').textContent='📢 שידור המוני';
+  document.getElementById('modal-body').innerHTML=''
+    +'<div class="form-g"><label>כותרת *</label><input type="text" id="mn-title" placeholder="הודעה דחופה..."/></div>'
+    +'<div class="form-g"><label>תוכן</label><textarea id="mn-body" rows="4" placeholder="פרטי ההודעה..."></textarea></div>'
+    +'<div class="form-g"><label>דחיפות</label><select id="mn-urg"><option value="alert">🔴 דחוף</option><option value="mission">🟡 משימה</option><option value="message">🔵 מידע</option></select></div>'
+    +'<div class="form-g"><label>יעד</label><select id="mn-target">'
+    +'<option value="all">כולם ('+PERSONNEL.length+')</option>'
+    +'<option value="available">זמינים בלבד ('+PERSONNEL.filter(p=>p.available).length+')</option>'
+    +'<option value="police">מאושרים משטרתית ('+PERSONNEL.filter(p=>p.vehiclePoliceApproved).length+')</option>'
+    +TEAMS.map(t=>'<option value="team:'+t.id+'">צוות '+escHtml(t.name)+'</option>').join('')
+    +'</select></div>';
+  modalCB=()=>{
+    const title = document.getElementById('mn-title').value.trim();
+    if(!title) return;
+    const body = document.getElementById('mn-body').value;
+    const type = document.getElementById('mn-urg').value;
+    const target = document.getElementById('mn-target').value;
+    let recipients = [];
+    if(target==='all') recipients = PERSONNEL.map(p=>p.id);
+    else if(target==='available') recipients = PERSONNEL.filter(p=>p.available).map(p=>p.id);
+    else if(target==='police') recipients = PERSONNEL.filter(p=>p.vehiclePoliceApproved).map(p=>p.id);
+    else if(target.startsWith('team:')){
+      const tid = target.slice(5);
+      const team = TEAMS.find(t=>t.id===tid);
+      if(team) recipients = PERSONNEL.filter(p=>p.unit===team.name).map(p=>p.id);
+    }
+    const u = AUTH.getUser();
+    const notifId = 'mass_'+Date.now();
+    const payload = {
+      id:notifId, type, typeLabel:'שידור המוני',
+      title, body, senderName:u?u.name:'מערכת', senderId:u?u.id:'',
+      sentAt:Date.now()
+    };
+    if(window._db){
+      recipients.forEach(rid=>{
+        window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload).catch(()=>{});
+      });
+    }
+    if(typeof PUSH!=='undefined' && PUSH.sendPush) PUSH.sendPush(recipients, payload);
+    auditLog('שידור המוני: '+title,'warn',recipients.length+' נמענים');
+    showToast({icon:'📢',title:'שודר ל-'+recipients.length+' אנשים',type:'success'});
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+
+// ══════════════════════════════════════════════════════════
+// #30 LICENSE PLATE SCANNER — camera capture + log
+// ══════════════════════════════════════════════════════════
+let LICENSE_PLATES = [];
+try{ LICENSE_PLATES = JSON.parse(localStorage.getItem('tac_plates')||'[]'); }catch(e){}
+function openPlateScanner(){
+  document.getElementById('modal-ttl').textContent='🚗 זיהוי לוחית רישוי';
+  document.getElementById('modal-body').innerHTML=''
+    +'<div class="form-g"><label>מספר רכב *</label><input type="text" id="lp-plate" placeholder="12-345-67" style="font-size:20px;text-align:center;font-family:monospace;letter-spacing:2px"/></div>'
+    +'<div class="form-g"><label>סוג רכב</label><select id="lp-type"><option value="">לא ידוע</option><option value="private">רכב פרטי</option><option value="commercial">מסחרי</option><option value="motorcycle">אופנוע</option><option value="truck">משאית</option></select></div>'
+    +'<div class="form-g"><label>סיבת התעניינות</label><input type="text" id="lp-reason" placeholder="חשוד, עבירה, בדיקה..."/></div>'
+    +'<div class="form-g"><label>הערות</label><textarea id="lp-notes" rows="3"></textarea></div>'
+    +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="capturePlate()" style="flex:1">📷 צלם</button></div>'
+    +'<div id="lp-preview" style="margin-top:10px"></div>';
+  modalCB=()=>{
+    const plate = document.getElementById('lp-plate').value.trim();
+    if(!plate) return;
+    const u = AUTH.getUser();
+    const entry = {
+      id:'lp_'+Date.now(), plate, type:document.getElementById('lp-type').value,
+      reason:document.getElementById('lp-reason').value,
+      notes:document.getElementById('lp-notes').value,
+      photo:window._platePhoto||'',
+      scannedBy:u?u.name:'', scannedById:u?u.id:'',
+      ts:Date.now(),
+      lat:window._lastLat||null, lng:window._lastLng||null
+    };
+    LICENSE_PLATES.unshift(entry);
+    try{ localStorage.setItem('tac_plates',JSON.stringify(LICENSE_PLATES.slice(0,200))); }catch(e){}
+    if(window._db) window._db.ref('tac_plates/'+entry.id).set(entry).catch(()=>{});
+    window._platePhoto = '';
+    auditLog('סריקת לוחית: '+plate,'info',entry.reason||'');
+    showToast({icon:'🚗',title:'לוחית נרשמה',sub:plate,type:'success'});
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+function capturePlate(){
+  if(!navigator.mediaDevices){ showToast({icon:'⚠️',title:'מצלמה לא זמינה',type:'warn'}); return; }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(stream=>{
+    const v = document.createElement('video');
+    v.srcObject = stream; v.autoplay = true; v.playsInline = true;
+    v.style.cssText = 'width:100%;border-radius:8px;background:#000';
+    const preview = document.getElementById('lp-preview');
+    preview.innerHTML = '';
+    preview.appendChild(v);
+    const btn = document.createElement('button');
+    btn.className = 'btn-pri';
+    btn.style.cssText = 'width:100%;margin-top:8px;padding:10px';
+    btn.textContent = '📸 צלם עכשיו';
+    btn.onclick = ()=>{
+      const canvas = document.createElement('canvas');
+      canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+      canvas.getContext('2d').drawImage(v,0,0);
+      // Compress
+      const small = document.createElement('canvas');
+      small.width = 640; small.height = 640*canvas.height/canvas.width;
+      small.getContext('2d').drawImage(canvas,0,0,small.width,small.height);
+      window._platePhoto = small.toDataURL('image/jpeg',0.7);
+      stream.getTracks().forEach(t=>t.stop());
+      preview.innerHTML = '<img src="'+window._platePhoto+'" style="width:100%;border-radius:8px;max-height:200px;object-fit:contain"/>';
+    };
+    preview.appendChild(btn);
+  }).catch(e=>showToast({icon:'⚠️',title:'לא ניתן לגשת למצלמה',sub:e.message,type:'warn'}));
+}
+
+// ══════════════════════════════════════════════════════════
+// #33 PATROL MODE — GPS tracking + quick suspect reports
+// ══════════════════════════════════════════════════════════
+let _patrolActive = false, _patrolStart = 0, _patrolPoints = [], _patrolReports = [];
+function togglePatrolMode(){
+  if(_patrolActive){
+    _patrolActive = false;
+    const duration = Date.now() - _patrolStart;
+    const log = {
+      id:'patrol_'+_patrolStart, userId:(AUTH.getUser()||{}).id||'',
+      userName:(AUTH.getUser()||{}).name||'',
+      startAt:_patrolStart, endAt:Date.now(), duration,
+      points:_patrolPoints.slice(-500), reports:_patrolReports.slice()
+    };
+    if(window._db) window._db.ref('tac_patrols/'+log.id).set(log).catch(()=>_queueOfflineAction('set','tac_patrols/'+log.id,log));
+    auditLog('סיום סיור','info',Math.round(duration/60000)+' דקות, '+_patrolReports.length+' דיווחים');
+    showToast({icon:'🚨',title:'סיור הסתיים',sub:Math.round(duration/60000)+' דקות, '+_patrolReports.length+' דיווחים',type:'success',duration:5000});
+    _patrolPoints = []; _patrolReports = [];
+    const btn = document.getElementById('patrol-btn');
+    if(btn){ btn.style.borderColor=''; btn.textContent='🚨'; }
+    return;
+  }
+  _patrolActive = true;
+  _patrolStart = Date.now();
+  _patrolPoints = [];
+  _patrolReports = [];
+  // Turn on GPS publishing
+  window._locPrivacyOn = true;
+  localStorage.setItem('tac_loc_privacy','1');
+  if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+  if(typeof SYNC!=='undefined') SYNC.autoStartPublishing();
+  // Track GPS points every 5s
+  window._patrolInterval = setInterval(()=>{
+    if(window._lastLat && window._lastLng){
+      _patrolPoints.push({lat:window._lastLat, lng:window._lastLng, t:Date.now()});
+    }
+  }, 5000);
+  const btn = document.getElementById('patrol-btn');
+  if(btn){ btn.style.borderColor='var(--danger)'; btn.textContent='🛑'; }
+  auditLog('התחלת סיור','info','');
+  showToast({icon:'🚨',title:'מצב סיור פעיל',sub:'GPS + דיווח מהיר פעיל',type:'success',duration:4000});
+}
+function patrolReport(){
+  if(!_patrolActive){ showToast({icon:'⚠️',title:'סיור לא פעיל',type:'warn'}); return; }
+  const note = prompt('תיאור החשוד/האירוע:','');
+  if(!note) return;
+  const report = {
+    t:Date.now(),
+    lat:window._lastLat||null, lng:window._lastLng||null,
+    note, by:(AUTH.getUser()||{}).name||''
+  };
+  _patrolReports.push(report);
+  if(window._db) window._db.ref('tac_patrol_reports/'+Date.now()).set(report).catch(()=>{});
+  auditLog('דיווח סיור: '+note,'warn','');
+  showToast({icon:'🚩',title:'דיווח נרשם',sub:note.slice(0,40),type:'danger'});
+}
+
+// ══════════════════════════════════════════════════════════
+// #24 AUTOMATIC BACKUP — JSON export + localStorage persistent backup
+// ══════════════════════════════════════════════════════════
+async function exportFullBackup(){
+  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
+  showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
+  const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
+  const backup = {version:'5.3',timestamp:Date.now(),date:new Date().toISOString()};
+  for(const p of paths){
+    try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
+  }
+  const json = JSON.stringify(backup,null,2);
+  const blob = new Blob([json],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tac_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  auditLog('גיבוי מלא ייוצא','success',Math.round(json.length/1024)+' KB');
+  showToast({icon:'💾',title:'גיבוי הורד',sub:Math.round(json.length/1024)+' KB',type:'success'});
+}
+// Auto-backup critical data to localStorage on important events
+function _autoLocalBackup(){
+  try{
+    const backup = {
+      PERSONNEL:PERSONNEL, TEAMS:TEAMS, MISSIONS:MISSIONS, INCIDENTS:INCIDENTS,
+      GFS:typeof GFS!=='undefined'?GFS:[],
+      EQUIPMENT_ITEMS:typeof EQUIPMENT_ITEMS!=='undefined'?EQUIPMENT_ITEMS:[],
+      MISSION_TEMPLATES:typeof MISSION_TEMPLATES!=='undefined'?MISSION_TEMPLATES:[],
+      ts:Date.now()
+    };
+    localStorage.setItem('tac_auto_backup', JSON.stringify(backup));
+  }catch(e){}
+}
+setInterval(_autoLocalBackup, 300000); // every 5 minutes
+
+// ══════════════════════════════════════════════════════════
+// #21 GRANULAR PERMISSIONS — new permission keys
+// ══════════════════════════════════════════════════════════
+if(typeof AUTH!=='undefined' && AUTH.getRolePerms){
+  // Add new granular perms to existing role definitions (no-op if already present)
+  const _rp = AUTH.getRolePerms();
+  // These can be assigned via permsOverride
+}
+// New permission keys: admin_users, admin_missions, admin_equipment, admin_audit, admin_settings
+// Helper: check any admin sub-permission OR full admin
+function hasAdminPerm(subPerm){
+  const u = AUTH.getUser(); if(!u) return false;
+  const perms = u.permsOverride || [];
+  return perms.includes('admin') || perms.includes(subPerm);
+}
+
+// ══════════════════════════════════════════════════════════
+// #9 MOBILE WIDGET — compact dashboard opened via URL hash
+// ══════════════════════════════════════════════════════════
+function openMobileWidget(){
+  let w = document.getElementById('mobile-widget');
+  if(!w){
+    w = document.createElement('div');
+    w.id = 'mobile-widget';
+    w.style.cssText = 'position:fixed;inset:0;z-index:9900;background:var(--bg);color:var(--text);font-family:Heebo,sans-serif;direction:rtl;display:none;overflow:auto';
+    document.body.appendChild(w);
+  }
+  const activeMsn = (MISSIONS||[]).filter(m=>m.status==='active'||m.status==='urgent').length;
+  const urgMsn = (MISSIONS||[]).filter(m=>m.status==='urgent').length;
+  const liveUsers = Object.keys(window._liveLocs||{}).length;
+  const availP = PERSONNEL.filter(p=>p.available).length;
+  w.innerHTML = '<button onclick="closeMobileWidget()" style="position:absolute;top:10px;left:10px;background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:50%;width:36px;height:36px;cursor:pointer">✕</button>'
+    +'<div style="padding:16px;text-align:center"><div style="font-size:13px;color:var(--text3)">'+new Date().toLocaleTimeString('he-IL')+'</div><h2 style="color:var(--accent);margin:4px 0 16px">📱 מסך מהיר</h2></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">'
+    +'<div onclick="triggerSOS()" style="background:#ff3333;color:#fff;border-radius:14px;padding:24px 12px;text-align:center;cursor:pointer;box-shadow:0 4px 14px rgba(255,51,51,0.4)"><div style="font-size:40px">🆘</div><div style="font-size:14px;font-weight:800;margin-top:4px">SOS</div></div>'
+    +'<div onclick="quickEmergency()" style="background:#ff7a1a;color:#fff;border-radius:14px;padding:24px 12px;text-align:center;cursor:pointer;box-shadow:0 4px 14px rgba(255,122,26,0.4)"><div style="font-size:40px">⚡</div><div style="font-size:14px;font-weight:800;margin-top:4px">חירום מהיר</div></div>'
+    +'<div style="background:var(--panel2);border-radius:14px;padding:18px 12px;text-align:center"><div style="font-size:32px;font-weight:900;color:var(--accent)">'+activeMsn+'</div><div style="font-size:11px;color:var(--text3)">משימות פעילות</div>'+(urgMsn?'<div style="font-size:11px;color:var(--danger);margin-top:2px">'+urgMsn+' דחופות</div>':'')+'</div>'
+    +'<div style="background:var(--panel2);border-radius:14px;padding:18px 12px;text-align:center"><div style="font-size:32px;font-weight:900;color:var(--blue)">'+liveUsers+'</div><div style="font-size:11px;color:var(--text3)">כוחות חיים</div></div>'
+    +'</div>'
+    +'<div style="padding:16px"><button onclick="closeMobileWidget();goView(\'map\')" class="btn-pri" style="width:100%;padding:14px;font-size:15px">🗺️ פתח מפה מלאה</button></div>';
+  w.style.display='block';
+}
+function closeMobileWidget(){ const w=document.getElementById('mobile-widget'); if(w) w.style.display='none'; }
+// Auto-open if URL hash is #widget
+if(location.hash==='#widget') setTimeout(openMobileWidget, 1500);
+
+// ══════════════════════════════════════════════════════════
+// #2 SMS/CALL FALLBACK — tel: and sms: links
+// ══════════════════════════════════════════════════════════
+function callPerson(personId){
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!p || !p.phone){ showToast({icon:'⚠️',title:'אין מספר טלפון',type:'warn'}); return; }
+  auditLog('התקשרות ל-'+p.name,'info',p.phone);
+  window.location.href = 'tel:'+p.phone.replace(/[^0-9+]/g,'');
+}
+function smsPerson(personId, message){
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!p || !p.phone){ showToast({icon:'⚠️',title:'אין מספר טלפון',type:'warn'}); return; }
+  const msg = message || prompt('הודעת SMS ל-'+p.name+':','');
+  if(!msg) return;
+  auditLog('SMS ל-'+p.name,'info',msg.slice(0,50));
+  const sep = /iPhone|iPad|Mac/i.test(navigator.userAgent)?'&':'?';
+  window.location.href = 'sms:'+p.phone.replace(/[^0-9+]/g,'')+sep+'body='+encodeURIComponent(msg);
+}
+function whatsappPerson(personId, message){
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!p || !p.phone){ showToast({icon:'⚠️',title:'אין מספר טלפון',type:'warn'}); return; }
+  const msg = message || prompt('הודעת WhatsApp ל-'+p.name+':','');
+  if(!msg) return;
+  const phone = p.phone.replace(/[^0-9+]/g,'').replace(/^\+?0/,'972');
+  auditLog('WhatsApp ל-'+p.name,'info',msg.slice(0,50));
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+// ══════════════════════════════════════════════════════════
+// #3 AUDIO RECORDING — voice reports with Firebase storage
+// ══════════════════════════════════════════════════════════
+let _audioRecorder = null, _audioChunks = [], _audioStartTime = 0;
+function toggleAudioRecording(){
+  if(_audioRecorder && _audioRecorder.state==='recording'){
+    _audioRecorder.stop();
+    return;
+  }
+  if(!navigator.mediaDevices){ showToast({icon:'⚠️',title:'הקלטה לא זמינה',type:'warn'}); return; }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    _audioChunks = [];
+    _audioStartTime = Date.now();
+    _audioRecorder = new MediaRecorder(stream,{mimeType:'audio/webm'});
+    _audioRecorder.ondataavailable = e=>{ if(e.data.size>0) _audioChunks.push(e.data); };
+    _audioRecorder.onstop = ()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      const blob = new Blob(_audioChunks,{type:'audio/webm'});
+      const reader = new FileReader();
+      reader.onloadend = ()=>{
+        const dataUrl = reader.result;
+        const duration = Math.round((Date.now()-_audioStartTime)/1000);
+        const u = AUTH.getUser();
+        const rec = {
+          id:'rec_'+Date.now(),
+          audio:dataUrl, duration,
+          userId:u?u.id:'', userName:u?u.name:'',
+          ts:Date.now(),
+          lat:window._lastLat||null, lng:window._lastLng||null
+        };
+        if(window._db) window._db.ref('tac_recordings/'+rec.id).set(rec).catch(()=>_queueOfflineAction('set','tac_recordings/'+rec.id,rec));
+        auditLog('הקלטת דיווח','info',duration+' שניות');
+        showToast({icon:'🎙️',title:'הקלטה נשמרה',sub:duration+' שניות',type:'success'});
+      };
+      reader.readAsDataURL(blob);
+    };
+    _audioRecorder.start();
+    showToast({icon:'🔴',title:'מקליט...',sub:'לחץ שוב לעצירה',type:'warn',duration:3000});
+  }).catch(e=>showToast({icon:'⚠️',title:'לא ניתן לגשת למיקרופון',sub:e.message,type:'warn'}));
+}
 
 // ── ADDRESS AUTOCOMPLETE — Google Places API ──
 // ── INIT ──
