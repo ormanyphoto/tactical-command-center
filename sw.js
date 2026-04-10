@@ -160,33 +160,32 @@ async function _showNotif(notif){
   }
 }
 
-// ── Notification click → Waze navigation or open app ──
+// ── Notification click → ALWAYS open app and show emergency popup ──
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  if(e.action === 'ack') return; // just dismiss
+  if(e.action === 'ack') return; // just dismiss — don't open app
 
   const notif = e.notification.data || {};
-  const lat   = notif.lat;
-  const lng   = notif.lng;
-  const addr  = notif.address;
 
-  // If there's a location → open Waze directly
-  if(addr || (lat && lng)){
-    let wazeUrl;
-    if(lat && lng){
-      wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-    } else {
-      wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`;
-    }
-    e.waitUntil(clients.openWindow(wazeUrl));
-    return;
-  }
+  // Build URL with notification ID so app can fetch + show the emergency modal
+  const targetUrl = BASE + '?notif=' + encodeURIComponent(notif.id || '') + '&t=' + Date.now();
 
-  // No address → focus / open app
   e.waitUntil(
     clients.matchAll({ type:'window', includeUncontrolled:true }).then(list => {
-      const win = list.find(c => c.url.includes('tactical-command-center'));
-      return win ? win.focus() : clients.openWindow(BASE);
+      // Find existing app window
+      const win = list.find(c => {
+        try {
+          const u = new URL(c.url);
+          return u.pathname.startsWith(BASE) || u.hostname.includes('tactical-command-center');
+        } catch(_){ return false; }
+      });
+      if(win){
+        // Post the full notification payload so the app can pop the emergency modal NOW
+        try { win.postMessage({ type: 'SHOW_INCOMING_NOTIF', notif: notif }); } catch(_){}
+        return win.focus();
+      }
+      // No window open — open a new one with the notif ID in the URL
+      return clients.openWindow(targetUrl);
     })
   );
 });
@@ -272,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v5-3-' + '2026041103';
+const CACHE = 'tac-v5-3-' + '2026041104';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install

@@ -10857,6 +10857,31 @@ const FIELD = (() => {
     navigator.serviceWorker.addEventListener('controllerchange', _swReload);
     navigator.serviceWorker.addEventListener('message', e => {
       if (e.data && e.data.type === 'SW_UPDATED') _swReload();
+      // ── Notification click → show emergency popup immediately ──
+      if (e.data && e.data.type === 'SHOW_INCOMING_NOTIF' && e.data.notif){
+        const n = e.data.notif;
+        // Wait for app to finish booting if needed
+        const _fire = () => {
+          try {
+            // Un-dedupe so the modal actually shows
+            if(n.id && window._shownNotifIds) window._shownNotifIds.delete(n.id);
+            const fbRef = (window._db && n.id) ? window._db.ref('tac_notifications/'+(AUTH.getUser()||{}).id+'/'+n.id) : null;
+            _showIncomingNotif(n, fbRef);
+          } catch(err){ console.warn('[SW msg] modal failed', err); }
+        };
+        if(typeof _showIncomingNotif === 'function' && document.getElementById('incoming-notif-overlay')){
+          _fire();
+        } else {
+          // Retry until modal infra is ready (max ~10s)
+          let tries = 0;
+          const iv = setInterval(()=>{
+            tries++;
+            if(typeof _showIncomingNotif === 'function' && document.getElementById('incoming-notif-overlay')){
+              clearInterval(iv); _fire();
+            } else if(tries > 50){ clearInterval(iv); }
+          }, 200);
+        }
+      }
     });
     // Trigger SW update check whenever the tab becomes visible (catches background updates)
     document.addEventListener('visibilitychange', () => {
@@ -10883,6 +10908,31 @@ const FIELD = (() => {
     // Also start after SYNC.boot completes (fallback if DB wasn't ready above)
     setTimeout(()=>{ if(typeof listenForIncomingNotifications==='function') listenForIncomingNotifications(); }, 3000);
     setTimeout(()=>_registerPushForUser(_autoUser.id), 1200);
+    // ── Cold-start from notification click → force-open the emergency modal for that notif ──
+    try {
+      const _qp = new URLSearchParams(location.search);
+      const _notifId = _qp.get('notif');
+      if(_notifId){
+        // Clear the URL so refresh doesn't re-pop the modal
+        history.replaceState({}, '', location.pathname);
+        const _openById = () => {
+          const db0 = window._db;
+          if(!db0){ setTimeout(_openById, 400); return; }
+          db0.ref('tac_notifications/'+_autoUser.id+'/'+_notifId).once('value', snap=>{
+            const n = snap.val();
+            if(!n){ console.warn('[notif-click] not found', _notifId); return; }
+            if(window._shownNotifIds) window._shownNotifIds.delete(_notifId);
+            const waitModal = () => {
+              if(typeof _showIncomingNotif === 'function' && document.getElementById('incoming-notif-overlay')){
+                _showIncomingNotif(n, db0.ref('tac_notifications/'+_autoUser.id+'/'+_notifId));
+              } else { setTimeout(waitModal, 300); }
+            };
+            waitModal();
+          });
+        };
+        setTimeout(_openById, 1500);
+      }
+    } catch(err){ console.warn('[notif-click] cold-start', err); }
   } else {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
