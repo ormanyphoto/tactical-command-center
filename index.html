@@ -8319,19 +8319,20 @@ async function _fallbackLoadLocations(){
     const rawData = await resp.json();
     if(!rawData) return;
     // Dedupe by personId, keep only recent (last 30 min)
+    // Return keyed by personId (matches _liveMarkers keying)
     const STALE_MS = 30*60*1000;
     const now = Date.now();
     const byPerson = {};
     Object.entries(rawData).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
       if(now - (d.ts||0) > STALE_MS) return;
-      const key = d.personId || d.uid || uid;
+      const key = d.personId || uid;
       if(!byPerson[key] || (d.ts||0) > byPerson[key].ts){
-        byPerson[key] = {uid, d, ts:d.ts||0};
+        byPerson[key] = {key, d, ts:d.ts||0};
       }
     });
     const data = {};
-    Object.values(byPerson).forEach(x => { data[x.uid] = x.d; });
+    Object.values(byPerson).forEach(x => { data[x.key] = x.d; });
     window._pendingLocData = data;
     window._liveLocs = {};
     Object.entries(data).forEach(([uid,d])=>{
@@ -9668,7 +9669,10 @@ const SYNC = (() => {
       try{ _db.ref('tac_locs/'+_myUid).onDisconnect().cancel(); }catch(e){}
       _db.ref('tac_locs/'+_myUid).remove().catch(()=>{});
     }
-    // Remove own local marker immediately
+    // Remove own local marker immediately — markers are keyed by personId now
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const myKey = u ? u.id : _myUid;
+    if(_liveMarkers[myKey]){ _liveMarkers[myKey].setMap(null); delete _liveMarkers[myKey]; }
     if(_liveMarkers[_myUid]){ _liveMarkers[_myUid].setMap(null); delete _liveMarkers[_myUid]; }
   }
 
@@ -9866,23 +9870,24 @@ const SYNC = (() => {
 
   // Deduplicate locations by personId — keep only the most recent entry per person
   // Also filter out stale entries (older than 30 minutes)
+  // Returns {markerKey: d} where markerKey is the personId (or uid fallback)
   function _dedupeByPerson(data){
     const STALE_MS = 30*60*1000; // 30 minutes
     const now = Date.now();
-    const byPerson = {}; // personId → {uid, d, ts}
+    const byPerson = {}; // personId → {key, d, ts}
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
       const age = now - (d.ts||0);
       if(age > STALE_MS) return; // too old
-      const key = d.personId || d.uid || uid;
+      const key = d.personId || uid;
       const ts = d.ts || 0;
       if(!byPerson[key] || ts > byPerson[key].ts){
-        byPerson[key] = {uid, d, ts};
+        byPerson[key] = {key, d, ts};
       }
     });
-    // Convert back to {uid: d} keeping only survivors
+    // Return keyed by personId (or uid fallback) — matches _liveMarkers keying
     const result = {};
-    Object.values(byPerson).forEach(x => { result[x.uid] = x.d; });
+    Object.values(byPerson).forEach(x => { result[x.key] = x.d; });
     return result;
   }
 
@@ -10031,16 +10036,23 @@ const SYNC = (() => {
     const photoUrl = (person && person.photo) ? person.photo : '';
     const isDayMode = document.body.classList.contains('day');
 
-    _buildMarkerIcon(initials, bgColor, ringColor, !!isMe, photoUrl, d.name||'', isDayMode, (dataUrl, W, H)=>{
+    // Key markers by personId (fallback to uid) so same person from different sessions
+    // collapse to ONE marker. Also ensure "me" is always flagged as isMe regardless of which uid.
+    const markerKey = d.personId || uid;
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const myPersonId = u ? u.id : null;
+    const reallyIsMe = isMe || (myPersonId && d.personId === myPersonId);
+
+    _buildMarkerIcon(initials, bgColor, ringColor, !!reallyIsMe, photoUrl, d.name||'', isDayMode, (dataUrl, W, H)=>{
       const icon = { url:dataUrl, scaledSize:new google.maps.Size(W,H), anchor:new google.maps.Point(W/2,H-5) };
-      if(!_liveMarkers[uid]){
-        _liveMarkers[uid] = new google.maps.Marker({
-          position:pos, map:window.map, zIndex:isMe?800:600,
+      if(!_liveMarkers[markerKey]){
+        _liveMarkers[markerKey] = new google.maps.Marker({
+          position:pos, map:window.map, zIndex:reallyIsMe?800:600,
           optimized:true,  // Let Google Maps composite efficiently — clean alpha, no per-marker bounding box
-          icon, title:d.name+(isMe?' (אני)':'')
+          icon, title:d.name+(reallyIsMe?' (אני)':'')
         });
-        _liveMarkers[uid]._data = d;
-        _liveMarkers[uid].addListener('click', ()=>{
+        _liveMarkers[markerKey]._data = d;
+        _liveMarkers[markerKey].addListener('click', ()=>{
           closeAllInfoWindows();
           const age=Math.round((Date.now()-(d.ts||Date.now()))/1000);
           const ageStr=age<60?age+'ש\'':Math.round(age/60)+'ד\'';
@@ -10057,7 +10069,7 @@ const SYNC = (() => {
           const iw=new google.maps.InfoWindow({content:
             `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:220px;background:${bgColorIW};color:${textColor};border-radius:8px">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${ph}<div>
-                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
+                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${reallyIsMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
                 <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${d.role||''}</div></div></div>
               <div style="background:${boxBg};border-radius:8px;padding:9px 12px;font-size:12px;display:grid;grid-template-columns:auto 1fr;gap:5px 12px">
                 <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${d.status||'פעיל'}</span>
@@ -10065,13 +10077,13 @@ const SYNC = (() => {
                 <span style="color:${labelColor};font-weight:600">⚡ מהירות</span><span style="color:${textColor};font-weight:700">${d.spd||0} קמ"ש</span>
                 <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${ageStr}</span></div></div>`
           });
-          iw.open(window.map, _liveMarkers[uid]);
+          iw.open(window.map, _liveMarkers[markerKey]);
           window._infoWindows.push(iw);
         });
       } else {
-        _liveMarkers[uid]._data = d;
-        _liveMarkers[uid].setPosition(pos);
-        _liveMarkers[uid].setIcon(icon);
+        _liveMarkers[markerKey]._data = d;
+        _liveMarkers[markerKey].setPosition(pos);
+        _liveMarkers[markerKey].setIcon(icon);
       }
     });
   }
