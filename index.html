@@ -1081,12 +1081,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button class="mp-btn" onclick="togglePOILayer('gas_station')" id="poi-gas-btn" title="תחנות דלק">⛽</button>
         <button class="mp-btn" onclick="togglePOILayer('fire_station')" id="poi-fire-btn" title="תחנות כיבוי">🚒</button>
         <div class="mp-divider"></div>
-        <div class="mp-group-label">GovMap</div>
-        <button class="mp-btn" onclick="toggleGovmapLayer('ortho')" id="govmap-ortho-btn" title="תצלום אוויר GovMap">🛰️</button>
-        <button class="mp-btn" onclick="toggleGovmapLayer('cadaster')" id="govmap-cadaster-btn" title="חלקות ומגרשים">🏘</button>
-        <button class="mp-btn" onclick="toggleGovmapLayer('buildings')" id="govmap-buildings-btn" title="מבנים">🏢</button>
-        <button class="mp-btn" onclick="toggleGovmapLayer('streets')" id="govmap-streets-btn" title="רחובות ומספרי בתים">🔢</button>
-        <div class="mp-divider"></div>
         <div class="mp-group-label">פקודה</div>
         <button class="mp-btn" onclick="startRouteDraw()" id="route-btn" title="שרטוט מסלול פקודה">🧭</button>
         <button class="mp-btn" onclick="startClosedAreaDraw()" id="closed-area-btn" title="סמן אזור סגור">🚫</button>
@@ -2217,6 +2211,7 @@ function _makeGovMapType(layerName){
 
 const _GVM_LABELS={
   muni_il:'רשויות',nechalim1:'נחלים',Nikuz:'ניקוז',
+  PARCEL_ALL:'חלקות', SUB_GUSH_ALL:'גושים',
   POLICE_Mahoz_Region:'משטרה — מחוז',
   POLICE_Yehida_Region:'משטרה — יחידה',
   Mada_districs:'מד"א — מחוז',
@@ -3596,6 +3591,9 @@ function renderDrawP(c){
   </div>
   <div class="mp-grid" style="margin-bottom:6px">
     <button class="mp-btn" id="gvm-muni-btn" onclick="toggleGovMap('muni_il','gvm-muni-btn')"><span>🏙️</span><span class="mp-btn-label">רשויות</span></button>
+    <button class="mp-btn" id="gvm-parcel-btn" onclick="toggleGovMap('PARCEL_ALL','gvm-parcel-btn')"><span>🏘</span><span class="mp-btn-label">חלקות</span></button>
+    <button class="mp-btn" id="gvm-gush-btn" onclick="toggleGovMap('SUB_GUSH_ALL','gvm-gush-btn')"><span>🔲</span><span class="mp-btn-label">גושים</span></button>
+    <button class="mp-btn" id="gvm-nikuz-btn" onclick="toggleGovMap('Nikuz','gvm-nikuz-btn')"><span>🌊</span><span class="mp-btn-label">ניקוז</span></button>
     <button class="mp-btn" id="gvm-nachal-btn" onclick="toggleGovMap('nechalim1','gvm-nachal-btn')"><span>💧</span><span class="mp-btn-label">נחלים</span></button>
     <button class="mp-btn" id="gvm-police-mahoz-r-btn" onclick="toggleGovMap('POLICE_Mahoz_Region','gvm-police-mahoz-r-btn')"><span>🚔</span><span class="mp-btn-label">מחוז</span></button>
     <button class="mp-btn" id="gvm-police-merhav-r-btn" onclick="toggleGovMap('POLICE_Merhav_Region','gvm-police-merhav-r-btn')"><span>🚔</span><span class="mp-btn-label">מרחב</span></button>
@@ -8306,133 +8304,6 @@ function _showHeatmap(points){
   if(btn) btn.style.borderColor='var(--danger)';
   showToast({icon:'🔥',title:'מפת חום פעילה',sub:points.length+' אירועים',type:'success'});
   auditLog('הצגת מפת חום אירועים','info',points.length+' נקודות');
-}
-
-// ══════════════════════════════════════════════════════════
-// GOVMAP INTEGRATION — Israeli government mapping via iframe
-// GovMap tiles require internal auth, so we use their iframe API
-// which supports layer params and location sync via ITM coordinates
-// ══════════════════════════════════════════════════════════
-const GOVMAP_LAYERS = {
-  ortho:     {name:'תצלום אוויר',      layers:'ORT,ORT2023', base:'ORT'},
-  cadaster:  {name:'חלקות ומגרשים',    layers:'PARCEL_ALL_BORDERS', base:'MAPI_STREET'},
-  buildings: {name:'מבנים',             layers:'BUILDINGS', base:'MAPI_STREET'},
-  streets:   {name:'רחובות ומספרי בתים', layers:'STREETS,HOUSE_NUM', base:'MAPI_STREET'}
-};
-// Convert WGS84 (lat/lng) → ITM (Israeli Transverse Mercator EPSG:2039)
-// Using simplified EPSG:2039 formula for Israel region
-function _wgs84ToITM(lat, lng){
-  // Simplified transformation — accurate to ~100m in Israel
-  const a = 6378137.0;
-  const f = 1/298.257222101;
-  const e2 = 2*f - f*f;
-  const k0 = 1.0000067;
-  const lon0 = 35.20451694 * Math.PI/180;
-  const lat0 = 31.73439361 * Math.PI/180;
-  const x0 = 219529.584;
-  const y0 = 626907.390;
-  const phi = lat * Math.PI/180;
-  const lam = lng * Math.PI/180;
-  const N = a/Math.sqrt(1-e2*Math.sin(phi)*Math.sin(phi));
-  const T = Math.tan(phi)*Math.tan(phi);
-  const C = e2/(1-e2)*Math.cos(phi)*Math.cos(phi);
-  const A = Math.cos(phi)*(lam-lon0);
-  const M = a*((1-e2/4-3*e2*e2/64-5*e2*e2*e2/256)*phi
-    -(3*e2/8+3*e2*e2/32+45*e2*e2*e2/1024)*Math.sin(2*phi)
-    +(15*e2*e2/256+45*e2*e2*e2/1024)*Math.sin(4*phi)
-    -(35*e2*e2*e2/3072)*Math.sin(6*phi));
-  const M0 = a*((1-e2/4-3*e2*e2/64-5*e2*e2*e2/256)*lat0
-    -(3*e2/8+3*e2*e2/32+45*e2*e2*e2/1024)*Math.sin(2*lat0)
-    +(15*e2*e2/256+45*e2*e2*e2/1024)*Math.sin(4*lat0)
-    -(35*e2*e2*e2/3072)*Math.sin(6*lat0));
-  const x = x0 + k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C)*Math.pow(A,5)/120);
-  const y = y0 + k0*(M-M0+N*Math.tan(phi)*(A*A/2+(5-T+9*C+4*C*C)*Math.pow(A,4)/24+(61-58*T+T*T+600*C)*Math.pow(A,6)/720));
-  return {x: Math.round(x), y: Math.round(y)};
-}
-function toggleGovmapLayer(key){
-  const layer = GOVMAP_LAYERS[key];
-  if(!layer){ showToast({icon:'⚠️',title:'שכבה לא נמצאה',type:'warn'}); return; }
-  const btn = document.getElementById('govmap-'+key+'-btn');
-  // If already open with same layer, close
-  if(window._govmapOpen === key){
-    closeGovmapOverlay();
-    if(btn) btn.style.borderColor = '';
-    return;
-  }
-  // Get current map center
-  if(!window.map){ showToast({icon:'⚠️',title:'מפה לא מוכנה',type:'warn'}); return; }
-  const center = window.map.getCenter();
-  const itm = _wgs84ToITM(center.lat(), center.lng());
-  const gmZoom = window.map.getZoom() || 16;
-  // GovMap zoom is 0-20 (max = most zoomed in)
-  const gmZoomMapped = Math.max(0, Math.min(20, gmZoom - 6));
-  // Build GovMap URL
-  const url = `https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=${gmZoomMapped}&lyrs=${encodeURIComponent(layer.layers)}&b=${layer.base}`;
-  _openGovmapIframe(url, layer.name, key);
-  // Mark button active
-  ['ortho','cadaster','buildings','streets'].forEach(k=>{
-    const b = document.getElementById('govmap-'+k+'-btn');
-    if(b) b.style.borderColor = (k===key) ? 'var(--accent)' : '';
-  });
-  auditLog('פתיחת GovMap: '+layer.name, 'info', '');
-}
-function _openGovmapIframe(url, title, key){
-  let o = document.getElementById('govmap-overlay');
-  if(!o){
-    o = document.createElement('div');
-    o.id = 'govmap-overlay';
-    o.style.cssText = 'position:fixed;bottom:70px;left:10px;width:min(420px,90vw);height:min(520px,70vh);z-index:9600;background:var(--panel);border:2px solid var(--accent);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);overflow:hidden;display:flex;flex-direction:column;resize:both;min-width:300px;min-height:300px';
-    o.innerHTML = '<div id="govmap-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--panel2);border-bottom:1px solid var(--border2);cursor:move;user-select:none">'
-      +'<div style="font-size:13px;font-weight:800;color:var(--accent)" id="govmap-title">🗺️ GovMap</div>'
-      +'<div style="display:flex;gap:6px">'
-      +'<button onclick="_govmapExpand()" id="govmap-expand-btn" title="הגדל" style="background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">⛶</button>'
-      +'<button onclick="window.open(document.getElementById(\'govmap-iframe\').src,\'_blank\')" title="פתח בחלון חדש" style="background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px">↗</button>'
-      +'<button onclick="closeGovmapOverlay()" title="סגור" style="background:var(--panel);border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:13px;font-weight:700">✕</button>'
-      +'</div></div>'
-      +'<iframe id="govmap-iframe" style="flex:1;width:100%;border:0;background:#fff" allow="geolocation"></iframe>';
-    document.body.appendChild(o);
-    // Draggable
-    const hdr = document.getElementById('govmap-header');
-    let dx=0, dy=0, dragging=false;
-    hdr.addEventListener('mousedown', e=>{
-      dragging=true;
-      const r = o.getBoundingClientRect();
-      dx = e.clientX - r.left; dy = e.clientY - r.top;
-      e.preventDefault();
-    });
-    document.addEventListener('mousemove', e=>{
-      if(!dragging) return;
-      o.style.left = (e.clientX - dx)+'px';
-      o.style.top = (e.clientY - dy)+'px';
-      o.style.bottom = 'auto';
-    });
-    document.addEventListener('mouseup', ()=>dragging=false);
-  }
-  document.getElementById('govmap-iframe').src = url;
-  document.getElementById('govmap-title').textContent = '🗺️ GovMap — ' + title;
-  o.style.display = 'flex';
-  window._govmapOpen = key;
-}
-function _govmapExpand(){
-  const o = document.getElementById('govmap-overlay');
-  if(!o) return;
-  if(o.dataset.expanded === '1'){
-    o.style.cssText = o.dataset.origStyle || '';
-    o.dataset.expanded = '0';
-  } else {
-    o.dataset.origStyle = o.style.cssText;
-    o.style.cssText = 'position:fixed;inset:20px;z-index:9600;background:var(--panel);border:2px solid var(--accent);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);overflow:hidden;display:flex;flex-direction:column';
-    o.dataset.expanded = '1';
-  }
-}
-function closeGovmapOverlay(){
-  const o = document.getElementById('govmap-overlay');
-  if(o) o.style.display = 'none';
-  window._govmapOpen = null;
-  ['ortho','cadaster','buildings','streets'].forEach(k=>{
-    const b = document.getElementById('govmap-'+k+'-btn');
-    if(b) b.style.borderColor = '';
-  });
 }
 
 // ══════════════════════════════════════════════════════════
