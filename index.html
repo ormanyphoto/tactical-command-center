@@ -8343,10 +8343,10 @@ async function _fallbackLoadLocations(){
     }
   }catch(e){ console.warn('[FALLBACK]',e.message); }
 }
-// Run fallback every 15s regardless of SYNC state — it's idempotent
-setInterval(_fallbackLoadLocations, 15000);
-// Also run once after 5s delay
-setTimeout(_fallbackLoadLocations, 5000);
+// Run fallback every 5s regardless of SYNC state — fast response to toggle changes
+setInterval(_fallbackLoadLocations, 5000);
+// Also run once after 3s delay
+setTimeout(_fallbackLoadLocations, 3000);
 
 // ══════════════════════════════════════════════════════════
 // OSM BUILDINGS + ADDRESSES OVERLAY
@@ -9623,6 +9623,8 @@ const SYNC = (() => {
           ts: Date.now(), uid: _myUid
         };
         _db.ref('tac_locs/'+_myUid).set(d);
+        // Auto-remove from Firebase when this client disconnects (tab closed, network lost, etc.)
+        try{ _db.ref('tac_locs/'+_myUid).onDisconnect().remove(); }catch(e){}
         // Show own marker immediately — with retry if map not ready yet
         const _tryMarker=(tries)=>{
           if(window.map && window._googleReady){
@@ -9660,7 +9662,14 @@ const SYNC = (() => {
   function stopPublishing(){
     _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
-    if(_db) _db.ref('tac_locs/'+_myUid).remove();
+    // Stop GPS watch so we don't re-publish
+    if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
+    if(_db){
+      try{ _db.ref('tac_locs/'+_myUid).onDisconnect().cancel(); }catch(e){}
+      _db.ref('tac_locs/'+_myUid).remove().catch(()=>{});
+    }
+    // Remove own local marker immediately
+    if(_liveMarkers[_myUid]){ _liveMarkers[_myUid].setMap(null); delete _liveMarkers[_myUid]; }
   }
 
   function updateStatus(status){
@@ -9920,7 +9929,7 @@ const SYNC = (() => {
 
   function _subscribeLocations(){
     if(!_db) return;
-    // Polling fallback — refresh locations every 10s in case WebSocket is down
+    // Polling fallback — refresh locations every 3s for fast response to toggle off/on
     setInterval(()=>{
       if(!_db || !window.map || !window._googleReady) return;
       _db.ref('tac_locs').once('value', snap=>{
@@ -9933,7 +9942,7 @@ const SYNC = (() => {
           }
         });
       });
-    }, 10000);
+    }, 3000);
     _db.ref('tac_locs').on('value', snap=>{
       const rawData = snap.val()||{};
       const data = _dedupeByPerson(rawData);
@@ -9979,7 +9988,10 @@ const SYNC = (() => {
     const displayName = (fullName||initials).slice(0,18);
     function _draw(imgEl){
       const cvs=document.createElement('canvas'); cvs.width=W*2; cvs.height=H*2;
-      const g=cvs.getContext('2d'); g.scale(2,2);
+      const g=cvs.getContext('2d',{alpha:true});
+      // Explicitly clear to fully transparent — fixes mobile white-box artifact
+      g.clearRect(0,0,cvs.width,cvs.height);
+      g.scale(2,2);
       // Label
       const nw=Math.min(W+8,Math.max(48,displayName.length*6+14)), nx=cx-nw/2;
       g.beginPath();
@@ -10023,7 +10035,8 @@ const SYNC = (() => {
       const icon = { url:dataUrl, scaledSize:new google.maps.Size(W,H), anchor:new google.maps.Point(W/2,H-5) };
       if(!_liveMarkers[uid]){
         _liveMarkers[uid] = new google.maps.Marker({
-          position:pos, map:window.map, zIndex:isMe?800:600, optimized:false,
+          position:pos, map:window.map, zIndex:isMe?800:600,
+          optimized:true,  // Let Google Maps composite efficiently — clean alpha, no per-marker bounding box
           icon, title:d.name+(isMe?' (אני)':'')
         });
         _liveMarkers[uid]._data = d;
