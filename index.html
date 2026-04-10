@@ -1762,11 +1762,17 @@ function onGoogleMapsReady(){
   map=new google.maps.Map(mapEl,{
     center:{lat:32.0667,lng:34.7818},
     zoom:17,
+    minZoom:7,
+    maxZoom:20,
     mapTypeId:'roadmap',
     disableDefaultUI:true,
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
+    restriction:{
+      latLngBounds:{north:33.5,south:29.2,west:34.0,east:36.0},
+      strictBounds:true
+    },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
     // Hide POI icons and transit markers — keep only roads, buildings, addresses
     styles:[
@@ -6738,10 +6744,23 @@ function openAddPersonModal(){
       </div>
     </div>
     <div class="form-g"><label>תפקיד</label>${buildRolesSelect('ap-role','')}</div>
-    <div class="form-g addr-wrap">
-      <label>כתובת מגורים</label>
-      <input type="text" id="ap-addr" placeholder="כתובת..." autocomplete="off" oninput="addrSuggest(this.value,'ap-addr-sugs')"/>
-      <div class="addr-sugs" id="ap-addr-sugs"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+      <div class="form-g"><label>מספר כלי רכב</label><input type="text" id="ap-vplate" placeholder="12-345-67"/></div>
+      <div class="form-g"><label>סוג רכב</label>
+        <select id="ap-vtype">
+          <option value="">— בחר —</option>
+          <option value="private">רכב פרטי</option>
+          <option value="jeep">ג'יפ</option>
+          <option value="police">ניידת משטרה</option>
+          <option value="motorcycle">אופנוע</option>
+        </select>
+      </div>
+      <div class="form-g" style="display:flex;align-items:center;gap:6px;padding-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="ap-vpolice" style="width:16px;height:16px;cursor:pointer"/>
+          מאושר משטרתית
+        </label>
+      </div>
     </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml([])}</div>`;
   modalCB=()=>{
@@ -6754,7 +6773,9 @@ function openAddPersonModal(){
       unit:document.getElementById('ap-unit').value,
       role:getRoleValue('ap-role'),
       callsign:document.getElementById('ap-callsign').value,
-      address:document.getElementById('ap-addr').value,
+      vehiclePlate:document.getElementById('ap-vplate').value,
+      vehicleType:document.getElementById('ap-vtype').value,
+      vehiclePoliceApproved:document.getElementById('ap-vpolice').checked,
       available:document.getElementById('ap-avail').value==='true',
       skills:getSelectedSkills(),
       mission:null,photo:window._pendingPhoto||'',color:'#9ab8c8',order:PERSONNEL.length
@@ -6801,10 +6822,23 @@ function editPersonModal(id){
       </div>
     </div>
     <div class="form-g"><label>תפקיד</label>${buildRolesSelect('ep-role',p.role||'')}</div>
-    <div class="form-g addr-wrap">
-      <label>כתובת מגורים</label>
-      <input type="text" id="ep-addr" value="${(p.address||'').replace(/"/g,'&quot;')}" autocomplete="off" oninput="addrSuggest(this.value,'ep-addr-sugs')"/>
-      <div class="addr-sugs" id="ep-addr-sugs"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+      <div class="form-g"><label>מספר כלי רכב</label><input type="text" id="ep-vplate" value="${(p.vehiclePlate||'').replace(/"/g,'&quot;')}" placeholder="12-345-67"/></div>
+      <div class="form-g"><label>סוג רכב</label>
+        <select id="ep-vtype">
+          <option value="">— בחר —</option>
+          <option value="private" ${p.vehicleType==='private'?'selected':''}>רכב פרטי</option>
+          <option value="jeep" ${p.vehicleType==='jeep'?'selected':''}>ג'יפ</option>
+          <option value="police" ${p.vehicleType==='police'?'selected':''}>ניידת משטרה</option>
+          <option value="motorcycle" ${p.vehicleType==='motorcycle'?'selected':''}>אופנוע</option>
+        </select>
+      </div>
+      <div class="form-g" style="display:flex;align-items:center;gap:6px;padding-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="ep-vpolice" ${p.vehiclePoliceApproved?'checked':''} style="width:16px;height:16px;cursor:pointer"/>
+          מאושר משטרתית
+        </label>
+      </div>
     </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
   const _callerPanel = currentPanel;
@@ -6816,7 +6850,9 @@ function editPersonModal(id){
     p.unit=document.getElementById('ep-unit').value;
     p.role=getRoleValue('ep-role');
     p.callsign=document.getElementById('ep-callsign').value;
-    p.address=document.getElementById('ep-addr').value;
+    p.vehiclePlate=document.getElementById('ep-vplate').value;
+    p.vehicleType=document.getElementById('ep-vtype').value;
+    p.vehiclePoliceApproved=document.getElementById('ep-vpolice').checked;
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
     if(window._pendingPhoto){p.photo=window._pendingPhoto;window._pendingPhoto='';}
