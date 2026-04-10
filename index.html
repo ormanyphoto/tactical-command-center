@@ -7125,15 +7125,23 @@ function editPersonModal(id){
       <div class="form-g"><label>טיפול הבא</label><input type="text" id="ep-vservice" value="${(p.vehicleNextService||'').replace(/"/g,'&quot;')}" placeholder="DD/MM/YYYY"/></div>
     </div>
     <div class="form-g"><label>הערות לרכב</label><input type="text" id="ep-vnotes" value="${(p.vehicleNotes||'').replace(/"/g,'&quot;')}" placeholder="פגיעה, תקלה, הערה..."/></div>
-    <div class="form-g" style="background:var(--panel2);padding:10px;border-radius:8px">
-      <label style="font-weight:700;color:var(--accent2);margin-bottom:8px;display:block">🎒 ציוד אישי</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-helmet" ${p.eqHelmet?'checked':''}/>🪖 כובע מגן</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-vest" ${p.eqVest?'checked':''}/>🦺 אפוד</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-night" ${p.eqNight?'checked':''}/>🌙 ציוד לילה</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-bodycam" ${p.eqBodyCam?'checked':''}/>📹 מצלמת גוף</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-radio" ${p.eqRadio?'checked':''}/>📻 מכשיר קשר</label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="ep-eq-medkit" ${p.eqMedkit?'checked':''}/>⛑️ ערכה רפואית</label>
+    <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
+      <div style="font-weight:700;color:var(--accent2);margin-bottom:10px;font-size:13px">🎒 ציוד אישי</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${[
+          ['helmet','🪖','כובע מגן',p.eqHelmet],
+          ['vest','🦺','אפוד',p.eqVest],
+          ['night','🌙','ציוד לילה',p.eqNight],
+          ['bodycam','📹','מצלמת גוף',p.eqBodyCam],
+          ['radio','📻','מכשיר קשר',p.eqRadio],
+          ['medkit','⛑️','ערכה רפואית',p.eqMedkit]
+        ].map(([k,icon,lbl,checked])=>`
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text2);transition:all 0.15s;user-select:none;white-space:nowrap" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
+            <input type="checkbox" id="ep-eq-${k}" ${checked?'checked':''} style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--accent)"/>
+            <span style="font-size:15px">${icon}</span>
+            <span>${lbl}</span>
+          </label>
+        `).join('')}
       </div>
     </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
