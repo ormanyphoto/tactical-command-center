@@ -1789,13 +1789,12 @@ const AUTH = (() => {
 })();
 
 // ── Background push registration (called after login on mobile) ──
-async function _registerPushForUser(personId){
+async function _registerPushForUser(personId, verbose){
   if(!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
 
     // ALWAYS tell SW who this user is — must happen before permission check
-    // so SSE background listening starts even if Notification permission comes later
     if(reg.active){
       const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+personId) || 0);
       const lookback = Date.now() - (10 * 60 * 1000);
@@ -1814,14 +1813,84 @@ async function _registerPushForUser(personId){
     }
 
     // Request notification permission + save FCM token
-    if('Notification' in window){
-      const perm = await Notification.requestPermission();
-      if(perm === 'granted' && typeof PUSH !== 'undefined'){
-        PUSH.requestAndSaveToken(personId);
+    if('Notification' in window && typeof PUSH !== 'undefined'){
+      const perm = Notification.permission;
+      if(perm === 'granted'){
+        // Already granted — just register token silently
+        PUSH.requestAndSaveToken(personId, verbose);
+      } else if(perm === 'default' && verbose){
+        // Not asked yet — ask now (only if user clicked button)
+        PUSH.requestAndSaveToken(personId, true);
       }
+      // If 'denied', do nothing (user must re-enable manually)
     }
-  } catch(e){ console.warn('Push registration error', e); }
+  } catch(e){ console.warn('Push registration error', e); _pushBannerShow(); }
 }
+
+// Banner prompting user to enable push
+function _pushBannerShow(){
+  if(!_isMobileDevice || typeof _isMobileDevice==='function' ? !_isMobileDevice() : window.innerWidth>1024) return;
+  let b = document.getElementById('push-banner');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'push-banner';
+    b.style.cssText = 'position:fixed;bottom:70px;left:10px;right:10px;background:#ff6b00;color:#fff;padding:14px 16px;border-radius:14px;z-index:9400;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;box-shadow:0 6px 24px rgba(255,107,0,0.5);direction:rtl';
+    b.innerHTML = '<div style="margin-bottom:10px">🔔 התראות Push לא פעילות</div>'
+      +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">תקבל הודעות חירום רק כשהאפליקציה פתוחה</div>'
+      +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">הפעל התראות</button>'
+      +'<button onclick="document.getElementById(\'push-banner\').remove()" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור</button>';
+    document.body.appendChild(b);
+  }
+}
+async function _enablePush(){
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!u){ showToast({icon:'⛔',title:'התחבר קודם',type:'warn'}); return; }
+  const token = await _registerPushForUser(u.id, true);
+  // Check if token was saved
+  setTimeout(async ()=>{
+    try{
+      const resp = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json');
+      const saved = await resp.json();
+      if(saved){
+        const b = document.getElementById('push-banner'); if(b) b.remove();
+        showToast({icon:'✅',title:'התראות פעילות',sub:'תקבל הודעות גם כשהאפליקציה סגורה',type:'success',duration:5000});
+      }
+    }catch(e){}
+  }, 2000);
+}
+// Check if push registration needed every 5s after login
+function _checkPushStatus(){
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!u) return;
+  if(typeof _isMobileDevice === 'function' && !_isMobileDevice()) return;
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted'){
+    _pushBannerShow();
+    return;
+  }
+  // Permission granted — check if token is actually in Firebase
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json')
+    .then(r=>r.json())
+    .then(saved=>{
+      if(!saved){
+        // Try to register silently (permission already granted)
+        if(typeof PUSH !== 'undefined') PUSH.requestAndSaveToken(u.id, false);
+        // If still not saved after 3s, show banner
+        setTimeout(async ()=>{
+          try{
+            const r2 = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json');
+            const s2 = await r2.json();
+            if(!s2) _pushBannerShow();
+          }catch(e){}
+        }, 3000);
+      } else {
+        const b = document.getElementById('push-banner'); if(b) b.remove();
+      }
+    }).catch(()=>{});
+}
+// Auto-check on load + every 30s
+setTimeout(_checkPushStatus, 5000);
+setInterval(_checkPushStatus, 30000);
 
 // ── STATE ──
 let map=null, _markers={}, _circles={}, _polylines={}, _infoWindows=[];
@@ -10506,21 +10575,47 @@ const PUSH = (() => {
   }
 
   // ── FCM token registration ──
-  async function requestAndSaveToken(userId){
-    if(!('Notification' in window)||!firebase.messaging) return null;
+  async function requestAndSaveToken(userId, verbose){
+    const _log = (msg, data) => {
+      console.log('[PUSH]', msg, data||'');
+      if(verbose && typeof showToast==='function') showToast({icon:'🔔',title:msg,sub:String(data||'').slice(0,80),type:'info',duration:3000});
+    };
+    const _err = (msg, data) => {
+      console.error('[PUSH]', msg, data||'');
+      if(typeof auditLog==='function') auditLog('Push registration: '+msg, 'warn', String(data||''));
+      if(typeof showToast==='function') showToast({icon:'⚠️',title:msg,sub:String(data||'').slice(0,100),type:'warn',duration:6000});
+    };
     try{
+      if(!('Notification' in window)){ _err('Notification API לא נתמך'); return null; }
+      if(!firebase.messaging){ _err('firebase.messaging לא זמין'); return null; }
+      _log('בודק הרשאה...');
       const perm = await Notification.requestPermission();
-      if(perm!=='granted') return null;
-      if(!_messaging) _messaging = firebase.messaging();
+      if(perm!=='granted'){ _err('הרשאת התראות נדחתה', 'perm='+perm); return null; }
+      _log('הרשאה התקבלה, מחכה ל-SW...');
+      if(!_messaging){
+        try { _messaging = firebase.messaging(); } catch(e){ _err('firebase.messaging() נכשל', e.message); return null; }
+      }
       const swReg = await navigator.serviceWorker.ready;
+      _log('SW מוכן, מבקש FCM token...');
       _token = await _messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:swReg});
-      if(_token && userId && window._db) window._db.ref('tac_fcm_tokens/'+userId).set(_token);
+      if(!_token){ _err('לא התקבל token', 'getToken returned empty'); return null; }
+      _log('Token התקבל, שומר ל-Firebase');
+      if(userId && window._db){
+        await window._db.ref('tac_fcm_tokens/'+userId).set(_token);
+      }
+      if(typeof auditLog==='function') auditLog('FCM token נרשם','success',userId||'');
+      if(verbose && typeof showToast==='function') showToast({icon:'✅',title:'Push נרשם בהצלחה',sub:'המכשיר יקבל התראות',type:'success',duration:4000});
       return _token;
-    }catch(e){ return null; }
+    }catch(e){
+      _err('שגיאה ברישום', e.message||String(e));
+      return null;
+    }
   }
 
   loadSA();
   return { sendPush, requestAndSaveToken, saveSA, loadSA, hasSA:()=>!!_sa,
+    syncSAFromFirebase,
+    getToken:()=>_token,
     get vapidKey(){ return VAPID_KEY; } };
 })();
 
