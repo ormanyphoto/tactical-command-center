@@ -8308,6 +8308,37 @@ function _showHeatmap(points){
 }
 
 // ══════════════════════════════════════════════════════════
+// LIVE LOCATIONS FALLBACK — Direct REST API for when Firebase SDK fails
+// Polls tac_locs via HTTPS every 15s and renders markers via _updateLiveMarker
+// ══════════════════════════════════════════════════════════
+const _DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+async function _fallbackLoadLocations(){
+  try{
+    const resp = await fetch(_DB_REST+'/tac_locs.json');
+    if(!resp.ok) return;
+    const data = await resp.json();
+    if(!data) return;
+    // Store as pending for normal render path
+    window._pendingLocData = data;
+    window._liveLocs = window._liveLocs || {};
+    Object.entries(data).forEach(([uid,d])=>{
+      if(!d) return;
+      const key = d.personId || uid;
+      window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
+    });
+    // Try to render if map is ready and the inner helper exists
+    if(window.map && window._googleReady && typeof SYNC!=='undefined' && SYNC.rerenderMarkers){
+      SYNC.rerenderMarkers();
+      console.log('[FALLBACK] Rendered '+Object.keys(data).length+' live locations via REST');
+    }
+  }catch(e){ console.warn('[FALLBACK]',e.message); }
+}
+// Run fallback every 15s regardless of SYNC state — it's idempotent
+setInterval(_fallbackLoadLocations, 15000);
+// Also run once after 5s delay
+setTimeout(_fallbackLoadLocations, 5000);
+
+// ══════════════════════════════════════════════════════════
 // OSM BUILDINGS + ADDRESSES OVERLAY
 // Shows building footprints + house numbers + street names from OpenStreetMap
 // Israel has excellent OSM coverage for building-level detail.
@@ -10056,7 +10087,27 @@ const SYNC = (() => {
 
   function boot(){
     // Always use the built-in config — credentials are permanent
-    init(_DEFAULT_CFG);
+    // Retry with backoff if firebase SDK not yet loaded
+    let tries = 0;
+    function _tryBoot(){
+      if(typeof firebase === 'undefined'){
+        tries++;
+        if(tries > 20){
+          console.error('[SYNC] Firebase SDK failed to load after 10s');
+          window._syncInitError = 'Firebase SDK did not load — check network/SW';
+          if(typeof showToast==='function') showToast({icon:'⚠️',title:'Firebase לא נטען',sub:'נסה לרענן את הדף (Ctrl+Shift+R)',type:'warn',duration:8000});
+          return;
+        }
+        setTimeout(_tryBoot, 500);
+        return;
+      }
+      const ok = init(_DEFAULT_CFG);
+      if(!ok && tries < 10){
+        tries++;
+        setTimeout(_tryBoot, 1000);
+      }
+    }
+    _tryBoot();
   }
 
   return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
