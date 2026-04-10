@@ -9329,19 +9329,26 @@ const SYNC = (() => {
           closeAllInfoWindows();
           const age=Math.round((Date.now()-(d.ts||Date.now()))/1000);
           const ageStr=age<60?age+'ש\'':Math.round(age/60)+'ד\'';
+          // Day/night adaptive colors
+          const isDark = document.body.classList.contains('night');
+          const bgColorIW   = isDark ? '#0d1014' : '#ffffff';
+          const textColor   = isDark ? '#e8eff5' : '#1a2838';
+          const labelColor  = isDark ? '#8fa5b8' : '#4a6278';
+          const boxBg       = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+          const roleColor   = isDark ? '#8fa5b8' : '#5a7082';
           const ph=photoUrl&&photoUrl.length>10
             ?`<img src="${photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
             :`<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>`;
           const iw=new google.maps.InfoWindow({content:
-            `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:210px">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${ph}<div>
+            `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:220px;background:${bgColorIW};color:${textColor};border-radius:8px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${ph}<div>
                 <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${isMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
-                <div style="font-size:11px;color:#888;margin-top:1px">${d.role||''}</div></div></div>
-              <div style="background:rgba(0,0,0,0.08);border-radius:6px;padding:7px 10px;font-size:11px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px">
-                <span style="color:#aaa">סטטוס</span><span style="color:${ringColor};font-weight:700">${d.status||'פעיל'}</span>
-                <span style="color:#aaa">📡 דיוק</span><span style="color:#ddd">${d.acc||'--'} מ'</span>
-                <span style="color:#aaa">⚡ מהירות</span><span style="color:#ddd">${d.spd||0} קמ"ש</span>
-                <span style="color:#aaa">🕐 עדכון</span><span style="color:#ddd">לפני ${ageStr}</span></div></div>`
+                <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${d.role||''}</div></div></div>
+              <div style="background:${boxBg};border-radius:8px;padding:9px 12px;font-size:12px;display:grid;grid-template-columns:auto 1fr;gap:5px 12px">
+                <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${d.status||'פעיל'}</span>
+                <span style="color:${labelColor};font-weight:600">📡 דיוק</span><span style="color:${textColor};font-weight:700">${d.acc||'--'} מ'</span>
+                <span style="color:${labelColor};font-weight:600">⚡ מהירות</span><span style="color:${textColor};font-weight:700">${d.spd||0} קמ"ש</span>
+                <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${ageStr}</span></div></div>`
           });
           iw.open(window.map, _liveMarkers[uid]);
           window._infoWindows.push(iw);
