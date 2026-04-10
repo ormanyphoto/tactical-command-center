@@ -59,8 +59,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="ormanyphoto.github.io"
-                    android:pathPrefix="/tactical-command-center" />
+                    android:host="tactical-command-center.web.app" />
             </intent-filter>
 
             <!-- Launcher entry -->
