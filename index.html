@@ -8469,36 +8469,85 @@ function startClosedAreaDraw(){
 }
 
 // ══════════════════════════════════════════════════════════
-// #16 QUICK EMERGENCY MODE — one button: SOS + share location + record
+// #16 QUICK EMERGENCY — send urgent notification with location to all
 // ══════════════════════════════════════════════════════════
 function quickEmergency(){
-  if(!confirm('מצב חירום מהיר:\n• שידור SOS\n• שיתוף מיקום חי\n• התראה למפקד\n\nלהמשיך?')) return;
-  // 1. Trigger SOS (double-call to skip confirmation)
-  _sosConfirmPending = true;
-  triggerSOS();
-  // 2. Enable location publishing
+  if(!confirm('שלח הודעת חירום מהירה לכל הכוחות עם המיקום הנוכחי?')) return;
+  const u = AUTH.getUser();
+  if(!u){ showToast({icon:'⚠️',title:'לא מחובר',type:'warn'}); return; }
+  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'}); return; }
+
+  // Enable location publishing
   if(window._locPrivacyOn === false){
     window._locPrivacyOn = true;
     localStorage.setItem('tac_loc_privacy','1');
     if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
     if(typeof SYNC!=='undefined') SYNC.autoStartPublishing();
   }
-  // 3. Send urgent notification to command
-  const u = AUTH.getUser();
-  if(u && window._db){
-    const commanders = PERSONNEL.filter(p=>(p.permsOverride||[]).includes('admin') && p.id!==u.id).map(p=>p.id);
-    commanders.forEach(cid=>{
-      const nid = 'emerg_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-      window._db.ref('tac_notifications/'+cid+'/'+nid).set({
-        id:nid,type:'alert',typeLabel:'חירום מהיר',
-        title:'🚨 מצב חירום: '+u.name,
-        body:'הופעל מצב חירום מהיר. בדוק מיקום ופנה מיידית.',
-        senderName:u.name,senderId:u.id,sentAt:Date.now()
+
+  // Try to get fresh location, then send
+  const _send = (lat, lng, accuracy) => {
+    const recipients = PERSONNEL.filter(p=>p.id !== u.id).map(p=>p.id);
+    const addr = (lat && lng) ? lat.toFixed(5)+', '+lng.toFixed(5) : 'מיקום לא זמין';
+    const notifId = 'quickemerg_'+Date.now();
+    const payload = {
+      id: notifId,
+      type: 'alert',
+      typeLabel: 'חירום מהיר',
+      title: '⚡ חירום: '+u.name,
+      body: 'הודעת חירום מהירה דורשת תגובה מיידית',
+      address: addr,
+      lat: lat||null, lng: lng||null,
+      accuracy: accuracy||null,
+      threat: 'חירום מהיר',
+      senderName: u.name,
+      senderId: u.id,
+      sentAt: Date.now(),
+      venues: (lat && lng) ? [{id:'v1', label:'מיקום השולח', address:addr, lat, lng, color:'#ff3333'}] : []
+    };
+    // Write notifications for each recipient
+    const writes = recipients.map(rid =>
+      window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload)
+        .catch(()=>_queueOfflineAction('set','tac_notifications/'+rid+'/'+notifId,payload))
+    );
+    // Also save as a notif marker for the map
+    if(lat && lng){
+      window._db.ref('tac_notif_markers/'+notifId).set({
+        id: notifId, type:'alert', typeLabel:'חירום מהיר',
+        lat, lng, address: addr, senderName: u.name, sentAt: Date.now(),
+        title: payload.title, body: payload.body
       }).catch(()=>{});
+    }
+    // Push via FCM
+    if(typeof PUSH !== 'undefined' && PUSH.sendPush){
+      PUSH.sendPush(recipients, payload);
+    }
+    Promise.all(writes).then(()=>{
+      auditLog('הודעת חירום מהירה','danger',recipients.length+' נמענים • '+addr);
+      showToast({icon:'⚡',title:'חירום נשלח ל-'+recipients.length,sub:addr,type:'danger',duration:6000});
+    }).catch(()=>{
+      showToast({icon:'⚠️',title:'שגיאה בשליחה',type:'warn'});
     });
+  };
+
+  // Get fresh GPS
+  if(navigator.geolocation){
+    showToast({icon:'📡',title:'מאתר מיקום...',type:'info',duration:2000});
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        window._lastLat = pos.coords.latitude;
+        window._lastLng = pos.coords.longitude;
+        _send(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy));
+      },
+      err => {
+        // Fall back to last known
+        _send(window._lastLat, window._lastLng, null);
+      },
+      {enableHighAccuracy:true, timeout:6000, maximumAge:5000}
+    );
+  } else {
+    _send(window._lastLat, window._lastLng, null);
   }
-  auditLog('מצב חירום מהיר הופעל','danger','');
-  showToast({icon:'⚡',title:'מצב חירום פעיל',sub:'SOS + מיקום + התראה למפקד',type:'danger',duration:6000});
 }
 
 // ══════════════════════════════════════════════════════════
@@ -8935,6 +8984,7 @@ function boPlates(c){
   window._db.ref('tac_plates').limitToLast(200).once('value', snap=>{
     const data = snap.val()||{};
     const items = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    window._platesCache = items;
     const filter = (window._plateFilter||'').toLowerCase();
     const filtered = items.filter(p=>{
       if(!filter) return true;
@@ -8950,15 +9000,85 @@ function boPlates(c){
         +'<td style="font-size:11px;color:var(--text3)">'+escHtml(p.scannedBy||'')+'</td>'
         +'<td style="font-size:11px;color:var(--text3)">'+(p.ts?new Date(p.ts).toLocaleString('he-IL'):'')+'</td>'
         +'<td>'+(p.photo?'<img src="'+p.photo+'" style="width:40px;height:30px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(this.src)">':'—')+'</td>'
+        +'<td><div class="actions">'
+        +'<button class="act-btn" onclick="editPlate(\''+p.id+'\')" title="ערוך">✏️</button>'
+        +'<button class="act-btn del" onclick="deletePlate(\''+p.id+'\')" title="מחק">✕</button>'
+        +'</div></td>'
         +'</tr>';
     });
     c.innerHTML='<div class="bo-section">'
       +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center"><span>🚗 יומן לוחיות ('+items.length+')</span>'
-      +'<button class="btn-sec" onclick="openPlateScanner()">+ סרוק לוחית</button></div>'
+      +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="openPlateScanner()">+ סרוק לוחית</button>'
+      +'<button class="btn-sec" onclick="_exportPlatesCSV()">⬇️ CSV</button></div></div>'
       +'<input type="text" placeholder="חיפוש..." value="'+(window._plateFilter||'')+'" oninput="window._plateFilter=this.value;boPlates(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin:10px 0"/>'
-      +'<table class="bo-table"><thead><tr><th>לוחית</th><th>סוג</th><th>סיבה</th><th>סרק</th><th>זמן</th><th>תמונה</th></tr></thead>'
-      +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">אין רשומות</td></tr>')+'</tbody></table></div>';
+      +'<div style="max-height:60vh;overflow-y:auto"><table class="bo-table"><thead><tr><th>לוחית</th><th>סוג</th><th>סיבה</th><th>סרק</th><th>זמן</th><th>תמונה</th><th>פעולות</th></tr></thead>'
+      +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">אין רשומות</td></tr>')+'</tbody></table></div></div>';
   });
+}
+function editPlate(id){
+  const p = (window._platesCache||[]).find(x=>x.id===id);
+  if(!p){ showToast({icon:'⚠️',title:'לוחית לא נמצאה',type:'warn'}); return; }
+  document.getElementById('modal-ttl').textContent='✏️ עריכת לוחית '+p.plate;
+  document.getElementById('modal-body').innerHTML=''
+    +'<div class="form-g"><label>מספר רכב *</label><input type="text" id="lpe-plate" value="'+escHtml(p.plate||'').replace(/"/g,'&quot;')+'" style="font-size:20px;text-align:center;font-family:monospace;letter-spacing:2px"/></div>'
+    +'<div class="form-g"><label>סוג רכב</label><select id="lpe-type">'
+    +'<option value="">לא ידוע</option>'
+    +'<option value="private"'+(p.type==='private'?' selected':'')+'>רכב פרטי</option>'
+    +'<option value="commercial"'+(p.type==='commercial'?' selected':'')+'>מסחרי</option>'
+    +'<option value="motorcycle"'+(p.type==='motorcycle'?' selected':'')+'>אופנוע</option>'
+    +'<option value="truck"'+(p.type==='truck'?' selected':'')+'>משאית</option>'
+    +'</select></div>'
+    +'<div class="form-g"><label>סיבת התעניינות</label><input type="text" id="lpe-reason" value="'+escHtml(p.reason||'').replace(/"/g,'&quot;')+'"/></div>'
+    +'<div class="form-g"><label>הערות</label><textarea id="lpe-notes" rows="3">'+escHtml(p.notes||'')+'</textarea></div>'
+    +(p.photo?'<div style="margin-top:10px"><img src="'+p.photo+'" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px"/></div>':'');
+  modalCB=()=>{
+    const updated = {
+      ...p,
+      plate: document.getElementById('lpe-plate').value.trim(),
+      type: document.getElementById('lpe-type').value,
+      reason: document.getElementById('lpe-reason').value,
+      notes: document.getElementById('lpe-notes').value,
+      editedAt: Date.now(),
+      editedBy: (AUTH.getUser()||{}).name||''
+    };
+    if(window._db) window._db.ref('tac_plates/'+p.id).set(updated).catch(()=>{});
+    // Update local cache
+    const idx = LICENSE_PLATES.findIndex(x=>x.id===p.id);
+    if(idx>=0) LICENSE_PLATES[idx] = updated;
+    try{ localStorage.setItem('tac_plates',JSON.stringify(LICENSE_PLATES.slice(0,200))); }catch(e){}
+    auditLog('עדכון לוחית: '+updated.plate,'info','');
+    showToast({icon:'✏️',title:'לוחית עודכנה',sub:updated.plate,type:'success'});
+    setTimeout(()=>boPlates(document.getElementById('bo-inner')), 300);
+  };
+  document.getElementById('modal-wrap').style.display='flex';
+}
+function deletePlate(id){
+  const p = (window._platesCache||[]).find(x=>x.id===id);
+  if(!p) return;
+  if(!confirm('למחוק לוחית '+p.plate+'?')) return;
+  if(window._db) window._db.ref('tac_plates/'+id).remove().catch(()=>{});
+  LICENSE_PLATES = LICENSE_PLATES.filter(x=>x.id!==id);
+  try{ localStorage.setItem('tac_plates',JSON.stringify(LICENSE_PLATES.slice(0,200))); }catch(e){}
+  auditLog('מחיקת לוחית: '+p.plate,'warn','');
+  showToast({icon:'🗑️',title:'לוחית נמחקה',type:'info'});
+  setTimeout(()=>boPlates(document.getElementById('bo-inner')), 300);
+}
+function _exportPlatesCSV(){
+  const items = window._platesCache||[];
+  const TYPES = {private:'רכב פרטי',commercial:'מסחרי',motorcycle:'אופנוע',truck:'משאית'};
+  const csv = [['לוחית','סוג','סיבה','הערות','סרק','תאריך','lat','lng']]
+    .concat(items.map(p=>[
+      p.plate||'', TYPES[p.type]||'', p.reason||'', p.notes||'',
+      p.scannedBy||'', p.ts?new Date(p.ts).toLocaleString('he-IL'):'',
+      p.lat||'', p.lng||''
+    ]))
+    .map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const b = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'plates_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast({icon:'⬇️',title:'לוחיות יוצאו',sub:items.length+' רשומות',type:'success'});
 }
 
 // ══════════════════════════════════════════════════════════
