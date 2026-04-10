@@ -5417,24 +5417,73 @@ function exportIncidentsCSV(){
   showToast({icon:'⬇️',title:'יוצא',sub:INCIDENTS.length+' רשומות',type:'success'});
 }
 
+// Credentials vault state — auto-lock after 5 minutes
+let _credVaultUnlocked = false;
+let _credVaultLockTimer = null;
+function _lockCredVault(){
+  _credVaultUnlocked = false;
+  if(_credVaultLockTimer){ clearTimeout(_credVaultLockTimer); _credVaultLockTimer = null; }
+  const c = document.getElementById('bo-inner');
+  if(c && document.querySelector('#bo-tabs .bo-tab.active')?.textContent?.includes('סיסמאות')){
+    boCredentials(c);
+  }
+}
+function unlockCredVault(){
+  const u = AUTH.getUser();
+  if(!u){ showToast({icon:'⛔',title:'לא מחובר',type:'warn'}); return; }
+  const pw = prompt('לאימות הגישה, הזן את הסיסמה שלך:','');
+  if(pw === null) return;
+  if(pw !== u.loginPassword){
+    if(typeof auditLog==='function') auditLog('ניסיון פתיחת כספת סיסמאות נכשל','warn','');
+    showToast({icon:'⛔',title:'סיסמה שגויה',type:'error'});
+    return;
+  }
+  _credVaultUnlocked = true;
+  if(typeof auditLog==='function') auditLog('פתיחת כספת סיסמאות','success','נעילה אוטומטית בעוד 5 דקות');
+  // Auto-lock after 5 minutes
+  if(_credVaultLockTimer) clearTimeout(_credVaultLockTimer);
+  _credVaultLockTimer = setTimeout(_lockCredVault, 5*60*1000);
+  boCredentials(document.getElementById('bo-inner'));
+  showToast({icon:'🔓',title:'כספת סיסמאות פתוחה',sub:'ננעלת אוטומטית בעוד 5 דקות',type:'success',duration:4000});
+}
 function boCredentials(c){
   if(!AUTH.isAdmin()){c.innerHTML='<div class="bo-section"><div style="color:var(--danger);padding:20px;text-align:center">⛔ גישה מוגבלת — מנהל בלבד</div></div>';return;}
   const ROLE_PERMS = AUTH.getRolePerms();
   const PERM_LABELS = {'map':'מפה','dashboard':'לוח בקרה','missions':'משימות','create_mission':'יצירת משימה','units':'כוחות','manage_units':'ניהול כוחות','comms':'תקשורת','analytics':'אנליטיקה','incidents':'יומן','admin':'ניהול מערכת','geofence':'גיאופנסים','layers':'שכבות','navigation':'ניווט','field_mode':'מצב שטח'};
+
+  // Locked view — prompt for admin password
+  if(!_credVaultUnlocked){
+    c.innerHTML='<div class="bo-section">'
+      +'<div class="bo-hd">🔐 כספת סיסמאות — נעולה</div>'
+      +'<div style="background:var(--panel2);border:2px solid var(--warn);border-radius:12px;padding:40px 20px;text-align:center">'
+      +'<div style="font-size:64px;margin-bottom:16px">🔒</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--texthi);margin-bottom:8px">כספת סיסמאות מאובטחת</div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:20px;max-width:460px;margin-inline:auto;line-height:1.6">סיסמאות אנשי הצוות מאוחסנות בגישה מוגבלת. לפתיחת הכספת נדרש אימות הסיסמה האישית שלך. הכספת תינעל אוטומטית אחרי 5 דקות.</div>'
+      +'<button class="btn-pri" onclick="unlockCredVault()" style="padding:12px 28px;font-size:14px;font-weight:800">🔓 פתח כספת (דרוש אימות)</button>'
+      +'<div style="margin-top:16px;font-size:11px;color:var(--text3)">⚠️ כל פתיחה נרשמת ביומן הביקורת</div>'
+      +'</div></div>';
+    return;
+  }
+
+  // Unlocked view — show passwords
   var rows='';
   [...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(function(p){
     var role = p.role||'לוחם';
     var perms = ROLE_PERMS[p.role]||ROLE_PERMS[''];
     var permBadges = perms.map(function(pr){return '<span style="background:var(--panel3);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--text2);margin:1px;display:inline-block">'+(PERM_LABELS[pr]||pr)+'</span>';}).join('');
+    // Mask password as default, reveal with eye button
+    var masked = '••••••••';
     rows+='<tr>';
     rows+='<td style="font-weight:700;color:var(--texthi)">'+p.name+'</td>';
     rows+='<td style="color:var(--accent2);font-size:12px">'+role+'</td>';
     rows+='<td style="font-family:monospace;font-size:13px;color:var(--blue);direction:ltr;text-align:left">'+p.email+'</td>';
     rows+='<td>'
       +'<div style="display:flex;align-items:center;gap:6px">'
-      +'<span id="pwd-display-'+p.id+'" style="font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:0.04em">'+p.loginPassword+'</span>'
+      +'<span id="pwd-display-'+p.id+'" data-real="'+p.loginPassword.replace(/"/g,'&quot;')+'" data-shown="0" style="font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:0.04em;min-width:90px">'+masked+'</span>'
       +'<input id="pwd-input-'+p.id+'" type="text" value="'+p.loginPassword+'" style="display:none;font-family:monospace;font-size:12px;padding:3px 7px;border:1px solid var(--border2);border-radius:4px;background:var(--panel3);color:var(--text);width:130px;direction:ltr"/>'
-      +'<button id="pwd-edit-btn-'+p.id+'" onclick="startEditPwd(\''+p.id+'\')" style="background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text2);cursor:pointer">✏️ ערוך</button>'
+      +'<button onclick="togglePwdReveal(\''+p.id+'\')" title="הצג/הסתר" style="background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text2);cursor:pointer">👁️</button>'
+      +'<button onclick="copyPwdToClipboard(\''+p.id+'\')" title="העתק" style="background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text2);cursor:pointer">📋</button>'
+      +'<button id="pwd-edit-btn-'+p.id+'" onclick="startEditPwd(\''+p.id+'\')" style="background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text2);cursor:pointer">✏️</button>'
       +'<button id="pwd-save-btn-'+p.id+'" onclick="commitPwd(\''+p.id+'\')" style="display:none;background:var(--accent);border:none;border-radius:4px;padding:2px 9px;font-size:11px;color:#fff;cursor:pointer;font-weight:700">שמור</button>'
       +'<button id="pwd-cancel-btn-'+p.id+'" onclick="cancelEditPwd(\''+p.id+'\')" style="display:none;background:none;border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:11px;color:var(--text3);cursor:pointer">ביטול</button>'
       +'</div>'
@@ -5443,10 +5492,40 @@ function boCredentials(c){
     rows+='</tr>';
   });
   c.innerHTML='<div class="bo-section">'
-    +'<div class="bo-hd">פרטי כניסה ★ מסמך מאובטח — לשימוש מנהל בלבד</div>'
-    +'<div style="background:var(--panel2);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px">⚠️ מסמך זה מכיל סיסמאות גישה. אל תשתף עם גורמים שאינם מורשים.</div>'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center">'
+    +'<span>🔓 כספת סיסמאות — פתוחה</span>'
+    +'<button class="btn-sec" onclick="_lockCredVault()" style="padding:6px 14px;font-size:12px;border-color:var(--warn);color:var(--warn)">🔒 נעל עכשיו</button>'
+    +'</div>'
+    +'<div style="background:var(--panel2);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--warn);margin-bottom:12px">⚠️ מסמך זה מכיל סיסמאות גישה. ננעל אוטומטית בעוד 5 דקות. כל צפייה/העתקה נרשמת.</div>'
     +'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>תפקיד</th><th>אימייל (שם משתמש)</th><th>סיסמה</th><th>הרשאות</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
     +'</div>';
+}
+function togglePwdReveal(pid){
+  const el = document.getElementById('pwd-display-'+pid);
+  if(!el) return;
+  const shown = el.dataset.shown === '1';
+  if(shown){
+    el.textContent = '••••••••';
+    el.dataset.shown = '0';
+  } else {
+    el.textContent = el.dataset.real || '';
+    el.dataset.shown = '1';
+    const p = PERSONNEL.find(x=>x.id===pid);
+    if(typeof auditLog==='function' && p) auditLog('חשיפת סיסמה: '+p.name,'warn','');
+    // Auto-hide after 15 seconds
+    setTimeout(()=>{ if(el.dataset.shown==='1'){ el.textContent='••••••••'; el.dataset.shown='0'; } }, 15000);
+  }
+}
+function copyPwdToClipboard(pid){
+  const p = PERSONNEL.find(x=>x.id===pid);
+  if(!p) return;
+  try{
+    navigator.clipboard.writeText(p.loginPassword);
+    if(typeof auditLog==='function') auditLog('העתקת סיסמה: '+p.name,'warn','');
+    showToast({icon:'📋',title:'הועתק',sub:'הסיסמה הועתקה לזיכרון למשך 30 שניות',type:'success',duration:3000});
+    // Clear clipboard after 30 seconds
+    setTimeout(()=>{ try{ navigator.clipboard.writeText(''); }catch(e){} }, 30000);
+  }catch(e){ showToast({icon:'⚠️',title:'שגיאת העתקה',type:'warn'}); }
 }
 
 function startEditPwd(pid){
@@ -10308,7 +10387,22 @@ const PUSH = (() => {
             token:t,
             notification:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
             data,
-            android:{priority:'high'},
+            android:{
+              priority:'high',
+              notification:{
+                channel_id:'tac_urgent',
+                sound:'default',
+                default_sound:true,
+                default_vibrate_timings:true,
+                default_light_settings:true,
+                visibility:'PUBLIC',
+                notification_priority:'PRIORITY_MAX'
+              }
+            },
+            apns:{
+              headers:{'apns-priority':'10'},
+              payload:{aps:{sound:'default','interruption-level':'time-sensitive',badge:1}}
+            },
             webpush:{
               headers:{TTL:'300',Urgency:'high'},
               notification:{
@@ -10316,7 +10410,8 @@ const PUSH = (() => {
                 badge:'https://tactical-command-center.web.app/icon-192.png',
                 dir:'rtl', lang:'he', tag:payload.id||'tac',
                 renotify:true, requireInteraction:true,
-                vibrate:[200,100,200],
+                silent:false,
+                vibrate:[400,150,400,150,800,150,400],
                 actions:[{action:'open',title:'📂 פתח'},{action:'ack',title:'✓ קיבלתי'}]
               }
             }
