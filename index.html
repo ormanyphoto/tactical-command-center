@@ -3850,7 +3850,7 @@ function renderIncidentsP(c){
   c.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div class="sec-hd" style="margin:0">יומן אירועים (${INCIDENTS.length})</div>
-    <button class="act-btn" onclick="addTestIncident()">+ אירוע</button>
+    <button class="act-btn" onclick="addIncidentModal()">+ אירוע</button>
   </div>
   ${INCIDENTS.map(inc=>{
     const col=typeColor[inc.type]||typeColor.default;
@@ -4402,7 +4402,7 @@ function renderIncidentsP(c){
       +'</div>'
     : '';
   c.innerHTML='<div class="sec-hd">יומן אירועים ('+INCIDENTS.length+')</div>'
-    +'<button class="btn-sec" onclick="addTestIncident()" style="margin-bottom:6px">+ דווח אירוע חדש</button>'
+    +'<button class="btn-sec" onclick="addIncidentModal()" style="margin-bottom:6px">+ דווח אירוע חדש</button>'
     +filterBar
     +filtered.map(function(inc){
       var borderColor=inc.type==='urgent'?'var(--danger)':inc.type==='warn'?'var(--warn)':inc.type==='rescue'?'var(--purple)':'var(--blue)';
@@ -4417,17 +4417,6 @@ function renderIncidentsP(c){
 function setIncTagFilter(tid){
   _incTagFilter=(tid==='null'||tid===_incTagFilter)?null:tid;
   renderIncidentsP(document.getElementById('rp-body'));
-}
-function addTestIncident(){
-  var titles=['חשוד חמוש – שוק הכרמל','כלי רכב מסחרי חשוד','אירוע דקירה – תחנה מרכזית','פיצוץ מבוקר – חנות נטושה'];
-  var tagSets=[['suspect','weapon'],['vehicle','suspect'],['stabbing','casualty'],['bomb']];
-  var areas=['תל אביב','חיפה','ירושלים','באר שבע'];
-  var ri=Math.floor(Math.random()*titles.length);
-  var id='INC-'+String(INCIDENTS.length+1).padStart(3,'0');
-  INCIDENTS.unshift({id,title:titles[ri],type:'warn',area:areas[Math.floor(Math.random()*areas.length)],time:nowT(),units:['U01'],status:'פתוח',desc:titles[ri],tags:tagSets[ri]||[]});
-  saveIncidentsToFirebase();
-  renderIncidentsP(document.getElementById('rp-body'));
-  showToast({icon:'🚨',title:'אירוע חדש דווח',sub:titles[ri],type:'danger'});
 }
 
 // ─── ANALYTICS ───
