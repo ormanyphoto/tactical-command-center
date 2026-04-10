@@ -8740,9 +8740,9 @@ function boChat(c){
     +'<div class="bo-hd">💬 צ\'אט צוותים</div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">'+tabsHtml+'</div>'
     +'<div id="chat-msgs" style="height:400px;overflow-y:auto;background:var(--panel2);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px"></div>'
-    +'<div style="display:flex;gap:10px;margin-top:12px;align-items:stretch">'
-    +'<textarea id="chat-input" placeholder="הקלד הודעה... (Shift+Enter לשורה חדשה)" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:15px;min-height:70px;resize:vertical;direction:rtl" onkeydown="if(event.key===\'Enter\' && !event.shiftKey){event.preventDefault();sendChatMsg()}"></textarea>'
-    +'<button class="btn-pri" onclick="sendChatMsg()" style="padding:14px 24px;font-size:15px;font-weight:700;min-width:90px;white-space:nowrap">📤 שלח</button>'
+    +'<div style="display:flex;gap:10px;margin-top:12px;align-items:stretch;width:100%">'
+    +'<textarea id="chat-input" placeholder="הקלד הודעה... (Shift+Enter לשורה חדשה)" style="flex:1 1 auto;min-width:0;width:100%;box-sizing:border-box;padding:14px 16px;border-radius:10px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:15px;min-height:70px;resize:vertical;direction:rtl" onkeydown="if(event.key===\'Enter\' && !event.shiftKey){event.preventDefault();sendChatMsg()}"></textarea>'
+    +'<button onclick="sendChatMsg()" style="flex:0 0 auto;width:auto;padding:10px 18px;font-size:13px;font-weight:700;white-space:nowrap;background:var(--glow);border:1px solid var(--accent);border-radius:var(--r);color:var(--accent);cursor:pointer;font-family:var(--font);align-self:flex-end;height:42px">📤 שלח</button>'
     +'</div></div>';
   if(_chatCurrentTeam) _subscribeChat(_chatCurrentTeam);
 }
