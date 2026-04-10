@@ -10555,40 +10555,34 @@ const PUSH = (() => {
         lng:        String(payload.lng||''),
         sentAt:     String(payload.sentAt||Date.now())
       };
+      // IMPORTANT: data-only FCM (no top-level `notification` field).
+      // This forces Chrome/Android to deliver the message to our SW push
+      // handler, which controls the notification display with max urgency
+      // (requireInteraction, sound, vibration, actions). If we included a
+      // `notification` field here, Chrome would bypass the SW and show a
+      // plain default-channel notification that doesn't pop up on lock.
       await Promise.all(tokens.map(t=>
         fetch(url,{method:'POST',
           headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
           body:JSON.stringify({message:{
             token:t,
-            notification:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
             data,
             android:{
               priority:'high',
-              notification:{
-                channel_id:'tac_urgent',
-                sound:'default',
-                default_sound:true,
-                default_vibrate_timings:true,
-                default_light_settings:true,
-                visibility:'PUBLIC',
-                notification_priority:'PRIORITY_MAX'
-              }
+              ttl:'300s'
             },
             apns:{
-              headers:{'apns-priority':'10'},
-              payload:{aps:{sound:'default','interruption-level':'time-sensitive',badge:1}}
+              headers:{'apns-priority':'10','apns-push-type':'alert'},
+              payload:{aps:{
+                alert:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
+                sound:'default',
+                'interruption-level':'time-sensitive',
+                'mutable-content':1,
+                badge:1
+              }}
             },
             webpush:{
-              headers:{TTL:'300',Urgency:'high'},
-              notification:{
-                icon:'https://tactical-command-center.web.app/icon-192.png',
-                badge:'https://tactical-command-center.web.app/icon-192.png',
-                dir:'rtl', lang:'he', tag:payload.id||'tac',
-                renotify:true, requireInteraction:true,
-                silent:false,
-                vibrate:[400,150,400,150,800,150,400],
-                actions:[{action:'open',title:'📂 פתח'},{action:'ack',title:'✓ קיבלתי'}]
-              }
+              headers:{TTL:'300',Urgency:'high'}
             }
           }})
         }).catch(()=>{})
