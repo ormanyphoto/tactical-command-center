@@ -8316,20 +8316,30 @@ async function _fallbackLoadLocations(){
   try{
     const resp = await fetch(_DB_REST+'/tac_locs.json');
     if(!resp.ok) return;
-    const data = await resp.json();
-    if(!data) return;
-    // Store as pending for normal render path
+    const rawData = await resp.json();
+    if(!rawData) return;
+    // Dedupe by personId, keep only recent (last 30 min)
+    const STALE_MS = 30*60*1000;
+    const now = Date.now();
+    const byPerson = {};
+    Object.entries(rawData).forEach(([uid, d])=>{
+      if(!d || !d.lat || !d.lng) return;
+      if(now - (d.ts||0) > STALE_MS) return;
+      const key = d.personId || d.uid || uid;
+      if(!byPerson[key] || (d.ts||0) > byPerson[key].ts){
+        byPerson[key] = {uid, d, ts:d.ts||0};
+      }
+    });
+    const data = {};
+    Object.values(byPerson).forEach(x => { data[x.uid] = x.d; });
     window._pendingLocData = data;
-    window._liveLocs = window._liveLocs || {};
+    window._liveLocs = {};
     Object.entries(data).forEach(([uid,d])=>{
-      if(!d) return;
       const key = d.personId || uid;
       window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
     });
-    // Try to render if map is ready and the inner helper exists
     if(window.map && window._googleReady && typeof SYNC!=='undefined' && SYNC.rerenderMarkers){
       SYNC.rerenderMarkers();
-      console.log('[FALLBACK] Rendered '+Object.keys(data).length+' live locations via REST');
     }
   }catch(e){ console.warn('[FALLBACK]',e.message); }
 }
@@ -9845,20 +9855,65 @@ const SYNC = (() => {
     if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
   }
 
+  // Deduplicate locations by personId — keep only the most recent entry per person
+  // Also filter out stale entries (older than 30 minutes)
+  function _dedupeByPerson(data){
+    const STALE_MS = 30*60*1000; // 30 minutes
+    const now = Date.now();
+    const byPerson = {}; // personId → {uid, d, ts}
+    Object.entries(data||{}).forEach(([uid, d])=>{
+      if(!d || !d.lat || !d.lng) return;
+      const age = now - (d.ts||0);
+      if(age > STALE_MS) return; // too old
+      const key = d.personId || d.uid || uid;
+      const ts = d.ts || 0;
+      if(!byPerson[key] || ts > byPerson[key].ts){
+        byPerson[key] = {uid, d, ts};
+      }
+    });
+    // Convert back to {uid: d} keeping only survivors
+    const result = {};
+    Object.values(byPerson).forEach(x => { result[x.uid] = x.d; });
+    return result;
+  }
+
+  // Auto-cleanup stale entries from Firebase every 5 minutes
+  function _cleanupStaleLocations(){
+    if(!_db) return;
+    _db.ref('tac_locs').once('value', snap=>{
+      const data = snap.val()||{};
+      const STALE_MS = 2*60*60*1000; // 2 hours for deletion (conservative)
+      const now = Date.now();
+      Object.entries(data).forEach(([uid, d])=>{
+        if(!d) return;
+        const age = now - (d.ts||0);
+        if(age > STALE_MS){
+          _db.ref('tac_locs/'+uid).remove().catch(()=>{});
+        }
+      });
+    }).catch(()=>{});
+  }
+  setInterval(_cleanupStaleLocations, 5*60*1000);
+  setTimeout(_cleanupStaleLocations, 30*1000);
+
   function rerenderMarkers(){
     if(!window.map || !window._googleReady){
-      // Map not ready yet — schedule a retry (photo load happened before Maps API)
       setTimeout(rerenderMarkers, 1200);
       return;
     }
-    const data = window._pendingLocData || {};
-    const now = Date.now();
+    const data = _dedupeByPerson(window._pendingLocData || {});
     Object.entries(data).forEach(([uid,d])=>{
       _updateLiveMarker(uid, d, uid===_myUid);
     });
-    // Fresh fetch from Firebase to catch any live locations not yet in _pendingLocData
+    // Remove markers for uids no longer in deduped data
+    Object.keys(_liveMarkers).forEach(uid=>{
+      if(!data[uid]){
+        if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
+        delete _liveMarkers[uid];
+      }
+    });
     if(_db) _db.ref('tac_locs').once('value', snap=>{
-      const fd=snap.val()||{}, fn=Date.now();
+      const fd = _dedupeByPerson(snap.val()||{});
       Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
     });
   }
@@ -9869,18 +9924,23 @@ const SYNC = (() => {
     setInterval(()=>{
       if(!_db || !window.map || !window._googleReady) return;
       _db.ref('tac_locs').once('value', snap=>{
-        const fd=snap.val()||{};
+        const fd = _dedupeByPerson(snap.val()||{});
         Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+        Object.keys(_liveMarkers).forEach(uid=>{
+          if(!fd[uid]){
+            if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
+            delete _liveMarkers[uid];
+          }
+        });
       });
     }, 10000);
     _db.ref('tac_locs').on('value', snap=>{
-      const data = snap.val()||{};
-      window._pendingLocData = data; // store for re-render when map becomes ready
-      const now  = Date.now();
+      const rawData = snap.val()||{};
+      const data = _dedupeByPerson(rawData);
+      window._pendingLocData = data;
       // Expose live locations globally for ETA calculations
-      window._liveLocs = window._liveLocs || {};
+      window._liveLocs = {};
       Object.entries(data).forEach(([uid,d])=>{
-        if(!d){ delete window._liveLocs[d&&d.personId||uid]; return; }
         const key = d.personId || uid;
         window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
       });
