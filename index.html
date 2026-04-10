@@ -8350,9 +8350,9 @@ setInterval(_fallbackLoadLocations, 5000);
 setTimeout(_fallbackLoadLocations, 3000);
 
 // ══════════════════════════════════════════════════════════
-// OSM BUILDINGS + ADDRESSES OVERLAY
-// Shows building footprints + house numbers + street names from OpenStreetMap
-// Israel has excellent OSM coverage for building-level detail.
+// BUILDINGS + ADDRESSES OVERLAY
+// Uses Esri World Street Map as primary source — doesn't require Referer,
+// has building footprints, house numbers, street names with full Israeli coverage.
 // ══════════════════════════════════════════════════════════
 let _addressLayer = null;
 function toggleAddressLayer(){
@@ -8370,25 +8370,25 @@ function toggleAddressLayer(){
     showToast({icon:'🏢',title:'שכבת כתובות הוסרה',type:'info',duration:2000});
     return;
   }
-  // Use OpenStreetMap standard tiles with semi-transparency
-  // At zoom 16+, OSM shows building footprints + house numbers + street names
+  // Esri World Street Map — public, no API key, no referrer required
+  // Subdomain load balancing: server{1,2,3,4}
   _addressLayer = new google.maps.ImageMapType({
     getTileUrl: function(coord, zoom){
-      if(zoom < 15 || zoom > 19) return null;
-      return 'https://tile.openstreetmap.org/'+zoom+'/'+coord.x+'/'+coord.y+'.png';
+      if(zoom < 14 || zoom > 19) return null;
+      const sub = ((coord.x + coord.y) % 4) + 1;
+      return 'https://server'+sub+'.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'+zoom+'/'+coord.y+'/'+coord.x;
     },
     tileSize: new google.maps.Size(256, 256),
     name: 'כתובות ומבנים',
-    opacity: 0.6,
-    minZoom: 15,
+    opacity: 0.65,
+    minZoom: 14,
     maxZoom: 19
   });
   window.map.overlayMapTypes.push(_addressLayer);
   if(btn) btn.classList.add('mp-active');
-  // Auto-zoom in if too far out
   if(window.map.getZoom() < 16) window.map.setZoom(17);
-  showToast({icon:'🏢',title:'שכבת כתובות פעילה',sub:'מבנים ומספרי בתים',type:'success',duration:3000});
-  auditLog('הפעלת שכבת כתובות OSM','info','');
+  showToast({icon:'🏢',title:'שכבת כתובות פעילה',sub:'מבנים ומספרי בתים (Esri)',type:'success',duration:3000});
+  auditLog('הפעלת שכבת כתובות Esri','info','');
 }
 
 // ══════════════════════════════════════════════════════════
