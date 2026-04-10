@@ -8740,9 +8740,9 @@ function boChat(c){
     +'<div class="bo-hd">💬 צ\'אט צוותים</div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">'+tabsHtml+'</div>'
     +'<div id="chat-msgs" style="height:400px;overflow-y:auto;background:var(--panel2);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px"></div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px">'
-    +'<input type="text" id="chat-input" placeholder="הקלד הודעה..." style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font)" onkeydown="if(event.key===\'Enter\')sendChatMsg()"/>'
-    +'<button class="btn-pri" onclick="sendChatMsg()" style="padding:9px 18px">שלח</button>'
+    +'<div style="display:flex;gap:10px;margin-top:12px;align-items:stretch">'
+    +'<textarea id="chat-input" placeholder="הקלד הודעה... (Shift+Enter לשורה חדשה)" style="flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:15px;min-height:70px;resize:vertical;direction:rtl" onkeydown="if(event.key===\'Enter\' && !event.shiftKey){event.preventDefault();sendChatMsg()}"></textarea>'
+    +'<button class="btn-pri" onclick="sendChatMsg()" style="padding:14px 24px;font-size:15px;font-weight:700;min-width:90px;white-space:nowrap">📤 שלח</button>'
     +'</div></div>';
   if(_chatCurrentTeam) _subscribeChat(_chatCurrentTeam);
 }
