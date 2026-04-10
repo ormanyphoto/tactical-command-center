@@ -1828,23 +1828,39 @@ async function _registerPushForUser(personId, verbose){
 }
 
 // Banner prompting user to enable push
-function _pushBannerShow(){
-  if(!_isMobileDevice || typeof _isMobileDevice==='function' ? !_isMobileDevice() : window.innerWidth>1024) return;
+function _pushBannerShow(mode){
+  // mode: 'register' (not granted) or 'test' (granted, needs verification)
+  const isMobile = (typeof _isMobileDevice === 'function') ? _isMobileDevice() : (window.innerWidth <= 1024);
+  if(!isMobile) return;
   let b = document.getElementById('push-banner');
-  if(!b){
-    b = document.createElement('div');
-    b.id = 'push-banner';
-    b.style.cssText = 'position:fixed;bottom:70px;left:10px;right:10px;background:#ff6b00;color:#fff;padding:14px 16px;border-radius:14px;z-index:9400;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;box-shadow:0 6px 24px rgba(255,107,0,0.5);direction:rtl';
+  if(b) b.remove(); // recreate with current mode
+  b = document.createElement('div');
+  b.id = 'push-banner';
+  b.style.cssText = 'position:fixed;bottom:70px;left:10px;right:10px;background:#ff6b00;color:#fff;padding:14px 16px;border-radius:14px;z-index:9400;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;text-align:center;box-shadow:0 6px 24px rgba(255,107,0,0.5);direction:rtl';
+  if(mode === 'test'){
+    b.innerHTML = '<div style="margin-bottom:10px">🔔 אמת שהתראות Push פועלות</div>'
+      +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">לחץ לביצוע בדיקה + רישום מחדש</div>'
+      +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">🔄 בדוק ורשום מחדש</button>'
+      +'<button onclick="document.getElementById(\'push-banner\').remove();localStorage.setItem(\'tac_push_dismissed\',\'1\')" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור (לא להציג שוב)</button>';
+  } else {
     b.innerHTML = '<div style="margin-bottom:10px">🔔 התראות Push לא פעילות</div>'
       +'<div style="font-size:12px;font-weight:400;margin-bottom:10px;opacity:0.9">תקבל הודעות חירום רק כשהאפליקציה פתוחה</div>'
       +'<button onclick="_enablePush()" style="background:#fff;color:#ff6b00;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:800;cursor:pointer;width:100%">הפעל התראות</button>'
       +'<button onclick="document.getElementById(\'push-banner\').remove()" style="background:none;color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:6px;width:100%">סגור</button>';
-    document.body.appendChild(b);
   }
+  document.body.appendChild(b);
 }
 async function _enablePush(){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   if(!u){ showToast({icon:'⛔',title:'התחבר קודם',type:'warn'}); return; }
+  // Force fresh registration — delete old token first
+  if(window._db){
+    try{ await window._db.ref('tac_fcm_tokens/'+u.id).remove(); }catch(e){}
+  }
+  // Also delete the FCM token locally to force getToken to generate a fresh one
+  if(typeof PUSH !== 'undefined' && PUSH.deleteToken){
+    try{ await PUSH.deleteToken(); }catch(e){}
+  }
   const token = await _registerPushForUser(u.id, true);
   // Check if token was saved
   setTimeout(async ()=>{
@@ -1853,36 +1869,43 @@ async function _enablePush(){
       const saved = await resp.json();
       if(saved){
         const b = document.getElementById('push-banner'); if(b) b.remove();
-        showToast({icon:'✅',title:'התראות פעילות',sub:'תקבל הודעות גם כשהאפליקציה סגורה',type:'success',duration:5000});
+        localStorage.setItem('tac_push_verified','1');
+        showToast({icon:'✅',title:'Push נרשם ומוכן',sub:'תקבל הודעות גם כשהאפליקציה סגורה',type:'success',duration:5000});
+      } else {
+        showToast({icon:'⚠️',title:'הרישום נכשל',sub:'נסה להתקין מחדש את האפליקציה או לאשר הרשאת התראות',type:'warn',duration:8000});
       }
     }catch(e){}
-  }, 2000);
+  }, 2500);
 }
-// Check if push registration needed every 5s after login
 function _checkPushStatus(){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   if(!u) return;
   if(typeof _isMobileDevice === 'function' && !_isMobileDevice()) return;
   if(!('Notification' in window)) return;
+  // If user explicitly dismissed, don't show again this session
+  if(localStorage.getItem('tac_push_dismissed') === '1') return;
   if(Notification.permission !== 'granted'){
-    _pushBannerShow();
+    _pushBannerShow('register');
     return;
   }
-  // Permission granted — check if token is actually in Firebase
+  // Permission granted — check if token exists AND was verified this session
+  const verified = localStorage.getItem('tac_push_verified') === '1';
   fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json')
     .then(r=>r.json())
     .then(saved=>{
       if(!saved){
-        // Try to register silently (permission already granted)
+        // Token missing — try to register silently
         if(typeof PUSH !== 'undefined') PUSH.requestAndSaveToken(u.id, false);
-        // If still not saved after 3s, show banner
         setTimeout(async ()=>{
           try{
             const r2 = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_fcm_tokens/'+u.id+'.json');
             const s2 = await r2.json();
-            if(!s2) _pushBannerShow();
+            if(!s2) _pushBannerShow('register');
           }catch(e){}
         }, 3000);
+      } else if(!verified){
+        // Token exists but user hasn't verified it works this session
+        _pushBannerShow('test');
       } else {
         const b = document.getElementById('push-banner'); if(b) b.remove();
       }
@@ -8545,9 +8568,9 @@ async function _fallbackLoadLocations(){
     if(!resp.ok) return;
     const rawData = await resp.json();
     if(!rawData) return;
-    // Dedupe by personId, keep only recent (last 30 min)
-    // Return keyed by personId (matches _liveMarkers keying)
-    const STALE_MS = 30*60*1000;
+    // Dedupe by personId — "visible mode" means the marker stays visible
+    // until either the user toggles off OR the entry is very old (24h)
+    const STALE_MS = 24*60*60*1000; // 24 hours
     const now = Date.now();
     const byPerson = {};
     Object.entries(rawData).forEach(([uid, d])=>{
@@ -9851,8 +9874,11 @@ const SYNC = (() => {
           ts: Date.now(), uid: _myUid
         };
         _db.ref('tac_locs/'+_myUid).set(d);
-        // Auto-remove from Firebase when this client disconnects (tab closed, network lost, etc.)
-        try{ _db.ref('tac_locs/'+_myUid).onDisconnect().remove(); }catch(e){}
+        // NOTE: We do NOT use onDisconnect().remove() here — "visible mode"
+        // means the LAST known location stays on the map even when the user
+        // closes the app or loses network. The entry is only removed when:
+        // 1. User manually toggles location off (stopPublishing)
+        // 2. Auto-cleanup of stale entries (> 2 hours old via _cleanupStaleLocations)
         // Show own marker immediately — with retry if map not ready yet
         const _tryMarker=(tries)=>{
           if(window.map && window._googleReady){
@@ -9893,7 +9919,7 @@ const SYNC = (() => {
     // Stop GPS watch so we don't re-publish
     if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
     if(_db){
-      try{ _db.ref('tac_locs/'+_myUid).onDisconnect().cancel(); }catch(e){}
+      // Explicitly remove (user toggled OFF visibility)
       _db.ref('tac_locs/'+_myUid).remove().catch(()=>{});
     }
     // Remove own local marker immediately — markers are keyed by personId now
@@ -10096,16 +10122,15 @@ const SYNC = (() => {
   }
 
   // Deduplicate locations by personId — keep only the most recent entry per person
-  // Also filter out stale entries (older than 30 minutes)
-  // Returns {markerKey: d} where markerKey is the personId (or uid fallback)
+  // "Visible mode" means entries stay until user toggles off OR they're very old (24h)
   function _dedupeByPerson(data){
-    const STALE_MS = 30*60*1000; // 30 minutes
+    const STALE_MS = 24*60*60*1000; // 24 hours
     const now = Date.now();
-    const byPerson = {}; // personId → {key, d, ts}
+    const byPerson = {};
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
       const age = now - (d.ts||0);
-      if(age > STALE_MS) return; // too old
+      if(age > STALE_MS) return;
       const key = d.personId || uid;
       const ts = d.ts || 0;
       if(!byPerson[key] || ts > byPerson[key].ts){
@@ -10118,12 +10143,13 @@ const SYNC = (() => {
     return result;
   }
 
-  // Auto-cleanup stale entries from Firebase every 5 minutes
+  // Auto-cleanup very old entries from Firebase (> 7 days)
+  // "Visible mode" persists across sessions; only delete truly abandoned entries
   function _cleanupStaleLocations(){
     if(!_db) return;
     _db.ref('tac_locs').once('value', snap=>{
       const data = snap.val()||{};
-      const STALE_MS = 2*60*60*1000; // 2 hours for deletion (conservative)
+      const STALE_MS = 7*24*60*60*1000; // 7 days
       const now = Date.now();
       Object.entries(data).forEach(([uid, d])=>{
         if(!d) return;
@@ -10625,9 +10651,15 @@ const PUSH = (() => {
     }
   }
 
+  async function deleteToken(){
+    if(_messaging && firebase.messaging){
+      try{ await _messaging.deleteToken(); }catch(e){}
+    }
+    _token = null;
+  }
   loadSA();
   return { sendPush, requestAndSaveToken, saveSA, loadSA, hasSA:()=>!!_sa,
-    syncSAFromFirebase,
+    syncSAFromFirebase, deleteToken,
     getToken:()=>_token,
     get vapidKey(){ return VAPID_KEY; } };
 })();
