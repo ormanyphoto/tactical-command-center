@@ -2465,6 +2465,9 @@ function plotMissions(){
 }
 
 // ── PLOT UNITS ──
+// Only plot personnel who are MANUALLY placed (_placed=true) on the map.
+// Live locations from Firebase (tac_locs) handle real-time positioning via _liveMarkers,
+// so static personnel markers from PERSONNEL array are hidden to prevent duplication.
 function plotUnits(){
   if(!map||!window._googleReady)return;
   // Clear ALL existing unit markers
@@ -2472,12 +2475,9 @@ function plotUnits(){
   Object.keys(_markers).filter(k=>_markers[k]&&_markers[k]._type==='unit').forEach(k=>delete _markers[k]);
   Object.keys(trackMks).forEach(k=>{if(trackMks[k])trackMks[k]=null;});
 
-  // Show personnel who are: assigned to team OR mission OR manually placed (_placed)
+  // Only plot manually-placed personnel (tactical pins added by user)
   PERSONNEL.forEach(p=>{
-    const hasTeam = p.unit && p.unit !== '' && TEAMS.find(t=>t.name===p.unit);
-    const hasMission = p.mission && p.mission !== null && p.mission !== '';
-    const isPlaced = p._placed === true;
-    if(!hasTeam && !hasMission && !isPlaced) return;
+    if(p._placed !== true) return;
     if(!p.lat||!p.lng) return;
     plotPersonnelMarker(p);
   });
