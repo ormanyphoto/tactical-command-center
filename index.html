@@ -3580,6 +3580,7 @@ function renderDrawP(c){
   <div class="mp-grid">
     <button class="mp-btn" id="rp-markers-btn" onclick="toggleMarkersVisibility()"><span>👤</span><span class="mp-btn-label">כוח אדם</span></button>
     <button class="mp-btn" id="rp-geo-btn" onclick="toggleGeofenceVisibility()"><span>⬡</span><span class="mp-btn-label">גיאופנסים</span></button>
+    <button class="mp-btn" id="rp-addr-btn" onclick="toggleAddressLayer()"><span>🏢</span><span class="mp-btn-label">כתובות ומבנים</span></button>
     <button class="mp-btn" onclick="plotMissions();showToast({icon:'📋',title:'משימות עודכנו',type:'info',duration:2000})"><span>📋</span><span class="mp-btn-label">משימות</span></button>
     <button class="mp-btn" onclick="plotMissions();plotUnits();plotGFs();showToast({icon:'🔄',title:'מפה עודכנה',type:'info',duration:2000})"><span>🔄</span><span class="mp-btn-label">רענן הכל</span></button>
   </div>
@@ -8304,6 +8305,48 @@ function _showHeatmap(points){
   if(btn) btn.style.borderColor='var(--danger)';
   showToast({icon:'🔥',title:'מפת חום פעילה',sub:points.length+' אירועים',type:'success'});
   auditLog('הצגת מפת חום אירועים','info',points.length+' נקודות');
+}
+
+// ══════════════════════════════════════════════════════════
+// OSM BUILDINGS + ADDRESSES OVERLAY
+// Shows building footprints + house numbers + street names from OpenStreetMap
+// Israel has excellent OSM coverage for building-level detail.
+// ══════════════════════════════════════════════════════════
+let _addressLayer = null;
+function toggleAddressLayer(){
+  if(!window.map || !window._googleReady){
+    showToast({icon:'⚠️',title:'מפה לא מוכנה',type:'warn'});
+    return;
+  }
+  const btn = document.getElementById('rp-addr-btn');
+  if(_addressLayer){
+    const arr = window.map.overlayMapTypes.getArray();
+    const idx = arr.indexOf(_addressLayer);
+    if(idx >= 0) window.map.overlayMapTypes.removeAt(idx);
+    _addressLayer = null;
+    if(btn) btn.classList.remove('mp-active');
+    showToast({icon:'🏢',title:'שכבת כתובות הוסרה',type:'info',duration:2000});
+    return;
+  }
+  // Use OpenStreetMap standard tiles with semi-transparency
+  // At zoom 16+, OSM shows building footprints + house numbers + street names
+  _addressLayer = new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom){
+      if(zoom < 15 || zoom > 19) return null;
+      return 'https://tile.openstreetmap.org/'+zoom+'/'+coord.x+'/'+coord.y+'.png';
+    },
+    tileSize: new google.maps.Size(256, 256),
+    name: 'כתובות ומבנים',
+    opacity: 0.6,
+    minZoom: 15,
+    maxZoom: 19
+  });
+  window.map.overlayMapTypes.push(_addressLayer);
+  if(btn) btn.classList.add('mp-active');
+  // Auto-zoom in if too far out
+  if(window.map.getZoom() < 16) window.map.setZoom(17);
+  showToast({icon:'🏢',title:'שכבת כתובות פעילה',sub:'מבנים ומספרי בתים',type:'success',duration:3000});
+  auditLog('הפעלת שכבת כתובות OSM','info','');
 }
 
 // ══════════════════════════════════════════════════════════
