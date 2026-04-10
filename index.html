@@ -1761,16 +1761,17 @@ function onGoogleMapsReady(){
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
   map=new google.maps.Map(mapEl,{
     center:{lat:32.0667,lng:34.7818},
-    zoom:17,
-    minZoom:7,
+    zoom:13,  // Start wider for faster initial tile load, then zoom in after location
+    minZoom:8,
     maxZoom:20,
     mapTypeId:'roadmap',
     disableDefaultUI:true,
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
+    backgroundColor:'#0d1014',  // Dark bg prevents white flash before tiles load
     restriction:{
-      latLngBounds:{north:33.5,south:29.2,west:34.0,east:36.0},
+      latLngBounds:{north:33.5,south:29.3,west:34.2,east:35.9},
       strictBounds:true
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
