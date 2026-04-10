@@ -1975,7 +1975,7 @@ function onGoogleMapsReady(){
   if(rp)rp.classList.remove('hidden');
   setTimeout(()=>goPanel('draw'),150);
 
-  setTimeout(()=>showToast({icon:'✅',title:'מערכת מבצעים v5.3',sub:'Google Maps פעיל · בניינים · עברית · 3D',type:'success',duration:5000}),600);
+  // System welcome toast removed — too noisy on startup
 }
 
 // ── MAP TYPE ──
@@ -2855,16 +2855,21 @@ function toggleGPS(){
   });
 }
 
-function locateMe(){
-  showToast({icon:'🔍',title:'מאתר מיקום...',type:'info',duration:2000});
+let _locateLastShown = 0;
+function locateMe(showToastOnSuccess){
+  // Debounce: skip if called within 30s (auto-calls on boot)
+  const now = Date.now();
+  const showMsg = showToastOnSuccess !== false && (now - _locateLastShown > 30000);
   _locateOnce((pos,method)=>{
     const ll={lat:pos.coords.latitude,lng:pos.coords.longitude};
     map.setCenter(ll);
     map.setZoom(method==='IP'?12:method==='WiFi'?16:18);
     _applyPos(pos,method);
-    showToast({icon:_methodIcon(method),title:'מיקום נמצא — '+_methodHe(method),
-      sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success'});
-  }, ()=>showToast({icon:'⚠️',title:'לא ניתן לאתר מיקום',type:'warn'}));
+    if(showMsg){
+      _locateLastShown = now;
+      showToast({icon:_methodIcon(method),title:'מיקום נמצא',sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success',duration:2500});
+    }
+  }, ()=>{ if(showMsg) showToast({icon:'⚠️',title:'לא ניתן לאתר מיקום',type:'warn'}); });
 }
 
 // ── DRAWING TOOLS ──
@@ -8532,7 +8537,6 @@ function quickEmergency(){
 
   // Get fresh GPS
   if(navigator.geolocation){
-    showToast({icon:'📡',title:'מאתר מיקום...',type:'info',duration:2000});
     navigator.geolocation.getCurrentPosition(
       pos => {
         window._lastLat = pos.coords.latitude;
@@ -9760,7 +9764,7 @@ const SYNC = (() => {
     // No need for a separate getCurrentPosition wrapper that adds a 12s delay.
     startPublishing(profile);
     if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-    if(typeof locateMe==='function') setTimeout(locateMe, 500);
+    if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
   }
 
   function rerenderMarkers(){
