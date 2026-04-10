@@ -7634,7 +7634,14 @@ function sendNotification(){
 
     Promise.all(writes).then(()=>{
       auditLog('שליחת התראה: '+title.trim(),'info',recipientIds.length+' נמענים');
-      showToast({icon:'📤',title:'נשלח ל-'+recipientIds.length+' אנשים',type:'success'});
+      const hasSA = typeof PUSH !== 'undefined' && PUSH.hasSA && PUSH.hasSA();
+      showToast({
+        icon:'📤',
+        title:'נשלח ל-'+recipientIds.length+' אנשים',
+        sub: hasSA ? 'התראת Push פעילה' : 'ללא Push — נמענים יראו בפתיחת האפליקציה',
+        type:'success',
+        duration:4000
+      });
       closeNotifModal();
       if(typeof PUSH!=='undefined') PUSH.sendPush(recipientIds, payload);
       _listenApprovals(notifId);
@@ -7660,7 +7667,11 @@ function sendNotification(){
       }
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
-    }).catch(()=>showToast({icon:'❌',title:'שגיאה בשליחה',type:'danger'}));
+    }).catch(err=>{
+      console.error('[SEND]',err);
+      auditLog('שגיאת שליחה','warn',String(err&&err.message||err));
+      showToast({icon:'❌',title:'שגיאה בשליחה',sub:String(err&&err.message||err).slice(0,80),type:'danger',duration:8000});
+    });
   }
 
   // Geocode each venue with address
@@ -10320,7 +10331,35 @@ const PUSH = (() => {
     try{ _sa = JSON.parse(localStorage.getItem('tac_sa_json')||'null'); }catch(e){ _sa=null; }
     return !!(_sa && _sa.private_key && _sa.client_email);
   }
-  function saveSA(json){ localStorage.setItem('tac_sa_json', json); loadSA(); }
+  function saveSA(json){
+    localStorage.setItem('tac_sa_json', json);
+    loadSA();
+    // Also save to Firebase so all other devices auto-sync (admin write)
+    try{
+      if(window._db && _sa){
+        window._db.ref('tac_config/sa_json').set(json).catch(()=>{});
+      }
+    }catch(e){}
+  }
+  // Sync from Firebase on boot — any device gets SA config automatically
+  async function syncSAFromFirebase(){
+    if(loadSA()) return true; // already have local
+    if(!window._db) return false;
+    try{
+      const snap = await window._db.ref('tac_config/sa_json').once('value');
+      const json = snap.val();
+      if(json && typeof json === 'string'){
+        localStorage.setItem('tac_sa_json', json);
+        loadSA();
+        console.log('[PUSH] SA synced from Firebase');
+        return true;
+      }
+    }catch(e){ console.warn('[PUSH] SA sync failed', e); }
+    return false;
+  }
+  // Try to sync on boot after DB is ready
+  setInterval(()=>{ if(!loadSA() && window._db) syncSAFromFirebase(); }, 10000);
+  setTimeout(()=>{ if(window._db) syncSAFromFirebase(); }, 3000);
 
   // ── Generate OAuth2 access token from service account (client-side JWT) ──
   let _cachedToken = null, _tokenExpiry = 0;
@@ -10357,7 +10396,15 @@ const PUSH = (() => {
   async function sendPush(recipientIds, payload){
     const db = window._db;
     if(!db || !recipientIds.length) return;
-    if(!loadSA()){ console.warn('PUSH: no service account configured'); return; }
+    // Try local first, then sync from Firebase
+    if(!loadSA()){
+      const ok = await syncSAFromFirebase();
+      if(!ok){
+        console.warn('PUSH: no service account configured (local + Firebase)');
+        if(typeof showToast==='function') showToast({icon:'⚠️',title:'Push לא מוגדר',sub:'Service Account חסר — הגדר בניהול',type:'warn',duration:4000});
+        return;
+      }
+    }
     try{
       const [snap, token] = await Promise.all([
         db.ref('tac_fcm_tokens').once('value'), _getOAuthToken()
