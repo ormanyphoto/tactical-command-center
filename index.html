@@ -9936,6 +9936,10 @@ const SYNC = (() => {
   })();
   let _liveMarkers = {}, _publishTimer = null, _connected = false, _firstPosFix = false;
   let _myProfile = { name:'אנונימי', role:'שדה', status:'active' };
+  // Cross-device privacy: Firebase-synced { personId: true } set. When a user
+  // turns off location on ANY device, all devices skip rendering that personId
+  // and that person's own sessions stop publishing.
+  let _hiddenPersons = {};
 
   function _setSyncDot(state){ // 'on','warn','off'
     const d=document.getElementById('sync-dot');
@@ -9952,6 +9956,7 @@ const SYNC = (() => {
       _connected=true; _setSyncDot('on');
       _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
       _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
+      _subscribeHidden();
       _hideBanner(); loadPhotos(); _autoStartPublishing();
       // Auth for writes (location publishing, etc.)
       firebase.auth().signInAnonymously()
@@ -9971,6 +9976,14 @@ const SYNC = (() => {
   let _watchId = null;
   function startPublishing(profile){
     if(profile) _myProfile={..._myProfile,...profile};
+    // Clear the cross-device hidden flag — this user is explicitly turning ON
+    const _u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const _myPid = _u ? _u.id : null;
+    if(_db && _myPid){
+      _db.ref('tac_loc_hidden/'+_myPid).set(false)
+        .catch(e=>console.warn('[SYNC] clear hidden failed', e));
+      _hiddenPersons[_myPid] = false;
+    }
     // Use watchPosition for continuous real-time tracking
     if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
     if('geolocation' in navigator){
@@ -9980,6 +9993,9 @@ const SYNC = (() => {
         window._lastLng = pos.coords.longitude;
         if(!_db||window._locPrivacyOn===false) return;
         const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+        // Respect the cross-device hidden flag — if any device has toggled off,
+        // every device stops publishing for this user until toggled on again.
+        if(u && _hiddenPersons[u.id]) return;
         const d = {
           name:     u ? u.name     : _myProfile.name,
           role:     u ? (u.role||_myProfile.role) : _myProfile.role,
@@ -10032,11 +10048,6 @@ const SYNC = (() => {
     _publishTimer = setInterval(_doPublish, 8000);
   }
 
-  // Track a "just stopped" personId so polling doesn't re-render a stale marker
-  // before Firebase's remove propagates. Set in stopPublishing, cleared after 10s.
-  let _stopBlockPersonId = null;
-  let _stopBlockUntil = 0;
-
   function stopPublishing(){
     _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
@@ -10046,29 +10057,34 @@ const SYNC = (() => {
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     const myPersonId = u ? u.id : null;
 
-    // Set the stop-block so _renderAll / polling will skip this personId briefly
-    _stopBlockPersonId = myPersonId;
-    _stopBlockUntil = Date.now() + 15000; // 15-second grace period
-
     if(_db){
-      // 1. Remove the current session entry
-      _db.ref('tac_locs/'+_myUid).remove().catch(e=>console.warn('[SYNC] remove myUid failed',e));
-      // 2. ALSO remove any orphaned entries from previous sessions with the same
-      //    personId (different _myUid, stale data). Without this, dedupe picks up
-      //    the old entry and re-renders the marker.
+      // 1. Write the cross-device hidden flag FIRST — every client that
+      //    subscribes to tac_loc_hidden will immediately stop rendering this
+      //    person, AND their OWN other sessions will stop publishing.
+      if(myPersonId){
+        _db.ref('tac_loc_hidden/'+myPersonId).set(true)
+          .catch(e=>console.warn('[SYNC] set hidden failed', e));
+        // Update local cache immediately so _dedupeByPerson filters us out
+        _hiddenPersons[myPersonId] = true;
+      }
+      // 2. Remove the current session's entry from tac_locs
+      _db.ref('tac_locs/'+_myUid).remove()
+        .catch(e=>console.warn('[SYNC] remove myUid failed', e));
+      // 3. Remove any orphaned entries from earlier sessions with the same personId
       if(myPersonId){
         _db.ref('tac_locs').once('value', snap=>{
           const data = snap.val() || {};
           const orphans = Object.entries(data)
             .filter(([uid, d]) => d && d.personId === myPersonId && uid !== _myUid);
           orphans.forEach(([uid])=>{
-            _db.ref('tac_locs/'+uid).remove().catch(e=>console.warn('[SYNC] remove orphan failed',uid,e));
+            _db.ref('tac_locs/'+uid).remove()
+              .catch(e=>console.warn('[SYNC] remove orphan failed', uid, e));
           });
-          if(orphans.length) console.log('[SYNC] stopPublishing removed', orphans.length, 'orphan entries');
-        }).catch(e=>console.warn('[SYNC] scan for orphans failed',e));
+          if(orphans.length) console.log('[SYNC] stopPublishing removed', orphans.length, 'orphans');
+        }).catch(e=>console.warn('[SYNC] scan for orphans failed', e));
       }
     }
-    // Remove ALL local markers matching this personId (covers every key variation)
+    // Remove ALL local markers matching this personId
     Object.keys(_liveMarkers).forEach(k=>{
       const m = _liveMarkers[k];
       const md = m && m._data;
@@ -10086,6 +10102,9 @@ const SYNC = (() => {
 
   function _doPublish(){
     if(window._locPrivacyOn === false) return;
+    // Respect cross-device hidden flag
+    const _u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    if(_u && _hiddenPersons[_u.id]) return;
     if(!_db||!_connected){
       // Not yet connected — retry in 3s (handles approve-before-connect race)
       setTimeout(_doPublish, 3000);
@@ -10277,16 +10296,13 @@ const SYNC = (() => {
     const STALE_MS = 24*60*60*1000; // 24 hours
     const now = Date.now();
     const byPerson = {};
-    const blockedPid = (_stopBlockUntil > now) ? _stopBlockPersonId : null;
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
       const age = now - (d.ts||0);
       if(age > STALE_MS) return;
       const key = d.personId || uid;
-      // Skip entries for a person whose toggle was JUST turned off — prevents
-      // stale Firebase data from re-rendering the marker during the 15s
-      // propagation window.
-      if(blockedPid && key === blockedPid) return;
+      // Cross-device privacy — skip any person flagged as hidden in Firebase
+      if(_hiddenPersons[key]) return;
       const ts = d.ts || 0;
       if(!byPerson[key] || ts > byPerson[key].ts){
         byPerson[key] = {key, d, ts};
@@ -10296,6 +10312,24 @@ const SYNC = (() => {
     const result = {};
     Object.values(byPerson).forEach(x => { result[x.key] = x.d; });
     return result;
+  }
+
+  // Subscribe to the cross-device hidden-persons flag so every client knows
+  // immediately when someone toggles their location off anywhere.
+  function _subscribeHidden(){
+    if(!_db) return;
+    _db.ref('tac_loc_hidden').on('value', snap=>{
+      _hiddenPersons = snap.val() || {};
+      // When a person gets flagged as hidden, sweep any markers they still have
+      Object.keys(_liveMarkers).forEach(k=>{
+        const m = _liveMarkers[k];
+        const pid = (m && m._data && m._data.personId) || k;
+        if(_hiddenPersons[pid]){
+          try { m.setMap(null); } catch(_){}
+          delete _liveMarkers[k];
+        }
+      });
+    });
   }
 
   // Auto-cleanup very old entries from Firebase (> 7 days)
