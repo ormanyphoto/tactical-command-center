@@ -10343,47 +10343,32 @@ const SYNC = (() => {
   }
 
   // ── Auto-start publishing if user has location privacy ON after Firebase connects ──
+  // Opening the app always restores "visible" state — clears any stale hidden
+  // flag, clears the local _hiddenPersons cache for this user, and begins
+  // publishing. The cross-device hidden flag remains useful DURING an active
+  // session (if user toggles off on mobile, laptop stops publishing within
+  // seconds) but does NOT persist across app restarts. This matches the
+  // user expectation for an emergency-response app where visibility is
+  // the safe default.
   let _autoStartTries = 0;
   function _autoStartPublishing(){
     if(window._locPrivacyOn === false) return;
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     if(!u){
-      // Auth may not be restored yet (race: Firebase resolves before AUTH.restore())
-      // Retry up to 8 times waiting for session restore
       if(_autoStartTries++ < 8){ setTimeout(_autoStartPublishing, 1000); }
       return;
     }
     _autoStartTries = 0;
-    // CRITICAL: respect the cross-device hidden flag. If this user is hidden
-    // (e.g. they toggled OFF from another device), do NOT auto-start publishing
-    // on this device either. The user must explicitly toggle ON via the UI,
-    // which calls enablePublishing and clears the flag.
-    if(!_db){
-      // DB not ready, retry shortly
-      setTimeout(_autoStartPublishing, 500);
-      return;
+    // Actively clear any stale hidden flag for this user — opening the app
+    // is itself an implicit "I am visible" signal.
+    if(_db){
+      _db.ref('tac_loc_hidden/'+u.id).set(false).catch(()=>{});
+      _hiddenPersons[u.id] = false;
     }
-    _db.ref('tac_loc_hidden/'+u.id).once('value').then(snap=>{
-      if(snap.val() === true){
-        console.log('[SYNC] auto-start skipped — user is hidden (tac_loc_hidden)');
-        _hiddenPersons[u.id] = true;
-        // Reflect in local UI
-        window._locPrivacyOn = false;
-        try { localStorage.setItem('tac_loc_privacy','0'); } catch(_){}
-        if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-        return;
-      }
-      const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
-      startPublishing(profile);
-      if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-      if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
-    }).catch(e=>{
-      console.warn('[SYNC] auto-start hidden check failed, starting anyway', e);
-      const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
-      startPublishing(profile);
-      if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-      if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
-    });
+    const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
+    startPublishing(profile);
+    if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+    if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
   }
 
   // Deduplicate locations by personId — keep only the most recent entry per person
@@ -10880,20 +10865,20 @@ const PUSH = (() => {
       ]);
       if(!token) return;
       const allTokens = snap.val()||{};
-      const webTokens = recipientIds.map(id=>allTokens[id]).filter(Boolean);
-      // Native tokens are stored per-device: tac_fcm_tokens_native/<personId>/<deviceId> = token
-      // Collect all tokens for each recipient across all their Android devices.
+      // Build a list of web-token entries with their recipientId preserved
+      const webEntries = recipientIds
+        .map(id => ({ token: allTokens[id], recipientId: id }))
+        .filter(e => !!e.token);
       const allNative = nativeSnap.val()||{};
-      const nativeTokens = [];
+      let nativeCount = 0;
       recipientIds.forEach(id=>{
         const devMap = allNative[id];
         if(devMap && typeof devMap === 'object'){
-          Object.values(devMap).forEach(t=>{ if(typeof t === 'string' && t) nativeTokens.push(t); });
+          nativeCount += Object.values(devMap).filter(v=>typeof v === 'string' && v).length;
         }
       });
-      const tokens = [...webTokens, ...nativeTokens];
-      if(!tokens.length) return;
-      console.log('[PUSH] sending to', webTokens.length, 'web +', nativeTokens.length, 'native tokens');
+      if(!webEntries.length && !nativeCount) return;
+      console.log('[PUSH] sending to', webEntries.length, 'web +', nativeCount, 'native tokens');
       const project = _sa.project_id || 'tactical-command-center';
       const url = `https://fcm.googleapis.com/v1/projects/${project}/messages:send`;
       const data = {
@@ -10914,32 +10899,97 @@ const PUSH = (() => {
       // (requireInteraction, sound, vibration, actions). If we included a
       // `notification` field here, Chrome would bypass the SW and show a
       // plain default-channel notification that doesn't pop up on lock.
-      await Promise.all(tokens.map(t=>
-        fetch(url,{method:'POST',
-          headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-          body:JSON.stringify({message:{
-            token:t,
-            data,
-            android:{
-              priority:'high',
-              ttl:'300s'
-            },
-            apns:{
-              headers:{'apns-priority':'10','apns-push-type':'alert'},
-              payload:{aps:{
-                alert:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
-                sound:'default',
-                'interruption-level':'time-sensitive',
-                'mutable-content':1,
-                badge:1
-              }}
-            },
-            webpush:{
-              headers:{TTL:'300',Urgency:'high'}
+      // Build a metadata list: preserve recipientId (+ deviceId for native)
+      // so errors can be mapped back to the originating Firebase path for
+      // automatic cleanup of stale/unregistered tokens.
+      const tokenMeta = [];
+      webEntries.forEach(e => {
+        tokenMeta.push({ token: e.token, isNative: false, recipientId: e.recipientId });
+      });
+      recipientIds.forEach(rid => {
+        const devMap = allNative[rid];
+        if(devMap && typeof devMap === 'object'){
+          Object.entries(devMap).forEach(([devId, tkn]) => {
+            if(typeof tkn === 'string' && tkn){
+              tokenMeta.push({ token: tkn, isNative: true, recipientId: rid, deviceId: devId });
             }
-          }})
-        }).catch(()=>{})
-      ));
+          });
+        }
+      });
+      const sendResults = await Promise.all(tokenMeta.map(async (meta) => {
+        const t = meta.token;
+        const isNative = meta.isNative;
+        try {
+          const resp = await fetch(url, {method:'POST',
+            headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+            body:JSON.stringify({message:{
+              token:t,
+              data,
+              android:{
+                priority:'high',
+                ttl:'300s'
+              },
+              apns:{
+                headers:{'apns-priority':'10','apns-push-type':'alert'},
+                payload:{aps:{
+                  alert:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
+                  sound:'default',
+                  'interruption-level':'time-sensitive',
+                  'mutable-content':1,
+                  badge:1
+                }}
+              },
+              webpush:{
+                headers:{TTL:'300',Urgency:'high'}
+              }
+            }})
+          });
+          if(!resp.ok){
+            const errText = await resp.text();
+            console.warn('[FCM]', isNative?'NATIVE':'WEB', 'send failed', resp.status, errText.slice(0, 200), 'token', t.slice(0,20)+'...');
+            // Auto-cleanup of stale tokens: UNREGISTERED / INVALID_ARGUMENT / NOT_FOUND
+            // mean the token is dead. Remove it from Firebase so next sendPush
+            // doesn't keep retrying it.
+            if(resp.status === 404 || /UNREGISTERED|INVALID_ARGUMENT|NOT_FOUND/i.test(errText)){
+              try {
+                if(isNative && meta.deviceId){
+                  await db.ref('tac_fcm_tokens_native/'+meta.recipientId+'/'+meta.deviceId).remove();
+                  await db.ref('tac_fcm_tokens_native_devices/'+meta.deviceId).remove();
+                  console.log('[FCM] cleaned up stale native token for', meta.recipientId, meta.deviceId);
+                } else if(!isNative){
+                  await db.ref('tac_fcm_tokens/'+meta.recipientId).remove();
+                  console.log('[FCM] cleaned up stale web token for', meta.recipientId);
+                }
+              } catch(cleanupErr){ console.warn('[FCM] cleanup failed', cleanupErr); }
+            }
+            return { ok:false, native:isNative, status:resp.status, err:errText.slice(0,200), token:t.slice(0,20) };
+          }
+          console.log('[FCM]', isNative?'NATIVE':'WEB', 'sent ok to', t.slice(0,20)+'...');
+          return { ok:true, native:isNative, token:t.slice(0,20) };
+        } catch(e){
+          console.warn('[FCM] send exception', e, 'token', t.slice(0,20)+'...');
+          return { ok:false, native:isNative, err:String(e), token:t.slice(0,20) };
+        }
+      }));
+      const ok = sendResults.filter(r=>r.ok).length;
+      const failed = sendResults.filter(r=>!r.ok);
+      if(failed.length){
+        console.warn('[FCM] '+failed.length+'/'+sendResults.length+' failed:', failed);
+      } else {
+        console.log('[FCM] all '+ok+' pushes delivered to FCM (delivery to device is async)');
+      }
+      // Surface failures to the sender via toast
+      if(failed.length && typeof showToast === 'function'){
+        const nativeFail = failed.filter(r=>r.native).length;
+        const webFail = failed.filter(r=>!r.native).length;
+        showToast({
+          icon:'⚠️',
+          title:'Push — '+ok+' הצליחו, '+failed.length+' נכשלו',
+          sub: (nativeFail?nativeFail+' native ':'') + (webFail?webFail+' web':''),
+          type:'warn',
+          duration:6000
+        });
+      }
     }catch(e){ console.warn('FCM v1 error',e); }
   }
 
