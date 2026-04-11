@@ -8645,24 +8645,64 @@ function toggleAddressLayer(){
   catch(_){ _addressLayerPrevStyles = []; }
   // Blank out Google's rendering so OSM tiles are the only visible map content
   window.map.setOptions({ styles: _ADDRESS_BASE_STYLE });
-  // OpenStreetMap — public, free, reliable CDN, full Israeli coverage
-  _addressLayer = new google.maps.ImageMapType({
-    getTileUrl: function(coord, zoom){
-      if(zoom < 10 || zoom > 19) return null;
-      // Wrap X for world coverage (negative/oversized values)
-      const n = Math.pow(2, zoom);
-      const x = ((coord.x % n) + n) % n;
-      const y = coord.y;
-      if(y < 0 || y >= n) return null;
-      const sub = ['a','b','c'][(coord.x + coord.y) % 3];
-      return 'https://'+sub+'.tile.openstreetmap.org/'+zoom+'/'+x+'/'+y+'.png';
-    },
+  // Custom MapType that implements getTile directly so we can overzoom
+  // beyond OSM's native maxZoom (19). At zoom > 19 we fetch the parent z19
+  // tile and use CSS background-size/position to crop and scale the correct
+  // sub-region — standard tile overzoom technique.
+  const OSM_NATIVE_MAX = 19;
+  const OSM_ABS_MAX    = 22; // Google Maps can go up to 22
+  _addressLayer = {
     tileSize: new google.maps.Size(256, 256),
-    name: 'כתובות ומבנים',
-    opacity: 1.0,
+    maxZoom: OSM_ABS_MAX,
     minZoom: 10,
-    maxZoom: 19
-  });
+    name: 'כתובות ומבנים',
+    alt: 'כתובות ומבנים (OSM)',
+    opacity: 1.0,
+    getTile: function(coord, zoom, ownerDoc){
+      const div = ownerDoc.createElement('div');
+      div.style.width = '256px';
+      div.style.height = '256px';
+      div.style.overflow = 'hidden';
+      if(zoom < 10) return div; // empty at low zoom
+      // Effective tile zoom (cap at OSM's native max)
+      const tileZoom = Math.min(zoom, OSM_NATIVE_MAX);
+      const factor = Math.pow(2, zoom - tileZoom); // 1, 2, 4, 8...
+      const n = Math.pow(2, tileZoom);
+      // Ancestor tile coordinates at tileZoom
+      let tileX = Math.floor(coord.x / factor);
+      let tileY = Math.floor(coord.y / factor);
+      // Wrap X so world tiles work; return empty for out-of-bounds Y
+      tileX = ((tileX % n) + n) % n;
+      if(tileY < 0 || tileY >= n) return div;
+      const sub = ['a','b','c'][Math.abs(tileX + tileY) % 3];
+      const url = 'https://'+sub+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      if(factor === 1){
+        // Native zoom — render the tile directly
+        const img = ownerDoc.createElement('img');
+        img.src = url;
+        img.style.width = '256px';
+        img.style.height = '256px';
+        img.style.display = 'block';
+        img.style.userSelect = 'none';
+        img.draggable = false;
+        div.appendChild(img);
+      } else {
+        // Overzoom — scale parent tile up by `factor` and position to the
+        // correct sub-region that corresponds to this (coord.x, coord.y).
+        const subX = coord.x - tileX * factor;
+        const subY = coord.y - tileY * factor;
+        const bgSize = 256 * factor;
+        div.style.backgroundImage = "url('"+url+"')";
+        div.style.backgroundSize = bgSize+'px '+bgSize+'px';
+        div.style.backgroundPosition = (-subX * 256)+'px '+(-subY * 256)+'px';
+        div.style.backgroundRepeat = 'no-repeat';
+        // Use smooth scaling at low overzoom, pixelated at 4x+ so labels don't smear
+        div.style.imageRendering = factor >= 4 ? 'pixelated' : 'auto';
+      }
+      return div;
+    },
+    releaseTile: function(tile){ /* let GC reclaim */ }
+  };
   window.map.overlayMapTypes.push(_addressLayer);
   if(btn) btn.classList.add('mp-active');
   if(window.map.getZoom() < 16) window.map.setZoom(17);
