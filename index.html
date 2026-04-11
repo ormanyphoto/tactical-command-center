@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.8.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.8.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -243,44 +243,6 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 @media(max-width:767px){#map-action-overlay,#map-sos-btn{display:none}}
 /* Tablet (768-1024): SOS button visible, positioned below emergency button */
 @media(min-width:768px) and (max-width:1024px){#map-sos-btn{bottom:28px;width:140px;font-size:13px;padding:9px 0}}
-/* ── GLOBAL APPROVALS BAR — visible to ALL users whenever there's an active notif with approvers ── */
-/* z-index:9500 so it stacks ABOVE #field-mode (9000) and #bo-wrap (8000) — ensures חפ״ק users in
-   field mode and commanders in the admin panel both see approvals in real time. */
-#global-approvals-bar{display:none;position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:9500;width:min(520px,92vw);background:linear-gradient(180deg,rgba(10,22,14,0.98),rgba(8,18,12,0.98));border:1.5px solid rgba(61,255,82,0.38);border-top:none;border-radius:0 0 14px 14px;padding:10px 14px 12px;direction:rtl;font-family:'Heebo',sans-serif;box-shadow:0 10px 32px rgba(0,0,0,0.6),0 0 22px rgba(61,255,82,0.12);backdrop-filter:blur(10px);pointer-events:auto}
-#global-approvals-bar.active{display:block;animation:gabSlide 0.35s ease-out}
-#global-approvals-bar.collapsed .gab-list{display:none}
-#global-approvals-bar.collapsed{padding-bottom:10px}
-#global-approvals-bar.collapsed #gab-chev{transform:rotate(180deg)}
-@keyframes gabSlide{from{transform:translate(-50%,-110%);opacity:0}to{transform:translate(-50%,0);opacity:1}}
-.gab-toggle{position:absolute;left:8px;top:6px;background:rgba(61,255,82,0.12);border:1px solid rgba(61,255,82,0.3);color:#3dff52;width:26px;height:26px;border-radius:6px;font-size:13px;cursor:pointer;padding:0;line-height:1;font-family:'Heebo',sans-serif}
-.gab-toggle:hover{background:rgba(61,255,82,0.2)}
-#gab-chev{display:inline-block;transition:transform 0.2s}
-.gab-hdr{display:flex;align-items:center;gap:8px;margin-bottom:7px;color:#fff;padding-left:34px}
-.gab-dot{width:9px;height:9px;border-radius:50%;background:#3dff52;box-shadow:0 0 8px #3dff52;animation:gabPulse 1.6s ease-in-out infinite}
-@keyframes gabPulse{0%,100%{opacity:1}50%{opacity:0.45}}
-.gab-title{font-size:12px;font-weight:900;letter-spacing:0.03em;color:#3dff52;flex:1}
-.gab-count{background:rgba(61,255,82,0.18);color:#3dff52;border:1px solid rgba(61,255,82,0.35);border-radius:10px;padding:1px 9px;font-size:11px;font-weight:800}
-.gab-list{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-.gab-row{display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:7px;font-size:12px;color:#d7e3ec}
-.gab-row .gab-rd{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.gab-row b{color:#fff;font-weight:800}
-.gab-row .gab-role{color:#6a8aa5;font-weight:600}
-.gab-status{font-size:10px;font-weight:800;white-space:nowrap;padding:2px 6px;border-radius:4px;flex-shrink:0}
-.gab-status.waiting{color:#f0b000;background:rgba(240,176,0,0.1);border:1px solid rgba(240,176,0,0.3)}
-.gab-status.enroute{color:#3dff52;background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.3)}
-.gab-status.eta{color:#a8e800;background:rgba(168,232,0,0.12);border:1px solid rgba(168,232,0,0.3)}
-/* When field-mode is active (z:9000), the topbar is 56px, not 62px — slide the
-   bar down to stay below it without covering fm controls */
-body.fm-active #global-approvals-bar{top:56px}
-/* When the admin panel (BO) is OPEN, hide the global bar entirely so it does
-   not cover the "← חזרה למפה" back button which sits at the top of bo-topbar.
-   The commander can still see the approvals in the right-panel section. */
-body.bo-active #global-approvals-bar{display:none !important}
-@media(max-width:600px){
-  #global-approvals-bar{top:54px;padding:8px 11px 10px;width:96vw;border-radius:0 0 12px 12px}
-  body.fm-active #global-approvals-bar{top:56px}
-  .gab-list{max-height:190px}
-}
 /* ── DEPARTURE BANNER — shown after user approved, until they press "יצאתי לדרך" ── */
 #depart-banner{display:none;position:fixed;top:62px;left:0;right:0;z-index:8490;background:linear-gradient(90deg,rgba(10,80,20,0.97),rgba(18,120,35,0.97));color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(61,255,82,0.55);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl;box-shadow:0 6px 22px rgba(0,0,0,0.45)}
 #depart-banner.active{display:flex;animation:dpbSlide 0.35s ease-out}
@@ -814,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -871,21 +833,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </button>
     </div>
     <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date">טוען...</span></div>
-  </div>
-
-  <!-- GLOBAL APPROVALS BAR — always visible to ALL users whenever there is an
-       active notification with approvers. Shows who approved, who departed,
-       and live ETA for each. Renders in both desktop and mobile views. -->
-  <div id="global-approvals-bar">
-    <button class="gab-toggle" onclick="toggleGlobalApprovals()" title="פתח/סגור">
-      <span id="gab-chev">▾</span>
-    </button>
-    <div class="gab-hdr">
-      <span class="gab-dot"></span>
-      <span class="gab-title">מאשרים ומגיעים</span>
-      <span class="gab-count" id="gab-count">0</span>
-    </div>
-    <div class="gab-list" id="gab-list"></div>
   </div>
 
   <!-- DEPARTURE BANNER — shown after user approved a notification but hasn't yet pressed "יצאתי לדרך" -->
@@ -1223,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.8.3</div>
+    <div id="fm-logo">⬡ מבצעים v5.8.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6848,7 +6795,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.8.3 source-code update because the merge in
+    // which survived our v5.8.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9039,7 +8986,6 @@ function _subscribeActiveNotif(){
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
       if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-      if(typeof _refreshGlobalApprovalsBar === 'function') _refreshGlobalApprovalsBar();
       return;
     }
     _currentActiveNotifId = v.notifId;
@@ -9070,64 +9016,6 @@ setInterval(async ()=>{
     }
   } catch(_){}
 }, 10000);
-// Populate the GLOBAL approvals bar — visible to ALL users everywhere.
-// This is the primary surface where approvers+ETA show up for commanders,
-// field members, חפ״ק and responders alike, regardless of screen size.
-// Safe to call at any time; no-ops if the bar element isn't in the DOM.
-function _refreshGlobalApprovalsBar(){
-  const bar = document.getElementById('global-approvals-bar');
-  if(!bar) return;
-  const list = document.getElementById('gab-list');
-  const count = document.getElementById('gab-count');
-  const entries = Object.values(_approvalsData || {});
-  if(!entries.length){ bar.classList.remove('active'); return; }
-  const venues = window._activeNotifVenues || [];
-  const dest = window._activeNotifDest;
-  const hasDest = dest && dest.lat && dest.lng;
-  const eLat = (hasDest ? dest.lat : null) || (venues[0] && venues[0].lat) || null;
-  const eLng = (hasDest ? dest.lng : null) || (venues[0] && venues[0].lng) || null;
-  if(count) count.textContent = String(entries.length);
-  if(list){
-    list.innerHTML = entries.map(e => {
-      const eta = (eLat && eLng && typeof _calcETAString === 'function') ? _calcETAString(e.personId, eLat, eLng) : null;
-      let statusHtml, dotColor;
-      if(e.departed && eta){
-        statusHtml = '<span class="gab-status eta">⏱ '+escHtml(eta)+'</span>';
-        dotColor = '#3dff52';
-      } else if(e.departed){
-        statusHtml = '<span class="gab-status enroute">🚗 בדרך</span>';
-        dotColor = '#3dff52';
-      } else {
-        statusHtml = '<span class="gab-status waiting">⏳ ממתין ליציאה</span>';
-        dotColor = '#f0b000';
-      }
-      return '<div class="gab-row">'
-        +'<span class="gab-rd" style="background:'+dotColor+'"></span>'
-        +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>'+escHtml(e.name||'')+'</b><span class="gab-role"> · '+escHtml(e.role||'')+'</span></span>'
-        +statusHtml
-        +'</div>';
-    }).join('');
-  }
-  bar.classList.add('active');
-}
-// Toggle the global approvals bar collapsed/expanded so it can get out of
-// the way when the user needs the map space below it.
-function toggleGlobalApprovals(){
-  const bar = document.getElementById('global-approvals-bar');
-  if(!bar) return;
-  bar.classList.toggle('collapsed');
-  try { localStorage.setItem('tac_gab_collapsed', bar.classList.contains('collapsed') ? '1' : '0'); } catch(_){}
-}
-// Restore collapsed state on load
-setTimeout(()=>{
-  try {
-    if(localStorage.getItem('tac_gab_collapsed')==='1'){
-      const bar = document.getElementById('global-approvals-bar');
-      if(bar) bar.classList.add('collapsed');
-    }
-  } catch(_){}
-}, 300);
-
 // Populate the field-mode compact approvals bar. Safe to call any time —
 // it just no-ops if the field mode isn't visible or there are no approvals.
 function _refreshFieldApprovalsBar(){
@@ -9187,9 +9075,6 @@ function _listenApprovals(notifId){
     if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
     // Update the field-mode approvals bar (for חפ״ק etc.)
     _refreshFieldApprovalsBar();
-    // Update the GLOBAL approvals bar so ALL users on ALL devices see
-    // approvers and ETAs in real time — regardless of which view they're in.
-    _refreshGlobalApprovalsBar();
   });
   _approvalsListener = ()=>ref.off('value', handler);
 
@@ -9197,8 +9082,6 @@ function _listenApprovals(notifId){
   window._etaRefreshTimer = setInterval(()=>{
     if(!Object.keys(_approvalsData).length){
       clearInterval(window._etaRefreshTimer); window._etaRefreshTimer=null;
-      // Hide the global bar when the active notification empties out
-      _refreshGlobalApprovalsBar();
       return;
     }
     const c = document.getElementById('rp-body');
@@ -9207,10 +9090,8 @@ function _listenApprovals(notifId){
       const el = c.querySelector('.approvals-section');
       if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); el.replaceWith(tmp.firstChild); }
     }
-    // Refresh both the field-mode bar and the global bar so every visible
-    // surface sees live ETAs as responders get closer.
+    // Refresh the field-mode bar so live ETAs update as responders get closer.
     if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-    if(typeof _refreshGlobalApprovalsBar === 'function') _refreshGlobalApprovalsBar();
   }, 20000);
 }
 
@@ -9263,7 +9144,6 @@ function _calcETAString(personId, destLat, destLng){
           if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); if(tmp.firstChild) el.replaceWith(tmp.firstChild); }
         }
         if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-        if(typeof _refreshGlobalApprovalsBar === 'function') _refreshGlobalApprovalsBar();
       }
     });
   }
@@ -11941,7 +11821,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -12020,7 +11900,6 @@ const FIELD = (() => {
     // חפ״ק commanders see who's confirmed + ETA without leaving field view.
     if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
     if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-    if(typeof _refreshGlobalApprovalsBar === 'function') _refreshGlobalApprovalsBar();
   }
 
   function _askIdentity(){
