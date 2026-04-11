@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,12 +1141,15 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.3</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
     <button id="fm-logout-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
   </div>
+  <!-- Approvals bar — populated by _listenApprovals so חפ״ק / commanders in
+       field mode can see who is on the way + ETA without switching modes -->
+  <div id="fm-approvals-bar" style="display:none;background:rgba(34,197,94,0.08);border-bottom:1px solid rgba(34,197,94,0.25);padding:6px 10px;max-height:96px;overflow-y:auto;direction:rtl"></div>
   <div id="fm-map-wrap">
     <div id="fm-gmap"></div>
     <div id="fm-accuracy-pill">
@@ -8446,6 +8449,10 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
     title: label,
     icon: markerIcon,
     zIndex: 9999,
+    // optimized:false forces unbatched per-marker rendering so the SVG alpha
+    // channel is composited cleanly — otherwise Android WebView shows a
+    // visible bounding box around transparent SVG markers.
+    optimized: false,
     animation: google.maps.Animation.BOUNCE
   });
   setTimeout(()=>{ if(marker) marker.setAnimation(null); }, 3000);
@@ -8634,6 +8641,7 @@ function _subscribeActiveNotif(){
       // Already attached — but still re-render in case venues just arrived
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+      if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
       return;
     }
     _currentActiveNotifId = v.notifId;
@@ -8644,6 +8652,37 @@ function _subscribeActiveNotif(){
 // Start the global listener on every SYNC boot (once the DB is available)
 setInterval(()=>{ if(!_activeNotifGlobalListener && window._db) _subscribeActiveNotif(); }, 2000);
 setTimeout(_subscribeActiveNotif, 1500);
+// Populate the field-mode compact approvals bar. Safe to call any time —
+// it just no-ops if the field mode isn't visible or there are no approvals.
+function _refreshFieldApprovalsBar(){
+  const bar = document.getElementById('fm-approvals-bar');
+  if(!bar) return;
+  const entries = Object.values(_approvalsData || {});
+  if(!entries.length){ bar.style.display = 'none'; return; }
+  const venues = window._activeNotifVenues || [];
+  const dest = window._activeNotifDest;
+  const hasDest = dest && dest.lat && dest.lng;
+  const eLat = (hasDest ? dest.lat : null) || (venues[0] && venues[0].lat) || null;
+  const eLng = (hasDest ? dest.lng : null) || (venues[0] && venues[0].lng) || null;
+  const header = '<div style="font-size:10px;font-weight:800;color:#22c55e;letter-spacing:0.04em;margin-bottom:4px;display:flex;align-items:center;gap:6px">'
+    +'<span style="width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 4px #22c55e"></span>'
+    +'מאשרים ומגיעים (' + entries.length + ')'
+    +'</div>';
+  const rows = entries.map(e => {
+    const eta = (eLat && eLng && typeof _calcETAString === 'function') ? _calcETAString(e.personId, eLat, eLng) : null;
+    const etaHtml = eta
+      ? '<span style="font-size:10px;font-weight:700;color:#a8e800;background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:4px;padding:1px 5px;white-space:nowrap">⏱ '+eta+'</span>'
+      : '<span style="font-size:9px;color:#5a7a90">מגיע</span>';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:#c9d8e4">'
+      +'<span style="width:5px;height:5px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>'
+      +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>'+escHtml(e.name||'')+'</b><span style="color:#6a8aa5"> · '+escHtml(e.role||'')+'</span></span>'
+      +etaHtml
+      +'</div>';
+  }).join('');
+  bar.innerHTML = header + rows;
+  bar.style.display = 'block';
+}
+
 function _listenApprovals(notifId){
   const db = window._db;
   if(!db) return;
@@ -8660,9 +8699,12 @@ function _listenApprovals(notifId){
         if(d && d.approved) _approvalsData[d.personId] = d;
       });
     }
-    // Refresh panel if open
+    console.log('[APPROVALS] updated, count=', Object.keys(_approvalsData).length);
+    // Refresh the main command panel if open
     const c = document.getElementById('rp-body');
     if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+    // Also update the field-mode approvals bar (for חפ״ק etc.)
+    _refreshFieldApprovalsBar();
   });
   _approvalsListener = ()=>ref.off('value', handler);
 
@@ -10016,7 +10058,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.7.3',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.7.4',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11329,7 +11371,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -11399,6 +11441,10 @@ const FIELD = (() => {
     if(!name){ _askIdentity(); } else { _setName(name); }
     _initMap();
     _syncMyMission();
+    // Ensure the approvals listener is running even in field mode so
+    // חפ״ק commanders see who's confirmed + ETA without leaving field view.
+    if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
+    if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
   }
 
   function _askIdentity(){
