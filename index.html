@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.6 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.7 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.6</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.7</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.6</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.7</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8692,8 +8692,8 @@ setTimeout(_subscribeActiveNotif, 1500);
 
 // REST polling fallback — the SDK .on('value') sometimes buffers or misses
 // updates on Android WebView / Samsung / Chrome. Poll tac_active_notif via
-// plain fetch every 4 seconds so every device has a reliable path to the
-// latest active notif regardless of SDK state.
+// plain fetch every 10 seconds as a safety net. The primary update path
+// is the SDK listener; this just catches cases where it silently stalled.
 setInterval(async ()=>{
   try {
     const resp = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_active_notif.json?_='+Date.now(), {cache:'no-store'});
@@ -8708,7 +8708,7 @@ setInterval(async ()=>{
       _listenApprovals(v.notifId);
     }
   } catch(_){}
-}, 4000);
+}, 10000);
 // Populate the field-mode compact approvals bar. Safe to call any time —
 // it just no-ops if the field mode isn't visible or there are no approvals.
 function _refreshFieldApprovalsBar(){
@@ -10120,7 +10120,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.7.6',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.7.7',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -10836,20 +10836,30 @@ const SYNC = (() => {
 
   function _subscribeLocations(){
     if(!_db) return;
-    // Polling fallback — refresh locations every 3s for fast response to toggle off/on
+    // Polling fallback — refresh locations every 5s. Only removes markers
+    // that haven't been updated in ≥15 seconds to avoid a race with the
+    // async marker creation in _updateLiveMarker (which dispatches a canvas
+    // draw before committing the marker). Without this guard, the cleanup
+    // loop would remove markers just as they were about to be created,
+    // causing visible flicker on mobile.
     setInterval(()=>{
       if(!_db || !window.map || !window._googleReady) return;
       _db.ref('tac_locs').once('value', snap=>{
         const fd = _dedupeByPerson(snap.val()||{});
         Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+        const now = Date.now();
         Object.keys(_liveMarkers).forEach(uid=>{
           if(!fd[uid]){
-            if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
-            delete _liveMarkers[uid];
+            const m = _liveMarkers[uid];
+            const lastUpdated = (m && m._lastUpdated) || 0;
+            if(now - lastUpdated > 15000){
+              if(m) try { m.setMap(null); } catch(_){}
+              delete _liveMarkers[uid];
+            }
           }
         });
       });
-    }, 3000);
+    }, 5000);
     _db.ref('tac_locs').on('value', snap=>{
       const rawData = snap.val()||{};
       const data = _dedupeByPerson(rawData);
@@ -10865,10 +10875,18 @@ const SYNC = (() => {
           if(!d) return;
           _updateLiveMarker(uid, d, uid===_myUid);
         });
+        // Only remove markers that haven't been updated in 15+ seconds —
+        // prevents race with the async _buildMarkerIcon callback that
+        // otherwise removes markers just as they're being created.
+        const now = Date.now();
         Object.keys(_liveMarkers).forEach(uid=>{
           if(!data[uid]){
-            if(_liveMarkers[uid]) _liveMarkers[uid].setMap(null);
-            delete _liveMarkers[uid];
+            const m = _liveMarkers[uid];
+            const lastUpdated = (m && m._lastUpdated) || 0;
+            if(now - lastUpdated > 15000){
+              if(m) try { m.setMap(null); } catch(_){}
+              delete _liveMarkers[uid];
+            }
           }
         });
       }
@@ -10950,9 +10968,13 @@ const SYNC = (() => {
       if(!_liveMarkers[markerKey]){
         _liveMarkers[markerKey] = new google.maps.Marker({
           position:pos, map:window.map, zIndex:reallyIsMe?800:600,
-          optimized:true,  // Let Google Maps composite efficiently — clean alpha, no per-marker bounding box
+          // optimized:false — per-marker rendering, no batching. This fixes
+          // the "marker flickers on/off" bug on mobile where the batched
+          // texture rebuild caused brief gaps between real-time updates.
+          optimized:false,
           icon, title:d.name+(reallyIsMe?' (אני)':'')
         });
+        _liveMarkers[markerKey]._lastUpdated = Date.now();
         _liveMarkers[markerKey]._data = d;
         _liveMarkers[markerKey].addListener('click', ()=>{
           closeAllInfoWindows();
@@ -10984,6 +11006,7 @@ const SYNC = (() => {
         });
       } else {
         _liveMarkers[markerKey]._data = d;
+        _liveMarkers[markerKey]._lastUpdated = Date.now();
         _liveMarkers[markerKey].setPosition(pos);
         _liveMarkers[markerKey].setIcon(icon);
       }
@@ -11433,7 +11456,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.6)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.7)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
