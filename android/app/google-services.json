@@ -8,7 +8,7 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:31609493041:android:REPLACE_WITH_ANDROID_APP_ID",
+        "mobilesdk_app_id": "1:31609493041:android:fdb77d8e71ab09462f2710",
         "android_client_info": {
           "package_name": "com.tacops.commandcenter"
         }
@@ -16,7 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E"
+          "current_key": "AIzaSyDN2iMTnrHl4P716v2bEz0FDp9oLVY5Hkc"
         }
       ],
       "services": {
