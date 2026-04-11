@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.6.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.6.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.6.3</div>
+    <div id="fm-logo">⬡ מבצעים v5.6.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -5996,6 +5996,24 @@ function boSettings(c){
   var isNight=document.body.classList.contains('night');
   var fbCfg=JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
   var fbConnected=SYNC.connected;
+  // Force-sync SA from Firebase immediately so the UI reflects the real state
+  // instead of just whatever happens to be in localStorage right now. This is
+  // critical on the native APK where the WebView localStorage starts empty
+  // after a fresh install and hasn't yet caught up with tac_config/sa_json.
+  try {
+    if(typeof PUSH !== 'undefined' && PUSH.syncSAFromFirebase && !PUSH.hasSA() && window._db){
+      PUSH.syncSAFromFirebase().then(function(ok){
+        if(ok){
+          // Re-render settings once the SA lands so the textarea and status
+          // indicator reflect reality.
+          setTimeout(function(){
+            var body = document.getElementById('rp-body');
+            if(body && currentPanel === 'settings') boSettings(body);
+          }, 200);
+        }
+      }).catch(function(){});
+    }
+  } catch(_){}
   var fieldName=localStorage.getItem('tac_field_name')||'';
   var fieldRole=localStorage.getItem('tac_field_role')||'';
   c.innerHTML=
@@ -6097,23 +6115,38 @@ function boSettings(c){
 
          // Debug log viewer — reads tac_debug_fcm/<deviceId>
          var devId = localStorage.getItem('tac_native_device') || '';
-         if(devId && window._db){
-           html += '<div id="fcm-debug-log" style="margin-bottom:10px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;font-family:monospace;direction:ltr;max-height:140px;overflow-y:auto;color:#8fa5b8;border:1px solid var(--border1)">Loading debug events...</div>';
-           setTimeout(function(){
-             window._db.ref('tac_debug_fcm/'+devId).limitToLast(10).once('value').then(function(snap){
-               var d = snap.val()||{};
-               var entries = Object.entries(d).reverse();
-               var el = document.getElementById('fcm-debug-log');
-               if(!el) return;
-               if(!entries.length){ el.textContent = '(אין אירועי FCM שהתקבלו במכשיר זה — שלח הודעת בדיקה ורענן)'; return; }
-               el.innerHTML = entries.map(function(e){
-                 var v = e[1]||{};
-                 var t = new Date(v.ts||0).toLocaleTimeString('he-IL');
-                 return '<div>'+t+' — '+(v.event||'?')+(v.title?' — '+v.title:'')+(v.priority?' p='+v.priority:'')+'</div>';
-               }).join('');
-             }).catch(function(){});
-           }, 100);
-         }
+         html += '<div id="fcm-debug-log" style="margin-bottom:10px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;font-family:monospace;direction:ltr;max-height:140px;overflow-y:auto;color:#8fa5b8;border:1px solid var(--border1)">Loading debug events...</div>';
+         setTimeout(function(){
+           var el = document.getElementById('fcm-debug-log');
+           if(!el) return;
+           if(!devId){
+             el.textContent = '(device id חסר — אין גשר native. רענן אפליקציה.)';
+             return;
+           }
+           if(!window._db){
+             el.textContent = '(Firebase DB לא מוכן — חכה 2 שניות ורענן)';
+             return;
+           }
+           // Use REST to avoid SDK quirks + add explicit timeout
+           var restUrl = 'https://tactical-command-center-default-rtdb.firebaseio.com/tac_debug_fcm/'+devId+'.json?orderBy=%22ts%22&limitToLast=10';
+           var done = false;
+           var t = setTimeout(function(){
+             if(!done){ done=true; el.textContent = '(Timeout — לא הגיעה תגובה מ-Firebase)'; }
+           }, 5000);
+           fetch(restUrl, {cache:'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+             if(done) return; done = true; clearTimeout(t);
+             var entries = d ? Object.entries(d).sort(function(a,b){ return (b[1]&&b[1].ts||0) - (a[1]&&a[1].ts||0); }) : [];
+             if(!entries.length){ el.textContent = '(אין אירועי FCM. נעל טלפון → שלח הודעת בדיקה מהמחשב → חזור לכאן ולחץ רענן)'; return; }
+             el.innerHTML = entries.slice(0,10).map(function(e){
+               var v = e[1]||{};
+               var ts = new Date(v.ts||0).toLocaleTimeString('he-IL');
+               return '<div>'+ts+' — '+(v.event||'?')+(v.title?' — '+v.title:'')+(v.priority?' p='+v.priority:'')+'</div>';
+             }).join('');
+           }).catch(function(err){
+             if(done) return; done = true; clearTimeout(t);
+             el.textContent = '(Error: '+String(err).slice(0,80)+')';
+           });
+         }, 50);
 
          return html;
        }
@@ -9908,7 +9941,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.6.3',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.6.4',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11049,29 +11082,18 @@ const PUSH = (() => {
         //   (our tac_emergency_v1, IMPORTANCE_HIGH, alarm sound, bypass DND).
         //   Data payload travels alongside so onMessageReceived can still
         //   fire in foreground for the in-app modal path.
+        // CRITICAL: native tokens MUST receive data-only FCM. If we include an
+        // android.notification field, Android handles display itself in the
+        // background and our MyFirebaseMessagingService.onMessageReceived is
+        // NEVER called — meaning our setFullScreenIntent code never runs and
+        // the LockScreenAlertActivity never launches. Data-only forces Android
+        // to deliver to our service which then builds the notification with
+        // setFullScreenIntent + direct startActivity for proper lock-screen
+        // wake behavior. Battery optimization exemption (handled by the
+        // auto-setup flow in MainActivity) prevents Doze from delaying
+        // data-only messages.
         const msg = { token:t, data };
-        if(isNative){
-          msg.android = {
-            priority: 'high',
-            ttl: '300s',
-            direct_boot_ok: true,
-            notification: {
-              title: payload.title || 'מערכת מבצעים',
-              body: payload.body || '',
-              channel_id: 'tac_emergency_v1', // matches TacticalApplication.EMERGENCY_CHANNEL_ID
-              sound: 'default',
-              default_sound: true,
-              default_vibrate_timings: true,
-              default_light_settings: true,
-              visibility: 'PUBLIC',
-              notification_priority: 'PRIORITY_MAX',
-              sticky: false,
-              tag: payload.id || ''
-            }
-          };
-        } else {
-          msg.android = { priority: 'high', ttl: '300s' };
-        }
+        msg.android = { priority: 'high', ttl: '300s', direct_boot_ok: true };
         msg.apns = {
           headers:{'apns-priority':'10','apns-push-type':'alert'},
           payload:{aps:{
@@ -11232,7 +11254,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
