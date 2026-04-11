@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.8 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.9 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -243,6 +243,21 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 @media(max-width:767px){#map-action-overlay,#map-sos-btn{display:none}}
 /* Tablet (768-1024): SOS button visible, positioned below emergency button */
 @media(min-width:768px) and (max-width:1024px){#map-sos-btn{bottom:28px;width:140px;font-size:13px;padding:9px 0}}
+/* ── DEPARTURE BANNER — shown after user approved, until they press "יצאתי לדרך" ── */
+#depart-banner{display:none;position:fixed;top:62px;left:0;right:0;z-index:8490;background:linear-gradient(90deg,rgba(10,80,20,0.97),rgba(18,120,35,0.97));color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(61,255,82,0.55);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl;box-shadow:0 6px 22px rgba(0,0,0,0.45)}
+#depart-banner.active{display:flex;animation:dpbSlide 0.35s ease-out}
+@keyframes dpbSlide{from{transform:translateY(-110%);opacity:0}to{transform:translateY(0);opacity:1}}
+.dpb-left{display:flex;align-items:center;gap:11px;flex:1;min-width:0}
+.dpb-icon{font-size:22px;flex-shrink:0;animation:dpbPulse 1.8s ease-in-out infinite}
+@keyframes dpbPulse{0%,100%{transform:scale(1)}55%{transform:scale(1.13)}}
+.dpb-info{flex:1;min-width:0}
+.dpb-title{font-size:14px;font-weight:900;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpb-sub{font-size:11px;opacity:0.88;font-weight:600}
+.dpb-depart{background:#3dff52;color:#041a08;border:none;border-radius:9px;padding:9px 18px;font-size:13px;font-weight:900;cursor:pointer;font-family:var(--font);white-space:nowrap;flex-shrink:0;transition:all 0.15s;box-shadow:0 3px 10px rgba(0,0,0,0.3)}
+.dpb-depart:hover{background:#5cff6e;transform:translateY(-1px)}
+.dpb-cancel{background:none;border:none;color:rgba(255,255,255,0.55);font-size:17px;cursor:pointer;padding:5px 7px;flex-shrink:0;line-height:1}
+.dpb-cancel:hover{color:#fff}
+@media(max-width:600px){#depart-banner{padding:8px 10px;gap:8px}.dpb-sub{display:none}.dpb-title{font-size:12px}.dpb-depart{padding:8px 12px;font-size:11px}}
 /* ── SOS DISTRESS SYSTEM ── */
 #sos-alert-bar{display:none;position:fixed;top:62px;left:0;right:0;z-index:8500;background:rgba(190,0,0,0.97);color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(255,80,80,0.5);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl}
 #sos-alert-bar.active{display:flex;animation:sosBarPulse 1.4s ease-in-out infinite}
@@ -761,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.8</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.9</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -818,6 +833,19 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </button>
     </div>
     <div id="sys-clock"><span id="sys-time">00:00:00</span><span id="sys-date">טוען...</span></div>
+  </div>
+
+  <!-- DEPARTURE BANNER — shown after user approved a notification but hasn't yet pressed "יצאתי לדרך" -->
+  <div id="depart-banner">
+    <div class="dpb-left">
+      <div class="dpb-icon">✅</div>
+      <div class="dpb-info">
+        <div class="dpb-title" id="dpb-title">אישרת הגעה</div>
+        <div class="dpb-sub" id="dpb-sub">לחץ כשיצאת לדרך — כך נחשב לך ETA מדויק</div>
+      </div>
+    </div>
+    <button class="dpb-depart" onclick="markDeparted(true)">🚗 יצאתי לדרך</button>
+    <button class="dpb-cancel" onclick="cancelDeparture()" title="ביטול אישור">✕</button>
   </div>
 
   <!-- SOS ALERT BAR — fixed top bar for all users when SOS active -->
@@ -925,7 +953,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <div class="inc-title" id="inc-title"></div>
       <div class="inc-body" id="inc-body"></div>
       <div id="inc-addr-wrap" style="display:none;width:100%">
-        <button class="inc-addr-btn" id="inc-addr-btn" onclick="openNavToAddress(this.dataset.addr)">📍</button>
+        <button class="inc-addr-btn" id="inc-addr-btn" onclick="approveAndDepartForAddress(this.dataset.addr,this.dataset.lat,this.dataset.lng)">📍</button>
       </div>
       <!-- multi-venue picker — shown when venues.length > 1 -->
       <div id="inc-venue-wrap" style="display:none;width:100%">
@@ -937,6 +965,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button class="inc-approve" onclick="respondToNotif(true)">✅ אשר — מגיע</button>
         <button class="inc-decline" onclick="respondToNotif(false)">❌ לא זמין</button>
       </div>
+      <button id="inc-depart-now" onclick="approveAndDepart()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#1d6cff,#29c5f6);color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--font);box-shadow:0 5px 16px rgba(29,108,255,0.45);letter-spacing:0.02em">🚗 יצאתי לדרך</button>
     </div>
   </div>
 
@@ -1141,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.8</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.9</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7524,6 +7553,55 @@ function openAddPersonModal(){
 }
 
 // ── EDIT PERSON MODAL ──
+// Toggle visibility of the per-person permissions grid inside editPersonModal.
+// When "override" is unchecked, the person inherits from their role (default).
+function _togglePersonPermsOverride(checked, pid){
+  const grid = document.getElementById('ep-perms-grid');
+  if(grid) grid.style.display = checked ? 'grid' : 'none';
+  // When first enabling, seed checkboxes from the role defaults so the user
+  // has a starting baseline to tweak (instead of all-off).
+  if(checked){
+    const p = PERSONNEL.find(x=>x.id===pid);
+    if(p && !p.customPerms){
+      const defaults = _getRolePermsFor(p.role||'');
+      const keys=['view','edit','mission','deploy','geofence','broadcast','admin'];
+      keys.forEach((k,i)=>{
+        const el=document.getElementById('ep-perm-'+k);
+        if(el) el.checked = !!(defaults && defaults[i]);
+      });
+    }
+  }
+}
+// Return the role-level permission array [view,edit,mission,deploy,geofence,broadcast,admin]
+function _getRolePermsFor(role){
+  const builtInDefaults={
+    'מפקד יחידה':      [1,1,1,1,1,1,1],
+    'סגן מפקד יחידה':  [1,1,1,1,1,1,0],
+    'מפקד פלגה':       [1,1,1,1,1,1,0],
+    'סגן מפקד פלגה':   [1,1,0,1,0,1,0],
+    'מפקד צוות':       [1,1,1,0,1,1,0],
+    'סגן מפקד צוות':   [1,1,0,0,0,1,0],
+    'מפקד חפ״ק':       [1,1,1,1,1,1,0],
+    'סגן מפקד חפ״ק':   [1,1,0,1,0,1,0],
+    'חפ״ק':            [1,1,1,1,1,1,0],
+    'איש חפ״ק':        [1,1,0,0,0,1,0],
+    'לוחם':             [1,0,0,0,0,0,0],
+    'מפעיל רחפן':      [1,0,0,0,0,1,0]
+  };
+  let saved={};
+  try { saved = JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); } catch(_){}
+  return (saved && saved[role]) || builtInDefaults[role] || [1,0,0,0,0,0,0];
+}
+// Resolve the effective permissions for a person: per-person override if
+// present, else role-based. Returns [view,edit,mission,deploy,geofence,broadcast,admin].
+function getPersonPerms(personOrId){
+  const p = (typeof personOrId === 'string')
+    ? (PERSONNEL.find(x=>x.id===personOrId)||null)
+    : personOrId;
+  if(!p) return [1,0,0,0,0,0,0];
+  if(Array.isArray(p.customPerms) && p.customPerms.length===7) return p.customPerms;
+  return _getRolePermsFor(p.role||'');
+}
 function editPersonModal(id){
   const p=PERSONNEL.find(x=>x.id===id);if(!p)return;
   const unitList=[...new Set([...TEAMS.map(t=>t.name),...PERSONNEL.map(x=>x.unit).filter(Boolean)])];
@@ -7599,7 +7677,30 @@ function editPersonModal(id){
         `).join('')}
       </div>
     </div>
-    <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>`;
+    <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>
+    <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;color:var(--accent2);font-size:13px">🔐 הרשאות אישיות</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--text2)">
+          <input type="checkbox" id="ep-perms-override" ${p.customPerms?'checked':''} onchange="_togglePersonPermsOverride(this.checked,'${id}')" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"/>
+          הגדר ידנית (אחרת לפי תפקיד)
+        </label>
+      </div>
+      <div id="ep-perms-grid" style="display:${p.customPerms?'grid':'none'};grid-template-columns:repeat(2,1fr);gap:6px">
+        ${[
+          ['view','👁','צפייה'],['edit','✏','עריכה'],['mission','📋','יצירת משימה'],
+          ['deploy','🎯','פריסת כוחות'],['geofence','⬡','גיאופנסים'],['broadcast','📢','שידורים'],
+          ['admin','⚙','ניהול מערכת']
+        ].map(([k,icon,lbl],i)=>`
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:7px 9px;background:var(--panel);border:1px solid var(--border2);border-radius:7px;font-size:12px;font-weight:600;color:var(--text2)">
+            <input type="checkbox" id="ep-perm-${k}" ${(p.customPerms&&p.customPerms[i])?'checked':''} style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"/>
+            <span style="font-size:13px">${icon}</span>
+            <span>${lbl}</span>
+          </label>
+        `).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">* אם לא מסומן — ההרשאות נקבעות לפי תפקיד (${p.role||'לא הוגדר'})</div>
+    </div>`;
   const _callerPanel = currentPanel;
   const _boOpen = document.getElementById('bo-wrap')?.classList.contains('show');
   modalCB=()=>{
@@ -7624,6 +7725,18 @@ function editPersonModal(id){
     p.eqMedkit=document.getElementById('ep-eq-medkit').checked;
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
+    // Per-person permissions override
+    const pOverride = document.getElementById('ep-perms-override');
+    if(pOverride && pOverride.checked){
+      const keys=['view','edit','mission','deploy','geofence','broadcast','admin'];
+      p.customPerms = keys.map(k=>{
+        const el=document.getElementById('ep-perm-'+k);
+        return el && el.checked ? 1 : 0;
+      });
+    } else {
+      // Remove override — person inherits from role
+      delete p.customPerms;
+    }
     if(window._pendingPhoto){p.photo=window._pendingPhoto;window._pendingPhoto='';}
     savePersonnelToStorage();
     showToast({icon:'✅',title:'עודכן: '+p.name,type:'success'});
@@ -8277,6 +8390,8 @@ function _showIncomingNotif(notif, fbRef){
     addrWrap.style.display='';
     addrBtn.textContent = '📍 נווט — '+notif.address;
     addrBtn.dataset.addr = notif.address;
+    addrBtn.dataset.lat = notif.lat || '';
+    addrBtn.dataset.lng = notif.lng || '';
   } else if(addrWrap){ addrWrap.style.display='none'; }
   // Border + shadow by urgency
   const card = document.getElementById('incoming-notif-card');
@@ -8342,7 +8457,7 @@ function _showIncomingNotif(notif, fbRef){
         ? ` <span style="font-size:11px;font-weight:800;color:${closestMe?'#3dff52':'var(--text3)'};">(${closestMe?'📍 ':''}${v.distStr})</span>`
         : '';
       return `<button class="inc-venue-btn${closestMe?' selected':''}" data-vid="${v.id}"
-        onclick="window._pendingVenueId='${v.id}';respondToNotif(true);_navToVenueId('${v.id}')">
+        onclick="approveAndDepartForVenue('${v.id}')">
         <span style="width:12px;height:12px;border-radius:50%;background:${v.color};flex-shrink:0;display:inline-block"></span>
         <span style="flex:1;text-align:right;line-height:1.4">${v.label} — ${v.address}${distInline}</span>
       </button>`;
@@ -8580,7 +8695,7 @@ function respondToNotif(approved){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   const myId = u ? u.id : null;
 
-  // Write response
+  // Write response (approved=true means "confirmed" but NOT yet departed — ETA waits for markDeparted)
   if(db && myId){
     db.ref('tac_notif_responses/'+notif.id+'/'+myId).set({
       personId: myId,
@@ -8588,6 +8703,8 @@ function respondToNotif(approved){
       role: u.role||'',
       color: u.color||'#29c5f6',
       approved,
+      departed: false,     // explicit: not yet on the road
+      departedAt: null,
       venueId: window._pendingVenueId || null,
       ts: Date.now()
     });
@@ -8598,6 +8715,29 @@ function respondToNotif(approved){
       // Fallback: delete directly by path so it won't re-appear after page refresh
       db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{});
     }
+  }
+
+  // Save pending-departure state so the departure banner shows until the
+  // user actually hits the road, even after a page reload.
+  if(approved && myId){
+    try {
+      // Resolve the destination for Waze when the user eventually presses "יצאתי לדרך"
+      let dLat=null, dLng=null, dAddr='';
+      if(window._pendingVenueId && Array.isArray(notif.venues)){
+        const v = notif.venues.find(x=>x && x.id===window._pendingVenueId);
+        if(v){ dLat=v.lat||null; dLng=v.lng||null; dAddr=v.address||''; }
+      }
+      if(!dLat && notif.lat) dLat = notif.lat;
+      if(!dLng && notif.lng) dLng = notif.lng;
+      if(!dAddr && notif.address) dAddr = notif.address;
+      localStorage.setItem('tac_pending_departure', JSON.stringify({
+        notifId: notif.id, personId: myId,
+        approvedAt: Date.now(),
+        lat: dLat, lng: dLng, address: dAddr,
+        venueId: window._pendingVenueId || null,
+        title: notif.title || ''
+      }));
+    } catch(_){}
   }
 
   // Save last-seen timestamp so this notification won't re-appear next session
@@ -8647,7 +8787,9 @@ function respondToNotif(approved){
         { enableHighAccuracy: true, timeout: 10000 }
       );
     }
-    showToast({icon:'✅',title:'אישרת — מגיע!',sub:'מיקום חי הופעל אוטומטית',type:'success',duration:5000});
+    showToast({icon:'✅',title:'אישרת — מגיע!',sub:'לחץ "יצאתי לדרך" כשתצא לדרך',type:'success',duration:5000});
+    // Show the persistent departure banner so the user can press "יצאתי לדרך" at any time
+    _showDepartBanner();
     // On mobile/tablet: close side panel, go to map, show venue markers
     if(window.innerWidth <= 1024){
       setTimeout(()=>{
@@ -8663,6 +8805,100 @@ function respondToNotif(approved){
     showToast({icon:'❌',title:'לא זמין',sub:'הוגדרת כלא זמין',type:'info'});
   }
 }
+
+// ════════════════════════════════════════════════════════════════
+//  DEPARTURE BANNER / "יצאתי לדרך" FLOW
+//  Approval alone no longer triggers Waze or ETA — the user must
+//  explicitly press "יצאתי לדרך" (from the popup or the persistent
+//  banner) before ETA calculation starts and Waze opens.
+// ════════════════════════════════════════════════════════════════
+function _getPendingDeparture(){
+  try { return JSON.parse(localStorage.getItem('tac_pending_departure')||'null'); }
+  catch(_){ return null; }
+}
+function _showDepartBanner(){
+  const st = _getPendingDeparture();
+  const bar = document.getElementById('depart-banner');
+  if(!bar || !st) return;
+  const ttl = document.getElementById('dpb-title');
+  if(ttl){
+    ttl.textContent = st.title ? ('אישרת: '+st.title) : 'אישרת הגעה';
+  }
+  bar.classList.add('active');
+}
+function _hideDepartBanner(){
+  const bar = document.getElementById('depart-banner');
+  if(bar) bar.classList.remove('active');
+}
+// Called from the persistent banner button OR from the popup "🚗 יצאתי לדרך"
+// button. Writes departedAt to Firebase so the commander's panel starts
+// computing ETA from THIS moment, and then opens Waze to the destination.
+function markDeparted(openWaze){
+  const st = _getPendingDeparture();
+  if(!st){ _hideDepartBanner(); return; }
+  const db = window._db;
+  const now = Date.now();
+  if(db && st.notifId && st.personId){
+    db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update({
+      departed: true,
+      departedAt: now
+    }).catch(e=>console.warn('[markDeparted] fb:', e && e.message));
+  }
+  // Clear pending state so the banner doesn't re-appear on reload
+  localStorage.removeItem('tac_pending_departure');
+  _hideDepartBanner();
+  // Flush any cached ETA values for this person so the UI recalculates from
+  // the new live location right now (instead of returning a stale 2-min cache).
+  if(typeof _etaCache === 'object' && _etaCache){
+    Object.keys(_etaCache).forEach(k=>{ if(k.indexOf(st.personId+'|')===0) delete _etaCache[k]; });
+  }
+  showToast({icon:'🚗',title:'יצאת לדרך!',sub:'ETA מתעדכן בזמן אמת',type:'success',duration:4000});
+  if(openWaze){
+    if(st.lat && st.lng) openNavToLatLng(st.lat, st.lng, st.address||'');
+    else if(st.address) openNavToAddress(st.address);
+  }
+}
+// Cancel an approval — removes the pending state, hides the banner, and
+// marks the response as cancelled so the commander sees them drop off.
+function cancelDeparture(){
+  if(!confirm('לבטל את האישור?')) return;
+  const st = _getPendingDeparture();
+  if(st && window._db && st.notifId && st.personId){
+    window._db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update({
+      approved: false,
+      cancelled: true,
+      cancelledAt: Date.now()
+    }).catch(()=>{});
+  }
+  localStorage.removeItem('tac_pending_departure');
+  _hideDepartBanner();
+  showToast({icon:'↩️',title:'אישור בוטל',type:'info'});
+}
+// One-click "approve + depart + Waze" — used by the popup's "🚗 יצאתי לדרך"
+// button and also by the single-address chip.
+function approveAndDepart(){
+  respondToNotif(true);
+  // respondToNotif already closes the overlay and saved pending state.
+  // Defer markDeparted a tick so the localStorage write is committed first.
+  setTimeout(()=>markDeparted(true), 50);
+}
+function approveAndDepartForAddress(addr, lat, lng){
+  if(_currentIncomingNotif && _currentIncomingNotif.notif){
+    // Pre-seed notif coords so respondToNotif saves the correct target
+    if(lat) _currentIncomingNotif.notif.lat = parseFloat(lat);
+    if(lng) _currentIncomingNotif.notif.lng = parseFloat(lng);
+    if(addr) _currentIncomingNotif.notif.address = addr;
+  }
+  approveAndDepart();
+}
+function approveAndDepartForVenue(vid){
+  window._pendingVenueId = vid;
+  approveAndDepart();
+}
+// On page load, restore the departure banner if we're mid-flow (e.g. user
+// reloaded the page between "אישר" and "יצאתי לדרך"). Defer a bit so the DOM
+// and CSS are ready.
+setTimeout(()=>{ try { if(_getPendingDeparture()) _showDepartBanner(); } catch(_){} }, 800);
 
 /* ── Listen for approvals (sender side) ── */
 let _approvalsData = {}; // personId → {name, approved, ts}
@@ -8737,13 +8973,19 @@ function _refreshFieldApprovalsBar(){
     +'</div>';
   const rows = entries.map(e => {
     const eta = (eLat && eLng && typeof _calcETAString === 'function') ? _calcETAString(e.personId, eLat, eLng) : null;
-    const etaHtml = eta
-      ? '<span style="font-size:10px;font-weight:700;color:#a8e800;background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:4px;padding:1px 5px;white-space:nowrap">⏱ '+eta+'</span>'
-      : '<span style="font-size:9px;color:#5a7a90">מגיע</span>';
+    let statusHtml;
+    if(e.departed && eta){
+      statusHtml = '<span style="font-size:10px;font-weight:700;color:#a8e800;background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:4px;padding:1px 5px;white-space:nowrap">⏱ '+eta+'</span>';
+    } else if(e.departed){
+      statusHtml = '<span style="font-size:9px;color:#a8e800;font-weight:700">🚗 בדרך</span>';
+    } else {
+      statusHtml = '<span style="font-size:9px;color:#f0b000;font-weight:700">⏳ ממתין ליציאה</span>';
+    }
+    const dotColor = e.departed ? '#3dff52' : '#f0b000';
     return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:#c9d8e4">'
-      +'<span style="width:5px;height:5px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>'
+      +'<span style="width:5px;height:5px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></span>'
       +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>'+escHtml(e.name||'')+'</b><span style="color:#6a8aa5"> · '+escHtml(e.role||'')+'</span></span>'
-      +etaHtml
+      +statusHtml
       +'</div>';
   }).join('');
   bar.innerHTML = header + rows;
@@ -8801,6 +9043,11 @@ function _haversineKm(lat1,lng1,lat2,lng2){
 const _etaCache = {};
 function _calcETAString(personId, destLat, destLng){
   if(!destLat||!destLng) return null;
+  // ETA is only meaningful once the user has actually pressed "יצאתי לדרך".
+  // Before that, the approval is a promise — not movement — so suppress the
+  // ETA so it doesn't mislead the commander.
+  const entry = (_approvalsData||{})[personId];
+  if(!entry || !entry.departed) return null;
   const loc = (window._liveLocs||{})[personId];
   if(!loc||!loc.lat||!loc.lng) return null;
   if(Date.now()-loc.ts > 86400000) return null; // stale > 24h
@@ -8868,10 +9115,19 @@ function renderApprovalsSection(){
         const eLat = (hasDest&&dest.lat)||(venues[0]&&venues[0].lat)||null;
         const eLng = (hasDest&&dest.lng)||(venues[0]&&venues[0].lng)||null;
         const eta = (eLat&&eLng) ? _calcETAString(e.personId, eLat, eLng) : null;
+        let statusHtml;
+        if(e.departed && eta){
+          statusHtml = `<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`;
+        } else if(e.departed){
+          statusHtml = `<span style="font-size:10px;font-weight:700;color:var(--accent)">🚗 בדרך</span>`;
+        } else {
+          statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
+        }
+        const dotStyle = e.departed ? '' : 'background:#f0b000';
         return `<div class="approval-item">
-          <div class="approval-dot"></div>
+          <div class="approval-dot" style="${dotStyle}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
-          ${eta?`<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`:`<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`}
+          ${statusHtml}
         </div>`;
       }).join('')}
     </div>`;
@@ -8901,10 +9157,18 @@ function renderApprovalsSection(){
     } else {
       group.forEach(e=>{
         const eta = (v.lat&&v.lng) ? _calcETAString(e.personId, v.lat, v.lng) : null;
+        let statusHtml;
+        if(e.departed && eta){
+          statusHtml = `<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`;
+        } else if(e.departed){
+          statusHtml = `<span style="font-size:10px;font-weight:700;color:var(--accent)">🚗 בדרך</span>`;
+        } else {
+          statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
+        }
         html += `<div class="approval-item">
-          <div class="approval-dot" style="background:${v.color}"></div>
+          <div class="approval-dot" style="background:${e.departed?v.color:'#f0b000'}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
-          ${eta?`<span style="font-size:11px;font-weight:700;color:var(--accent2);background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:5px;padding:2px 7px;white-space:nowrap">⏱ ${eta}</span>`:`<span style="font-size:10px;color:var(--text3)">📍 מגיע</span>`}
+          ${statusHtml}
         </div>`;
       });
     }
@@ -11490,7 +11754,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.8)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.9)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
