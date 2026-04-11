@@ -61,8 +61,33 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val data = message.data
         Log.d(TAG, "FCM message received: keys=${data.keys}")
 
-        val title = data["title"] ?: data["notifTitle"] ?: "מערכת מבצעים"
-        val body = data["body"] ?: ""
+        // Debug log: write a trace entry to Firebase so the web UI can show
+        // "yes, this message reached the device" even without adb access.
+        try {
+            val prefs = getSharedPreferences("tac_prefs", MODE_PRIVATE)
+            val deviceId = prefs.getString("deviceId", "unknown") ?: "unknown"
+            val db = FirebaseDatabase.getInstance()
+            db.getReference("tac_debug_fcm/$deviceId").push().setValue(
+                hashMapOf(
+                    "ts" to System.currentTimeMillis(),
+                    "event" to "onMessageReceived",
+                    "dataKeys" to data.keys.joinToString(","),
+                    "title" to (data["title"] ?: ""),
+                    "hasBody" to (data["body"]?.isNotEmpty() == true),
+                    "priority" to message.priority,
+                    "originalPriority" to message.originalPriority
+                )
+            )
+            // Keep only last 20 entries per device
+            db.getReference("tac_debug_fcm/$deviceId").limitToLast(20).get()
+        } catch (e: Exception) {
+            Log.w(TAG, "Debug log write failed", e)
+        }
+
+        // Fall back to the notification payload (when FCM sends `notification`
+        // field alongside `data`, message.notification is populated in foreground).
+        val title = data["title"] ?: data["notifTitle"] ?: message.notification?.title ?: "מערכת מבצעים"
+        val body = data["body"] ?: message.notification?.body ?: ""
         val notifId = data["notifId"] ?: "emerg_${System.currentTimeMillis()}"
         val type = data["type"] ?: "alert"
         val typeLabel = data["typeLabel"] ?: ""
@@ -99,21 +124,55 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val contentText = if (typeLabel.isNotEmpty()) "[$typeLabel] $body" else body
 
+        // Also directly launch the LockScreenAlertActivity — belt and suspenders.
+        // If the app is allowed to launch activities from background (i.e. we
+        // have a recent foreground use or the FSI permission), this bypasses
+        // the FullScreenIntent restriction entirely. On Android 14+ without
+        // special permission this will silently fail, in which case the
+        // setFullScreenIntent on the notification is our fallback.
+        try {
+            startActivity(fullScreenIntent)
+            Log.d(TAG, "Directly started LockScreenAlertActivity")
+        } catch (e: Exception) {
+            Log.w(TAG, "Direct activity start failed (expected on bg-restricted OS): $e")
+        }
+
         val notifBuilder = NotificationCompat.Builder(this, TacticalApplication.EMERGENCY_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setCategory(NotificationCompat.CATEGORY_CALL) // CALL category gets priority lock-screen treatment
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
             .setAutoCancel(true)
             .setOngoing(false)
+            .setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM))
+            .setVibrate(longArrayOf(0, 400, 150, 400, 150, 800, 150, 400))
+            .setLights(0xFF3DFF52.toInt(), 1000, 500)
+            .setDefaults(android.app.Notification.DEFAULT_LIGHTS or android.app.Notification.DEFAULT_VIBRATE)
 
         val mgr = getSystemService(NotificationManager::class.java)
-        mgr?.notify(notifId.hashCode(), notifBuilder.build())
+        try {
+            mgr?.notify(notifId.hashCode(), notifBuilder.build())
+            Log.d(TAG, "Notification posted id=${notifId.hashCode()}")
+            // Debug log: notification posted
+            val prefs = getSharedPreferences("tac_prefs", MODE_PRIVATE)
+            val deviceId = prefs.getString("deviceId", "unknown") ?: "unknown"
+            FirebaseDatabase.getInstance()
+                .getReference("tac_debug_fcm/$deviceId").push().setValue(
+                    hashMapOf(
+                        "ts" to System.currentTimeMillis(),
+                        "event" to "notificationPosted",
+                        "notifId" to notifId,
+                        "title" to title
+                    )
+                )
+        } catch (e: Exception) {
+            Log.e(TAG, "Notification post failed", e)
+        }
     }
 
     companion object {

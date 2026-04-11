@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.6.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.6.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.6.1</div>
+    <div id="fm-logo">⬡ מבצעים v5.6.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6056,18 +6056,66 @@ function boSettings(c){
        // native-specific status + button to open the FullScreenIntent
        // settings page (required on Android 14+ to pop over lock screen).
        if(window._runningInNativeApp && window.Android){
-         var fsiOk = false;
+         var fsiOk = false, batteryOk = false, deviceInfo = '';
          try { fsiOk = window.Android.canUseFullScreenIntent && window.Android.canUseFullScreenIntent(); } catch(_){ fsiOk = true; }
-         var statusLabel = fsiOk ? '✅ פעיל (Native)' : '⚠️ נדרשת הרשאה';
-         var statusColor = fsiOk ? '#3dff52' : '#ff7a1a';
-         return '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
+         try { batteryOk = window.Android.isIgnoringBatteryOptimizations && window.Android.isIgnoringBatteryOptimizations(); } catch(_){}
+         try { deviceInfo = window.Android.getDeviceInfo ? window.Android.getDeviceInfo() : ''; } catch(_){}
+
+         var html = '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
            +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
-           +'<div style="font-size:12px;font-weight:700;color:'+statusColor+'">'+statusLabel+'</div></div>'
-           +'</div>'
-           + (!fsiOk
-             ? '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff7a1a" onclick="try{window.Android.openFullScreenIntentSettings()}catch(e){}">🚨 הפעל התראות על מסך נעול</button>'
-               +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Android 14+ דורש אישור מפורש לפתיחה אוטומטית על מסך נעול. לחץ על הכפתור, מצא את המתג עבור "מבצעים" והפעל אותו. אחר-כך חזור לאפליקציה.</div>'
-             : '<button class="btn-sec" style="width:100%;margin-bottom:10px" onclick="try{window.Android.openAppNotificationSettings()}catch(e){}">⚙️ פתח הגדרות התראות של האפליקציה</button>');
+           +'<div style="font-size:12px;font-weight:700;color:'+(fsiOk&&batteryOk?'#3dff52':'#ff7a1a')+'">'+(fsiOk&&batteryOk?'✅ פעיל (Native)':'⚠️ נדרש כיוון')+'</div></div>'
+           +'</div>';
+
+         // Device info line
+         if(deviceInfo) html += '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;padding:4px 8px;background:rgba(0,0,0,0.2);border-radius:6px">📱 '+deviceInfo+'</div>';
+
+         // Status grid — FSI + Battery
+         html += '<div style="display:flex;gap:6px;margin-bottom:8px">'
+           +'<div style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid '+(fsiOk?'rgba(61,255,82,0.3)':'rgba(255,122,26,0.35)')+'">'
+           +'<div style="font-size:9px;color:var(--text3)">Full-Screen Intent</div>'
+           +'<div style="font-size:11px;font-weight:700;color:'+(fsiOk?'#3dff52':'#ff7a1a')+'">'+(fsiOk?'✓ מאושר':'✗ חסר')+'</div></div>'
+           +'<div style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid '+(batteryOk?'rgba(61,255,82,0.3)':'rgba(255,122,26,0.35)')+'">'
+           +'<div style="font-size:9px;color:var(--text3)">Battery Unrestricted</div>'
+           +'<div style="font-size:11px;font-weight:700;color:'+(batteryOk?'#3dff52':'#ff7a1a')+'">'+(batteryOk?'✓ מוחרג':'✗ מוגבל')+'</div></div>'
+           +'</div>';
+
+         if(!fsiOk){
+           html += '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff7a1a" onclick="try{window.Android.openFullScreenIntentSettings()}catch(e){}">🚨 (1) הפעל Full-Screen על מסך נעול</button>';
+         }
+         if(!batteryOk){
+           html += '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff6b00" onclick="try{window.Android.requestBatteryExemption()}catch(e){}">🔋 (2) הסר הגבלת סוללה (חובה בסמסונג!)</button>';
+         }
+         if(!fsiOk || !batteryOk){
+           html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;padding:8px;background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.3);border-radius:6px">⚠️ <b>שני ההרשאות חייבות להיות פעילות</b> כדי שההתראות יקפצו על מסך נעול. Samsung מרדימה אפליקציות לא מוחרגות. אחרי שאישרת את שתי ההרשאות, חזור לאפליקציה ולחץ רענן למטה.</div>';
+         }
+
+         // Always show: test button + debug button
+         html += '<div style="display:flex;gap:6px;margin-bottom:8px">'
+           +'<button class="btn-sec" style="flex:1;font-size:11px" onclick="try{window.Android.testLockScreenAlert()}catch(e){}">🧪 בדיקת LockScreen ישיר</button>'
+           +'<button class="btn-sec" style="flex:1;font-size:11px" onclick="boSettings(document.getElementById(\'rp-body\'))">🔄 רענן</button>'
+           +'</div>';
+
+         // Debug log viewer — reads tac_debug_fcm/<deviceId>
+         var devId = localStorage.getItem('tac_native_device') || '';
+         if(devId && window._db){
+           html += '<div id="fcm-debug-log" style="margin-bottom:10px;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;font-family:monospace;direction:ltr;max-height:140px;overflow-y:auto;color:#8fa5b8;border:1px solid var(--border1)">Loading debug events...</div>';
+           setTimeout(function(){
+             window._db.ref('tac_debug_fcm/'+devId).limitToLast(10).once('value').then(function(snap){
+               var d = snap.val()||{};
+               var entries = Object.entries(d).reverse();
+               var el = document.getElementById('fcm-debug-log');
+               if(!el) return;
+               if(!entries.length){ el.textContent = '(אין אירועי FCM שהתקבלו במכשיר זה — שלח הודעת בדיקה ורענן)'; return; }
+               el.innerHTML = entries.map(function(e){
+                 var v = e[1]||{};
+                 var t = new Date(v.ts||0).toLocaleTimeString('he-IL');
+                 return '<div>'+t+' — '+(v.event||'?')+(v.title?' — '+v.title:'')+(v.priority?' p='+v.priority:'')+'</div>';
+               }).join('');
+             }).catch(function(){});
+           }, 100);
+         }
+
+         return html;
        }
        // Regular web path
        return '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
@@ -9860,7 +9908,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.6.1',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.6.2',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -10988,30 +11036,59 @@ const PUSH = (() => {
       const sendResults = await Promise.all(tokenMeta.map(async (meta) => {
         const t = meta.token;
         const isNative = meta.isNative;
+        // Build a DIFFERENT FCM payload for web vs native tokens:
+        //
+        // Web (Chrome Web Push): data-only so our Service Worker handles it.
+        //   Including `notification` would make Chrome render directly via
+        //   its default channel (no heads-up).
+        //
+        // Native (our APK via MyFirebaseMessagingService): notification + data.
+        //   The `notification` field triggers Android's NATIVE delivery path
+        //   which bypasses Doze mode on Samsung. The OS shows it directly
+        //   via the channel specified in android.notification.channel_id
+        //   (our tac_emergency_v1, IMPORTANCE_HIGH, alarm sound, bypass DND).
+        //   Data payload travels alongside so onMessageReceived can still
+        //   fire in foreground for the in-app modal path.
+        const msg = { token:t, data };
+        if(isNative){
+          msg.android = {
+            priority: 'high',
+            ttl: '300s',
+            direct_boot_ok: true,
+            notification: {
+              title: payload.title || 'מערכת מבצעים',
+              body: payload.body || '',
+              channel_id: 'tac_emergency_v1', // matches TacticalApplication.EMERGENCY_CHANNEL_ID
+              sound: 'default',
+              default_sound: true,
+              default_vibrate_timings: true,
+              default_light_settings: true,
+              visibility: 'PUBLIC',
+              notification_priority: 'PRIORITY_MAX',
+              sticky: false,
+              tag: payload.id || ''
+            }
+          };
+        } else {
+          msg.android = { priority: 'high', ttl: '300s' };
+        }
+        msg.apns = {
+          headers:{'apns-priority':'10','apns-push-type':'alert'},
+          payload:{aps:{
+            alert:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
+            sound:'default',
+            'interruption-level':'time-sensitive',
+            'mutable-content':1,
+            badge:1
+          }}
+        };
+        if(!isNative){
+          msg.webpush = { headers:{TTL:'300',Urgency:'high'} };
+        }
         try {
           const resp = await fetch(url, {method:'POST',
             headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-            body:JSON.stringify({message:{
-              token:t,
-              data,
-              android:{
-                priority:'high',
-                ttl:'300s'
-              },
-              apns:{
-                headers:{'apns-priority':'10','apns-push-type':'alert'},
-                payload:{aps:{
-                  alert:{title:payload.title||'מערכת מבצעים',body:payload.body||''},
-                  sound:'default',
-                  'interruption-level':'time-sensitive',
-                  'mutable-content':1,
-                  badge:1
-                }}
-              },
-              webpush:{
-                headers:{TTL:'300',Urgency:'high'}
-              }
-            }})
+            body:JSON.stringify({message: msg})
           });
           if(!resp.ok){
             const errText = await resp.text();
@@ -11155,7 +11232,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">

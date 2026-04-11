@@ -1,9 +1,13 @@
 package com.tacops.commandcenter
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
@@ -15,6 +19,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -53,6 +58,84 @@ class MainActivity : AppCompatActivity() {
                 else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
             }
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        // Check critical permissions every time the activity comes to front.
+        // This handles the case where the user just came back from the
+        // settings page after flipping the Full-Screen Intent or Battery
+        // toggle — we detect the change and proceed with the next step.
+        checkCriticalPermissionsAndPrompt()
+    }
+
+    /**
+     * One-time guided setup for new installs. Checks the two non-standard
+     * permissions that make emergency alerts actually work on modern Android
+     * / Samsung devices, and walks the user through granting each one.
+     *   1. USE_FULL_SCREEN_INTENT — required for LockScreenAlertActivity to
+     *      launch over the lock screen on Android 14+
+     *   2. REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — prevents Samsung from
+     *      dropping FCM messages while the device is in Doze mode
+     * Each is gated by a SharedPreferences flag so we don't nag the user
+     * on every app launch — but we DO re-check in onResume so if they
+     * just flipped a toggle, we advance to the next step.
+     */
+    private fun checkCriticalPermissionsAndPrompt() {
+        // Avoid nagging more than once per minute
+        val prefs = getSharedPreferences("tac_prefs", MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastPrompt = prefs.getLong("lastPermissionPrompt", 0L)
+        if (now - lastPrompt < 60_000L) return
+
+        // Step 1: Full-Screen Intent permission (Android 14+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = getSystemService(NotificationManager::class.java)
+            if (nm != null && !nm.canUseFullScreenIntent()) {
+                prefs.edit().putLong("lastPermissionPrompt", now).apply()
+                AlertDialog.Builder(this)
+                    .setTitle("🚨 הרשאת התראות חירום")
+                    .setMessage("כדי שהתראות יקפצו על המסך הנעול ויעירו את הטלפון, יש לאשר לאפליקציה \"Full-Screen notifications\".\n\nכפתור הבא → מצא \"מבצעים\" ברשימה → הפעל את המתג → חזור לאפליקציה.")
+                    .setPositiveButton("פתח הגדרות") { _, _ ->
+                        try {
+                            val intent = android.content.Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                                .setData(Uri.parse("package:$packageName"))
+                            startActivity(intent)
+                        } catch (e: Exception) { Log.w(TAG, "FSI settings open failed", e) }
+                    }
+                    .setCancelable(false)
+                    .show()
+                return
+            }
+        }
+
+        // Step 2: Battery optimization exemption
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(POWER_SERVICE) as? PowerManager
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                prefs.edit().putLong("lastPermissionPrompt", now).apply()
+                AlertDialog.Builder(this)
+                    .setTitle("🔋 הסרת הגבלת סוללה")
+                    .setMessage("Samsung אגרסיבית במיוחד והיא מרדימה אפליקציות במסך נעול. כדי לקבל התראות חירום בזמן אמת, יש להחריג את \"מבצעים\" ממיטוב הסוללה.\n\nכפתור הבא → אישור → חזור לאפליקציה.")
+                    .setPositiveButton("פתח הגדרות") { _, _ ->
+                        try {
+                            val intent = android.content.Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                .setData(Uri.parse("package:$packageName"))
+                            startActivity(intent)
+                        } catch (e: Exception) { Log.w(TAG, "Battery exemption open failed", e) }
+                    }
+                    .setNegativeButton("דלג") { dialog, _ -> dialog.dismiss() }
+                    .show()
+            }
+        }
     }
 
     @Suppress("SetJavaScriptEnabled")
@@ -161,19 +244,6 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "Permissions result: " + permissions.zip(grantResults.toList()).joinToString())
         // No reload needed — the WebView will ask again as needed and the
         // geolocation override uses the CURRENT permission state.
-    }
-
-    override fun onResume() {
-        super.onResume()
-        webView.onResume()
-        // Immersive full-screen
-        window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
     }
 
     override fun onPause() {

@@ -137,6 +137,78 @@ class NativeBridge(private val context: Context) {
         }
     }
 
+    /**
+     * Opens the system battery optimization settings for our app. On Samsung,
+     * "sleeping apps" will drop FCM delivery when the screen is off unless
+     * the app is whitelisted here. This is the #1 reason lock-screen alerts
+     * fail on Samsung devices.
+     */
+    @JavascriptInterface
+    fun requestBatteryExemption() {
+        try {
+            val intent = android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+            ).setData(android.net.Uri.parse("package:${context.packageName}"))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "requestBatteryExemption failed", e)
+            // Fall back to opening the app's battery settings page
+            try {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                ).setData(android.net.Uri.parse("package:${context.packageName}"))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Checks whether the app is whitelisted from battery optimizations.
+     * Returns true on Android <23 (no battery optimization) or if the app
+     * is in the whitelist.
+     */
+    @JavascriptInterface
+    fun isIgnoringBatteryOptimizations(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true
+        return try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } catch (e: Exception) { false }
+    }
+
+    /**
+     * Directly launches LockScreenAlertActivity with a test payload. Useful
+     * to prove the activity + channel + permissions all work end-to-end
+     * WITHOUT going through FCM. If this button works but real FCM pushes
+     * don't, the issue is in FCM delivery (battery optimization, network).
+     */
+    @JavascriptInterface
+    fun testLockScreenAlert() {
+        try {
+            val intent = android.content.Intent(context, LockScreenAlertActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("title", "🚨 בדיקת LockScreen")
+                putExtra("body", "אם אתה רואה את זה — המסך הנעול + Activity + הרשאות הכל עובד")
+                putExtra("notifId", "test_${System.currentTimeMillis()}")
+                putExtra("type", "alert")
+                putExtra("typeLabel", "בדיקה")
+                putExtra("senderName", "מערכת")
+                putExtra("threat", "בדיקה")
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "testLockScreenAlert failed", e)
+        }
+    }
+
+    /** Debug: current Android version + manufacturer */
+    @JavascriptInterface
+    fun getDeviceInfo(): String = try {
+        "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})"
+    } catch (_: Exception) { "unknown" }
+
     private fun registerTokenForPersonId(personId: String) {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
