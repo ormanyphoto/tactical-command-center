@@ -10879,12 +10879,14 @@ const PUSH = (() => {
       if(verbose && typeof showToast==='function') showToast({icon:'✅',title:'Push נרשם בהצלחה',sub:'המכשיר יקבל התראות',type:'success',duration:4000});
       // Show one-time channel-importance guide on Android (Chrome defaults to
       // "Default" importance → notifications arrive silently without heads-up).
-      // User must manually set channel to "Urgent" in Android settings.
+      // User must manually set channel to "Urgent" in Android settings, or
+      // install the APK which is much simpler. Guide version bumped to v2 so
+      // users who saw the old confusing version get the new, clearer one.
       try {
         const isAndroid = /Android/i.test(navigator.userAgent);
-        const guideShown = localStorage.getItem('tac_android_channel_guide_v1');
+        const guideShown = localStorage.getItem('tac_android_channel_guide_v2');
         if(isAndroid && !guideShown && verbose){
-          localStorage.setItem('tac_android_channel_guide_v1','1');
+          localStorage.setItem('tac_android_channel_guide_v2','1');
           setTimeout(()=>_showAndroidChannelGuide(), 3500);
         }
       } catch(_){}
@@ -10901,32 +10903,56 @@ const PUSH = (() => {
     }
     _token = null;
   }
-  // One-time Android guide explaining how to enable urgent notification channel
-  // so that notifications pop up on the lock screen and wake the phone. This
-  // can't be forced from JS — it's an OS-level setting the user must enable.
+  // One-time guide explaining the two ways to enable lock-screen notifications.
+  // The Chrome path varies wildly between Android versions and OEMs (Samsung,
+  // Xiaomi, Pixel all put it somewhere different) so we emphasize the APK as
+  // the simpler, more reliable solution and provide a direct link to it.
   function _showAndroidChannelGuide(){
     if(document.getElementById('android-guide-overlay')) return;
     const overlay = document.createElement('div');
     overlay.id = 'android-guide-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:9800;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Heebo,Arial,sans-serif';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(8px);z-index:9800;display:flex;align-items:flex-start;justify-content:center;padding:16px;font-family:Heebo,Arial,sans-serif;overflow-y:auto';
     overlay.innerHTML = `
-      <div style="background:#0d1014;border:2px solid #3dff52;border-radius:16px;max-width:420px;width:100%;padding:22px;color:#e8eff5;direction:rtl;max-height:90vh;overflow-y:auto">
-        <div style="font-size:22px;font-weight:900;margin-bottom:8px;color:#3dff52">🔔 הפעלת התראות חירום</div>
-        <div style="font-size:13px;color:#8fa5b8;margin-bottom:14px;line-height:1.5">
-          כדי שההתראות יקפצו על המסך הנעול ויעירו את המכשיר, יש להגדיר את ערוץ ההתראות כ־"דחוף" בהגדרות אנדרואיד:
+      <div style="background:#0d1014;border:2px solid #3dff52;border-radius:16px;max-width:440px;width:100%;padding:22px;color:#e8eff5;direction:rtl;margin:auto">
+        <div style="font-size:22px;font-weight:900;margin-bottom:10px;color:#3dff52">🚨 התראות חירום על מסך נעול</div>
+        <div style="font-size:13px;color:#8fa5b8;margin-bottom:18px;line-height:1.5">
+          יש שתי דרכים להפעיל התראות שקופצות על המסך הנעול ומעירות את הטלפון. <b style="color:#3dff52">האופציה המומלצת: התקנת APK</b> — פשוטה ואמינה הרבה יותר.
         </div>
-        <ol style="font-size:13px;line-height:1.8;margin:0 18px 14px 0;padding:0">
-          <li>פתח את <b>הגדרות אנדרואיד</b></li>
-          <li>יישומים → <b>Chrome</b> → התראות</li>
-          <li>מצא <b>tactical-command-center.web.app</b></li>
-          <li>שנה ל־<b style="color:#ff7a1a">"דחוף" / Urgent</b></li>
-          <li>הפעל <b>"הצג על גבי המסך"</b> / "Pop on screen"</li>
-          <li>הפעל <b>"עקוף נא לא להפריע"</b> / "Override DND"</li>
-        </ol>
-        <div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;line-height:1.5">
-          💡 <b>טיפ:</b> ניתן גם להתקין את האפליקציה כ־APK ייעודי שמטפל בהתראות חירום עצמאית. ראה Releases ב־GitHub.
+
+        <div style="background:rgba(61,255,82,0.12);border:2px solid rgba(61,255,82,0.5);border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:15px;font-weight:900;color:#3dff52;margin-bottom:8px">✅ אופציה 1 (מומלץ): התקנת APK</div>
+          <div style="font-size:12px;color:#c9d8e4;line-height:1.6;margin-bottom:10px">
+            ה־APK מותקן כאפליקציה נפרדת עם ערוץ התראות משלה. אחרי ההתקנה:
+            <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
+            <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
+          </div>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.4)</a>
         </div>
-        <button id="android-guide-close" style="width:100%;padding:12px;background:#3dff52;border:none;border-radius:10px;color:#001;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit">הבנתי — המשך</button>
+
+        <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:800;color:#ff7a1a;margin-bottom:6px">⚠️ אופציה 2: Chrome (Samsung)</div>
+          <div style="font-size:12px;color:#c9d8e4;line-height:1.6;margin-bottom:8px">
+            הנתיב <b>משתנה בין דגמי טלפון וגרסאות אנדרואיד</b>. בסמסונג נסה:
+          </div>
+          <div style="font-size:12px;color:#e8eff5;line-height:1.7">
+            • <b>הגדרות</b> → <b>התראות</b><br>
+            • <b>התראות אפליקציה</b> / <b>הגדרות מתקדמות</b><br>
+            • גלול ומצא <b>Chrome</b> → פתח<br>
+            • לחץ על <b>"אתרים"</b> או <b>"Sites"</b><br>
+            • מצא <b>tactical-command-center.web.app</b><br>
+            • שנה חשיבות ל־<b style="color:#ff7a1a">"דחוף" / "Alert"</b><br>
+            • הפעל <b>"הצג קופץ"</b> + <b>"עקוף DND"</b>
+          </div>
+          <div style="font-size:11px;color:#8fa5b8;margin-top:8px;font-style:italic">
+            אם לא מוצאים — חפש בגוגל: "סמסונג הפעלת התראות Chrome לאתר"
+          </div>
+        </div>
+
+        <div style="background:rgba(29,108,255,0.08);border:1px solid rgba(29,108,255,0.3);border-radius:10px;padding:10px;margin-bottom:14px;font-size:11px;color:#8fa5b8;line-height:1.5">
+          ℹ️ <b style="color:#e8eff5">למה זה קורה:</b> Chrome באנדרואיד יוצר ערוץ התראות ברמת חשיבות רגילה. JavaScript לא יכול לשנות את זה — זו הגדרה ברמת מערכת ההפעלה. ה־APK עוקף את זה כי הוא אפליקציה נפרדת.
+        </div>
+
+        <button id="android-guide-close" style="width:100%;padding:13px;background:#3dff52;border:none;border-radius:10px;color:#001;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit">הבנתי — סגור</button>
       </div>
     `;
     document.body.appendChild(overlay);
