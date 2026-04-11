@@ -221,6 +221,58 @@ class NativeBridge(private val context: Context) {
         "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})"
     } catch (_: Exception) { "unknown" }
 
+    /**
+     * Opens Samsung's "Sleeping apps" settings so the user can REMOVE
+     * מבצעים from the list (or check it's not in it). This is SEPARATE
+     * from battery optimization exemption and Samsung enforces it
+     * aggressively — apps in the sleeping list have their foreground
+     * services killed when the screen is off.
+     */
+    @JavascriptInterface
+    fun openSamsungSleepingApps() {
+        // Try multiple Samsung-specific intent paths — the activity name
+        // varies by One UI version.
+        val candidates = listOf(
+            "com.samsung.android.lool/.deviceidle.ui.DeviceIdleActivity",
+            "com.samsung.android.sm/.ui.battery.BatteryActivity",
+            "com.samsung.android.sm.ui.battery.BatteryActivity"
+        )
+        for (name in candidates) {
+            try {
+                val intent = android.content.Intent().setClassName(
+                    name.substringBefore("/"),
+                    name.substringAfter("/")
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {}
+        }
+        // Fall back to the standard battery optimization settings
+        try {
+            val intent = android.content.Intent(
+                android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "openSamsungSleepingApps failed", e)
+        }
+    }
+
+    /**
+     * Returns whether the TacticalForegroundService is currently running.
+     * Used by the diagnostic UI to tell the user if the listener is alive.
+     */
+    @JavascriptInterface
+    fun isForegroundServiceRunning(): Boolean {
+        return try {
+            @Suppress("DEPRECATION")
+            val mgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+            mgr?.getRunningServices(Integer.MAX_VALUE)?.any {
+                it.service.className == TacticalForegroundService::class.java.name
+            } ?: false
+        } catch (_: Exception) { false }
+    }
+
     private fun registerTokenForPersonId(personId: String) {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {

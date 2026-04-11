@@ -23,9 +23,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 
 /**
  * Main Activity — hosts a WebView that renders the tactical-command-center.web.app
@@ -48,17 +46,17 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Android 15 (SDK 35) enforces edge-to-edge by default. We embrace
-        // that and manage insets ourselves: the decor view fills the screen
-        // all the way to the camera notch and the 3-button nav bar, and we
-        // apply the system-bars insets as PADDING on the WebView so the web
-        // content is pushed into the safe area between them. The status and
-        // nav bar areas remain visible with our dark theme color behind them.
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Android 15 (SDK 35) enforces edge-to-edge by default — decor view
+        // fills the whole screen including the camera cutout and nav bar
+        // area. We tell Android to apply the system-window insets as padding
+        // on the root FrameLayout (via android:fitsSystemWindows="true" in
+        // the layout XML), so the WebView child fills only the safe area
+        // between the status bar and the nav bar. Simpler and more reliable
+        // than the v5.7 setOnApplyWindowInsetsListener approach.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         try {
             window.statusBarColor = 0xFF07090A.toInt()
             window.navigationBarColor = 0xFF07090A.toInt()
-            // Ensure icons are visible against our dark bars
             WindowCompat.getInsetsController(window, window.decorView).apply {
                 isAppearanceLightStatusBars = false
                 isAppearanceLightNavigationBars = false
@@ -69,17 +67,6 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webview)
         configureWebView()
-        // Apply system-bars insets as padding on the WebView so it lives
-        // strictly in the safe area. This is what keeps the top bar below
-        // the camera notch and the bottom menu above the phone nav bar.
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
-            val sysBars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or
-                WindowInsetsCompat.Type.displayCutout()
-            )
-            v.setPadding(sysBars.left, sysBars.top, sysBars.right, sysBars.bottom)
-            WindowInsetsCompat.CONSUMED
-        }
         loadAppUrl()
         requestRuntimePermissions()
 

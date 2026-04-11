@@ -44,12 +44,30 @@ class TacticalForegroundService : Service() {
     private var notifRef: DatabaseReference? = null
     private var currentPid: String? = null
     private val handledIds = HashSet<String>()
+    private val heartbeatHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val heartbeatRunnable = object : Runnable {
+        override fun run() {
+            writeDebugLog("fg.heartbeat", "alive pid=${currentPid ?: "-"}")
+            heartbeatHandler.postDelayed(this, 60_000L) // every 60s
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createForegroundChannel()
         Log.d(TAG, "Service created")
         writeDebugLog("fg.onCreate", "Service created")
+        // Start the heartbeat — if this stops in the debug log, we know the
+        // service was killed by the OS (Samsung battery management, etc.)
+        heartbeatHandler.postDelayed(heartbeatRunnable, 30_000L)
+    }
+
+    override fun onDestroy() {
+        Log.d(TAG, "Service destroyed")
+        writeDebugLog("fg.onDestroy", "Service killed by OS")
+        heartbeatHandler.removeCallbacks(heartbeatRunnable)
+        childListener?.let { notifRef?.removeEventListener(it) }
+        super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -285,12 +303,6 @@ class TacticalForegroundService : Service() {
                     )
                 )
         } catch (_: Exception) {}
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG, "Service destroyed")
-        childListener?.let { notifRef?.removeEventListener(it) }
-        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

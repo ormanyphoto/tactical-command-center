@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.1</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2075,6 +2075,29 @@ function onGoogleMapsReady(){
       {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
       {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
     ],
+  });
+
+  // On map ready: immediately pull GPS and center on the user.
+  // getCurrentPosition is faster than waitPosition for the initial fix.
+  google.maps.event.addListenerOnce(map, 'idle', () => {
+    if(!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        // Clamp to Israel bounds — ignore garbage IP-based fallbacks
+        if(lat < 29 || lat > 33.5 || lng < 34 || lng > 36){
+          console.warn('[MAP] initial fix outside Israel, ignored:', lat, lng);
+          return;
+        }
+        console.log('[MAP] initial centering on', lat, lng);
+        map.setCenter({lat, lng});
+        map.setZoom(17);
+        window._lastLat = lat;
+        window._lastLng = lng;
+      },
+      err => { console.warn('[MAP] initial GPS failed', err && err.code); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
   });
 
   // Night-mode style — keeps building footprints + house numbers visible
@@ -6093,10 +6116,11 @@ function boSettings(c){
        // native-specific status + button to open the FullScreenIntent
        // settings page (required on Android 14+ to pop over lock screen).
        if(window._runningInNativeApp && window.Android){
-         var fsiOk = false, batteryOk = false, deviceInfo = '';
+         var fsiOk = false, batteryOk = false, deviceInfo = '', svcRunning = false;
          try { fsiOk = window.Android.canUseFullScreenIntent && window.Android.canUseFullScreenIntent(); } catch(_){ fsiOk = true; }
          try { batteryOk = window.Android.isIgnoringBatteryOptimizations && window.Android.isIgnoringBatteryOptimizations(); } catch(_){}
          try { deviceInfo = window.Android.getDeviceInfo ? window.Android.getDeviceInfo() : ''; } catch(_){}
+         try { svcRunning = window.Android.isForegroundServiceRunning ? window.Android.isForegroundServiceRunning() : false; } catch(_){}
 
          var html = '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
            +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
@@ -6106,24 +6130,32 @@ function boSettings(c){
          // Device info line
          if(deviceInfo) html += '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;padding:4px 8px;background:rgba(0,0,0,0.2);border-radius:6px">📱 '+deviceInfo+'</div>';
 
-         // Status grid — FSI + Battery
+         // Status grid — 3 cards: FSI + Battery + Service alive
          html += '<div style="display:flex;gap:6px;margin-bottom:8px">'
            +'<div style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid '+(fsiOk?'rgba(61,255,82,0.3)':'rgba(255,122,26,0.35)')+'">'
-           +'<div style="font-size:9px;color:var(--text3)">Full-Screen Intent</div>'
-           +'<div style="font-size:11px;font-weight:700;color:'+(fsiOk?'#3dff52':'#ff7a1a')+'">'+(fsiOk?'✓ מאושר':'✗ חסר')+'</div></div>'
+           +'<div style="font-size:9px;color:var(--text3)">FullScreen</div>'
+           +'<div style="font-size:11px;font-weight:700;color:'+(fsiOk?'#3dff52':'#ff7a1a')+'">'+(fsiOk?'✓':'✗')+'</div></div>'
            +'<div style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid '+(batteryOk?'rgba(61,255,82,0.3)':'rgba(255,122,26,0.35)')+'">'
-           +'<div style="font-size:9px;color:var(--text3)">Battery Unrestricted</div>'
-           +'<div style="font-size:11px;font-weight:700;color:'+(batteryOk?'#3dff52':'#ff7a1a')+'">'+(batteryOk?'✓ מוחרג':'✗ מוגבל')+'</div></div>'
+           +'<div style="font-size:9px;color:var(--text3)">Battery Free</div>'
+           +'<div style="font-size:11px;font-weight:700;color:'+(batteryOk?'#3dff52':'#ff7a1a')+'">'+(batteryOk?'✓':'✗')+'</div></div>'
+           +'<div style="flex:1;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:6px;border:1px solid '+(svcRunning?'rgba(61,255,82,0.3)':'rgba(255,51,51,0.45)')+'">'
+           +'<div style="font-size:9px;color:var(--text3)">Listener</div>'
+           +'<div style="font-size:11px;font-weight:700;color:'+(svcRunning?'#3dff52':'#ff3333')+'">'+(svcRunning?'✓ רץ':'✗ מת')+'</div></div>'
            +'</div>';
 
          if(!fsiOk){
            html += '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff7a1a" onclick="try{window.Android.openFullScreenIntentSettings()}catch(e){}">🚨 (1) הפעל Full-Screen על מסך נעול</button>';
          }
          if(!batteryOk){
-           html += '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff6b00" onclick="try{window.Android.requestBatteryExemption()}catch(e){}">🔋 (2) הסר הגבלת סוללה (חובה בסמסונג!)</button>';
+           html += '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff6b00" onclick="try{window.Android.requestBatteryExemption()}catch(e){}">🔋 (2) הסר הגבלת סוללה</button>';
+         }
+         // Samsung Sleeping Apps button — always show, Samsung kills FG services anyway
+         html += '<button class="btn-sec" style="width:100%;margin-bottom:6px;background:rgba(138,43,226,0.15);border:1px solid rgba(138,43,226,0.4);color:#c080ff" onclick="try{window.Android.openSamsungSleepingApps()}catch(e){}">💤 (3) Samsung: הסר מ"Sleeping apps"</button>';
+         if(!svcRunning){
+           html += '<div style="font-size:11px;color:#ff6666;margin-bottom:8px;line-height:1.5;padding:8px;background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:6px">❌ <b>השירות הנייטיב לא רץ!</b> זה הסיבה שאין התראות במסך נעול. הסיבות האפשריות: Samsung הרגה את התהליך / Battery restriction / Sleeping apps. לחץ על הכפתור הסגול למעלה והוסף את "מבצעים" ל"Never sleeping apps".</div>';
          }
          if(!fsiOk || !batteryOk){
-           html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;padding:8px;background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.3);border-radius:6px">⚠️ <b>שני ההרשאות חייבות להיות פעילות</b> כדי שההתראות יקפצו על מסך נעול. Samsung מרדימה אפליקציות לא מוחרגות. אחרי שאישרת את שתי ההרשאות, חזור לאפליקציה ולחץ רענן למטה.</div>';
+           html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;padding:8px;background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.3);border-radius:6px">⚠️ כל שלושת הדברים חייבים להיות פעילים כדי שהתראות יגיעו במסך נעול.</div>';
          }
 
          // Always show: test button + debug button
@@ -9984,7 +10016,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.7.1',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.7.2',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11297,7 +11329,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
