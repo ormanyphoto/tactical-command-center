@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.9 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.8.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.9</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.9</div>
+    <div id="fm-logo">⬡ מבצעים v5.8.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1265,7 +1265,7 @@ const SCOLORS={urgent:'#ff3333',active:'#3dff52',pending:'#ffc107',completed:'#2
 const MICONS={arrest:'🚨',surveillance:'👁️',escort:'🛡️',traffic:'🚧',rescue:'🏥',default:'◉'};
 const TCOLORS={אדום:'#ff3333',כחול:'#29c5f6',ירוק:'#3dff52',צהוב:'#ffc107',אלפא:'#a8e800',רפואה:'#ff4aaa',מבצע:'#b06cf0',K9:'#ff7a1a','יחידה-5':'#9ab8c8'};
 const ALL_SKILLS=['נשק','חובש','נהג','צלף','כלבן','משא ומתן','חבלה','קשר','מפעיל רחפן','מודיעין','סנפלינג','כימי/ביולוגי','לוגיסטיקה','רופא','סייבר','חילוץ','ירי מדויק','נהיגה מבצעית','מנהיגות','מתורגמן'];
-let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','לוחם','איש חפ״ק','מפעיל רחפן','צופה רחפן'];
+let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','לוחם','איש חפ״ק','מפעיל רחפן','צופה רחפן'];
 let MISSIONS=[];
 let UNITS=[];
 let PERSONNEL=[
@@ -1307,7 +1307,7 @@ let PERSONNEL=[
   {id:'P17928',name:'גיא יפה',phone:'052-672-0784',email:'guyyaffear@gmail.com',loginPassword:'Tac7928!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:35,lat:32.08305,lng:34.79155},
   {id:'P17929',name:'יהונתן כהן',phone:'054-911-0402',email:'ykhn8811@gmail.com',loginPassword:'Tac7929!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:36,lat:32.08965,lng:34.78705},
   {id:'P17930',name:'חיים ג׳ורנו',phone:'054-243-3079',email:'chaimgorno@gmail.com',loginPassword:'Tac7930!',unit:'מחוזית ת״א',role:'',callsign:'3',address:'',available:true,skills:[],mission:null,photo:'',color:'#5a7a90',order:37,lat:32.06325,lng:34.7593},
-  {id:'P17931',name:'חפ״ק מחוזית',phone:'',email:'yakamtlv@gmail.com',loginPassword:'Tac7931!',unit:'מחוזית ת״א',role:'חפ״ק',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:38,lat:32.0667,lng:34.7818,permsOverride:['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','geofence','layers','navigation','field_mode']}
+  {id:'P17931',name:'חפ״ק מחוזית',phone:'',email:'yakamtlv@gmail.com',loginPassword:'Tac7931!',unit:'מחוזית ת״א',role:'מפקד חפ״ק מחוזי',callsign:'חפ״ק',address:'',available:true,skills:[],mission:null,photo:'',color:'#b06cf0',order:38,lat:32.0667,lng:34.7818,permsOverride:['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','admin','geofence','layers','navigation','field_mode']}
 ];
 let DEPARTMENTS=[
   {id:'D00',name:'מחוזית ת"א',color:'#29c5f6',commander:'P17892',desc:'מפקדת מחוז תל אביב — יחידה מרכזית קבועה',phone:'03-0000000',location:'מטה מחוז תל אביב',capacity:50,members:['P17892','P17893','P17894','P17896','P17897','P17898','P17899','P17900','P17901','P17902','P17903','P17904','P17905','P17906','P17907','P17908','P17909','P17910','P17911','P17912','P17913','P17914','P17915','P17916','P17917','P17918','P17919','P17920','P17921','P17922','P17923','P17924','P17925','P17926','P17927','P17928','P17929','P17930','P17931'],fixed:true},
@@ -1672,6 +1672,7 @@ const AUTH = (() => {
     'סגן מפקד פלגה':   ['map','missions','units','comms','incidents','navigation','field_mode'],
     'מפקד צוות':       ['map','missions','comms','incidents','navigation','field_mode'],
     'סגן מפקד צוות':   ['map','missions','comms','navigation','field_mode'],
+    'מפקד חפ״ק מחוזי': ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','admin','geofence','layers','navigation','field_mode'],
     'מפקד חפ״ק':       ['map','dashboard','missions','create_mission','units','manage_units','comms','analytics','incidents','geofence','layers','navigation','field_mode'],
     'סגן מפקד חפ״ק':   ['map','missions','units','comms','incidents','navigation','field_mode'],
     'חפ״ק':            ['map','dashboard','missions','units','comms','incidents','layers','navigation','field_mode'],
@@ -3713,7 +3714,10 @@ function navToSOS(){
   if(!_sosData?.lat||!_sosData?.lng) return;
   const {lat,lng}=_sosData;
   if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
-    window.location.href=`waze://?ll=${lat},${lng}&navigate=yes`;
+    // Official Waze deep link — Android auto-launches the Waze app and
+    // immediately starts navigation. waze:// scheme variants often open
+    // the app without computing a route.
+    window.location.href=`https://waze.com/ul?ll=${lat}%2C${lng}&navigate=yes&zoom=17`;
     setTimeout(()=>window.open(`https://maps.google.com/?q=${lat},${lng}`,'_blank'),1500);
   } else {
     window.open(`https://maps.google.com/?q=${lat},${lng}`,'_blank');
@@ -5827,21 +5831,22 @@ function commitPwd(pid){
   showToast({icon:'🔑',title:'סיסמה עודכנה',sub:p.name,type:'success'});
 }
 function boPermissions(c){
-  const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','איש חפ״ק','לוחם','מפעיל רחפן'];
+  const roles=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','איש חפ״ק','לוחם','מפעיל רחפן'];
   const perms=['צפייה','עריכה','יצירת משימה','פריסת כוחות','גיאופנסים','שידורים','ניהול מערכת'];
   const defaults={
-    'מפקד יחידה':      [1,1,1,1,1,1,1],
-    'סגן מפקד יחידה':  [1,1,1,1,1,1,0],
-    'מפקד פלגה':       [1,1,1,1,1,1,0],
-    'סגן מפקד פלגה':   [1,1,0,1,0,1,0],
-    'מפקד צוות':       [1,1,1,0,1,1,0],
-    'סגן מפקד צוות':   [1,1,0,0,0,1,0],
-    'מפקד חפ״ק':       [1,1,1,1,1,1,0],
-    'סגן מפקד חפ״ק':   [1,1,0,1,0,1,0],
-    'חפ״ק':            [1,1,1,1,1,1,0],
-    'איש חפ״ק':        [1,1,0,0,0,1,0],
-    'לוחם':             [1,0,0,0,0,0,0],
-    'מפעיל רחפן':      [1,0,0,0,0,1,0],
+    'מפקד יחידה':        [1,1,1,1,1,1,1],
+    'סגן מפקד יחידה':    [1,1,1,1,1,1,0],
+    'מפקד פלגה':         [1,1,1,1,1,1,0],
+    'סגן מפקד פלגה':     [1,1,0,1,0,1,0],
+    'מפקד צוות':         [1,1,1,0,1,1,0],
+    'סגן מפקד צוות':     [1,1,0,0,0,1,0],
+    'מפקד חפ״ק מחוזי':   [1,1,1,1,1,1,1],
+    'מפקד חפ״ק':         [1,1,1,1,1,1,0],
+    'סגן מפקד חפ״ק':     [1,1,0,1,0,1,0],
+    'חפ״ק':              [1,1,1,1,1,1,0],
+    'איש חפ״ק':          [1,1,0,0,0,1,0],
+    'לוחם':               [1,0,0,0,0,0,0],
+    'מפעיל רחפן':        [1,0,0,0,0,1,0],
   };
 
   function _renderPermsTable(data){
@@ -7575,18 +7580,19 @@ function _togglePersonPermsOverride(checked, pid){
 // Return the role-level permission array [view,edit,mission,deploy,geofence,broadcast,admin]
 function _getRolePermsFor(role){
   const builtInDefaults={
-    'מפקד יחידה':      [1,1,1,1,1,1,1],
-    'סגן מפקד יחידה':  [1,1,1,1,1,1,0],
-    'מפקד פלגה':       [1,1,1,1,1,1,0],
-    'סגן מפקד פלגה':   [1,1,0,1,0,1,0],
-    'מפקד צוות':       [1,1,1,0,1,1,0],
-    'סגן מפקד צוות':   [1,1,0,0,0,1,0],
-    'מפקד חפ״ק':       [1,1,1,1,1,1,0],
-    'סגן מפקד חפ״ק':   [1,1,0,1,0,1,0],
-    'חפ״ק':            [1,1,1,1,1,1,0],
-    'איש חפ״ק':        [1,1,0,0,0,1,0],
-    'לוחם':             [1,0,0,0,0,0,0],
-    'מפעיל רחפן':      [1,0,0,0,0,1,0]
+    'מפקד יחידה':        [1,1,1,1,1,1,1],
+    'סגן מפקד יחידה':    [1,1,1,1,1,1,0],
+    'מפקד פלגה':         [1,1,1,1,1,1,0],
+    'סגן מפקד פלגה':     [1,1,0,1,0,1,0],
+    'מפקד צוות':         [1,1,1,0,1,1,0],
+    'סגן מפקד צוות':     [1,1,0,0,0,1,0],
+    'מפקד חפ״ק מחוזי':   [1,1,1,1,1,1,1],
+    'מפקד חפ״ק':         [1,1,1,1,1,1,0],
+    'סגן מפקד חפ״ק':     [1,1,0,1,0,1,0],
+    'חפ״ק':              [1,1,1,1,1,1,0],
+    'איש חפ״ק':          [1,1,0,0,0,1,0],
+    'לוחם':               [1,0,0,0,0,0,0],
+    'מפעיל רחפן':        [1,0,0,0,0,1,0]
   };
   let saved={};
   try { saved = JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); } catch(_){}
@@ -8604,17 +8610,18 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
   const label = venueLabel || notif&&notif.title || address;
   const isAdmin = (typeof AUTH!=='undefined') && AUTH.getUser() &&
     (AUTH.getUser().permsOverride||[]).includes('admin') ||
-    ['מפקד יחידה','מפקד חפ״ק'].includes((typeof AUTH!=='undefined'&&AUTH.getUser())?AUTH.getUser().role:'');
+    ['מפקד יחידה','מפקד חפ״ק מחוזי','מפקד חפ״ק'].includes((typeof AUTH!=='undefined'&&AUTH.getUser())?AUTH.getUser().role:'');
   const markerIcon = _makeNotifMarkerSVG(color, gfx2.markerSym, gfx2.urgency);
   const marker = new google.maps.Marker({
     position:{lat,lng}, map:window.map,
     title: label,
     icon: markerIcon,
     zIndex: 9999,
-    // optimized:false forces unbatched per-marker rendering so the SVG alpha
-    // channel is composited cleanly — otherwise Android WebView shows a
-    // visible bounding box around transparent SVG markers.
-    optimized: false,
+    // optimized:true (default) — tile-batched rendering. We tried
+    // optimized:false earlier to "clean up" the SVG alpha, but Samsung
+    // WebView rendered the unbatched marker as an <img> element that
+    // briefly showed the broken-image placeholder next to the real icon.
+    // Batched rendering avoids that glitch entirely.
     animation: google.maps.Animation.BOUNCE
   });
   setTimeout(()=>{ if(marker) marker.setAnimation(null); }, 3000);
@@ -8666,7 +8673,11 @@ function openNavToAddress(addr){
   const enc = encodeURIComponent(addr);
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(isMobile){
-    window.location.href = 'waze://?q='+enc+'&navigate=yes';
+    // Official Waze deep link — https scheme is routed by Android's intent
+    // system straight into the Waze app with an active route computed.
+    // The legacy waze:// scheme sometimes opens the app on the default
+    // screen without calculating a route.
+    window.location.href = 'https://waze.com/ul?q='+enc+'&navigate=yes';
   } else {
     window.open('https://maps.google.com/?q='+enc,'_blank');
   }
@@ -8674,7 +8685,8 @@ function openNavToAddress(addr){
 function openNavToLatLng(lat, lng, fallbackAddr){
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(isMobile){
-    window.location.href = `waze://ul?ll=${lat},${lng}&navigate=yes`;
+    // Official Waze deep link for coordinates — forces route calculation.
+    window.location.href = `https://waze.com/ul?ll=${lat}%2C${lng}&navigate=yes&zoom=17`;
   } else {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,'_blank');
   }
@@ -11266,10 +11278,12 @@ const SYNC = (() => {
       if(!_liveMarkers[markerKey]){
         _liveMarkers[markerKey] = new google.maps.Marker({
           position:pos, map:window.map, zIndex:reallyIsMe?800:600,
-          // optimized:false — per-marker rendering, no batching. This fixes
-          // the "marker flickers on/off" bug on mobile where the batched
-          // texture rebuild caused brief gaps between real-time updates.
-          optimized:false,
+          // optimized:true (default) — tile-batched rendering. Using
+          // optimized:false caused Samsung WebView to render each marker
+          // as its own <img>, which briefly showed the broken-image
+          // placeholder next to the avatar before the data: URL decoded.
+          // Flicker-on-update is handled separately by the 15s grace
+          // period in _subscribeLocations cleanup.
           icon, title:d.name+(reallyIsMe?' (אני)':'')
         });
         _liveMarkers[markerKey]._lastUpdated = Date.now();
@@ -11754,7 +11768,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.9)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
