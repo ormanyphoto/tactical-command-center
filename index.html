@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.6.4 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.4</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.6.4</div>
+    <div id="fm-logo">⬡ מבצעים v5.7</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4603,6 +4603,10 @@ function saveMission(){
 function renderUnitsP(c){
   if(!c)c=document.getElementById('rp-body');
   _syncTitle('units');
+  // Idempotent: ensure the global approvals listener is attached. If it
+  // already is, this is a no-op. If not, this will attach it now and the
+  // panel will auto-refresh when data arrives.
+  if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
   const flt=c._flt||'all';
   const statusDef={
     deployed:{lbl:'פרוס',badge:'b-deployed'},
@@ -6931,6 +6935,8 @@ function renderPersonnelP(c){
   const filterAvail=c._avail||'all';
   const unitList=[...new Set([...TEAMS.map(t=>t.name),...PERSONNEL.map(p=>p.unit).filter(Boolean)])];
   const filtered=sorted.filter(p=>(filterUnit==='all'||p.unit===filterUnit)&&(filterAvail==='all'||(filterAvail==='yes'?p.available:!p.available)));
+  // Defensive: ensure the approvals listener is attached for this session
+  if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
   c.innerHTML=renderApprovalsSection()+`
   <!-- FILTERS -->
   <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap">
@@ -7932,7 +7938,20 @@ function sendNotification(){
     }
 
     // Fire SDK write in parallel (for real-time listeners on other devices)
-    try { db.ref('tac_active_notif').set({notifId, title:payload.title, type:_activeNotifType, sentAt:payload.sentAt, senderName}); } catch(e){}
+    // Write to tac_active_notif INCLUDING venues + dest so receiving admins
+    // can render the approvals section with correct ETA context — not just
+    // the sender's device which had venues in local JS memory.
+    try {
+      db.ref('tac_active_notif').set({
+        notifId,
+        title: payload.title,
+        type: _activeNotifType,
+        sentAt: payload.sentAt,
+        senderName,
+        venues: venues || [],
+        dest: { lat: payload.lat || null, lng: payload.lng || null, address: payload.address || '' }
+      });
+    } catch(e){}
 
     // REST writes (primary — guaranteed delivery)
     const restPromises = recipientIds.map(_restWriteNotif);
@@ -8560,7 +8579,16 @@ function _subscribeActiveNotif(){
   _activeNotifGlobalListener = db.ref('tac_active_notif').on('value', snap=>{
     const v = snap.val();
     if(!v || !v.notifId) return;
-    if(v.notifId === _currentActiveNotifId) return; // already attached
+    // ALWAYS hydrate the venue + dest globals from the central record so
+    // every device (not just the sender) can render ETAs correctly.
+    if(v.venues && Array.isArray(v.venues)) window._activeNotifVenues = v.venues;
+    if(v.dest) window._activeNotifDest = v.dest;
+    if(v.notifId === _currentActiveNotifId){
+      // Already attached — but still re-render in case venues just arrived
+      const c = document.getElementById('rp-body');
+      if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
+      return;
+    }
     _currentActiveNotifId = v.notifId;
     console.log('[ACTIVE-NOTIF] attaching approvals listener for', v.notifId);
     _listenApprovals(v.notifId);
@@ -9941,7 +9969,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.6.4',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.7',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11254,7 +11282,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.4)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">

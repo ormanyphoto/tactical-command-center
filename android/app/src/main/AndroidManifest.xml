@@ -60,6 +60,20 @@
             </intent-filter>
         </service>
 
+        <!-- Persistent foreground service that holds a Firebase Realtime
+             Database listener for tac_notifications/<personId>. This is how
+             we guarantee emergency alerts fire even when the screen is off
+             and the app hasn't been touched for hours — the FG service is
+             exempt from Doze so the RTDB socket stays open. -->
+        <service
+            android:name=".TacticalForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="emergency_alerts_listener" />
+        </service>
+
     </application>
 
 </manifest>

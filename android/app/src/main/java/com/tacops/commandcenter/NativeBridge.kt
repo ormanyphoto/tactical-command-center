@@ -59,6 +59,18 @@ class NativeBridge(private val context: Context) {
         prefs.edit().putString(KEY_PERSON_ID, personId).apply()
         Log.d(TAG, "setPersonId($personId) — previous=$prev")
         registerTokenForPersonId(personId)
+        // Kick the foreground service to re-attach its Firebase listener
+        // to the new personId (or attach for the first time on fresh login).
+        try {
+            val svc = android.content.Intent(context, TacticalForegroundService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(svc)
+            } else {
+                context.startService(svc)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start FG service from setPersonId", e)
+        }
     }
 
     /** Clears the person link on logout so we don't keep sending to a stale pid. */

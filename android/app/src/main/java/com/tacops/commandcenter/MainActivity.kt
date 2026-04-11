@@ -44,12 +44,39 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Respect the device status bar + navigation bar. We DO NOT go
+        // immersive/fullscreen — the user wants to see the camera notch
+        // area reserved, and the 3-button nav bar visible at the bottom.
+        // Use a dark status bar background so it blends with our theme.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(true)
+        }
+        try {
+            window.statusBarColor = 0xFF07090A.toInt()
+            window.navigationBarColor = 0xFF07090A.toInt()
+        } catch (_: Exception) {}
+
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webview)
         configureWebView()
         loadAppUrl()
         requestRuntimePermissions()
+
+        // Kick off the foreground Firebase listener service immediately so
+        // we can receive emergency alerts via Firebase Realtime Database's
+        // persistent socket connection, bypassing FCM + Doze entirely.
+        try {
+            val svcIntent = android.content.Intent(this, TacticalForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(svcIntent)
+            } else {
+                startService(svcIntent)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start foreground service", e)
+        }
 
         // Modern back-button handling — WebView.goBack if possible, else finish
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -63,13 +90,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
-        window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         // Check critical permissions every time the activity comes to front.
         // This handles the case where the user just came back from the
         // settings page after flipping the Full-Screen Intent or Battery
