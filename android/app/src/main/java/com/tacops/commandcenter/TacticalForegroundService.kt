@@ -72,24 +72,8 @@ class TacticalForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notif = buildPersistentNotification()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // Android 14+: declare foregroundServiceType
-                startForeground(
-                    FG_NOTIF_ID,
-                    notif,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-            } else {
-                startForeground(FG_NOTIF_ID, notif)
-            }
-            Log.d(TAG, "startForeground OK")
-            writeDebugLog("fg.startForegroundOK", "persistent notif id=$FG_NOTIF_ID")
-        } catch (e: Exception) {
-            Log.e(TAG, "startForeground failed", e)
-            writeDebugLog("fg.startForegroundFAIL", e.message ?: "unknown")
+        val started = tryStartForeground(notif)
+        if (!started) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -108,6 +92,53 @@ class TacticalForegroundService : Service() {
         }
 
         return START_STICKY
+    }
+
+    /**
+     * Call startForeground with a cascade of service type fallbacks so the
+     * service survives even if one type is denied. On Android 14+ we prefer
+     * SPECIAL_USE (matches our use case best) and fall back to DATA_SYNC if
+     * that fails. On older Android any positive call is fine.
+     * Each step is logged to Firebase so we can see the exact failure reason
+     * in the debug panel.
+     */
+    private fun tryStartForeground(notif: Notification): Boolean {
+        // Attempt 1: SPECIAL_USE (Android 14+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                Log.d(TAG, "startForeground OK (SPECIAL_USE)")
+                writeDebugLog("fg.startForegroundOK", "SPECIAL_USE")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "SPECIAL_USE failed: ${e.javaClass.simpleName} ${e.message}")
+                writeDebugLog("fg.fgSpecialUseFail", "${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            }
+        }
+        // Attempt 2: DATA_SYNC (Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                Log.d(TAG, "startForeground OK (DATA_SYNC)")
+                writeDebugLog("fg.startForegroundOK", "DATA_SYNC")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "DATA_SYNC failed: ${e.javaClass.simpleName} ${e.message}")
+                writeDebugLog("fg.fgDataSyncFail", "${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            }
+        }
+        // Attempt 3: no-type (pre-Q or legacy)
+        try {
+            @Suppress("DEPRECATION")
+            startForeground(FG_NOTIF_ID, notif)
+            Log.d(TAG, "startForeground OK (no type)")
+            writeDebugLog("fg.startForegroundOK", "legacy")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "All startForeground attempts failed", e)
+            writeDebugLog("fg.startForegroundFAIL", "${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            return false
+        }
     }
 
     private fun waitForAuthThenAttach(pid: String, attempt: Int) {
