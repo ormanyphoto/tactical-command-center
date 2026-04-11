@@ -10314,50 +10314,72 @@ const SYNC = (() => {
     return result;
   }
 
+  // Apply the hidden state: sweep markers, prune _liveLocs, rerender from locs
+  function _applyHiddenState(newHidden){
+    const changed = JSON.stringify(newHidden) !== JSON.stringify(_hiddenPersons);
+    _hiddenPersons = newHidden;
+    if(!changed) return;
+    console.log('[SYNC] hidden state changed:', _hiddenPersons);
+    // Sweep any matching marker
+    Object.keys(_liveMarkers).forEach(k=>{
+      const m = _liveMarkers[k];
+      const md = m && m._data;
+      const pid = (md && md.personId) || k;
+      if(_hiddenPersons[pid]){
+        console.log('[SYNC] sweeping hidden marker', k, pid);
+        try { m.setMap(null); } catch(_){}
+        delete _liveMarkers[k];
+      }
+    });
+    if(window._liveLocs){
+      Object.keys(window._liveLocs).forEach(k=>{
+        if(_hiddenPersons[k]) delete window._liveLocs[k];
+      });
+    }
+    // Force full re-render from current Firebase locs state
+    if(_db && window.map && window._googleReady){
+      _db.ref('tac_locs').once('value', lsnap=>{
+        const fd = _dedupeByPerson(lsnap.val()||{});
+        Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+        Object.keys(_liveMarkers).forEach(uid=>{
+          if(!fd[uid]){
+            try { _liveMarkers[uid].setMap(null); } catch(_){}
+            delete _liveMarkers[uid];
+          }
+        });
+      }).catch(e=>console.warn('[SYNC] rerender after hidden failed', e));
+    }
+  }
+
   // Subscribe to the cross-device hidden-persons flag so every client knows
-  // immediately when someone toggles their location off anywhere.
+  // immediately when someone toggles their location off anywhere. Uses BOTH
+  // the real-time .on('value') listener AND a 2-second REST poll — the poll
+  // guarantees eventual consistency even if the subscription fails or misses
+  // updates on a flaky connection.
+  const DB_REST_BASE = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  let _hiddenPollTimer = null;
   function _subscribeHidden(){
     if(!_db) return;
-    _db.ref('tac_loc_hidden').on('value', snap=>{
-      const prev = _hiddenPersons;
-      _hiddenPersons = snap.val() || {};
-      console.log('[SYNC] tac_loc_hidden update:', _hiddenPersons);
-      // When a person gets flagged as hidden, sweep every marker variant they
-      // might have in _liveMarkers — key could be personId, uid, or mismatched.
-      Object.keys(_liveMarkers).forEach(k=>{
-        const m = _liveMarkers[k];
-        const md = m && m._data;
-        const pid = (md && md.personId) || k;
-        if(_hiddenPersons[pid]){
-          console.log('[SYNC] sweeping hidden marker', k, pid);
-          try { m.setMap(null); } catch(_){}
-          delete _liveMarkers[k];
-        }
+    // 1. Real-time SDK subscription (primary)
+    try {
+      _db.ref('tac_loc_hidden').on('value', snap=>{
+        _applyHiddenState(snap.val() || {});
+      }, err=>{
+        console.warn('[SYNC] tac_loc_hidden subscription failed:', err);
       });
-      // ALSO remove from window._liveLocs so ETA / personnel list / any other
-      // consumers stop seeing this person's position.
-      if(window._liveLocs){
-        Object.keys(window._liveLocs).forEach(k=>{
-          if(_hiddenPersons[k]) delete window._liveLocs[k];
-        });
-      }
-      // Force a full re-render from current Firebase state to catch any
-      // stale entries the listener might have missed due to event ordering.
-      if(_db && window.map && window._googleReady){
-        _db.ref('tac_locs').once('value', lsnap=>{
-          const fd = _dedupeByPerson(lsnap.val()||{});
-          Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
-          Object.keys(_liveMarkers).forEach(uid=>{
-            if(!fd[uid]){
-              try { _liveMarkers[uid].setMap(null); } catch(_){}
-              delete _liveMarkers[uid];
-            }
-          });
-        }).catch(e=>console.warn('[SYNC] rerender after hidden failed', e));
-      }
-    }, err=>{
-      console.warn('[SYNC] tac_loc_hidden subscription failed:', err);
-    });
+    } catch(e){ console.warn('[SYNC] hidden subscribe error', e); }
+
+    // 2. REST poll (fallback) — 2-second interval, direct HTTP, bypasses
+    //    any SDK caching or connection issues.
+    if(_hiddenPollTimer) clearInterval(_hiddenPollTimer);
+    _hiddenPollTimer = setInterval(async ()=>{
+      try {
+        const resp = await fetch(DB_REST_BASE+'/tac_loc_hidden.json?_='+Date.now(), {cache:'no-store'});
+        if(!resp.ok) return;
+        const data = await resp.json();
+        _applyHiddenState(data || {});
+      } catch(e){ /* silent — subscription may still be live */ }
+    }, 2000);
   }
 
   // Auto-cleanup very old entries from Firebase (> 7 days)
