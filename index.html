@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.7 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.8 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.7</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.8</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.7</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.8</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -5144,7 +5144,13 @@ function boTab(tab){
     'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
-  if(fn)fn(bi);else bi.innerHTML='<p style="color:var(--text3);padding:20px">לשונית: '+tab+'</p>';
+  if(fn){
+    try { fn(bi); }
+    catch(e){
+      console.error('[boTab] handler "'+tab+'" threw:', e);
+      bi.innerHTML='<div style="padding:20px;color:var(--danger)">⚠️ שגיאה בטעינת "'+tab+'"<br><div style="font-size:11px;color:var(--text3);margin-top:8px;font-family:monospace">'+(e&&e.message||e)+'</div></div>';
+    }
+  } else bi.innerHTML='<p style="color:var(--text3);padding:20px">לשונית: '+tab+'</p>';
 }
 
 function boPersonnel(c){
@@ -5825,23 +5831,25 @@ function boPermissions(c){
       +'</div>';
   }
 
-  // Try Firebase first, then localStorage, then built-in defaults
-  const db=window._db;
-  if(db){
-    c.innerHTML='<div class="bo-section" style="padding:30px;text-align:center;color:var(--text3)">⏳ טוען הרשאות...</div>';
-    db.ref('tac_role_perms').once('value', function(snap){
-      var saved=snap.val()||{};
-      // Also check localStorage fallback
-      if(!Object.keys(saved).length){
-        try{ saved=JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); }catch(e){}
-      }
-      _renderPermsTable(Object.keys(saved).length ? saved : defaults);
-    }, function(){ _renderPermsTable(defaults); });
-  } else {
-    var lsSaved={};
-    try{ lsSaved=JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); }catch(e){}
-    _renderPermsTable(Object.keys(lsSaved).length ? lsSaved : defaults);
-  }
+  // Render IMMEDIATELY from localStorage/defaults — never leave the tab blank.
+  // Firebase read, if it succeeds, will re-render with the live data.
+  var lsSaved={};
+  try{ lsSaved=JSON.parse(localStorage.getItem('tac_role_perms')||'{}'); }catch(e){}
+  _renderPermsTable(Object.keys(lsSaved).length ? lsSaved : defaults);
+
+  // Then try Firebase async (non-blocking, errors ignored)
+  try {
+    const db=window._db;
+    if(db){
+      db.ref('tac_role_perms').once('value').then(function(snap){
+        var saved=snap.val()||{};
+        if(Object.keys(saved).length){
+          try{ localStorage.setItem('tac_role_perms', JSON.stringify(saved)); }catch(_){}
+          _renderPermsTable(saved);
+        }
+      }).catch(function(e){ console.warn('[boPermissions] fb read failed:', e && e.message); });
+    }
+  } catch(e){ console.warn('[boPermissions] error:', e && e.message); }
 }
 // ── VEHICLES MANAGEMENT ──
 const VEHICLE_TYPES = {
@@ -5931,15 +5939,17 @@ function _exportVehiclesCSV(){
 }
 
 function boAudit(c){
-  // Load from Firebase
-  if(window._db){
-    window._db.ref('tac_audit').limitToLast(300).once('value', snap=>{
-      const data = snap.val()||{};
-      const fromFb = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
-      if(fromFb.length) auditEntries = fromFb;
-      _renderAudit(c);
-    }).catch(()=>_renderAudit(c));
-  } else { _renderAudit(c); }
+  // Render immediately from memory — Firebase will update async
+  _renderAudit(c);
+  try {
+    if(window._db){
+      window._db.ref('tac_audit').limitToLast(300).once('value').then(snap=>{
+        const data = snap.val()||{};
+        const fromFb = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
+        if(fromFb.length){ auditEntries = fromFb; _renderAudit(c); }
+      }).catch(e=>console.warn('[boAudit] fb read failed:', e && e.message));
+    }
+  } catch(e){ console.warn('[boAudit] error:', e && e.message); }
 }
 function _renderAudit(c){
   const typeColors = {danger:'var(--danger)',warn:'var(--warn)',success:'var(--accent)',info:'var(--blue)'};
@@ -9573,12 +9583,17 @@ function _saveEquipment(){
   if(window._db) window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS).catch(()=>{});
 }
 function boEquipment(c){
-  if(window._db && !EQUIPMENT_ITEMS.length){
-    window._db.ref('tac_equipment').once('value',s=>{
-      const v=s.val(); if(Array.isArray(v)){ EQUIPMENT_ITEMS=v; }
-      _renderEquipment(c);
-    }).catch(()=>_renderEquipment(c));
-  } else _renderEquipment(c);
+  // Render immediately — Firebase will refresh async
+  _renderEquipment(c);
+  try {
+    if(window._db){
+      window._db.ref('tac_equipment').once('value').then(s=>{
+        const v=s.val();
+        if(Array.isArray(v)){ EQUIPMENT_ITEMS=v; _renderEquipment(c); }
+        else if(v && typeof v==='object'){ EQUIPMENT_ITEMS=Object.values(v); _renderEquipment(c); }
+      }).catch(e=>console.warn('[boEquipment] fb read failed:', e && e.message));
+    }
+  } catch(e){ console.warn('[boEquipment] error:', e && e.message); }
 }
 function _renderEquipment(c){
   const filter = (window._eqFilter||'').toLowerCase();
@@ -9804,32 +9819,42 @@ window.addEventListener('beforeunload', ()=>{
   const u = AUTH && AUTH.getUser();
   if(u && window._db) window._db.ref('tac_sessions/'+u.id+'/'+_sessionId).remove().catch(()=>{});
 });
-function boSessions(c){
-  if(!window._db){ c.innerHTML='<div style="padding:20px">אין חיבור</div>'; return; }
-  window._db.ref('tac_sessions').once('value', snap=>{
-    const data = snap.val()||{};
-    let rows = '';
-    Object.entries(data).forEach(([uid, sessions])=>{
-      const p = PERSONNEL.find(x=>x.id===uid);
-      const name = p?p.name:uid;
-      Object.entries(sessions||{}).forEach(([sid, s])=>{
-        if(!s || s.revoked) return;
-        const age = Math.round((Date.now()-(s.lastActive||0))/1000);
-        const ageStr = age<60?age+'ש\'':age<3600?Math.round(age/60)+'ד\'':Math.round(age/3600)+'ש\'';
-        rows += '<tr>'
-          +'<td style="font-weight:600">'+escHtml(name)+'</td>'
-          +'<td>'+escHtml(s.device||'')+' / '+escHtml(s.browser||'')+'</td>'
-          +'<td style="color:var(--text3);font-size:11px">'+(s.loginAt?new Date(s.loginAt).toLocaleString('he-IL'):'')+'</td>'
-          +'<td>'+ageStr+'</td>'
-          +'<td>'+escHtml(s.url||'')+'</td>'
-          +'<td><button class="act-btn del" onclick="revokeSession(\''+uid+'\',\''+sid+'\')" title="נתק">🔒 נתק</button></td>'
-          +'</tr>';
-      });
+function _renderSessions(c, data){
+  data = data || {};
+  let rows = '';
+  Object.entries(data).forEach(([uid, sessions])=>{
+    const p = PERSONNEL.find(x=>x.id===uid);
+    const name = p?p.name:uid;
+    Object.entries(sessions||{}).forEach(([sid, s])=>{
+      if(!s || s.revoked) return;
+      const age = Math.round((Date.now()-(s.lastActive||0))/1000);
+      const ageStr = age<60?age+'ש\'':age<3600?Math.round(age/60)+'ד\'':Math.round(age/3600)+'ש\'';
+      rows += '<tr>'
+        +'<td style="font-weight:600">'+escHtml(name)+'</td>'
+        +'<td>'+escHtml(s.device||'')+' / '+escHtml(s.browser||'')+'</td>'
+        +'<td style="color:var(--text3);font-size:11px">'+(s.loginAt?new Date(s.loginAt).toLocaleString('he-IL'):'')+'</td>'
+        +'<td>'+ageStr+'</td>'
+        +'<td>'+escHtml(s.url||'')+'</td>'
+        +'<td><button class="act-btn del" onclick="revokeSession(\''+uid+'\',\''+sid+'\')" title="נתק">🔒 נתק</button></td>'
+        +'</tr>';
     });
-    c.innerHTML='<div class="bo-section"><div class="bo-hd">🔐 סשנים פעילים</div>'
-      +'<table class="bo-table"><thead><tr><th>משתמש</th><th>מכשיר</th><th>התחברות</th><th>פעילות אחרונה</th><th>דומיין</th><th>פעולות</th></tr></thead>'
-      +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">אין סשנים פעילים</td></tr>')+'</tbody></table></div>';
   });
+  c.innerHTML='<div class="bo-section"><div class="bo-hd">🔐 סשנים פעילים</div>'
+    +'<table class="bo-table"><thead><tr><th>משתמש</th><th>מכשיר</th><th>התחברות</th><th>פעילות אחרונה</th><th>דומיין</th><th>פעולות</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">אין סשנים פעילים</td></tr>')+'</tbody></table></div>';
+}
+function boSessions(c){
+  // Render empty state immediately so the tab is never blank
+  _renderSessions(c, window._sessionsCache||{});
+  try {
+    if(window._db){
+      window._db.ref('tac_sessions').once('value').then(snap=>{
+        const data = snap.val()||{};
+        window._sessionsCache = data;
+        _renderSessions(c, data);
+      }).catch(e=>console.warn('[boSessions] fb read failed:', e && e.message));
+    }
+  } catch(e){ console.warn('[boSessions] error:', e && e.message); }
 }
 function revokeSession(uid, sid){
   if(!confirm('לנתק את הסשן?')) return;
@@ -9837,41 +9862,50 @@ function revokeSession(uid, sid){
   auditLog('ניתוק סשן מרחוק','warn',uid);
   setTimeout(()=>boSessions(document.getElementById('bo-inner')), 500);
 }
-function boPlates(c){
-  if(!window._db){ c.innerHTML='<div style="padding:20px">אין חיבור</div>'; return; }
-  window._db.ref('tac_plates').limitToLast(200).once('value', snap=>{
-    const data = snap.val()||{};
-    const items = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
-    window._platesCache = items;
-    const filter = (window._plateFilter||'').toLowerCase();
-    const filtered = items.filter(p=>{
-      if(!filter) return true;
-      return (p.plate||'').toLowerCase().includes(filter) || (p.reason||'').toLowerCase().includes(filter);
-    });
-    const TYPES = {private:'רכב פרטי',commercial:'מסחרי',motorcycle:'אופנוע',truck:'משאית'};
-    let rows='';
-    filtered.forEach(p=>{
-      rows += '<tr>'
-        +'<td style="font-family:monospace;font-weight:700;font-size:14px">'+escHtml(p.plate||'')+'</td>'
-        +'<td>'+escHtml(TYPES[p.type]||'—')+'</td>'
-        +'<td style="color:var(--warn);font-size:12px">'+escHtml(p.reason||'')+'</td>'
-        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(p.scannedBy||'')+'</td>'
-        +'<td style="font-size:11px;color:var(--text3)">'+(p.ts?new Date(p.ts).toLocaleString('he-IL'):'')+'</td>'
-        +'<td>'+(p.photo?'<img src="'+p.photo+'" style="width:40px;height:30px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(this.src)">':'—')+'</td>'
-        +'<td><div class="actions">'
-        +'<button class="act-btn" onclick="editPlate(\''+p.id+'\')" title="ערוך">✏️</button>'
-        +'<button class="act-btn del" onclick="deletePlate(\''+p.id+'\')" title="מחק">✕</button>'
-        +'</div></td>'
-        +'</tr>';
-    });
-    c.innerHTML='<div class="bo-section">'
-      +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center"><span>🚗 יומן לוחיות ('+items.length+')</span>'
-      +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="openPlateScanner()">+ סרוק לוחית</button>'
-      +'<button class="btn-sec" onclick="_exportPlatesCSV()">⬇️ CSV</button></div></div>'
-      +'<input type="text" placeholder="חיפוש..." value="'+(window._plateFilter||'')+'" oninput="window._plateFilter=this.value;boPlates(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin:10px 0"/>'
-      +'<div style="max-height:60vh;overflow-y:auto"><table class="bo-table"><thead><tr><th>לוחית</th><th>סוג</th><th>סיבה</th><th>סרק</th><th>זמן</th><th>תמונה</th><th>פעולות</th></tr></thead>'
-      +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">אין רשומות</td></tr>')+'</tbody></table></div></div>';
+function _renderPlates(c, items){
+  items = items || [];
+  window._platesCache = items;
+  const filter = (window._plateFilter||'').toLowerCase();
+  const filtered = items.filter(p=>{
+    if(!filter) return true;
+    return (p.plate||'').toLowerCase().includes(filter) || (p.reason||'').toLowerCase().includes(filter);
   });
+  const TYPES = {private:'רכב פרטי',commercial:'מסחרי',motorcycle:'אופנוע',truck:'משאית'};
+  let rows='';
+  filtered.forEach(p=>{
+    rows += '<tr>'
+      +'<td style="font-family:monospace;font-weight:700;font-size:14px">'+escHtml(p.plate||'')+'</td>'
+      +'<td>'+escHtml(TYPES[p.type]||'—')+'</td>'
+      +'<td style="color:var(--warn);font-size:12px">'+escHtml(p.reason||'')+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+escHtml(p.scannedBy||'')+'</td>'
+      +'<td style="font-size:11px;color:var(--text3)">'+(p.ts?new Date(p.ts).toLocaleString('he-IL'):'')+'</td>'
+      +'<td>'+(p.photo?'<img src="'+p.photo+'" style="width:40px;height:30px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(this.src)">':'—')+'</td>'
+      +'<td><div class="actions">'
+      +'<button class="act-btn" onclick="editPlate(\''+p.id+'\')" title="ערוך">✏️</button>'
+      +'<button class="act-btn del" onclick="deletePlate(\''+p.id+'\')" title="מחק">✕</button>'
+      +'</div></td>'
+      +'</tr>';
+  });
+  c.innerHTML='<div class="bo-section">'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center"><span>🚗 יומן לוחיות ('+items.length+')</span>'
+    +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="openPlateScanner()">+ סרוק לוחית</button>'
+    +'<button class="btn-sec" onclick="_exportPlatesCSV()">⬇️ CSV</button></div></div>'
+    +'<input type="text" placeholder="חיפוש..." value="'+(window._plateFilter||'')+'" oninput="window._plateFilter=this.value;_renderPlates(document.getElementById(\'bo-inner\'),window._platesCache||[])" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin:10px 0"/>'
+    +'<div style="max-height:60vh;overflow-y:auto"><table class="bo-table"><thead><tr><th>לוחית</th><th>סוג</th><th>סיבה</th><th>סרק</th><th>זמן</th><th>תמונה</th><th>פעולות</th></tr></thead>'
+    +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">אין רשומות</td></tr>')+'</tbody></table></div></div>';
+}
+function boPlates(c){
+  // Render cache immediately — Firebase updates async
+  _renderPlates(c, window._platesCache||[]);
+  try {
+    if(window._db){
+      window._db.ref('tac_plates').limitToLast(200).once('value').then(snap=>{
+        const data = snap.val()||{};
+        const items = Object.values(data).sort((a,b)=>(b.ts||0)-(a.ts||0));
+        _renderPlates(c, items);
+      }).catch(e=>console.warn('[boPlates] fb read failed:', e && e.message));
+    }
+  } catch(e){ console.warn('[boPlates] error:', e && e.message); }
 }
 function editPlate(id){
   const p = (window._platesCache||[]).find(x=>x.id===id);
@@ -11456,7 +11490,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.7)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.8)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
