@@ -7819,6 +7819,9 @@ function _isMobileDevice(){
   return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 1024;
 }
 let _notifPollTimer = null;
+let _notifHeartbeatTimer = null;
+let _notifLastPollAt = 0;
+let _notifLastNewAt  = 0;
 function listenForIncomingNotifications(){
   // Only show notification popups on mobile/tablet (desktop users should NOT see popups)
   if(!_isMobileDevice()){
@@ -7826,34 +7829,47 @@ function listenForIncomingNotifications(){
     return;
   }
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
-  const db = window._db;
   if(!myPersonId){
     // Not logged in yet — retry
     setTimeout(listenForIncomingNotifications, 2000);
     return;
   }
+  if(window._notifListenerActive && _notifPollTimer){
+    // Already running — no need to re-attach SDK listener or re-create timer.
+    return;
+  }
   console.log('[NOTIF] listener active for', myPersonId, '(mobile)');
   window._notifListenerActive = true;
 
-  // Firebase SDK listener (only if db is ready) — real-time push via websocket
+  // Show a small green indicator in the top bar so the user can SEE that
+  // the listener is running. If this dot is missing, something's wrong.
+  _showNotifIndicator();
+
+  // Firebase SDK listener (real-time websocket push) — attach if DB is ready
+  const db = window._db;
   if(db && !_incomingListener){
     _incomingListener = true;
     const lastSeenInit = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
     const lookback = Date.now() - (10 * 60 * 1000);
     const listenFrom = Math.max(lastSeenInit, lookback);
-    const ref = db.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom);
-    ref.on('child_added', snap=>{
-      if(!_isMobileDevice()) return;
-      const notif = snap.val();
-      if(!notif) return;
-      const notifId = snap.key;
-      // Re-read lastSeen every time (user may have responded to prior notif)
-      const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
-      if(notif.sentAt && notif.sentAt <= ls) return;
-      if(_shownNotifIds.has(notifId)) return;
-      console.log('[NOTIF sdk] new', notifId, notif.title);
-      _showIncomingNotif(notif, snap.ref);
-    });
+    try {
+      const ref = db.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom);
+      ref.on('child_added', snap=>{
+        if(!_isMobileDevice()) return;
+        const notif = snap.val();
+        if(!notif) return;
+        const notifId = snap.key;
+        const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
+        if(notif.sentAt && notif.sentAt <= ls) return;
+        if(_shownNotifIds.has(notifId)) return;
+        console.log('[NOTIF sdk] new', notifId, notif.title);
+        _notifLastNewAt = Date.now();
+        _showIncomingNotif(notif, snap.ref);
+      });
+    } catch(e){
+      console.warn('[NOTIF] SDK listener attach failed', e);
+      _incomingListener = false;
+    }
   }
 
   // REST polling — fast, reliable, independent of Firebase SDK state
@@ -7863,12 +7879,12 @@ function listenForIncomingNotifications(){
     if(!_isMobileDevice()) return;
     const pid = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
     if(!pid) return;
+    _notifLastPollAt = Date.now();
     try{
       const resp = await fetch(REST_BASE+'/tac_notifications/'+pid+'.json?_='+Date.now(), {cache:'no-store'});
-      if(!resp.ok) return;
+      if(!resp.ok){ console.warn('[NOTIF poll] HTTP', resp.status); return; }
       const data = await resp.json();
       if(!data) return;
-      // Re-read lastSeen each poll so responses from prior notif are honored
       const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+pid) || 0);
       const cutoff = Date.now() - 30*60*1000; // 30-min window
       Object.entries(data).forEach(([nid, notif])=>{
@@ -7877,6 +7893,7 @@ function listenForIncomingNotifications(){
         if(notif.sentAt && notif.sentAt < cutoff) return;
         if(notif.sentAt && notif.sentAt <= ls) return;
         console.log('[NOTIF poll] new', nid, notif.title);
+        _notifLastNewAt = Date.now();
         const fbRef = window._db ? window._db.ref('tac_notifications/'+pid+'/'+nid) : null;
         _showIncomingNotif(notif, fbRef);
       });
@@ -7884,6 +7901,39 @@ function listenForIncomingNotifications(){
   };
   _notifPollTimer = setInterval(_poll, 2000); // every 2 seconds
   _poll(); // immediate first poll
+
+  // Heartbeat watchdog — if we haven't polled in 30s, something killed the timer;
+  // restart it. Also updates the indicator's visual state.
+  if(_notifHeartbeatTimer) clearInterval(_notifHeartbeatTimer);
+  _notifHeartbeatTimer = setInterval(()=>{
+    const now = Date.now();
+    if(now - _notifLastPollAt > 30*1000){
+      console.warn('[NOTIF] poll stalled, restarting');
+      if(_notifPollTimer) clearInterval(_notifPollTimer);
+      _notifPollTimer = setInterval(_poll, 2000);
+      _poll();
+    }
+    _updateNotifIndicatorHealth();
+  }, 10*1000);
+}
+
+// ── Visual indicator: small green dot pinned to the top that shows
+// that the notification listener is running and healthy ──
+function _showNotifIndicator(){
+  if(document.getElementById('notif-listener-dot')) return;
+  const d = document.createElement('div');
+  d.id = 'notif-listener-dot';
+  d.title = 'מאזין להתראות פעיל';
+  d.style.cssText = 'position:fixed;top:6px;left:6px;width:10px;height:10px;border-radius:50%;background:#3dff52;box-shadow:0 0 6px #3dff52,0 0 0 1px rgba(0,0,0,0.4);z-index:9999;pointer-events:none;transition:background 0.3s';
+  document.body.appendChild(d);
+}
+function _updateNotifIndicatorHealth(){
+  const d = document.getElementById('notif-listener-dot');
+  if(!d) return;
+  const since = Date.now() - _notifLastPollAt;
+  if(since < 5000){ d.style.background = '#3dff52'; d.style.boxShadow = '0 0 6px #3dff52,0 0 0 1px rgba(0,0,0,0.4)'; }
+  else if(since < 15000){ d.style.background = '#ffc107'; d.style.boxShadow = '0 0 6px #ffc107,0 0 0 1px rgba(0,0,0,0.4)'; }
+  else { d.style.background = '#ff3333'; d.style.boxShadow = '0 0 6px #ff3333,0 0 0 1px rgba(0,0,0,0.4)'; }
 }
 
 // Restart listener on tab-visible — catches any notifications missed while backgrounded
@@ -9982,20 +10032,51 @@ const SYNC = (() => {
     _publishTimer = setInterval(_doPublish, 8000);
   }
 
+  // Track a "just stopped" personId so polling doesn't re-render a stale marker
+  // before Firebase's remove propagates. Set in stopPublishing, cleared after 10s.
+  let _stopBlockPersonId = null;
+  let _stopBlockUntil = 0;
+
   function stopPublishing(){
     _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
     // Stop GPS watch so we don't re-publish
     if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
-    if(_db){
-      // Explicitly remove (user toggled OFF visibility)
-      _db.ref('tac_locs/'+_myUid).remove().catch(()=>{});
-    }
-    // Remove own local marker immediately — markers are keyed by personId now
+
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-    const myKey = u ? u.id : _myUid;
-    if(_liveMarkers[myKey]){ _liveMarkers[myKey].setMap(null); delete _liveMarkers[myKey]; }
-    if(_liveMarkers[_myUid]){ _liveMarkers[_myUid].setMap(null); delete _liveMarkers[_myUid]; }
+    const myPersonId = u ? u.id : null;
+
+    // Set the stop-block so _renderAll / polling will skip this personId briefly
+    _stopBlockPersonId = myPersonId;
+    _stopBlockUntil = Date.now() + 15000; // 15-second grace period
+
+    if(_db){
+      // 1. Remove the current session entry
+      _db.ref('tac_locs/'+_myUid).remove().catch(e=>console.warn('[SYNC] remove myUid failed',e));
+      // 2. ALSO remove any orphaned entries from previous sessions with the same
+      //    personId (different _myUid, stale data). Without this, dedupe picks up
+      //    the old entry and re-renders the marker.
+      if(myPersonId){
+        _db.ref('tac_locs').once('value', snap=>{
+          const data = snap.val() || {};
+          const orphans = Object.entries(data)
+            .filter(([uid, d]) => d && d.personId === myPersonId && uid !== _myUid);
+          orphans.forEach(([uid])=>{
+            _db.ref('tac_locs/'+uid).remove().catch(e=>console.warn('[SYNC] remove orphan failed',uid,e));
+          });
+          if(orphans.length) console.log('[SYNC] stopPublishing removed', orphans.length, 'orphan entries');
+        }).catch(e=>console.warn('[SYNC] scan for orphans failed',e));
+      }
+    }
+    // Remove ALL local markers matching this personId (covers every key variation)
+    Object.keys(_liveMarkers).forEach(k=>{
+      const m = _liveMarkers[k];
+      const md = m && m._data;
+      if(k === myPersonId || k === _myUid || (md && md.personId === myPersonId)){
+        try { m.setMap(null); } catch(_){}
+        delete _liveMarkers[k];
+      }
+    });
   }
 
   function updateStatus(status){
@@ -10196,11 +10277,16 @@ const SYNC = (() => {
     const STALE_MS = 24*60*60*1000; // 24 hours
     const now = Date.now();
     const byPerson = {};
+    const blockedPid = (_stopBlockUntil > now) ? _stopBlockPersonId : null;
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
       const age = now - (d.ts||0);
       if(age > STALE_MS) return;
       const key = d.personId || uid;
+      // Skip entries for a person whose toggle was JUST turned off — prevents
+      // stale Firebase data from re-rendering the marker during the 15s
+      // propagation window.
+      if(blockedPid && key === blockedPid) return;
       const ts = d.ts || 0;
       if(!byPerson[key] || ts > byPerson[key].ts){
         byPerson[key] = {key, d, ts};
