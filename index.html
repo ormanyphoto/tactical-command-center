@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.6 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.6.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.6</div>
+    <div id="fm-logo">⬡ מבצעים v5.6.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6050,14 +6050,34 @@ function boSettings(c){
     +'<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
     +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Service Account</div>'
     +'<div style="font-size:12px;font-weight:700;color:'+(typeof PUSH!=='undefined'&&PUSH.hasSA()?'#3dff52':'#ff6b6b')+'">'+( typeof PUSH!=='undefined'&&PUSH.hasSA() ? '✅ מוגדר' : '❌ חסר')+'</div></div>'
-    +'<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
-    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
-    +'<div style="font-size:12px;font-weight:700;color:'+((typeof Notification!=="undefined"&&Notification.permission==="granted")?'#3dff52':'#ffc107')+'">'+(typeof Notification!=='undefined'?(Notification.permission==='granted'?'✅ פעיל':Notification.permission==='denied'?'🚫 חסום':'⏳ לא הופעל'):'לא נתמך')+'</div></div>'
-    +'</div>'
-    // Enable push button (if not granted)
-    +((typeof Notification!=='undefined'&&Notification.permission!=='granted')
-      ? '<button class="btn-pri" style="width:100%;margin-bottom:10px" onclick="var u=AUTH.getUser();if(u)_registerPushForUser(u.id).then(()=>boSettings(document.getElementById(\'rp-body\')));else Notification.requestPermission()">🔔 הפעל Push Notifications במכשיר זה</button>'
-      : '')
+    +(function(){
+       // In native APK mode, the Web Notification API isn't used at all — FCM
+       // is handled by the native Kotlin MyFirebaseMessagingService. Show a
+       // native-specific status + button to open the FullScreenIntent
+       // settings page (required on Android 14+ to pop over lock screen).
+       if(window._runningInNativeApp && window.Android){
+         var fsiOk = false;
+         try { fsiOk = window.Android.canUseFullScreenIntent && window.Android.canUseFullScreenIntent(); } catch(_){ fsiOk = true; }
+         var statusLabel = fsiOk ? '✅ פעיל (Native)' : '⚠️ נדרשת הרשאה';
+         var statusColor = fsiOk ? '#3dff52' : '#ff7a1a';
+         return '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
+           +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
+           +'<div style="font-size:12px;font-weight:700;color:'+statusColor+'">'+statusLabel+'</div></div>'
+           +'</div>'
+           + (!fsiOk
+             ? '<button class="btn-pri" style="width:100%;margin-bottom:6px;background:#ff7a1a" onclick="try{window.Android.openFullScreenIntentSettings()}catch(e){}">🚨 הפעל התראות על מסך נעול</button>'
+               +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">Android 14+ דורש אישור מפורש לפתיחה אוטומטית על מסך נעול. לחץ על הכפתור, מצא את המתג עבור "מבצעים" והפעל אותו. אחר-כך חזור לאפליקציה.</div>'
+             : '<button class="btn-sec" style="width:100%;margin-bottom:10px" onclick="try{window.Android.openAppNotificationSettings()}catch(e){}">⚙️ פתח הגדרות התראות של האפליקציה</button>');
+       }
+       // Regular web path
+       return '<div style="flex:1;min-width:140px;background:rgba(0,0,0,0.25);border-radius:8px;padding:8px 12px">'
+         +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Push במכשיר זה</div>'
+         +'<div style="font-size:12px;font-weight:700;color:'+((typeof Notification!=="undefined"&&Notification.permission==="granted")?'#3dff52':'#ffc107')+'">'+(typeof Notification!=='undefined'?(Notification.permission==='granted'?'✅ פעיל':Notification.permission==='denied'?'🚫 חסום':'⏳ לא הופעל'):'לא נתמך')+'</div></div>'
+         +'</div>'
+         + ((typeof Notification!=='undefined'&&Notification.permission!=='granted')
+           ? '<button class="btn-pri" style="width:100%;margin-bottom:10px" onclick="var u=AUTH.getUser();if(u)_registerPushForUser(u.id).then(()=>boSettings(document.getElementById(\'rp-body\')));else Notification.requestPermission()">🔔 הפעל Push Notifications במכשיר זה</button>'
+           : '');
+     })()
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.7">'
     +'<b>שלב 1:</b> כל משתמש צריך ללחוץ על "הפעל Push" במכשיר שלו<br/>'
     +'<b>שלב 2:</b> הדבק Service Account JSON מ: <a href="https://console.firebase.google.com/project/tactical-command-center/settings/serviceaccounts/adminsdk" target="_blank" style="color:var(--accent)">Firebase Console → Service accounts</a> ← לחץ <b>Generate new private key</b></div>'
@@ -8445,6 +8465,29 @@ function respondToNotif(approved){
 
 /* ── Listen for approvals (sender side) ── */
 let _approvalsData = {}; // personId → {name, approved, ts}
+let _activeNotifGlobalListener = null;
+let _currentActiveNotifId = null;
+// Global listener: whenever a notification is sent from ANY device, the sender
+// writes tac_active_notif with the notifId. We subscribe to this once at boot
+// so every session on every device automatically attaches its approvals
+// listener — the desktop commander will see confirmations from mobile even if
+// they didn't send the notification themselves.
+function _subscribeActiveNotif(){
+  const db = window._db;
+  if(!db) { setTimeout(_subscribeActiveNotif, 1500); return; }
+  if(_activeNotifGlobalListener) return; // already listening
+  _activeNotifGlobalListener = db.ref('tac_active_notif').on('value', snap=>{
+    const v = snap.val();
+    if(!v || !v.notifId) return;
+    if(v.notifId === _currentActiveNotifId) return; // already attached
+    _currentActiveNotifId = v.notifId;
+    console.log('[ACTIVE-NOTIF] attaching approvals listener for', v.notifId);
+    _listenApprovals(v.notifId);
+  });
+}
+// Start the global listener on every SYNC boot (once the DB is available)
+setInterval(()=>{ if(!_activeNotifGlobalListener && window._db) _subscribeActiveNotif(); }, 2000);
+setTimeout(_subscribeActiveNotif, 1500);
 function _listenApprovals(notifId){
   const db = window._db;
   if(!db) return;
@@ -9817,7 +9860,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.6',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.6.1',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11112,7 +11155,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">

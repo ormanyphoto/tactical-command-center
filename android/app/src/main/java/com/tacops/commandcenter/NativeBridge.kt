@@ -85,6 +85,58 @@ class NativeBridge(private val context: Context) {
         registerTokenForPersonId(pid)
     }
 
+    /**
+     * Opens Android Settings → Full-screen notifications for this app.
+     * Android 14+ requires explicit per-app permission to launch a
+     * FullScreenIntent Activity over the lock screen. Without this grant
+     * our LockScreenAlertActivity will not fire even though the manifest
+     * declares USE_FULL_SCREEN_INTENT.
+     */
+    @JavascriptInterface
+    fun openFullScreenIntentSettings() {
+        try {
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                    .setData(android.net.Uri.parse("package:${context.packageName}"))
+            } else {
+                // Older: open the app's notification settings page
+                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            }
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "openFullScreenIntentSettings failed", e)
+        }
+    }
+
+    /**
+     * Returns whether this app can currently use FullScreenIntent — on
+     * Android 14+ this reflects the per-app toggle the user grants via
+     * openFullScreenIntentSettings(). On older Android it always returns true.
+     */
+    @JavascriptInterface
+    fun canUseFullScreenIntent(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        return try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.canUseFullScreenIntent()
+        } catch (e: Exception) { false }
+    }
+
+    /** Opens the app-level notification settings page (for channel importance). */
+    @JavascriptInterface
+    fun openAppNotificationSettings() {
+        try {
+            val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "openAppNotificationSettings failed", e)
+        }
+    }
+
     private fun registerTokenForPersonId(personId: String) {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
