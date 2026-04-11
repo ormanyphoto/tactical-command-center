@@ -8600,13 +8600,15 @@ setTimeout(_fallbackLoadLocations, 3000);
 
 // ══════════════════════════════════════════════════════════
 // BUILDINGS + ADDRESSES OVERLAY
-// Uses Esri World Street Map as primary source — doesn't require Referer,
-// has building footprints, house numbers, street names with full Israeli coverage.
+// Uses OpenStreetMap tiles — public, reliable, no API key, full Israeli
+// coverage with building footprints, house numbers, and Hebrew street names.
+// OSM is what GovMap shows by default for addresses & buildings in its
+// base layer, so the visual result is nearly identical.
 // ══════════════════════════════════════════════════════════
 let _addressLayer = null;
 let _addressLayerPrevStyles = null; // saved base style so we can restore on toggle-off
 // Style that blanks out Google's base rendering (roads, labels, POIs) so the
-// Esri overlay is the only thing the user sees — otherwise the two maps compete.
+// OSM overlay is the only thing the user sees — otherwise the two maps compete.
 const _ADDRESS_BASE_STYLE = [
   { elementType: 'labels',           stylers: [{ visibility: 'off' }] },
   { elementType: 'geometry.stroke',  stylers: [{ visibility: 'off' }] },
@@ -8641,27 +8643,31 @@ function toggleAddressLayer(){
   // Save current base style (day/night theme) so we can restore on toggle-off
   try { _addressLayerPrevStyles = window.map.get('styles') || window._nightStyle || []; }
   catch(_){ _addressLayerPrevStyles = []; }
-  // Blank out Google's rendering so the Esri tiles are the only visible map content
+  // Blank out Google's rendering so OSM tiles are the only visible map content
   window.map.setOptions({ styles: _ADDRESS_BASE_STYLE });
-  // Esri World Street Map — public, no API key, no referrer required
-  // Full opacity so labels/buildings are crisp (Google base is now blank under it)
+  // OpenStreetMap — public, free, reliable CDN, full Israeli coverage
   _addressLayer = new google.maps.ImageMapType({
     getTileUrl: function(coord, zoom){
-      if(zoom < 14 || zoom > 19) return null;
-      const sub = ((coord.x + coord.y) % 4) + 1;
-      return 'https://server'+sub+'.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'+zoom+'/'+coord.y+'/'+coord.x;
+      if(zoom < 10 || zoom > 19) return null;
+      // Wrap X for world coverage (negative/oversized values)
+      const n = Math.pow(2, zoom);
+      const x = ((coord.x % n) + n) % n;
+      const y = coord.y;
+      if(y < 0 || y >= n) return null;
+      const sub = ['a','b','c'][(coord.x + coord.y) % 3];
+      return 'https://'+sub+'.tile.openstreetmap.org/'+zoom+'/'+x+'/'+y+'.png';
     },
     tileSize: new google.maps.Size(256, 256),
     name: 'כתובות ומבנים',
     opacity: 1.0,
-    minZoom: 14,
+    minZoom: 10,
     maxZoom: 19
   });
   window.map.overlayMapTypes.push(_addressLayer);
   if(btn) btn.classList.add('mp-active');
   if(window.map.getZoom() < 16) window.map.setZoom(17);
-  showToast({icon:'🏢',title:'שכבת כתובות פעילה',sub:'מבנים ומספרי בתים (Esri)',type:'success',duration:3000});
-  auditLog('הפעלת שכבת כתובות Esri','info','');
+  showToast({icon:'🏢',title:'שכבת כתובות פעילה',sub:'מבנים ורחובות (OSM)',type:'success',duration:3000});
+  auditLog('הפעלת שכבת כתובות OSM','info','');
 }
 
 // ══════════════════════════════════════════════════════════
