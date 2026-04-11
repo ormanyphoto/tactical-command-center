@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.3</div>
+    <div id="fm-logo">⬡ מבצעים v5.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -9724,7 +9724,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.3',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.4',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -10877,6 +10877,17 @@ const PUSH = (() => {
       }
       if(typeof auditLog==='function') auditLog('FCM token נרשם','success',userId||'');
       if(verbose && typeof showToast==='function') showToast({icon:'✅',title:'Push נרשם בהצלחה',sub:'המכשיר יקבל התראות',type:'success',duration:4000});
+      // Show one-time channel-importance guide on Android (Chrome defaults to
+      // "Default" importance → notifications arrive silently without heads-up).
+      // User must manually set channel to "Urgent" in Android settings.
+      try {
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        const guideShown = localStorage.getItem('tac_android_channel_guide_v1');
+        if(isAndroid && !guideShown && verbose){
+          localStorage.setItem('tac_android_channel_guide_v1','1');
+          setTimeout(()=>_showAndroidChannelGuide(), 3500);
+        }
+      } catch(_){}
       return _token;
     }catch(e){
       _err('שגיאה ברישום', e.message||String(e));
@@ -10890,6 +10901,39 @@ const PUSH = (() => {
     }
     _token = null;
   }
+  // One-time Android guide explaining how to enable urgent notification channel
+  // so that notifications pop up on the lock screen and wake the phone. This
+  // can't be forced from JS — it's an OS-level setting the user must enable.
+  function _showAndroidChannelGuide(){
+    if(document.getElementById('android-guide-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'android-guide-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:9800;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Heebo,Arial,sans-serif';
+    overlay.innerHTML = `
+      <div style="background:#0d1014;border:2px solid #3dff52;border-radius:16px;max-width:420px;width:100%;padding:22px;color:#e8eff5;direction:rtl;max-height:90vh;overflow-y:auto">
+        <div style="font-size:22px;font-weight:900;margin-bottom:8px;color:#3dff52">🔔 הפעלת התראות חירום</div>
+        <div style="font-size:13px;color:#8fa5b8;margin-bottom:14px;line-height:1.5">
+          כדי שההתראות יקפצו על המסך הנעול ויעירו את המכשיר, יש להגדיר את ערוץ ההתראות כ־"דחוף" בהגדרות אנדרואיד:
+        </div>
+        <ol style="font-size:13px;line-height:1.8;margin:0 18px 14px 0;padding:0">
+          <li>פתח את <b>הגדרות אנדרואיד</b></li>
+          <li>יישומים → <b>Chrome</b> → התראות</li>
+          <li>מצא <b>tactical-command-center.web.app</b></li>
+          <li>שנה ל־<b style="color:#ff7a1a">"דחוף" / Urgent</b></li>
+          <li>הפעל <b>"הצג על גבי המסך"</b> / "Pop on screen"</li>
+          <li>הפעל <b>"עקוף נא לא להפריע"</b> / "Override DND"</li>
+        </ol>
+        <div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;line-height:1.5">
+          💡 <b>טיפ:</b> ניתן גם להתקין את האפליקציה כ־APK ייעודי שמטפל בהתראות חירום עצמאית. ראה Releases ב־GitHub.
+        </div>
+        <button id="android-guide-close" style="width:100%;padding:12px;background:#3dff52;border:none;border-radius:10px;color:#001;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit">הבנתי — המשך</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('android-guide-close').onclick = ()=>overlay.remove();
+  }
+  // Expose so Settings / debug can re-show it
+  window._showAndroidChannelGuide = _showAndroidChannelGuide;
   loadSA();
   return { sendPush, requestAndSaveToken, saveSA, loadSA, hasSA:()=>!!_sa,
     syncSAFromFirebase, deleteToken,

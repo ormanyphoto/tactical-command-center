@@ -50,27 +50,27 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.3.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TacticalCommandCenter-v5.3-Android
-          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.3.apk
+          name: TacticalCommandCenter-v5.4-Android
+          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
           retention-days: 90
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v5.3-${{ github.run_number }}
-          name: "Tactical Command Center APK v5.3 (build ${{ github.run_number }})"
+          tag_name: apk-v5.4-${{ github.run_number }}
+          name: "Tactical Command Center APK v5.4 (build ${{ github.run_number }})"
           body: |
             ## התקנה באנדרואיד
-            1. הורד את **TacticalCommandCenter-v5.3.apk**
+            1. הורד את **TacticalCommandCenter-v5.4.apk**
             2. פתח את הקובץ במכשיר
             3. אשר "התקנה ממקור לא מוכר"
             4. האפליקציה תפתח את https://tactical-command-center.web.app
-          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.3.apk
+          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
