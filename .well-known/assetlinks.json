@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.tacops.commandcenter",
+    "sha256_cert_fingerprints": ["6A:C0:D3:AA:6E:76:FA:A8:E4:D8:63:E3:2F:39:10:A1:0B:C2:38:FF:00:59:6E:33:8B:EA:BF:60:4D:3B:31:0D"]
+  }
+}]
