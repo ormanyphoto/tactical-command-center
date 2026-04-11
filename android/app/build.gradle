@@ -8,12 +8,9 @@ android {
     namespace 'com.tacops.commandcenter'
     compileSdk 34
 
-    // Stable debug keystore committed to the repo. The build-apk workflow
-    // bootstraps this file on first run (keytool → android/app/debug.keystore)
-    // and commits both the keystore and the matching .well-known/assetlinks.json
-    // back to the repo. Every subsequent build uses the committed keystore, so
-    // the APK signature stays stable → Digital Asset Links verification passes
-    // → the TWA runs in true full-screen (no browser address bar).
+    // Stable debug keystore committed to the repo so every build has the
+    // same signature — simplifies reinstalls and avoids "different signer"
+    // errors on upgrade.
     signingConfigs {
         debugStable {
             def ks = file('debug.keystore')
@@ -30,14 +27,12 @@ android {
         applicationId "com.tacops.commandcenter"
         minSdk 23
         targetSdk 34
-        versionCode 9
-        versionName "5.5.1"
+        versionCode 10
+        versionName "5.6"
     }
 
     buildTypes {
         debug {
-            // Use our stable keystore if it exists; otherwise fall back to
-            // Android's default auto-generated debug keystore.
             def ks = file('debug.keystore')
             if (ks.exists()) {
                 signingConfig signingConfigs.debugStable
@@ -63,7 +58,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'androidx.webkit:webkit:1.11.0'
 
     // Firebase — BOM manages all versions
     implementation platform('com.google.firebase:firebase-bom:33.1.2')

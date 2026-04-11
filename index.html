@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.5.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.6 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.5.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.6</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.5.1</div>
+    <div id="fm-logo">⬡ מבצעים v5.6</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1853,6 +1853,32 @@ function _updateNativeStatusDot(state){
 
 // ── Background push registration (called after login on mobile) ──
 async function _registerPushForUser(personId, verbose){
+  // Native Android APK path: ask the NativeBridge to link this personId to
+  // the native FCM token. The native service handles receiving and showing
+  // notifications, so we skip Chrome Web Push entirely when running inside
+  // the WebView — avoids duplicate notifications and ensures FullScreenIntent
+  // fires reliably.
+  if(window._runningInNativeApp && window.Android && typeof window.Android.setPersonId === 'function'){
+    try {
+      window.Android.setPersonId(personId);
+      console.log('[NATIVE-BRIDGE] setPersonId called for', personId);
+    } catch(e){ console.warn('[NATIVE-BRIDGE] setPersonId failed', e); }
+    // Still register the SW listener for SET_USER so the in-app emergency
+    // popup works when the app is foregrounded.
+    if('serviceWorker' in navigator){
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if(reg.active){
+          const lastSeen = Number(localStorage.getItem('tac_notif_lastSeen_'+personId) || 0);
+          const lookback = Date.now() - (10 * 60 * 1000);
+          const listenFrom = Math.max(lastSeen, lookback);
+          reg.active.postMessage({ type:'SET_USER', personId, listenFrom });
+        }
+      } catch(_){}
+    }
+    return; // do NOT register Chrome Web Push token in native mode
+  }
+
   if(!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -1865,7 +1891,7 @@ async function _registerPushForUser(personId, verbose){
       reg.active.postMessage({ type:'SET_USER', personId, listenFrom });
     }
 
-    // Link the native Android FCM token (APK only, noop on web)
+    // Link the native Android FCM token (URL-param fallback for older builds)
     _linkNativeDeviceToken(personId);
 
     // Register Periodic Background Sync (Android Chrome only)
@@ -9791,7 +9817,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.5.1',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.6',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11086,7 +11112,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.5.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.6)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -11319,23 +11345,30 @@ const FIELD = (() => {
 // BOOT — PWA + Firebase + Field mode init
 // ══════════════════════════════════════════════════════════
 (function tacBoot(){ try {
-  // ── Capture native_device URL param injected by the Android TWA launcher ──
-  // CustomLauncherActivity (Kotlin) opens this URL with ?native_device=<uuid>
-  // so we can link the native FCM token to the logged-in personId via Firebase.
+  // ── Detect native Android WebView via window.Android JS bridge ──
+  // MainActivity (Kotlin) injects NativeBridge as `window.Android` so the
+  // web code can call setPersonId, getDeviceId, refreshToken, etc. It also
+  // appends ?native_app=1 to the URL for a backup detection.
   try {
+    const _bridgeOK = !!(window.Android && typeof window.Android.isNativeApp === 'function' && window.Android.isNativeApp());
     const _qp0 = new URLSearchParams(location.search);
-    const _nd = _qp0.get('native_device');
-    const _isNative = _qp0.get('native_app') === '1';
-    if(_nd){
-      localStorage.setItem('tac_native_device', _nd);
-      console.log('[BOOT] native_device captured:', _nd);
-    }
-    if(_isNative){
+    const _urlNative = _qp0.get('native_app') === '1';
+    if(_bridgeOK || _urlNative){
       window._runningInNativeApp = true;
       document.documentElement.classList.add('native-app');
+      if(_bridgeOK){
+        try {
+          const ver = window.Android.getVersion();
+          const dev = window.Android.getDeviceId();
+          localStorage.setItem('tac_native_device', dev);
+          console.log('[NATIVE-BRIDGE] active v'+ver+' device='+dev);
+        } catch(e){ console.warn('[NATIVE-BRIDGE] init error', e); }
+      } else {
+        console.log('[NATIVE-BRIDGE] ?native_app=1 seen but window.Android missing — using URL-only mode');
+      }
     }
     // Clean up URL so refresh doesn't duplicate (preserve other params)
-    if(_nd || _isNative){
+    if(_urlNative){
       _qp0.delete('native_device');
       _qp0.delete('native_app');
       const qs = _qp0.toString();

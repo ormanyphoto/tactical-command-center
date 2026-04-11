@@ -128,28 +128,28 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.1.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TacticalCommandCenter-v5.5.1-Android
-          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.1.apk
+          name: TacticalCommandCenter-v5.6-Android
+          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.apk
           retention-days: 90
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v5.5.1-${{ github.run_number }}
-          name: "Tactical Command Center APK v5.5.1 (build ${{ github.run_number }})"
+          tag_name: apk-v5.6-${{ github.run_number }}
+          name: "Tactical Command Center APK v5.6 (build ${{ github.run_number }})"
           body: |
-            ## v5.5.1 — אפליקציית אנדרואיד נייטיב עם התראות חירום על מסך נעול
+            ## v5.6 — אפליקציית אנדרואיד נייטיב עם התראות חירום על מסך נעול
 
             **חדש:** קוד Kotlin נייטיב שמטפל ב-FCM ישירות, עם FullScreenIntent שמעיר את המסך ומציג פופאפ חירום אפילו כשהטלפון נעול — בדיוק כמו פיקוד העורף.
 
             ### התקנה
-            1. הורד את **TacticalCommandCenter-v5.5.1.apk**
+            1. הורד את **TacticalCommandCenter-v5.6.apk**
             2. פתח את הקובץ במכשיר
             3. אשר "התקנה ממקור לא מוכר"
             4. פתח את האפליקציה פעם אחת כדי לרשום את ה-FCM token
@@ -160,6 +160,6 @@ jobs:
             - `WAKE_LOCK` — הדלקת המסך
             - `POST_NOTIFICATIONS` — תצוגת התראות
             - `VIBRATE` — רטט חירום
-          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.1.apk
+          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
