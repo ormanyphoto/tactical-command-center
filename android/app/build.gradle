@@ -30,8 +30,8 @@ android {
         applicationId "com.tacops.commandcenter"
         minSdk 23
         targetSdk 34
-        versionCode 8
-        versionName "5.5"
+        versionCode 9
+        versionName "5.5.1"
     }
 
     buildTypes {
@@ -69,4 +69,5 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.1.2')
     implementation 'com.google.firebase:firebase-messaging-ktx'
     implementation 'com.google.firebase:firebase-database-ktx'
+    implementation 'com.google.firebase:firebase-auth-ktx'
 }

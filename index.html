@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.5.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.5.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.5</div>
+    <div id="fm-logo">⬡ מבצעים v5.5.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1789,32 +1789,66 @@ const AUTH = (() => {
 })();
 
 // ── Link native Android FCM token to personId (TWA/APK only) ──
-// The CustomLauncherActivity in the APK injects ?native_device=<uuid> into
-// the web URL, which boot captured into localStorage.tac_native_device.
-// The native MyFirebaseMessagingService also wrote the FCM token to
-// tac_fcm_tokens_native_devices/<uuid>. This function copies that token into
-// tac_fcm_tokens_native/<personId>/<uuid> so sendPush can find and target it.
+let _nativeLinkTries = 0;
 async function _linkNativeDeviceToken(personId){
   try {
     const nd = localStorage.getItem('tac_native_device');
-    if(!nd) return; // not running in the native APK
+    if(!nd){
+      // Not running in the native APK — nothing to link.
+      // Update the visible status dot if any.
+      _updateNativeStatusDot('web');
+      return;
+    }
     const db = window._db;
-    if(!db || !personId) return;
+    if(!db || !personId){
+      setTimeout(()=>_linkNativeDeviceToken(personId), 1500);
+      return;
+    }
+    _updateNativeStatusDot('waiting');
     const snap = await db.ref('tac_fcm_tokens_native_devices/'+nd+'/token').once('value');
     const token = snap.val();
     if(!token){
-      console.log('[NATIVE-LINK] device present but token not registered yet, will retry');
-      // Try again after a short delay — the Android service may still be
-      // registering its token on first launch.
-      setTimeout(()=>_linkNativeDeviceToken(personId), 3000);
+      _nativeLinkTries++;
+      // Android FCM service might still be registering. Retry aggressively
+      // for the first 30 seconds (every 2s), then back off to 10s.
+      const delay = _nativeLinkTries < 15 ? 2000 : 10000;
+      console.log('[NATIVE-LINK] device='+nd+' token not yet registered, retry #'+_nativeLinkTries+' in '+delay+'ms');
+      setTimeout(()=>_linkNativeDeviceToken(personId), delay);
       return;
     }
     await db.ref('tac_fcm_tokens_native/'+personId+'/'+nd).set(token);
     await db.ref('tac_fcm_tokens_native_devices/'+nd+'/personId').set(personId);
     console.log('[NATIVE-LINK] linked native FCM token for', personId, 'device', nd);
+    _nativeLinkTries = 0;
+    _updateNativeStatusDot('linked');
   } catch(e){
     console.warn('[NATIVE-LINK] failed', e);
+    _updateNativeStatusDot('error');
+    setTimeout(()=>_linkNativeDeviceToken(personId), 5000);
   }
+}
+
+// Visible diagnostic dot for native-app status (only shown when running in APK)
+function _updateNativeStatusDot(state){
+  if(!window._runningInNativeApp) return;
+  let dot = document.getElementById('native-status-dot');
+  if(!dot){
+    dot = document.createElement('div');
+    dot.id = 'native-status-dot';
+    dot.style.cssText = 'position:fixed;top:6px;left:22px;width:10px;height:10px;border-radius:50%;background:#888;box-shadow:0 0 0 1px rgba(0,0,0,0.4);z-index:9999;pointer-events:none;transition:all 0.3s';
+    dot.title = 'Native APK link status';
+    document.body.appendChild(dot);
+  }
+  const colors = {
+    waiting:  { bg:'#ffc107', glow:'#ffc107' },
+    linked:   { bg:'#3dff52', glow:'#3dff52' },
+    error:    { bg:'#ff3333', glow:'#ff3333' },
+    web:      { bg:'#888',    glow:'rgba(0,0,0,0)' }
+  };
+  const c = colors[state] || colors.waiting;
+  dot.style.background = c.bg;
+  dot.style.boxShadow = '0 0 6px '+c.glow+',0 0 0 1px rgba(0,0,0,0.4)';
+  dot.title = 'Native APK: '+state;
 }
 
 // ── Background push registration (called after login on mobile) ──
@@ -9757,7 +9791,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.5',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.5.1',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11002,7 +11036,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.5.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
