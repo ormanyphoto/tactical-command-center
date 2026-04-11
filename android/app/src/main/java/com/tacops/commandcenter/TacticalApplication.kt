@@ -37,7 +37,25 @@ class TacticalApplication : Application() {
                 // Regardless of auth result, try to fetch + write the token.
                 // If auth failed the write will fail too but we log it clearly.
                 fetchAndRegisterFCMToken()
+                // Start the foreground service AFTER auth completes so the
+                // service's Firebase RTDB listener doesn't try to read
+                // tac_notifications/<pid> before we're authenticated.
+                startNotificationListenerService()
             }
+    }
+
+    private fun startNotificationListenerService() {
+        try {
+            val svc = android.content.Intent(this, TacticalForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(svc)
+            } else {
+                startService(svc)
+            }
+            Log.d(TAG, "Started TacticalForegroundService from Application")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start FG service from Application", e)
+        }
     }
 
     private fun createEmergencyChannel() {

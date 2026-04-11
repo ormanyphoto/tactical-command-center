@@ -49,6 +49,7 @@ class TacticalForegroundService : Service() {
         super.onCreate()
         createForegroundChannel()
         Log.d(TAG, "Service created")
+        writeDebugLog("fg.onCreate", "Service created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -67,23 +68,47 @@ class TacticalForegroundService : Service() {
                 startForeground(FG_NOTIF_ID, notif)
             }
             Log.d(TAG, "startForeground OK")
+            writeDebugLog("fg.startForegroundOK", "persistent notif id=$FG_NOTIF_ID")
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed", e)
+            writeDebugLog("fg.startForegroundFAIL", e.message ?: "unknown")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        // Attach/refresh the Firebase listener based on the current personId
+        // Attach/refresh the Firebase listener based on the current personId.
+        // Wait for Firebase Auth to complete before attaching — the DB rules
+        // require authentication and attaching too early results in a silent
+        // PERMISSION_DENIED that never fires onChildAdded.
         val prefs = getSharedPreferences("tac_prefs", Context_MODE_PRIVATE)
         val pid = prefs.getString("personId", null)
         if (pid != null && pid != currentPid) {
-            currentPid = pid
-            attachListener(pid)
+            waitForAuthThenAttach(pid, 0)
         } else if (pid == null) {
             Log.d(TAG, "No personId yet — service running but no listener attached")
+            writeDebugLog("fg.noPid", "waiting for login")
         }
 
         return START_STICKY
+    }
+
+    private fun waitForAuthThenAttach(pid: String, attempt: Int) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        if (auth.currentUser != null) {
+            currentPid = pid
+            attachListener(pid)
+            writeDebugLog("fg.authReady", "uid=${auth.currentUser?.uid?.take(8)}")
+        } else if (attempt < 20) {
+            // Retry every 500ms for up to 10 seconds waiting for signInAnonymously
+            android.os.Handler(mainLooper).postDelayed({
+                waitForAuthThenAttach(pid, attempt + 1)
+            }, 500)
+        } else {
+            Log.w(TAG, "Auth never completed — attaching listener anyway")
+            writeDebugLog("fg.authTimeout", "attach without auth")
+            currentPid = pid
+            attachListener(pid)
+        }
     }
 
     private val Context_MODE_PRIVATE: Int get() = android.content.Context.MODE_PRIVATE
