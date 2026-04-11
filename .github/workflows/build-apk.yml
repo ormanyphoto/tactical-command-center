@@ -38,6 +38,16 @@ jobs:
           done
           cp icon-512.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
+      - name: Verify google-services.json
+        run: |
+          if [ ! -f android/app/google-services.json ]; then
+            echo "::error::android/app/google-services.json is missing. See android/SETUP.md for registration instructions."
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH_ANDROID_APP_ID" android/app/google-services.json; then
+            echo "::warning::google-services.json still contains the placeholder mobilesdk_app_id — FCM will not work until you register the Android app in Firebase Console and replace the file. See android/SETUP.md."
+          fi
+
       - name: Generate Gradle Wrapper
         working-directory: android
         run: gradle wrapper --gradle-version=8.5
@@ -50,27 +60,38 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TacticalCommandCenter-v5.4-Android
-          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
+          name: TacticalCommandCenter-v5.5-Android
+          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.apk
           retention-days: 90
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v5.4-${{ github.run_number }}
-          name: "Tactical Command Center APK v5.4 (build ${{ github.run_number }})"
+          tag_name: apk-v5.5-${{ github.run_number }}
+          name: "Tactical Command Center APK v5.5 (build ${{ github.run_number }})"
           body: |
-            ## התקנה באנדרואיד
-            1. הורד את **TacticalCommandCenter-v5.4.apk**
+            ## v5.5 — אפליקציית אנדרואיד נייטיב עם התראות חירום על מסך נעול
+
+            **חדש:** קוד Kotlin נייטיב שמטפל ב-FCM ישירות, עם FullScreenIntent שמעיר את המסך ומציג פופאפ חירום אפילו כשהטלפון נעול — בדיוק כמו פיקוד העורף.
+
+            ### התקנה
+            1. הורד את **TacticalCommandCenter-v5.5.apk**
             2. פתח את הקובץ במכשיר
             3. אשר "התקנה ממקור לא מוכר"
-            4. האפליקציה תפתח את https://tactical-command-center.web.app
-          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.4.apk
+            4. פתח את האפליקציה פעם אחת כדי לרשום את ה-FCM token
+            5. שלח הודעת בדיקה ממכשיר אחר — המסך יידלק אוטומטית עם פופאפ חירום
+
+            ### הרשאות שהאפליקציה מבקשת
+            - `USE_FULL_SCREEN_INTENT` — הפעלת activity על מסך נעול
+            - `WAKE_LOCK` — הדלקת המסך
+            - `POST_NOTIFICATIONS` — תצוגת התראות
+            - `VIBRATE` — רטט חירום
+          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.5.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

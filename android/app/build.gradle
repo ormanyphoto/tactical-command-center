@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -8,10 +10,10 @@ android {
 
     defaultConfig {
         applicationId "com.tacops.commandcenter"
-        minSdk 21
+        minSdk 23
         targetSdk 34
-        versionCode 7
-        versionName "5.4"
+        versionCode 8
+        versionName "5.5"
     }
 
     buildTypes {
@@ -27,9 +29,20 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+
+    // Firebase — BOM manages all versions
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging-ktx'
+    implementation 'com.google.firebase:firebase-database-ktx'
 }

@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.4 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.5 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.4</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.5</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.4</div>
+    <div id="fm-logo">⬡ מבצעים v5.5</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -9724,7 +9724,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.4',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.5',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -10777,13 +10777,27 @@ const PUSH = (() => {
       }
     }
     try{
-      const [snap, token] = await Promise.all([
-        db.ref('tac_fcm_tokens').once('value'), _getOAuthToken()
+      const [snap, nativeSnap, token] = await Promise.all([
+        db.ref('tac_fcm_tokens').once('value'),
+        db.ref('tac_fcm_tokens_native').once('value'),
+        _getOAuthToken()
       ]);
       if(!token) return;
       const allTokens = snap.val()||{};
-      const tokens = recipientIds.map(id=>allTokens[id]).filter(Boolean);
+      const webTokens = recipientIds.map(id=>allTokens[id]).filter(Boolean);
+      // Native tokens are stored per-device: tac_fcm_tokens_native/<personId>/<deviceId> = token
+      // Collect all tokens for each recipient across all their Android devices.
+      const allNative = nativeSnap.val()||{};
+      const nativeTokens = [];
+      recipientIds.forEach(id=>{
+        const devMap = allNative[id];
+        if(devMap && typeof devMap === 'object'){
+          Object.values(devMap).forEach(t=>{ if(typeof t === 'string' && t) nativeTokens.push(t); });
+        }
+      });
+      const tokens = [...webTokens, ...nativeTokens];
       if(!tokens.length) return;
+      console.log('[PUSH] sending to', webTokens.length, 'web +', nativeTokens.length, 'native tokens');
       const project = _sa.project_id || 'tactical-command-center';
       const url = `https://fcm.googleapis.com/v1/projects/${project}/messages:send`;
       const data = {
@@ -10926,7 +10940,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.4)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.5)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
