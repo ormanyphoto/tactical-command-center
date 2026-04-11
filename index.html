@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.7.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.7.6 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -761,7 +761,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.7.6</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1141,7 +1141,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.7.5</div>
+    <div id="fm-logo">⬡ מבצעים v5.7.6</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7987,20 +7987,26 @@ function sendNotification(){
       return true;
     }
 
-    // Fire SDK write in parallel (for real-time listeners on other devices)
-    // Write to tac_active_notif INCLUDING venues + dest so receiving admins
-    // can render the approvals section with correct ETA context — not just
-    // the sender's device which had venues in local JS memory.
+    // Write tac_active_notif via BOTH SDK and REST so receivers reliably
+    // pick up the new notifId for approvals tracking. The SDK write was
+    // buffering on some devices and never reaching Firebase — the REST
+    // PUT is guaranteed delivery with an HTTP status we can verify.
+    const _activeRecord = {
+      notifId,
+      title: payload.title,
+      type: _activeNotifType,
+      sentAt: payload.sentAt,
+      senderName,
+      venues: venues || [],
+      dest: { lat: payload.lat || null, lng: payload.lng || null, address: payload.address || '' }
+    };
+    try { db.ref('tac_active_notif').set(_activeRecord); } catch(e){}
     try {
-      db.ref('tac_active_notif').set({
-        notifId,
-        title: payload.title,
-        type: _activeNotifType,
-        sentAt: payload.sentAt,
-        senderName,
-        venues: venues || [],
-        dest: { lat: payload.lat || null, lng: payload.lng || null, address: payload.address || '' }
-      });
+      fetch(DB_REST + '/tac_active_notif.json', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_activeRecord)
+      }).catch(()=>{});
     } catch(e){}
 
     // REST writes (primary — guaranteed delivery)
@@ -8150,8 +8156,22 @@ function listenForIncomingNotifications(){
       if(!data) return;
       const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+pid) || 0);
       const cutoff = Date.now() - 30*60*1000; // 30-min window
+      // Track the most recent notif we've processed so we can attach the
+      // approvals listener to it regardless of what tac_active_notif says.
+      // Commanders (including the sender who receives their own notif) will
+      // then see approvals arrive live without depending on the fragile
+      // tac_active_notif SDK-buffered write.
+      let mostRecentNid = null, mostRecentTs = 0, mostRecentNotif = null;
       Object.entries(data).forEach(([nid, notif])=>{
         if(!notif) return;
+        // Track the most recent notif for approvals tracking (separate from
+        // the "shown" check so we still attach the listener even if we
+        // already showed this notif in-app).
+        if((notif.sentAt||0) > mostRecentTs){
+          mostRecentTs = notif.sentAt || 0;
+          mostRecentNid = nid;
+          mostRecentNotif = notif;
+        }
         if(_shownNotifIds.has(nid)) return;
         if(notif.sentAt && notif.sentAt < cutoff) return;
         if(notif.sentAt && notif.sentAt <= ls) return;
@@ -8160,6 +8180,23 @@ function listenForIncomingNotifications(){
         const fbRef = window._db ? window._db.ref('tac_notifications/'+pid+'/'+nid) : null;
         _showIncomingNotif(notif, fbRef);
       });
+      // Attach approvals listener to the most recent notif (if it's newer
+      // than whatever we already listen to). This makes arrival tracking
+      // work even when sendNotification's tac_active_notif SDK write failed.
+      if(mostRecentNid && mostRecentNid !== _currentActiveNotifId && mostRecentTs > (cutoff)){
+        console.log('[NOTIF poll] auto-attach approvals for', mostRecentNid);
+        _currentActiveNotifId = mostRecentNid;
+        // Hydrate venues/dest from the notif payload itself so ETA works
+        if(mostRecentNotif.venues && Array.isArray(mostRecentNotif.venues)){
+          window._activeNotifVenues = mostRecentNotif.venues;
+        }
+        window._activeNotifDest = {
+          lat: mostRecentNotif.lat || null,
+          lng: mostRecentNotif.lng || null,
+          address: mostRecentNotif.address || ''
+        };
+        _listenApprovals(mostRecentNid);
+      }
     }catch(e){ console.warn('[NOTIF poll]',e); }
   };
   _notifPollTimer = setInterval(_poll, 2000); // every 2 seconds
@@ -8652,6 +8689,26 @@ function _subscribeActiveNotif(){
 // Start the global listener on every SYNC boot (once the DB is available)
 setInterval(()=>{ if(!_activeNotifGlobalListener && window._db) _subscribeActiveNotif(); }, 2000);
 setTimeout(_subscribeActiveNotif, 1500);
+
+// REST polling fallback — the SDK .on('value') sometimes buffers or misses
+// updates on Android WebView / Samsung / Chrome. Poll tac_active_notif via
+// plain fetch every 4 seconds so every device has a reliable path to the
+// latest active notif regardless of SDK state.
+setInterval(async ()=>{
+  try {
+    const resp = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_active_notif.json?_='+Date.now(), {cache:'no-store'});
+    if(!resp.ok) return;
+    const v = await resp.json();
+    if(!v || !v.notifId) return;
+    if(v.venues && Array.isArray(v.venues)) window._activeNotifVenues = v.venues;
+    if(v.dest) window._activeNotifDest = v.dest;
+    if(v.notifId !== _currentActiveNotifId){
+      console.log('[ACTIVE-NOTIF REST] new notifId:', v.notifId);
+      _currentActiveNotifId = v.notifId;
+      _listenApprovals(v.notifId);
+    }
+  } catch(_){}
+}, 4000);
 // Populate the field-mode compact approvals bar. Safe to call any time —
 // it just no-ops if the field mode isn't visible or there are no approvals.
 function _refreshFieldApprovalsBar(){
@@ -10063,7 +10120,7 @@ async function exportFullBackup(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור',type:'warn'}); return; }
   showToast({icon:'💾',title:'מייצא גיבוי...',type:'info',duration:3000});
   const paths = ['tac_teams_sync','tac_missions','tac_incidents','tac_geofences','tac_notifications','tac_audit','tac_equipment','tac_mission_templates','tac_vehicles','tac_routes','tac_patrols','tac_plates','tac_locs','tac_photos','tac_chat'];
-  const backup = {version:'5.7.5',timestamp:Date.now(),date:new Date().toISOString()};
+  const backup = {version:'5.7.6',timestamp:Date.now(),date:new Date().toISOString()};
   for(const p of paths){
     try{ const s = await window._db.ref(p).once('value'); backup[p] = s.val(); }catch(e){ backup[p]=null; }
   }
@@ -11376,7 +11433,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.7.6)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
