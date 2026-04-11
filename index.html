@@ -10319,16 +10319,44 @@ const SYNC = (() => {
   function _subscribeHidden(){
     if(!_db) return;
     _db.ref('tac_loc_hidden').on('value', snap=>{
+      const prev = _hiddenPersons;
       _hiddenPersons = snap.val() || {};
-      // When a person gets flagged as hidden, sweep any markers they still have
+      console.log('[SYNC] tac_loc_hidden update:', _hiddenPersons);
+      // When a person gets flagged as hidden, sweep every marker variant they
+      // might have in _liveMarkers — key could be personId, uid, or mismatched.
       Object.keys(_liveMarkers).forEach(k=>{
         const m = _liveMarkers[k];
-        const pid = (m && m._data && m._data.personId) || k;
+        const md = m && m._data;
+        const pid = (md && md.personId) || k;
         if(_hiddenPersons[pid]){
+          console.log('[SYNC] sweeping hidden marker', k, pid);
           try { m.setMap(null); } catch(_){}
           delete _liveMarkers[k];
         }
       });
+      // ALSO remove from window._liveLocs so ETA / personnel list / any other
+      // consumers stop seeing this person's position.
+      if(window._liveLocs){
+        Object.keys(window._liveLocs).forEach(k=>{
+          if(_hiddenPersons[k]) delete window._liveLocs[k];
+        });
+      }
+      // Force a full re-render from current Firebase state to catch any
+      // stale entries the listener might have missed due to event ordering.
+      if(_db && window.map && window._googleReady){
+        _db.ref('tac_locs').once('value', lsnap=>{
+          const fd = _dedupeByPerson(lsnap.val()||{});
+          Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+          Object.keys(_liveMarkers).forEach(uid=>{
+            if(!fd[uid]){
+              try { _liveMarkers[uid].setMap(null); } catch(_){}
+              delete _liveMarkers[uid];
+            }
+          });
+        }).catch(e=>console.warn('[SYNC] rerender after hidden failed', e));
+      }
+    }, err=>{
+      console.warn('[SYNC] tac_loc_hidden subscription failed:', err);
     });
   }
 
