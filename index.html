@@ -1788,6 +1788,35 @@ const AUTH = (() => {
   return { login, logout, restore, applyPerms, canDo, doLogin, getUser, isAdmin, getPerms, getRolePerms };
 })();
 
+// ── Link native Android FCM token to personId (TWA/APK only) ──
+// The CustomLauncherActivity in the APK injects ?native_device=<uuid> into
+// the web URL, which boot captured into localStorage.tac_native_device.
+// The native MyFirebaseMessagingService also wrote the FCM token to
+// tac_fcm_tokens_native_devices/<uuid>. This function copies that token into
+// tac_fcm_tokens_native/<personId>/<uuid> so sendPush can find and target it.
+async function _linkNativeDeviceToken(personId){
+  try {
+    const nd = localStorage.getItem('tac_native_device');
+    if(!nd) return; // not running in the native APK
+    const db = window._db;
+    if(!db || !personId) return;
+    const snap = await db.ref('tac_fcm_tokens_native_devices/'+nd+'/token').once('value');
+    const token = snap.val();
+    if(!token){
+      console.log('[NATIVE-LINK] device present but token not registered yet, will retry');
+      // Try again after a short delay — the Android service may still be
+      // registering its token on first launch.
+      setTimeout(()=>_linkNativeDeviceToken(personId), 3000);
+      return;
+    }
+    await db.ref('tac_fcm_tokens_native/'+personId+'/'+nd).set(token);
+    await db.ref('tac_fcm_tokens_native_devices/'+nd+'/personId').set(personId);
+    console.log('[NATIVE-LINK] linked native FCM token for', personId, 'device', nd);
+  } catch(e){
+    console.warn('[NATIVE-LINK] failed', e);
+  }
+}
+
 // ── Background push registration (called after login on mobile) ──
 async function _registerPushForUser(personId, verbose){
   if(!('serviceWorker' in navigator)) return;
@@ -1801,6 +1830,9 @@ async function _registerPushForUser(personId, verbose){
       const listenFrom = Math.max(lastSeen, lookback);
       reg.active.postMessage({ type:'SET_USER', personId, listenFrom });
     }
+
+    // Link the native Android FCM token (APK only, noop on web)
+    _linkNativeDeviceToken(personId);
 
     // Register Periodic Background Sync (Android Chrome only)
     if('periodicSync' in reg){
@@ -7444,11 +7476,12 @@ function toggleLocPrivacy(){
   if(window._locPrivacyOn){
     // Remove the plain green dot — avatar bubble will show position instead
     if(typeof gpsMarker!=='undefined' && gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
-    // Always start publishing when turning on — Firebase SDK handles offline internally
+    // EXPLICIT enable — clears the cross-device hidden flag AND starts publishing
     if(typeof SYNC!=='undefined'){
       const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
       const profile=u?{name:u.name,role:u.role||'לוחם',status:'active'}:null;
-      SYNC.startPublishing(profile);
+      if(SYNC.enablePublishing) SYNC.enablePublishing(profile);
+      else SYNC.startPublishing(profile); // fallback for old SW
     }
     showToast({icon:'📍',title:'מיקום פעיל',sub:'המיקום שלך גלוי לצוות',type:'success'});
   } else {
@@ -9974,16 +10007,22 @@ const SYNC = (() => {
   }
 
   let _watchId = null;
+  // Explicit "turn on" — clears the Firebase hidden flag and starts publishing.
+  // Called only from toggleLocPrivacy when user explicitly enables, never from
+  // auto-boot. This preserves the hidden state across sessions.
+  function enablePublishing(profile){
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const pid = u ? u.id : null;
+    if(_db && pid){
+      _db.ref('tac_loc_hidden/'+pid).set(false)
+        .catch(e=>console.warn('[SYNC] clear hidden failed', e));
+      _hiddenPersons[pid] = false;
+    }
+    startPublishing(profile);
+  }
+
   function startPublishing(profile){
     if(profile) _myProfile={..._myProfile,...profile};
-    // Clear the cross-device hidden flag — this user is explicitly turning ON
-    const _u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-    const _myPid = _u ? _u.id : null;
-    if(_db && _myPid){
-      _db.ref('tac_loc_hidden/'+_myPid).set(false)
-        .catch(e=>console.warn('[SYNC] clear hidden failed', e));
-      _hiddenPersons[_myPid] = false;
-    }
     // Use watchPosition for continuous real-time tracking
     if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
     if('geolocation' in navigator){
@@ -10281,13 +10320,36 @@ const SYNC = (() => {
       return;
     }
     _autoStartTries = 0;
-    const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
-    // Call startPublishing directly — same as manual toggle-on.
-    // watchPosition (inside startPublishing) handles permission, caching, and continuous updates.
-    // No need for a separate getCurrentPosition wrapper that adds a 12s delay.
-    startPublishing(profile);
-    if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
-    if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
+    // CRITICAL: respect the cross-device hidden flag. If this user is hidden
+    // (e.g. they toggled OFF from another device), do NOT auto-start publishing
+    // on this device either. The user must explicitly toggle ON via the UI,
+    // which calls enablePublishing and clears the flag.
+    if(!_db){
+      // DB not ready, retry shortly
+      setTimeout(_autoStartPublishing, 500);
+      return;
+    }
+    _db.ref('tac_loc_hidden/'+u.id).once('value').then(snap=>{
+      if(snap.val() === true){
+        console.log('[SYNC] auto-start skipped — user is hidden (tac_loc_hidden)');
+        _hiddenPersons[u.id] = true;
+        // Reflect in local UI
+        window._locPrivacyOn = false;
+        try { localStorage.setItem('tac_loc_privacy','0'); } catch(_){}
+        if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+        return;
+      }
+      const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
+      startPublishing(profile);
+      if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+      if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
+    }).catch(e=>{
+      console.warn('[SYNC] auto-start hidden check failed, starting anyway', e);
+      const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
+      startPublishing(profile);
+      if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
+      if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
+    });
   }
 
   // Deduplicate locations by personId — keep only the most recent entry per person
@@ -10687,7 +10749,7 @@ const SYNC = (() => {
     _tryBoot();
   }
 
-  return { init, boot, startPublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
 })();
 
 // ══════════════════════════════════════════════════════════
@@ -11173,6 +11235,29 @@ const FIELD = (() => {
 // BOOT — PWA + Firebase + Field mode init
 // ══════════════════════════════════════════════════════════
 (function tacBoot(){ try {
+  // ── Capture native_device URL param injected by the Android TWA launcher ──
+  // CustomLauncherActivity (Kotlin) opens this URL with ?native_device=<uuid>
+  // so we can link the native FCM token to the logged-in personId via Firebase.
+  try {
+    const _qp0 = new URLSearchParams(location.search);
+    const _nd = _qp0.get('native_device');
+    const _isNative = _qp0.get('native_app') === '1';
+    if(_nd){
+      localStorage.setItem('tac_native_device', _nd);
+      console.log('[BOOT] native_device captured:', _nd);
+    }
+    if(_isNative){
+      window._runningInNativeApp = true;
+      document.documentElement.classList.add('native-app');
+    }
+    // Clean up URL so refresh doesn't duplicate (preserve other params)
+    if(_nd || _isNative){
+      _qp0.delete('native_device');
+      _qp0.delete('native_app');
+      const qs = _qp0.toString();
+      history.replaceState({}, '', location.pathname + (qs ? '?'+qs : ''));
+    }
+  } catch(_){}
   // Register service worker — updateViaCache:'none' so sw.js is always fetched
   // fresh from network. No forced page reloads here — they caused re-login loops.
   if('serviceWorker' in navigator){

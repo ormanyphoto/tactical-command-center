@@ -22,9 +22,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
 
-        <!-- TWA Launcher Activity (existing) — opens the web app in full-screen -->
+        <!-- Custom TWA Launcher — subclasses the browser-helper LauncherActivity
+             so we can inject a stable device UUID into the launching URL
+             (?native_device=<uuid>). The web app reads this and uses it to
+             link the native FCM token to the logged-in personId. -->
         <activity
-            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:name=".CustomLauncherActivity"
             android:exported="true"
             android:screenOrientation="unspecified">
 
