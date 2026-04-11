@@ -8,6 +8,24 @@ android {
     namespace 'com.tacops.commandcenter'
     compileSdk 34
 
+    // Stable debug keystore committed to the repo. The build-apk workflow
+    // bootstraps this file on first run (keytool → android/app/debug.keystore)
+    // and commits both the keystore and the matching .well-known/assetlinks.json
+    // back to the repo. Every subsequent build uses the committed keystore, so
+    // the APK signature stays stable → Digital Asset Links verification passes
+    // → the TWA runs in true full-screen (no browser address bar).
+    signingConfigs {
+        debugStable {
+            def ks = file('debug.keystore')
+            if (ks.exists()) {
+                storeFile ks
+                storePassword 'tac-debug-key'
+                keyAlias 'tactical-debug'
+                keyPassword 'tac-debug-key'
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.tacops.commandcenter"
         minSdk 23
@@ -18,6 +36,12 @@ android {
 
     buildTypes {
         debug {
+            // Use our stable keystore if it exists; otherwise fall back to
+            // Android's default auto-generated debug keystore.
+            def ks = file('debug.keystore')
+            if (ks.exists()) {
+                signingConfig signingConfigs.debugStable
+            }
             debuggable true
         }
         release {

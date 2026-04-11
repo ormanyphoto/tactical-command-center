@@ -48,6 +48,74 @@ jobs:
             echo "::warning::google-services.json still contains the placeholder mobilesdk_app_id — FCM will not work until you register the Android app in Firebase Console and replace the file. See android/SETUP.md."
           fi
 
+      # Bootstrap a stable debug keystore so the APK signature doesn't change
+      # between builds. Without this the TWA assetlinks SHA-256 would be
+      # different every build and Digital Asset Links verification would fail,
+      # causing the TWA to fall back to Chrome Custom Tabs (URL bar visible).
+      - name: Bootstrap debug keystore
+        id: keystore
+        run: |
+          KS_PATH=android/app/debug.keystore
+          if [ ! -f "$KS_PATH" ]; then
+            echo "Generating stable debug keystore..."
+            keytool -genkeypair -v \
+              -keystore "$KS_PATH" \
+              -alias tactical-debug \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 \
+              -storepass tac-debug-key \
+              -keypass tac-debug-key \
+              -dname "CN=Tactical Command Center Debug, O=TacOps, C=IL"
+            echo "bootstrapped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Using existing keystore"
+            echo "bootstrapped=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Extract the SHA-256 fingerprint (keytool output format varies slightly;
+          # we grep for the SHA256: line and take the colon-separated hex).
+          SHA256=$(keytool -list -v \
+            -keystore "$KS_PATH" \
+            -alias tactical-debug \
+            -storepass tac-debug-key 2>/dev/null \
+            | awk '/SHA256:/ {print $2; exit}')
+          echo "Certificate SHA-256: $SHA256"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      # Ensure .well-known/assetlinks.json is present and contains the current
+      # keystore's SHA-256. Firebase Hosting serves files from .well-known/
+      # bypassing the SPA rewrite, so once committed the file is live.
+      - name: Update assetlinks.json
+        id: assetlinks
+        run: |
+          mkdir -p .well-known
+          SHA256='${{ steps.keystore.outputs.sha256 }}'
+          cat > .well-known/assetlinks.json <<EOF
+          [{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "com.tacops.commandcenter",
+              "sha256_cert_fingerprints": ["$SHA256"]
+            }
+          }]
+          EOF
+          cat .well-known/assetlinks.json
+
+      # If either the keystore or assetlinks.json is new/changed, commit them
+      # back to the repo so the next build is deterministic and the next
+      # Firebase deploy publishes the assetlinks.
+      - name: Commit bootstrap artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f android/app/debug.keystore .well-known/assetlinks.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore(ci): bootstrap debug keystore + assetlinks.json"
+            git push
+          fi
+
       - name: Generate Gradle Wrapper
         working-directory: android
         run: gradle wrapper --gradle-version=8.5
