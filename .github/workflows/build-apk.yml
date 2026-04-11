@@ -27,7 +27,7 @@ jobs:
 
       - name: Install required SDK packages
         run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" --sdk_root=$ANDROID_SDK_ROOT
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" --sdk_root=$ANDROID_SDK_ROOT
 
       - name: Copy app icons
         run: |
@@ -118,7 +118,7 @@ jobs:
 
       - name: Generate Gradle Wrapper
         working-directory: android
-        run: gradle wrapper --gradle-version=8.5
+        run: gradle wrapper --gradle-version=8.9
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -128,28 +128,28 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.2.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.3.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TacticalCommandCenter-v5.6.2-Android
-          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.2.apk
+          name: TacticalCommandCenter-v5.6.3-Android
+          path: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.3.apk
           retention-days: 90
 
       - name: Publish GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-v5.6.2-${{ github.run_number }}
-          name: "Tactical Command Center APK v5.6.2 (build ${{ github.run_number }})"
+          tag_name: apk-v5.6.3-${{ github.run_number }}
+          name: "Tactical Command Center APK v5.6.3 (build ${{ github.run_number }})"
           body: |
-            ## v5.6.2 — אפליקציית אנדרואיד נייטיב עם התראות חירום על מסך נעול
+            ## v5.6.3 — אפליקציית אנדרואיד נייטיב עם התראות חירום על מסך נעול
 
             **חדש:** קוד Kotlin נייטיב שמטפל ב-FCM ישירות, עם FullScreenIntent שמעיר את המסך ומציג פופאפ חירום אפילו כשהטלפון נעול — בדיוק כמו פיקוד העורף.
 
             ### התקנה
-            1. הורד את **TacticalCommandCenter-v5.6.2.apk**
+            1. הורד את **TacticalCommandCenter-v5.6.3.apk**
             2. פתח את הקובץ במכשיר
             3. אשר "התקנה ממקור לא מוכר"
             4. פתח את האפליקציה פעם אחת כדי לרשום את ה-FCM token
@@ -160,6 +160,6 @@ jobs:
             - `WAKE_LOCK` — הדלקת המסך
             - `POST_NOTIFICATIONS` — תצוגת התראות
             - `VIBRATE` — רטט חירום
-          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.2.apk
+          files: android/app/build/outputs/apk/debug/TacticalCommandCenter-v5.6.3.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
