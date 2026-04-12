@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.0.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.0.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.0.3</div>
+    <div id="fm-logo">⬡ מבצעים v6.0.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2805,7 +2805,7 @@ function plotMissions(){
           <div style="height:100%;background:${col};width:${mission.progress||0}%;border-radius:2px"></div>
         </div>
         ${mission.objective?`<div style="font-size:11px;color:${txt};margin-bottom:8px;line-height:1.5">${escHtml(mission.objective.slice(0,100))}</div>`:''}
-        <div style="font-size:10px;font-weight:700;color:${txtMute};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">צוותות</div>
+        <div style="font-size:10px;font-weight:700;color:${txtMute};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">צוותים</div>
         ${teamsHtml}
         <div style="font-size:10px;font-weight:700;color:${txtMute};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">כוח אדם (${teamMembers.length})</div>
         <div style="max-height:140px;overflow-y:auto">${membersHtml}</div>
@@ -4020,7 +4020,7 @@ function openMsnDetail(id){
   const assignedTeams=m.teams||[];
   const assignedPeople=PERSONNEL.filter(p=>assignedTeams.includes(p.unit)||assignedTeams.includes(p.callsign));
   const teamsHtml=assignedTeams.length?
-    '<div class="sec-hd" style="margin-top:10px">👥 צוותות משויכים</div>'
+    '<div class="sec-hd" style="margin-top:10px">👥 צוותים משויכים</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">'
     +assignedTeams.map(t=>`<span style="background:rgba(41,197,246,0.12);border:1px solid rgba(41,197,246,0.3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--blue)">${t}</span>`).join('')
     +'</div>'
@@ -4110,7 +4110,7 @@ function editMsnModal(id){
         ${['קריטית','גבוה','בינוני','נמוך'].map(p=>`<option value="${p}" ${m.priority===p?'selected':''}>${p}</option>`).join('')}
       </select></div>
     </div>
-    <div class="form-g"><label>צוותות</label><select id="em-teams" multiple style="height:80px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px;color:var(--texthi);font-size:12px;font-family:var(--font)">${teamOpts}</select></div>
+    <div class="form-g"><label>צוותים</label><select id="em-teams" multiple style="height:80px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px;color:var(--texthi);font-size:12px;font-family:var(--font)">${teamOpts}</select></div>
     <div class="form-g"><label>התקדמות (%)</label><input type="range" id="em-prog" min="0" max="100" value="${m.progress||0}" oninput="document.getElementById('em-prog-val').textContent=this.value+'%'"/><span id="em-prog-val">${m.progress||0}%</span></div>`;
   modalCB=function(){
     m.title=document.getElementById('em-title').value||m.title;
@@ -4594,7 +4594,7 @@ function buildMsnSuggestions(){
   var top=scored.slice(0,4);
   wrap.innerHTML='';
   if(!top.length){
-    var p=document.createElement('p');p.style.cssText='font-size:12px;color:var(--text3);text-align:center;padding:10px';p.textContent='אין צוותות מוגדרים';
+    var p=document.createElement('p');p.style.cssText='font-size:12px;color:var(--text3);text-align:center;padding:10px';p.textContent='אין צוותים מוגדרים';
     wrap.appendChild(p);return;
   }
   top.forEach(function(item,idx){
@@ -7021,7 +7021,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.0.3 source-code update because the merge in
+    // which survived our v6.0.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -7148,7 +7148,7 @@ function saveAllTeams(){
     if(cd)t.code=cd.value;
   });
   savePersonnelToStorage();
-  showToast({icon:'💾',title:'צוותות נשמרו',sub:TEAMS.length+' צוותות',type:'success'});
+  showToast({icon:'💾',title:'צוותים נשמרו',sub:TEAMS.length+' צוותים',type:'success'});
 }
 
 function removeMemberFromTeam(tid,pid){
@@ -8698,9 +8698,19 @@ function _showIncomingNotif(notif, fbRef){
     if(incBtnsMain) incBtnsMain.style.display = 'none';
     if(departBtn) departBtn.style.display = 'none';
     if(scBtns) scBtns.style.display = 'flex';
+    // Hide address/venue elements — not relevant for status checks
+    if(document.getElementById('inc-addr-wrap')) document.getElementById('inc-addr-wrap').style.display = 'none';
+    if(document.getElementById('inc-venue-wrap')) document.getElementById('inc-venue-wrap').style.display = 'none';
     // Save the notif ID so respondStatusCheck knows where to write
     const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     if(u2) localStorage.setItem('tac_last_status_check_'+u2.id, notif.id);
+    // Do NOT overwrite _currentIncomingNotif — status checks are separate
+    // from the emergency notification flow and should not interfere with
+    // a pending approve/depart action.
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('alert'));
+    _vibrate([200,100,200]);
+    return; // ← skip all venue/marker/approve logic below
   } else {
     if(scBtns) scBtns.style.display = 'none';
     if(incBtnsMain) incBtnsMain.style.display = '';
@@ -9573,8 +9583,10 @@ function stopStatusCheck(){
 }
 function _runStatusCheck(){
   if(!_currentActiveNotifId) return;
+  // Status check is sent ONLY to members who ARRIVED at the scene —
+  // NOT to those still en-route (departed but not yet arrived).
   const arrivedIds = Object.entries(_approvalsData||{})
-    .filter(([_,e]) => e.arrived || e.departed)
+    .filter(([_,e]) => e.arrived)
     .map(([pid]) => pid);
   if(!arrivedIds.length) return;
   const db = window._db;
@@ -12541,7 +12553,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
