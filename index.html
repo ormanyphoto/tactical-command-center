@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -244,7 +244,8 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 /* Tablet (768-1024): SOS button visible, positioned below emergency button */
 @media(min-width:768px) and (max-width:1024px){#map-sos-btn{bottom:28px;width:140px;font-size:13px;padding:9px 0}}
 /* ── DEPARTURE BANNER — shown after user approved, until they press "יצאתי לדרך" ── */
-#depart-banner{display:none;position:fixed;top:62px;left:0;right:0;z-index:8490;background:linear-gradient(90deg,rgba(10,80,20,0.97),rgba(18,120,35,0.97));color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(61,255,82,0.55);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl;box-shadow:0 6px 22px rgba(0,0,0,0.45)}
+/* z-index:9500 so it stacks ABOVE #field-mode (9000) on mobile */
+#depart-banner{display:none;position:fixed;top:62px;left:0;right:0;z-index:9500;background:linear-gradient(90deg,rgba(10,80,20,0.97),rgba(18,120,35,0.97));color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(61,255,82,0.55);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl;box-shadow:0 6px 22px rgba(0,0,0,0.45)}
 #depart-banner.active{display:flex;animation:dpbSlide 0.35s ease-out}
 @keyframes dpbSlide{from{transform:translateY(-110%);opacity:0}to{transform:translateY(0);opacity:1}}
 .dpb-left{display:flex;align-items:center;gap:11px;flex:1;min-width:0}
@@ -257,7 +258,9 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 .dpb-depart:hover{background:#5cff6e;transform:translateY(-1px)}
 .dpb-cancel{background:none;border:none;color:rgba(255,255,255,0.55);font-size:17px;cursor:pointer;padding:5px 7px;flex-shrink:0;line-height:1}
 .dpb-cancel:hover{color:#fff}
-@media(max-width:600px){#depart-banner{padding:8px 10px;gap:8px}.dpb-sub{display:none}.dpb-title{font-size:12px}.dpb-depart{padding:8px 12px;font-size:11px}}
+body.fm-active #depart-banner{top:56px}
+@media(max-width:600px){#depart-banner{top:54px;padding:8px 10px;gap:8px}.dpb-sub{display:none}.dpb-title{font-size:12px}.dpb-depart{padding:8px 12px;font-size:11px}}
+body.bo-active #depart-banner{display:none !important}
 /* ── SOS DISTRESS SYSTEM ── */
 #sos-alert-bar{display:none;position:fixed;top:62px;left:0;right:0;z-index:8500;background:rgba(190,0,0,0.97);color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(255,80,80,0.5);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl}
 #sos-alert-bar.active{display:flex;animation:sosBarPulse 1.4s ease-in-out infinite}
@@ -776,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1173,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.3</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6881,7 +6884,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.3 source-code update because the merge in
+    // which survived our v5.9.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12078,7 +12081,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
