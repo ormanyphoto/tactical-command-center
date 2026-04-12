@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.1.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.1.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.1.1</div>
+    <div id="fm-logo">⬡ מבצעים v6.1.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4736,14 +4736,23 @@ function renderUnitsP(c){
 
   // If the panel skeleton already exists (search input etc.), just update
   // the list portion so the search input keeps focus and cursor position.
+  // FLICKER FIX: only replace innerHTML if the new HTML is actually different.
+  // Older Android WebViews flash/flicker on every innerHTML assignment even
+  // when the content is identical, causing the approvals list to appear to
+  // open and close rapidly.
   const existingList = c.querySelector('#units-plist');
   if(existingList){
     _renderUnitsListOnly(existingList);
-    // Also refresh the approvals + KPI sections
     const apSec = c.querySelector('#units-approvals-wrap');
-    if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
+    if(apSec){
+      const newAp = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
+      if(apSec.innerHTML !== newAp) apSec.innerHTML = newAp;
+    }
     const kpi = c.querySelector('#units-kpi');
-    if(kpi) kpi.innerHTML = _buildUnitsKPI();
+    if(kpi){
+      const newKpi = _buildUnitsKPI();
+      if(kpi.innerHTML !== newKpi) kpi.innerHTML = newKpi;
+    }
     return;
   }
 
@@ -7021,7 +7030,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.1.1 source-code update because the merge in
+    // which survived our v6.1.2 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9940,47 +9949,131 @@ function _renderStatusResponses(){
 }
 
 // Render active rescue missions with responder list + cancel buttons (admin)
-function renderRescueMissions(){
+// Cache rescue data so we don't async-fetch on every render cycle (prevents flicker)
+let _rescueCache = {}; // sosNotifId → {personId, personName, responders:{...}, ts}
+let _rescueCacheTs = 0;
+function _refreshRescueCache(){
+  if(Date.now() - _rescueCacheTs < 4000) return; // throttle to every 4s
+  _rescueCacheTs = Date.now();
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_rescue.json?_='+Date.now(),{cache:'no-store'})
+    .then(r=>r.json()).then(data=>{
+      _rescueCache = data && typeof data==='object' ? data : {};
+      const c = document.getElementById('rp-body');
+      if(c && currentPanel==='units'){
+        const el = c.querySelector('#units-rescue-wrap');
+        if(el){ const h = _buildRescueHTML(); if(el.innerHTML !== h) el.innerHTML = h; }
+      }
+    }).catch(()=>{});
+}
+// Kick off a background poll for rescue data every 5s
+setInterval(_refreshRescueCache, 5000);
+
+function _buildRescueHTML(){
   const isAdmin = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
-  // Poll active rescues from _statusCheckData — anyone with sos status
   const sosPersons = Object.values(_statusCheckData||{}).filter(d => d.status==='sos');
   if(!sosPersons.length) return '';
   let html = '<div style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:8px;padding:10px 12px;margin-top:8px">';
-  html += '<div style="font-size:11px;font-weight:800;color:var(--danger);margin-bottom:6px">🆘 חילוצים פעילים</div>';
+  html += '<div style="font-size:12px;font-weight:900;color:var(--danger);margin-bottom:8px">🆘 חילוצים פעילים</div>';
   sosPersons.forEach(sp => {
-    html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(255,51,51,0.05);border-radius:6px">';
-    html += '<div style="font-size:12px;font-weight:800;color:var(--danger)">🆘 '+escHtml(sp.name||'')+'</div>';
-    // Show responders if we have rescue data (fetched via REST)
-    html += '<div id="rescue-responders-'+escHtml(sp.personId)+'" style="margin-top:4px"></div>';
+    // Find rescue record for this person
+    let rescueRec = null, rescueSid = '';
+    Object.entries(_rescueCache).forEach(([sid, rec])=>{
+      if(rec && rec.personId === sp.personId){ rescueRec = rec; rescueSid = sid; }
+    });
+    const responders = rescueRec && rescueRec.responders ? Object.values(rescueRec.responders) : [];
+    html += '<div style="margin-bottom:10px;padding:8px 10px;background:rgba(255,51,51,0.06);border:1px solid rgba(255,51,51,0.2);border-radius:8px">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    html += '<span style="font-size:18px">🆘</span>';
+    html += '<div style="flex:1"><div style="font-size:13px;font-weight:900;color:var(--danger)">'+escHtml(sp.name||'')+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3)">דיווח מצוקה</div></div>';
+    // Admin: cancel all rescue / change status
+    if(isAdmin && rescueSid){
+      html += '<button onclick="cancelAllRescue(\''+rescueSid+'\',\''+sp.personId+'\')" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:5px;font-family:var(--font)" title="בטל חילוץ">⛔ בטל חילוץ</button>';
+      html += '<button onclick="adminSetStatus(\''+sp.personId+'\',\'ok\')" style="background:rgba(61,255,82,0.12);border:1px solid rgba(61,255,82,0.3);color:var(--accent);font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;border-radius:5px;font-family:var(--font);margin-right:4px" title="שנה סטטוס לתקין">✅ תקין</button>';
+    }
+    html += '</div>';
+    // Responders in BLUE
+    if(responders.length){
+      html += '<div style="font-size:10px;font-weight:700;color:#29c5f6;margin-bottom:4px">🚗 יוצאים לחילוץ ('+responders.length+'):</div>';
+      responders.forEach(r => {
+        html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 6px;margin-bottom:3px;background:rgba(29,108,255,0.08);border:1px solid rgba(29,108,255,0.2);border-radius:5px">';
+        html += '<span style="color:#29c5f6;font-size:13px">🚗</span>';
+        html += '<span style="font-weight:800;color:#29c5f6">'+escHtml(r.name||'')+'</span>';
+        html += '<span style="color:var(--text3);font-size:10px">'+new Date(r.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'</span>';
+        if(isAdmin && rescueSid){
+          html += '<button onclick="cancelRescueResponder(\''+rescueSid+'\',\''+r.personId+'\')" style="background:none;border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:10px;cursor:pointer;padding:1px 6px;border-radius:4px;font-family:var(--font);margin-right:auto" title="בטל יציאה">⛔ בטל</button>';
+        }
+        html += '</div>';
+      });
+      // Admin: send someone else
+      if(isAdmin && rescueSid){
+        html += '<button onclick="sendAnotherRescuer(\''+rescueSid+'\',\''+sp.personId+'\',\''+escHtml(sp.name||'')+'\')" style="margin-top:4px;background:rgba(29,108,255,0.12);border:1px solid rgba(29,108,255,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:5px;font-family:var(--font)">+ שלח אדם נוסף</button>';
+      }
+    } else {
+      html += '<div style="font-size:10px;color:var(--text3);font-style:italic">ממתין לתגובת מפקדים...</div>';
+    }
     html += '</div>';
   });
   html += '</div>';
-  // Async-load rescue responders
-  setTimeout(()=>{
-    const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
-    fetch(DB_REST+'/tac_rescue.json?_='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(data=>{
-      if(!data) return;
-      Object.entries(data).forEach(([sid, rec])=>{
-        if(!rec || !rec.responders) return;
-        const el = document.getElementById('rescue-responders-'+rec.personId);
-        if(!el) return;
-        const responders = Object.values(rec.responders);
-        if(!responders.length){ el.innerHTML = '<div style="font-size:10px;color:var(--text3)">ממתין לתגובה...</div>'; return; }
-        let rhtml = '<div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px">מגיבים ('+responders.length+'):</div>';
-        responders.forEach(r => {
-          const cancelBtn = isAdmin ? ' <button onclick="cancelRescueResponder(\''+sid+'\',\''+r.personId+'\')" style="background:none;border:none;color:var(--danger);font-size:11px;cursor:pointer;padding:0 3px" title="בטל יציאה">⛔</button>' : '';
-          rhtml += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;padding:2px 0">';
-          rhtml += '<span style="color:var(--accent)">🚗</span>';
-          rhtml += '<span style="font-weight:700;color:var(--texthi)">'+escHtml(r.name||'')+'</span>';
-          rhtml += '<span style="color:var(--text3)">'+new Date(r.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'</span>';
-          rhtml += cancelBtn;
-          rhtml += '</div>';
-        });
-        el.innerHTML = rhtml;
-      });
-    }).catch(()=>{});
-  }, 200);
   return html;
+}
+function renderRescueMissions(){
+  // Trigger async refresh
+  _refreshRescueCache();
+  const html = _buildRescueHTML();
+  return html ? '<div id="units-rescue-wrap">'+html+'</div>' : '<div id="units-rescue-wrap"></div>';
+}
+// Cancel ALL rescue for a person — removes the rescue record + notifies responders
+function cancelAllRescue(sosNotifId, personId){
+  const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  // Notify all responders to stand down
+  const rec = _rescueCache[sosNotifId];
+  if(rec && rec.responders){
+    Object.keys(rec.responders).forEach(rid => cancelRescueResponder(sosNotifId, rid));
+  }
+  // Remove the rescue record
+  if(window._db) window._db.ref('tac_rescue/'+sosNotifId).remove().catch(()=>{});
+  fetch(DB_REST+'/tac_rescue/'+sosNotifId+'.json',{method:'DELETE'}).catch(()=>{});
+  delete _rescueCache[sosNotifId];
+  // Reset status
+  adminSetStatus(personId, 'ok');
+  showToast({icon:'⛔',title:'חילוץ בוטל',type:'info'});
+}
+// Send another rescuer — opens a picker to select a team member
+function sendAnotherRescuer(sosNotifId, personId, personName){
+  const rec = _rescueCache[sosNotifId];
+  const existingIds = new Set(rec && rec.responders ? Object.keys(rec.responders) : []);
+  const candidates = PERSONNEL.filter(p => p.available && p.id !== personId && !existingIds.has(p.id));
+  if(!candidates.length){ showToast({icon:'⚠️',title:'אין אנשים זמינים',type:'warn'}); return; }
+  document.getElementById('modal-ttl').innerHTML = '🚗 שלח אדם נוסף לחילוץ '+escHtml(personName);
+  document.getElementById('modal-body').innerHTML = '<div style="max-height:300px;overflow-y:auto">'
+    + candidates.map(p => '<label style="display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;border-bottom:1px solid var(--border2)"><input type="radio" name="rescue-pick" value="'+p.id+'" style="accent-color:var(--accent)"/><span style="font-weight:700">'+escHtml(p.name)+'</span><span style="font-size:11px;color:var(--text3)">'+escHtml(p.role||'')+'</span></label>').join('')
+    + '</div>';
+  modalCB = ()=>{
+    const sel = document.querySelector('input[name="rescue-pick"]:checked');
+    if(!sel) return;
+    const pid = sel.value;
+    const p = PERSONNEL.find(x=>x.id===pid);
+    if(!p) return;
+    // Send rescue notification to the selected person
+    const nid = 'rsc_'+Date.now().toString(36);
+    const lat = rec ? rec.lat : null;
+    const lng = rec ? rec.lng : null;
+    const payload = {
+      id:nid, type:'rescue', typeLabel:'חילוץ', rescue:true,
+      title:'🆘 '+personName+' זקוק לסיוע!',
+      body:'נשלחת לחילוץ על ידי מפקד',
+      rescuePersonId:personId, rescuePersonName:personName,
+      lat, lng, address:personName+' — מיקום אחרון',
+      senderName:'מערכת', senderId:'system', sentAt:Date.now()
+    };
+    fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_notifications/'+pid+'/'+nid+'.json',{
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    }).catch(()=>{});
+    showToast({icon:'🚗',title:p.name+' נשלח לחילוץ',type:'success'});
+    auditLog('שליחת '+p.name+' לחילוץ '+personName,'info','');
+  };
+  document.getElementById('modal-wrap').style.display = 'flex';
 }
 
 // Remove an approval from the active notification (admin/commander only).
@@ -12758,7 +12851,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
