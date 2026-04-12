@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.2 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.3 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.2</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.3</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.2</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.3</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4688,24 +4688,25 @@ function _buildUnitsKPI(){
   const entries = Object.values(_approvalsData || {});
   const avail = PERSONNEL.filter(p => p.available).length;
   const unavail = PERSONNEL.filter(p => !p.available).length;
-  const approved = entries.filter(e => !e.departed).length;
-  const enroute = entries.filter(e => e.departed).length;
-  // "הגיעו" — departed + very close to destination (< 0.3 km) or manually marked
-  let arrived = 0;
+  // Count by status: manual arrival flag OR GPS proximity
+  let arrived = 0, enroute = 0, approved = 0;
   const dest = window._activeNotifDest;
   const venues = window._activeNotifVenues || [];
   const dLat = (dest && dest.lat) || (venues[0] && venues[0].lat) || null;
   const dLng = (dest && dest.lng) || (venues[0] && venues[0].lng) || null;
-  if(dLat && dLng){
-    entries.forEach(e => {
-      if(!e.departed) return;
-      const loc = (window._liveLocs||{})[e.personId];
-      if(loc && loc.lat && loc.lng){
-        const km = (typeof _haversineKm==='function') ? _haversineKm(loc.lat, loc.lng, dLat, dLng) : 999;
-        if(km < 0.3) arrived++;
+  entries.forEach(e => {
+    if(e.arrived){ arrived++; return; }
+    if(e.departed){
+      // Auto-detect by GPS proximity
+      if(dLat && dLng){
+        const loc = (window._liveLocs||{})[e.personId];
+        if(loc && loc.lat && loc.lng && typeof _haversineKm==='function'){
+          if(_haversineKm(loc.lat, loc.lng, dLat, dLng) < 0.3){ arrived++; return; }
+        }
       }
-    });
-  }
+      enroute++;
+    } else { approved++; }
+  });
   const s = (bg,border,clr,val,lbl) =>
     '<div style="background:'+bg+';border:1px solid '+border+';border-radius:var(--r);padding:6px 4px;text-align:center">'
     +'<div style="font-size:18px;font-weight:900;color:'+clr+'">'+val+'</div>'
@@ -4758,8 +4759,10 @@ function renderUnitsP(c){
 // כוחות panel. Priority: הגיע > בדרך > מאשר > זמין > לא זמין.
 function _personStatus(p){
   const app = (_approvalsData||{})[p.id];
+  // Manual arrival mark — user pressed "הגעתי"
+  if(app && app.arrived) return {key:'arrived',lbl:'✅ הגיע',badge:'b-active',order:0};
   if(app && app.departed){
-    // Check if arrived (< 0.3 km from destination)
+    // Auto-detect arrival via GPS proximity (< 0.3 km from destination)
     const dest = window._activeNotifDest;
     const venues = window._activeNotifVenues || [];
     const dLat = (dest && dest.lat) || (venues[0] && venues[0].lat) || null;
@@ -6878,7 +6881,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.2 source-code update because the merge in
+    // which survived our v5.9.3 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9008,7 +9011,92 @@ function markDeparted(openWaze){
     if(st.lat && st.lng) openNavToLatLng(st.lat, st.lng, st.address||'');
     else if(st.address) openNavToAddress(st.address);
   }
+  // Save pending-arrival state so the "הגעתי" banner shows until the
+  // user marks arrival (or it auto-detects via GPS proximity).
+  try {
+    localStorage.setItem('tac_pending_arrival', JSON.stringify({
+      notifId: st.notifId, personId: st.personId,
+      departedAt: now, title: st.title || ''
+    }));
+  } catch(_){}
+  setTimeout(_showArrivalBanner, 500);
 }
+// ════════════════════════════════════════════════════════════════
+//  ARRIVAL — "הגעתי" FLOW
+//  After departure, a new banner shows with "הגעתי" so the user
+//  can manually confirm arrival at the scene. This writes
+//  arrived:true to Firebase so commanders see "הגיע" in the panel.
+// ════════════════════════════════════════════════════════════════
+function _getPendingArrival(){
+  try { return JSON.parse(localStorage.getItem('tac_pending_arrival')||'null'); }
+  catch(_){ return null; }
+}
+function _showArrivalBanner(){
+  const st = _getPendingArrival();
+  const bar = document.getElementById('depart-banner');
+  if(!bar || !st) return;
+  const ttl = document.getElementById('dpb-title');
+  const sub = document.getElementById('dpb-sub');
+  const btn = bar.querySelector('.dpb-depart');
+  const icon = bar.querySelector('.dpb-icon');
+  if(ttl) ttl.textContent = st.title ? ('בדרך: '+st.title) : 'בדרך לאירוע';
+  if(sub) sub.textContent = 'לחץ כשהגעת ליעד';
+  if(icon) icon.textContent = '🚗';
+  if(btn){
+    btn.textContent = '📍 הגעתי';
+    btn.onclick = function(){ markArrived(); };
+    btn.style.background = '#29c5f6';
+  }
+  bar.style.background = 'linear-gradient(90deg,rgba(10,40,80,0.97),rgba(20,60,120,0.97))';
+  bar.style.borderBottomColor = 'rgba(41,197,246,0.55)';
+  bar.classList.add('active');
+}
+function _hideArrivalBanner(){
+  const bar = document.getElementById('depart-banner');
+  if(bar){
+    bar.classList.remove('active');
+    // Reset banner styling to default for future departure banners
+    bar.style.background = '';
+    bar.style.borderBottomColor = '';
+    const btn = bar.querySelector('.dpb-depart');
+    if(btn){
+      btn.textContent = '🚗 יצאתי לדרך';
+      btn.onclick = function(){ markDeparted(true); };
+      btn.style.background = '';
+    }
+    const icon = bar.querySelector('.dpb-icon');
+    if(icon) icon.textContent = '✅';
+  }
+}
+function markArrived(){
+  const st = _getPendingArrival();
+  if(!st){ _hideArrivalBanner(); return; }
+  const now = Date.now();
+  // Write to Firebase via both SDK and REST
+  const path = 'tac_notif_responses/'+st.notifId+'/'+st.personId;
+  if(window._db){
+    window._db.ref(path).update({
+      arrived: true, arrivedAt: now
+    }).catch(e=>console.warn('[markArrived] sdk:', e && e.message));
+  }
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/'+path+'.json', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({arrived:true, arrivedAt:now})
+  }).catch(e=>console.warn('[markArrived] rest:', e && e.message));
+
+  localStorage.removeItem('tac_pending_arrival');
+  _hideArrivalBanner();
+  showToast({icon:'📍',title:'הגעת ליעד!',sub:'המפקד רואה את ההגעה',type:'success',duration:4000});
+}
+// On page load, restore arrival banner if pending
+setTimeout(()=>{
+  try {
+    if(_getPendingArrival()) _showArrivalBanner();
+    else if(_getPendingDeparture()) _showDepartBanner();
+  } catch(_){}
+}, 800);
+
 // Cancel an approval — removes the pending state, hides the banner, and
 // marks the response as cancelled so the commander sees them drop off.
 function cancelDeparture(){
@@ -9049,7 +9137,7 @@ function approveAndDepartForVenue(vid){
 // On page load, restore the departure banner if we're mid-flow (e.g. user
 // reloaded the page between "אישר" and "יצאתי לדרך"). Defer a bit so the DOM
 // and CSS are ready.
-setTimeout(()=>{ try { if(_getPendingDeparture()) _showDepartBanner(); } catch(_){} }, 800);
+// (page-load banner restore is handled above via _showArrivalBanner / _showDepartBanner)
 
 /* ── Listen for approvals (sender side) ── */
 let _approvalsData = {}; // personId → {name, approved, ts}
@@ -11990,7 +12078,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.2)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.3)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
