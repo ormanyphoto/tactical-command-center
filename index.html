@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.2.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.2.1</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7035,7 +7035,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.2.1 source-code update because the merge in
+    // which survived our v6.2.2 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9242,14 +9242,17 @@ function respondToNotif(approved){
   if(_card){ _card.style.borderColor=''; _card.style.boxShadow=''; }
 
   if(approved){
-    // Auto-enable live location
+    // Auto-enable live location — use enablePublishing (NOT startPublishing)
+    // so the tac_loc_hidden/{personId} flag is cleared in Firebase. Without
+    // this, the user's GPS publishes locally but other devices still see
+    // them as hidden and don't render their marker on the map.
     window._locPrivacyOn = true;
     localStorage.setItem('tac_loc_privacy','1');
     if(typeof _applyLocPrivacyUI === 'function') _applyLocPrivacyUI();
-    // Start publishing — pass correct name/role, don't require .connected (timer will retry)
     if(typeof SYNC !== 'undefined'){
       const profile = u ? { name: u.name, role: u.role||'לוחם', status: 'active' } : null;
-      SYNC.startPublishing(profile);
+      if(SYNC.enablePublishing) SYNC.enablePublishing(profile);
+      else SYNC.startPublishing(profile);
     }
     // Mark as available in personnel
     if(u && !u.available){
@@ -13044,7 +13047,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
