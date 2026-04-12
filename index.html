@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.6 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.7 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.6</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.7</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1173,7 +1173,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.6</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.7</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4803,12 +4803,23 @@ function _renderUnitsListOnly(el){
   filtered.forEach(p => {
     const st = _personStatus(p);
     const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
-    const borderClr = st.order <= 2 ? 'rgba(61,255,82,0.3)' : (p.available ? 'rgba(61,255,82,0.15)' : 'rgba(255,51,51,0.15)');
-    const dotClr = st.order <= 1 ? '#3dff52' : st.order === 2 ? '#f0b000' : (p.available ? '#3dff52' : '#ff3333');
+    // Row styling by status
+    let rowBg, borderClr, dotClr;
+    if(st.key === 'arrived'){
+      rowBg = 'rgba(61,255,82,0.08)'; borderClr = 'rgba(61,255,82,0.4)'; dotClr = '#3dff52';
+    } else if(st.key === 'enroute'){
+      rowBg = 'rgba(29,108,255,0.06)'; borderClr = 'rgba(29,108,255,0.3)'; dotClr = '#29c5f6';
+    } else if(st.key === 'approved'){
+      rowBg = 'rgba(240,176,0,0.06)'; borderClr = 'rgba(240,176,0,0.25)'; dotClr = '#f0b000';
+    } else if(p.available){
+      rowBg = 'var(--panel2)'; borderClr = 'rgba(61,255,82,0.15)'; dotClr = '#3dff52';
+    } else {
+      rowBg = 'var(--panel2)'; borderClr = 'rgba(255,51,51,0.15)'; dotClr = '#ff3333';
+    }
     const avatar = p.photo
       ? '<img src="' + p.photo + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + dotClr + '"/>'
       : '<div style="width:32px;height:32px;border-radius:50%;background:' + (p.color || '#5a7a90') + '22;border:2px solid ' + dotClr + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:' + (p.color || '#5a7a90') + '">' + initials + '</div>';
-    html += '<div style="background:var(--panel2);border:1px solid ' + borderClr + ';border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:9px">';
+    html += '<div style="background:' + rowBg + ';border:1px solid ' + borderClr + ';border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:9px">';
     html += avatar;
     html += '<div style="flex:1;min-width:0">';
     html += '<div style="font-size:13px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>';
@@ -6884,7 +6895,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.6 source-code update because the merge in
+    // which survived our v5.9.7 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12126,7 +12137,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.6)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.7)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
