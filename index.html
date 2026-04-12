@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.8.4 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.8.5 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.4</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.5</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.8.4</div>
+    <div id="fm-logo">⬡ מבצעים v5.8.5</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4686,80 +4686,95 @@ function saveMission(){
 function renderUnitsP(c){
   if(!c)c=document.getElementById('rp-body');
   _syncTitle('units');
-  // Idempotent: ensure the global approvals listener is attached. If it
-  // already is, this is a no-op. If not, this will attach it now and the
-  // panel will auto-refresh when data arrives.
+  // Ensure the global approvals listener is attached (idempotent).
   if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
-  const flt=c._flt||'all';
-  const statusDef={
-    deployed:{lbl:'פרוס',badge:'b-deployed'},
-    'on-duty':{lbl:'בתפקיד',badge:'b-onduty'},
-    'off-duty':{lbl:'חופשי',badge:'b-offduty'},
-    unavailable:{lbl:'לא זמין',badge:'b-unavail'},
-  };
-  const dep=UNITS.filter(function(u){return u.status==='deployed';}).length;
-  const onduty=UNITS.filter(function(u){return u.status==='on-duty';}).length;
-  const off=UNITS.filter(function(u){return u.status==='off-duty';}).length;
-  const filtered=UNITS.filter(function(u){return flt==='all'||u.status===flt;});
+  // REST fallback: if approvals are empty but we know a notifId exists,
+  // try a direct REST read so the panel is never blank when the SDK
+  // listener hasn't fired yet (common on Android WebView / Samsung).
+  _ensureApprovalsLoaded();
 
-  var html='';
-  // Show approvals at top if any
-  html+=renderApprovalsSection();
-  // Summary KPIs
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
-  html+='<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+dep+'</div><div style="font-size:10px;color:var(--text3)">פרוסים</div></div>';
-  html+='<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">'+onduty+'</div><div style="font-size:10px;color:var(--text3)">בתפקיד</div></div>';
-  html+='<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">'+off+'</div><div style="font-size:10px;color:var(--text3)">חופשי</div></div>';
-  html+='</div>';
+  const flt = (window._unitsFlt || '').toLowerCase();
+  const avail = PERSONNEL.filter(p => p.available);
+  const unavail = PERSONNEL.filter(p => !p.available);
+  const approvedCount = Object.keys(_approvalsData || {}).length;
 
-  // Filter bar
-  html+='<div class="filter-bar" style="margin-bottom:8px">';
-  var fltLabels={all:'הכל ('+UNITS.length+')',deployed:'פרוסים','on-duty':'בתפקיד','off-duty':'חופשי',unavailable:'לא זמין'};
-  Object.keys(fltLabels).forEach(function(s){
-    html+='<button class="f-btn'+(flt===s?' active':'')+'" data-flt="'+s+'" onclick="setUnitFlt(this.dataset.flt)">'+fltLabels[s]+'</button>';
+  var html = '';
+  // ── Approvals section (top, always) ──
+  html += renderApprovalsSection();
+
+  // ── Summary KPIs ──
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
+  html += '<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">' + approvedCount + '</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>';
+  html += '<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">' + avail.length + '</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>';
+  html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">' + unavail.length + '</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
+  html += '</div>';
+
+  // ── Search bar ──
+  html += '<input type="text" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;renderUnitsP(document.getElementById(\'rp-body\'))" style="width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
+
+  // ── Personnel list ──
+  const sorted = [...PERSONNEL].sort((a, b) => {
+    // Available first, then alphabetical
+    if (a.available !== b.available) return a.available ? -1 : 1;
+    return (a.name || '').localeCompare(b.name || '', 'he');
   });
-  html+='</div>';
-
-  html+='<button class="btn-pri" style="margin-bottom:10px" onclick="openAddUnitModal()">+ הוסף יחידה</button>';
-
-  // Unit cards
-  filtered.forEach(function(u){
-    var sd=statusDef[u.status]||{lbl:u.status,badge:'b-draft'};
-    html+='<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px;border-right:3px solid '+u.color+'">';
-    // Top row: color dot + name + badge
-    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
-    html+='<div style="width:32px;height:32px;border-radius:50%;background:'+u.color+'22;border:2px solid '+u.color+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:'+u.color+';flex-shrink:0">'+u.id+'</div>';
-    html+='<div style="flex:1">';
-    html+='<div style="font-size:13px;font-weight:800;color:var(--texthi)">'+u.name+'</div>';
-    html+='<div style="font-size:10px;color:var(--text3)">'+u.rank+' · '+u.role+' · '+u.team+'</div>';
-    html+='</div>';
-    html+='<span class="badge '+sd.badge+'">'+sd.lbl+'</span>';
-    html+='</div>';
-    // Mission
-    if(u.mission)html+='<div style="font-size:11px;color:var(--accent2);font-weight:600;margin-bottom:4px">📋 '+u.mission+'</div>';
-    // Skills
-    if(u.skills&&u.skills.length){
-      html+='<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:7px">';
-      u.skills.forEach(function(s){html+='<span class="sk-tag">'+s+'</span>';});
-      html+='</div>';
-    }
-    // Action row: status select + buttons
-    html+='<div style="display:flex;align-items:center;gap:5px">';
-    html+='<select style="flex:1;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:4px 6px;color:var(--text);font-size:11px;font-family:var(--font);outline:none;cursor:pointer" data-uid="'+u.id+'" onchange="changeUnitStatus(this.dataset.uid,this.value)">';
-    [{v:'deployed',l:'פרוס'},{v:'on-duty',l:'בתפקיד'},{v:'off-duty',l:'חופשי'},{v:'unavailable',l:'לא זמין'}].forEach(function(opt){
-      html+='<option value="'+opt.v+'"'+(u.status===opt.v?' selected':'')+'>'+opt.l+'</option>';
-    });
-    html+='</select>';
-    html+='<button class="act-btn" title="מרכז במפה" data-uid="'+u.id+'" onclick="locUnit(this.dataset.uid)">📍</button>';
-    html+='<button class="act-btn" title="שלח הודעה" data-uname="'+u.name+'" onclick="sendToUnit(this.dataset.uname)">💬</button>';
-    html+='<button class="act-btn del" title="הסר יחידה" data-uid="'+u.id+'" onclick="removeUnit(this.dataset.uid)">✕</button>';
-    html+='</div>';
-    html+='</div>';
+  const filtered = sorted.filter(p => {
+    if (!flt) return true;
+    return (p.name || '').toLowerCase().includes(flt)
+        || (p.role || '').toLowerCase().includes(flt)
+        || (p.unit || '').toLowerCase().includes(flt)
+        || (p.callsign || '').toLowerCase().includes(flt);
   });
-  if(!filtered.length)html+='<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין יחידות</p>';
-  c.innerHTML=html;
+
+  filtered.forEach(p => {
+    const av = p.available;
+    const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
+    const borderClr = av ? 'rgba(61,255,82,0.3)' : 'rgba(255,51,51,0.15)';
+    const dotClr = av ? '#3dff52' : '#ff3333';
+    const avatar = p.photo
+      ? '<img src="' + p.photo + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + dotClr + '"/>'
+      : '<div style="width:32px;height:32px;border-radius:50%;background:' + (p.color || '#5a7a90') + '22;border:2px solid ' + dotClr + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:' + (p.color || '#5a7a90') + '">' + initials + '</div>';
+    html += '<div style="background:var(--panel2);border:1px solid ' + borderClr + ';border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:9px">';
+    html += avatar;
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:13px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + '</div>';
+    html += '</div>';
+    html += '<span class="badge ' + (av ? 'b-active' : 'b-unavail') + '" style="font-size:10px">' + (av ? 'זמין' : 'לא זמין') + '</span>';
+    html += '</div>';
+  });
+  if (!filtered.length) html += '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
+  c.innerHTML = html;
 }
-function setUnitFlt(f){const c=document.getElementById('rp-body');c._flt=f;renderUnitsP(c);}
+// REST fallback — if _approvalsData is empty but we know an active notifId
+// exists, fetch responses directly via REST so the panel renders immediately
+// (handles cases where the SDK listener hasn't fired yet on this device).
+function _ensureApprovalsLoaded(){
+  if(Object.keys(_approvalsData||{}).length) return; // already have data
+  if(!_currentActiveNotifId) return; // no active notif
+  if(window._ensureApprovalsInFlight) return; // already fetching
+  window._ensureApprovalsInFlight = true;
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_notif_responses/'+_currentActiveNotifId+'.json?_='+Date.now(),{cache:'no-store'})
+    .then(r=>r.json()).then(data=>{
+      window._ensureApprovalsInFlight = false;
+      if(!data || typeof data!=='object') return;
+      let changed = false;
+      Object.values(data).forEach(d=>{
+        if(d && d.approved && d.personId && !_approvalsData[d.personId]){
+          _approvalsData[d.personId] = d;
+          changed = true;
+        }
+      });
+      if(changed){
+        const c = document.getElementById('rp-body');
+        if(c && (currentPanel==='units'||currentPanel==='personnel')){
+          if(currentPanel==='units') renderUnitsP(c);
+          else renderPersonnelP(c);
+        }
+        if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
+      }
+    }).catch(()=>{ window._ensureApprovalsInFlight = false; });
+}
 
 function changeUnitStatus(id,status){
   const u=UNITS.find(function(x){return x.id===id;});if(!u)return;
@@ -6795,7 +6810,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.8.4 source-code update because the merge in
+    // which survived our v5.8.5 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9158,11 +9173,31 @@ function _calcETAString(personId, destLat, destLng){
   return '~'+h+'שע\''+(m?' '+m+'דק\'':'');
 }
 
+// Remove an approval from the active notification (admin/commander only).
+// Deletes the person's response from Firebase so they disappear from the
+// "מאשרים ומגיעים" list across all devices in real time.
+function removeApproval(personId){
+  if(!_currentActiveNotifId || !window._db) return;
+  if(!confirm('להסיר את האישור?')) return;
+  window._db.ref('tac_notif_responses/'+_currentActiveNotifId+'/'+personId).remove().catch(()=>{});
+  // Optimistic local removal — the listener will confirm it later
+  delete _approvalsData[personId];
+  const c = document.getElementById('rp-body');
+  if(c && (currentPanel==='units'||currentPanel==='personnel')){
+    if(currentPanel==='units') renderUnitsP(c);
+    else renderPersonnelP(c);
+  }
+  if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
+  showToast({icon:'🗑️', title:'אישור הוסר', type:'info'});
+}
+
 function renderApprovalsSection(){
   const entries = Object.values(_approvalsData);
   if(!entries.length) return '';
   const venues = window._activeNotifVenues || [];
   const dest   = window._activeNotifDest;
+  // Determine if current user can delete approvals (admin + commanders)
+  const canDelete = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
 
   if(venues.length <= 1){
     // Single-venue: original layout with ETA
@@ -9187,10 +9222,12 @@ function renderApprovalsSection(){
           statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
         }
         const dotStyle = e.departed ? '' : 'background:#f0b000';
+        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;padding:2px 4px;opacity:0.6;flex-shrink:0" title="הסר אישור">✕</button>` : '';
         return `<div class="approval-item">
           <div class="approval-dot" style="${dotStyle}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
           ${statusHtml}
+          ${delBtn}
         </div>`;
       }).join('')}
     </div>`;
@@ -9228,10 +9265,12 @@ function renderApprovalsSection(){
         } else {
           statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
         }
+        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;padding:2px 4px;opacity:0.6;flex-shrink:0" title="הסר אישור">✕</button>` : '';
         html += `<div class="approval-item">
           <div class="approval-dot" style="background:${e.departed?v.color:'#f0b000'}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
           ${statusHtml}
+          ${delBtn}
         </div>`;
       });
     }
@@ -11821,7 +11860,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.4)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.5)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
