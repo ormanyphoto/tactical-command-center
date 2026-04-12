@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.1.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.1.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.1.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.1.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7021,7 +7021,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.1.0 source-code update because the merge in
+    // which survived our v6.1.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8659,6 +8659,22 @@ function _showIncomingNotif(notif, fbRef){
   // Dedup — if this notif was already shown (e.g. via Firebase listener), skip
   const nid = notif.id || notif.sentAt;
   if(nid && _shownNotifIds.has(nid)) return;
+  // Status check notifications should ONLY show if the user has actually
+  // arrived at an event. On app boot, old status_check notifs from Firebase
+  // should be silently discarded — not popped up.
+  const _isStatusNotif = !!(notif.statusCheck || notif.type === 'status_check');
+  if(_isStatusNotif){
+    const _myId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
+    const _myApproval = _myId ? (_approvalsData||{})[_myId] : null;
+    if(!_myApproval || !_myApproval.arrived){
+      // User has NOT arrived at an event — silently discard this status check
+      if(nid) _shownNotifIds.add(nid);
+      // Also delete it from Firebase so it doesn't keep resurfacing
+      const _DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+      if(_myId) fetch(_DB+'/tac_notifications/'+_myId+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
+      return;
+    }
+  }
   if(nid) _shownNotifIds.add(nid);
   _currentIncomingNotif = {notif, fbRef};
   const gfx = _notifGraphic(notif.type, notif.threat);
@@ -9714,17 +9730,25 @@ function _runStatusCheck(){
 function respondStatusCheck(status){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   if(!u) return;
-  // Find the most recent status_check notification
   const key = 'tac_last_status_check_'+u.id;
   const scNotifId = localStorage.getItem(key);
   if(!scNotifId) return;
+  const DB_SC = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  // Write response
   const path = 'tac_status_responses/'+scNotifId+'/'+u.id;
   const data = {personId:u.id, name:u.name, status, ts:Date.now()};
   if(window._db) window._db.ref(path).set(data).catch(()=>{});
-  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/'+path+'.json',{
+  fetch(DB_SC+'/'+path+'.json',{
     method:'PUT', headers:{'Content-Type':'application/json'},
     body:JSON.stringify(data)
   }).catch(()=>{});
+  // Update lastSeen so this notification doesn't re-appear on next poll
+  const now = Date.now();
+  localStorage.setItem('tac_notif_lastSeen_'+u.id, String(now));
+  // Delete the status check notification from Firebase so it doesn't
+  // resurface when the app restarts or the poll runs again
+  if(window._db) window._db.ref('tac_notifications/'+u.id+'/'+scNotifId).remove().catch(()=>{});
+  fetch(DB_SC+'/tac_notifications/'+u.id+'/'+scNotifId+'.json',{method:'DELETE'}).catch(()=>{});
   document.getElementById('incoming-notif-overlay').classList.remove('open');
 
   if(status === 'sos'){
@@ -12734,7 +12758,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
