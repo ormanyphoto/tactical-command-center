@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.1.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.1.5</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7031,7 +7031,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.1.5 source-code update because the merge in
+    // which survived our v6.2.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8666,45 +8666,59 @@ document.addEventListener('visibilitychange', ()=>{
 });
 
 function _showIncomingNotif(notif, fbRef){
-  // Dedup — if this notif was already shown (e.g. via Firebase listener), skip
+  // ── CLASSIFY THE NOTIFICATION ──
+  // Three mutually-exclusive types: rescue > status_check > emergency
+  // This classification determines which buttons/UI to show.
   const nid = notif.id || notif.sentAt;
+  const isRescue     = !!(notif.rescue && notif.type === 'rescue');
+  const isStatusCheck = !!(notif.statusCheck || notif.type === 'status_check') && !isRescue;
+  const isEmergency  = !isRescue && !isStatusCheck;
+
+  // ── DEDUP ──
   if(nid && _shownNotifIds.has(nid)) return;
-  // Status check notifications should ONLY show if the user has actually
-  // arrived at an event. On app boot, old status_check notifs from Firebase
-  // should be silently discarded — not popped up.
-  const _isStatusNotif = !!(notif.statusCheck || notif.type === 'status_check');
-  if(_isStatusNotif){
+
+  // ── GATE: status checks only for arrived users ──
+  if(isStatusCheck){
     const _myId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
     const _myApproval = _myId ? (_approvalsData||{})[_myId] : null;
-    // Check multiple sources for arrival state — _approvalsData is often
-    // empty because the SDK listener stalls on Samsung WebView and the
-    // REST poll hasn't run yet when the notification arrives.
-    const arrivedViaData = _myApproval && _myApproval.arrived;
-    // Check the localStorage flag set by markArrived()
     let arrivedViaLS = false;
-    try {
-      const lsArr = JSON.parse(localStorage.getItem('tac_arrived_at_event')||'null');
-      if(lsArr && lsArr.personId === _myId) arrivedViaLS = true;
-    } catch(_){}
-    const isAtEvent = arrivedViaData || arrivedViaLS;
-    if(!isAtEvent){
-      // Last resort: the server sent this status check TO this user,
-      // which means _runStatusCheck already verified they're arrived.
-      // Trust the server — if the notif exists, the user is at the event.
-      // Only discard truly stale notifs (> 10 min old).
-      const age = notif.sentAt ? (Date.now() - notif.sentAt) : 999999;
-      if(age > 10 * 60 * 1000){
-        // Stale status check — discard silently
-        if(nid) _shownNotifIds.add(nid);
-        const _DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
-        if(_myId) fetch(_DB+'/tac_notifications/'+_myId+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
-        return;
-      }
-      // Fresh status check — trust the server, show it
+    try { const la = JSON.parse(localStorage.getItem('tac_arrived_at_event')||'null'); if(la && la.personId===_myId) arrivedViaLS=true; } catch(_){}
+    const isAtEvent = (_myApproval && _myApproval.arrived) || arrivedViaLS;
+    const age = notif.sentAt ? (Date.now() - notif.sentAt) : 999999;
+    if(!isAtEvent && age > 10*60*1000){
+      if(nid) _shownNotifIds.add(nid);
+      if(_myId) fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_notifications/'+_myId+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
+      return;
     }
   }
+
+  // ── PRIORITY: don't let status_check/rescue override a visible emergency popup ──
+  const overlayOpen = document.getElementById('incoming-notif-overlay').classList.contains('open');
+  if(overlayOpen && _currentIncomingNotif && !isEmergency){
+    const curNotif = _currentIncomingNotif.notif;
+    const curIsEmergency = !(curNotif.rescue || curNotif.statusCheck || curNotif.type==='status_check' || curNotif.type==='rescue');
+    if(curIsEmergency){
+      // An emergency popup is already showing — queue this for later, don't override
+      if(nid) _shownNotifIds.add(nid); // mark shown so it won't re-trigger
+      return;
+    }
+  }
+
   if(nid) _shownNotifIds.add(nid);
-  _currentIncomingNotif = {notif, fbRef};
+
+  // ── AUTO-DELETE from Firebase after showing ──
+  // Prevents stale notifications from re-surfacing on app restart.
+  const _myUid = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
+  if(_myUid && nid){
+    // Defer 2s so the popup has time to render before deleting
+    setTimeout(()=>{
+      if(window._db) window._db.ref('tac_notifications/'+_myUid+'/'+nid).remove().catch(()=>{});
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_notifications/'+_myUid+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
+    }, 2000);
+  }
+
+  // ── RENDER COMMON PARTS ──
+  const card = document.getElementById('incoming-notif-card');
   const gfx = _notifGraphic(notif.type, notif.threat);
   const iconEl = document.getElementById('inc-icon');
   iconEl.textContent = gfx.emoji;
@@ -8714,9 +8728,56 @@ function _showIncomingNotif(notif, fbRef){
   if(threatEl){ if(notif.threat){ threatEl.textContent='⚡ '+notif.threat; threatEl.style.display=''; } else { threatEl.style.display='none'; } }
   document.getElementById('inc-title').textContent = notif.title||'';
   document.getElementById('inc-body').textContent = notif.body||'';
-  document.getElementById('inc-sender').textContent = 'נשלח על ידי: '+notif.senderName;
+  document.getElementById('inc-sender').textContent = 'נשלח על ידי: '+(notif.senderName||'');
+  const urgBorderMap = {3:'rgba(255,17,17,0.65)',2:'rgba(29,108,255,0.6)',1:'rgba(224,184,0,0.55)',0:'rgba(41,197,246,0.45)'};
+  card.style.borderColor = urgBorderMap[gfx.urgency] ?? 'var(--border2)';
+  card.style.boxShadow = gfx.urgency>=2 ? `0 20px 60px ${gfx.color}3a` : '';
+
+  // ── RESET ALL BUTTON GROUPS (clean slate) ──
+  const incBtnsMain = document.getElementById('inc-btns');
+  const departBtn   = document.getElementById('inc-depart-now');
+  const scBtns      = document.getElementById('inc-status-btns');
+  const addrWrap    = document.getElementById('inc-addr-wrap');
+  const venueWrap   = document.getElementById('inc-venue-wrap');
+  const rescueBtns  = document.getElementById('inc-rescue-btns');
+  if(incBtnsMain) incBtnsMain.style.display = 'none';
+  if(departBtn)   departBtn.style.display   = 'none';
+  if(scBtns)      scBtns.style.display      = 'none';
+  if(addrWrap)    addrWrap.style.display     = 'none';
+  if(venueWrap)   venueWrap.style.display    = 'none';
+  if(rescueBtns)  rescueBtns.style.display   = 'none';
+
+  // ── ROUTE BY TYPE ──
+  if(isRescue){
+    // RESCUE popup — navigate to distressed person
+    let rb = rescueBtns;
+    if(!rb){ rb=document.createElement('div'); rb.id='inc-rescue-btns'; rb.style.cssText='width:100%;margin-top:10px;display:flex;flex-direction:column;gap:10px'; card.appendChild(rb); }
+    const rLat=notif.lat||'', rLng=notif.lng||'', rPid=notif.rescuePersonId||'', rName=notif.rescuePersonName||'', rSosId=notif.id||'';
+    rb.style.display='flex';
+    rb.innerHTML='<button onclick="respondToRescue(\''+rSosId+'\',\''+rPid+'\',\''+escHtml(rName)+'\','+rLat+','+rLng+')" style="width:100%;padding:14px;background:var(--danger);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font);box-shadow:0 5px 18px rgba(255,51,51,0.4)">🚗 נווט לאיש הצוות וצא לדרך</button>'
+      +'<button onclick="document.getElementById(\'incoming-notif-overlay\').classList.remove(\'open\')" style="width:100%;padding:10px;background:var(--panel2);color:var(--text2);border:1px solid var(--border2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">סגור</button>';
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('alert'));
+    _vibrate([500,200,500,200,500]);
+    return;
+  }
+
+  if(isStatusCheck){
+    // STATUS CHECK popup — ok / sos only
+    if(scBtns) scBtns.style.display = 'flex';
+    const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    if(u2) localStorage.setItem('tac_last_status_check_'+u2.id, notif.id);
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('alert'));
+    _vibrate([200,100,200]);
+    return;
+  }
+
+  // ── EMERGENCY popup (approve / decline / depart) ──
+  _currentIncomingNotif = {notif, fbRef};
+  if(incBtnsMain) incBtnsMain.style.display = '';
+  if(departBtn) departBtn.style.display = '';
   // Address button
-  const addrWrap = document.getElementById('inc-addr-wrap');
   const addrBtn = document.getElementById('inc-addr-btn');
   if(notif.address && addrWrap && addrBtn){
     addrWrap.style.display='';
@@ -8724,84 +8785,15 @@ function _showIncomingNotif(notif, fbRef){
     addrBtn.dataset.addr = notif.address;
     addrBtn.dataset.lat = notif.lat || '';
     addrBtn.dataset.lng = notif.lng || '';
-  } else if(addrWrap){ addrWrap.style.display='none'; }
-  // Border + shadow by urgency
-  const card = document.getElementById('incoming-notif-card');
-  const urgBorderMap = {3:'rgba(255,17,17,0.65)',2:'rgba(29,108,255,0.6)',1:'rgba(224,184,0,0.55)',0:'rgba(41,197,246,0.45)'};
-  card.style.borderColor = urgBorderMap[gfx.urgency] ?? (gfx.urgency<0 ? 'rgba(176,108,240,0.45)' : 'var(--border2)');
-  card.style.boxShadow = gfx.urgency>=2
-    ? `0 20px 60px ${gfx.color}3a, 0 0 0 1px ${gfx.color}22`
-    : '';
-  // ── RESCUE notification (commander sees navigate button to distressed person) ──
-  const isRescue = !!(notif.rescue && notif.type === 'rescue');
-  if(isRescue){
-    const scBtnsR = document.getElementById('inc-status-btns');
-    const incBtnsR = document.getElementById('inc-btns');
-    const departBtnR = document.getElementById('inc-depart-now');
-    if(incBtnsR) incBtnsR.style.display = 'none';
-    if(departBtnR) departBtnR.style.display = 'none';
-    if(scBtnsR) scBtnsR.style.display = 'none';
-    if(document.getElementById('inc-addr-wrap')) document.getElementById('inc-addr-wrap').style.display = 'none';
-    if(document.getElementById('inc-venue-wrap')) document.getElementById('inc-venue-wrap').style.display = 'none';
-    // Build rescue-specific buttons
-    let rescueBtns = document.getElementById('inc-rescue-btns');
-    if(!rescueBtns){
-      rescueBtns = document.createElement('div');
-      rescueBtns.id = 'inc-rescue-btns';
-      rescueBtns.style.cssText = 'width:100%;margin-top:10px;display:flex;flex-direction:column;gap:10px';
-      card.appendChild(rescueBtns);
-    }
-    const rLat = notif.lat||'';
-    const rLng = notif.lng||'';
-    const rPid = notif.rescuePersonId||'';
-    const rName = notif.rescuePersonName||'';
-    const rSosId = notif.id||'';
-    rescueBtns.style.display = 'flex';
-    rescueBtns.innerHTML = ''
-      +'<button onclick="respondToRescue(\''+rSosId+'\',\''+rPid+'\',\''+escHtml(rName)+'\','+rLat+','+rLng+')" style="width:100%;padding:14px;background:var(--danger);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font);box-shadow:0 5px 18px rgba(255,51,51,0.4)">🚗 נווט לאיש הצוות וצא לדרך</button>'
-      +'<button onclick="document.getElementById(\'incoming-notif-overlay\').classList.remove(\'open\')" style="width:100%;padding:10px;background:var(--panel2);color:var(--text2);border:1px solid var(--border2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">סגור</button>';
-    document.getElementById('incoming-notif-overlay').classList.add('open');
-    _playAlertSound(getAlertSoundForType('alert'));
-    _vibrate([500,200,500,200,500]);
-    return;
-  }
-  // Hide rescue buttons if they exist from a previous rescue popup
-  const oldRescueBtns = document.getElementById('inc-rescue-btns');
-  if(oldRescueBtns) oldRescueBtns.style.display = 'none';
-
-  // ── Status check notifications — show only ✅ תקין / 🆘 זקוק לסיוע ──
-  const isStatusCheck = !!(notif.statusCheck || notif.type === 'status_check');
-  const scBtns = document.getElementById('inc-status-btns');
-  const departBtn = document.getElementById('inc-depart-now');
-  const incBtnsMain = document.getElementById('inc-btns');
-  if(isStatusCheck){
-    if(incBtnsMain) incBtnsMain.style.display = 'none';
-    if(departBtn) departBtn.style.display = 'none';
-    if(scBtns) scBtns.style.display = 'flex';
-    if(document.getElementById('inc-addr-wrap')) document.getElementById('inc-addr-wrap').style.display = 'none';
-    if(document.getElementById('inc-venue-wrap')) document.getElementById('inc-venue-wrap').style.display = 'none';
-    const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-    if(u2) localStorage.setItem('tac_last_status_check_'+u2.id, notif.id);
-    document.getElementById('incoming-notif-overlay').classList.add('open');
-    _playAlertSound(getAlertSoundForType('alert'));
-    _vibrate([200,100,200]);
-    return;
-  } else {
-    if(scBtns) scBtns.style.display = 'none';
-    if(incBtnsMain) incBtnsMain.style.display = '';
-    if(departBtn) departBtn.style.display = '';
   }
 
   document.getElementById('incoming-notif-overlay').classList.add('open');
-  // Alert sound + vibration — use type-specific sound
   _playAlertSound(getAlertSoundForType(notif.type||'alert'));
   _vibrate([300,100,300,100,600]);
   // Venue picker — show selectable venue buttons if multiple venues
-  const venueWrap = document.getElementById('inc-venue-wrap');
   const venueList = document.getElementById('inc-venue-list');
-  const incBtns   = document.getElementById('inc-btns');
   window._pendingVenueId = null;
-  if(notif.venues && notif.venues.length > 1 && venueWrap && venueList){
+  if(notif.venues && notif.venues.length > 1 && venueWrap && venueList && isEmergency){
     venueWrap.style.display = '';
     // Sort venues by distance from user's last known position (closest first)
     const userLat = window._lastLat, userLng = window._lastLng;
@@ -8855,14 +8847,10 @@ function _showIncomingNotif(notif, fbRef){
       </button>`;
     }).join('');
     // Hide approve button only — keep "לא זמין" always visible
-    if(incBtns){
-      const approveBtn = incBtns.querySelector('.inc-approve');
+    if(incBtnsMain){
+      const approveBtn = incBtnsMain.querySelector('.inc-approve');
       if(approveBtn) approveBtn.style.display = 'none';
     }
-  } else {
-    if(venueWrap) venueWrap.style.display = 'none';
-    // Don't re-show approve/decline for status_check — those were hidden above
-    if(!isStatusCheck && incBtns){ incBtns.style.display = ''; incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true); }
   }
 
   // Mark ALL venue addresses on map (retry until map is ready)
@@ -12965,7 +12953,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
