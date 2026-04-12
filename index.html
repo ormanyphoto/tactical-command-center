@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -344,7 +344,7 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.02em;white-space:nowrap}
 .b-urgent{background:rgba(255,51,51,0.12);color:var(--danger)}
-.b-active{background:rgba(61,255,82,0.1);color:var(--accent)}
+.b-active{background:rgba(61,255,82,0.15);color:var(--accent);font-weight:700}
 .b-pending{background:rgba(255,193,7,0.1);color:var(--warn)}
 .b-completed{background:rgba(41,197,246,0.1);color:var(--blue)}
 .b-briefing{background:rgba(176,108,240,0.1);color:var(--purple)}
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.0</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4767,14 +4767,14 @@ function _personStatus(p){
     if(dLat && dLng){
       const loc = (window._liveLocs||{})[p.id];
       if(loc && loc.lat && loc.lng && typeof _haversineKm==='function'){
-        if(_haversineKm(loc.lat, loc.lng, dLat, dLng) < 0.3) return {key:'arrived',lbl:'הגיע',badge:'b-active',clr:'#3dff52',order:0};
+        if(_haversineKm(loc.lat, loc.lng, dLat, dLng) < 0.3) return {key:'arrived',lbl:'✅ הגיע',badge:'b-active',order:0};
       }
     }
-    return {key:'enroute',lbl:'🚗 בדרך',badge:'b-deployed',clr:'#1d6cff',order:1};
+    return {key:'enroute',lbl:'🚗 בדרך',badge:'b-deployed',order:1};
   }
-  if(app && app.approved) return {key:'approved',lbl:'⏳ מאשר',badge:'b-onduty',clr:'#f0b000',order:2};
-  if(p.available) return {key:'available',lbl:'זמין',badge:'b-active',clr:'#3dff52',order:3};
-  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',clr:'var(--text3)',order:4};
+  if(app && app.approved) return {key:'approved',lbl:'⏳ מאשר',badge:'b-onduty',order:2};
+  if(p.available) return {key:'available',lbl:'זמין',badge:'b-active',order:3};
+  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',order:4};
 }
 function _renderUnitsListOnly(el){
   if(!el) return;
@@ -4798,7 +4798,7 @@ function _renderUnitsListOnly(el){
     const st = _personStatus(p);
     const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
     const borderClr = st.order <= 2 ? 'rgba(61,255,82,0.3)' : (p.available ? 'rgba(61,255,82,0.15)' : 'rgba(255,51,51,0.15)');
-    const dotClr = st.clr;
+    const dotClr = st.order <= 1 ? '#3dff52' : st.order === 2 ? '#f0b000' : (p.available ? '#3dff52' : '#ff3333');
     const avatar = p.photo
       ? '<img src="' + p.photo + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + dotClr + '"/>'
       : '<div style="width:32px;height:32px;border-radius:50%;background:' + (p.color || '#5a7a90') + '22;border:2px solid ' + dotClr + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:' + (p.color || '#5a7a90') + '">' + initials + '</div>';
@@ -4808,7 +4808,7 @@ function _renderUnitsListOnly(el){
     html += '<div style="font-size:13px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>';
     html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + '</div>';
     html += '</div>';
-    html += '<span class="badge ' + st.badge + '" style="font-size:10px;color:' + st.clr + '">' + st.lbl + '</span>';
+    html += '<span class="badge ' + st.badge + '" style="font-size:10px">' + st.lbl + '</span>';
     html += '</div>';
   });
   if (!filtered.length) html = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
@@ -6878,7 +6878,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.0 source-code update because the merge in
+    // which survived our v5.9.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -11949,7 +11949,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
