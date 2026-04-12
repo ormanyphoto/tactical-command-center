@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.1</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6878,7 +6878,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.1 source-code update because the merge in
+    // which survived our v5.9.2 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9091,9 +9091,10 @@ setTimeout(_subscribeActiveNotif, 1500);
 // updates on Android WebView / Samsung / Chrome. Poll tac_active_notif via
 // plain fetch every 10 seconds as a safety net. The primary update path
 // is the SDK listener; this just catches cases where it silently stalled.
+const _REST_DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
 setInterval(async ()=>{
   try {
-    const resp = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_active_notif.json?_='+Date.now(), {cache:'no-store'});
+    const resp = await fetch(_REST_DB+'/tac_active_notif.json?_='+Date.now(), {cache:'no-store'});
     if(!resp.ok) return;
     const v = await resp.json();
     if(!v || !v.notifId) return;
@@ -9106,6 +9107,46 @@ setInterval(async ()=>{
     }
   } catch(_){}
 }, 10000);
+
+// REST polling fallback for APPROVALS — the SDK .on('value') listener on
+// tac_notif_responses/{notifId} also stalls on Samsung WebView. This poll
+// fetches responses every 5 seconds via plain HTTP and merges new entries
+// into _approvalsData, then re-renders all surfaces. This is THE fix for
+// "approvals only show on the approver's own device".
+setInterval(async ()=>{
+  if(!_currentActiveNotifId) return;
+  try {
+    const resp = await fetch(_REST_DB+'/tac_notif_responses/'+_currentActiveNotifId+'.json?_='+Date.now(), {cache:'no-store'});
+    if(!resp.ok) return;
+    const data = await resp.json();
+    if(!data || typeof data!=='object') return;
+    let changed = false;
+    const newData = {};
+    Object.values(data).forEach(d=>{
+      if(d && d.approved && d.personId) newData[d.personId] = d;
+    });
+    // Check for additions or changes
+    Object.entries(newData).forEach(([pid, d])=>{
+      if(!_approvalsData[pid] || _approvalsData[pid].departed !== d.departed){
+        changed = true;
+      }
+    });
+    // Check for removals (admin deleted)
+    Object.keys(_approvalsData).forEach(pid=>{
+      if(!newData[pid]) changed = true;
+    });
+    if(changed){
+      _approvalsData = newData;
+      console.log('[APPROVALS REST] updated, count=', Object.keys(_approvalsData).length);
+      const c = document.getElementById('rp-body');
+      if(c && (currentPanel==='units'||currentPanel==='personnel')){
+        if(currentPanel==='units') renderUnitsP(c);
+        else renderPersonnelP(c);
+      }
+      if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
+    }
+  } catch(_){}
+}, 5000);
 // Populate the field-mode compact approvals bar. Safe to call any time —
 // it just no-ops if the field mode isn't visible or there are no approvals.
 function _refreshFieldApprovalsBar(){
@@ -11949,7 +11990,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
