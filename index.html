@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.8.8 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.9.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.8</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.8.8</div>
+    <div id="fm-logo">⬡ מבצעים v5.9.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4683,6 +4683,40 @@ function saveMission(){
 }
 
 // ─── UNITS ───
+// Build the 5-status KPI bar HTML for the כוחות panel
+function _buildUnitsKPI(){
+  const entries = Object.values(_approvalsData || {});
+  const avail = PERSONNEL.filter(p => p.available).length;
+  const unavail = PERSONNEL.filter(p => !p.available).length;
+  const approved = entries.filter(e => !e.departed).length;
+  const enroute = entries.filter(e => e.departed).length;
+  // "הגיעו" — departed + very close to destination (< 0.3 km) or manually marked
+  let arrived = 0;
+  const dest = window._activeNotifDest;
+  const venues = window._activeNotifVenues || [];
+  const dLat = (dest && dest.lat) || (venues[0] && venues[0].lat) || null;
+  const dLng = (dest && dest.lng) || (venues[0] && venues[0].lng) || null;
+  if(dLat && dLng){
+    entries.forEach(e => {
+      if(!e.departed) return;
+      const loc = (window._liveLocs||{})[e.personId];
+      if(loc && loc.lat && loc.lng){
+        const km = (typeof _haversineKm==='function') ? _haversineKm(loc.lat, loc.lng, dLat, dLng) : 999;
+        if(km < 0.3) arrived++;
+      }
+    });
+  }
+  const s = (bg,border,clr,val,lbl) =>
+    '<div style="background:'+bg+';border:1px solid '+border+';border-radius:var(--r);padding:6px 4px;text-align:center">'
+    +'<div style="font-size:18px;font-weight:900;color:'+clr+'">'+val+'</div>'
+    +'<div style="font-size:9px;color:var(--text3);white-space:nowrap">'+lbl+'</div></div>';
+  return s('rgba(61,255,82,0.1)','rgba(61,255,82,0.25)','var(--accent)',avail,'זמינים')
+       + s('var(--panel2)','var(--border)','var(--text2)',unavail,'לא זמינים')
+       + s('rgba(240,176,0,0.1)','rgba(240,176,0,0.25)','#f0b000',approved,'מאשרים')
+       + s('rgba(29,108,255,0.1)','rgba(29,108,255,0.25)','#1d6cff',enroute,'בדרך')
+       + s('rgba(61,255,82,0.15)','rgba(61,255,82,0.4)','#3dff52',arrived,'הגיעו');
+}
+
 function renderUnitsP(c){
   if(!c)c=document.getElementById('rp-body');
   _syncTitle('units');
@@ -4699,33 +4733,15 @@ function renderUnitsP(c){
     const apSec = c.querySelector('#units-approvals-wrap');
     if(apSec) apSec.innerHTML = renderApprovalsSection();
     const kpi = c.querySelector('#units-kpi');
-    if(kpi){
-      const approvedCount = Object.keys(_approvalsData || {}).length;
-      const avail = PERSONNEL.filter(p => p.available).length;
-      const unavail = PERSONNEL.filter(p => !p.available).length;
-      kpi.innerHTML = ''
-        +'<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+approvedCount+'</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>'
-        +'<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>'
-        +'<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">'+unavail+'</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
-    }
+    if(kpi) kpi.innerHTML = _buildUnitsKPI();
     return;
   }
-
-  // First render — build full skeleton
-  const approvedCount = Object.keys(_approvalsData || {}).length;
-  const avail = PERSONNEL.filter(p => p.available).length;
-  const unavail = PERSONNEL.filter(p => !p.available).length;
 
   var html = '';
   // ── Approvals ──
   html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + '</div>';
-
-  // ── Summary KPIs ──
-  html += '<div id="units-kpi" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
-  html += '<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+approvedCount+'</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>';
-  html += '<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>';
-  html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">'+unavail+'</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
-  html += '</div>';
+  // ── Summary KPIs: זמינים | לא זמינים | מאשרים | בדרך | הגיעו ──
+  html += '<div id="units-kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px">' + _buildUnitsKPI() + '</div>';
 
   // ── Search bar — oninput only updates the list div, not the whole panel ──
   html += '<input type="text" id="units-search" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;_renderUnitsListOnly(document.getElementById(\'units-plist\'))" style="width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
@@ -4738,10 +4754,38 @@ function renderUnitsP(c){
 }
 // Renders ONLY the personnel cards into the given container — keeps the
 // search input alive so focus + cursor aren't lost while typing.
+// Resolve the operational status of a person for sorting/display in the
+// כוחות panel. Priority: הגיע > בדרך > מאשר > זמין > לא זמין.
+function _personStatus(p){
+  const app = (_approvalsData||{})[p.id];
+  if(app && app.departed){
+    // Check if arrived (< 0.3 km from destination)
+    const dest = window._activeNotifDest;
+    const venues = window._activeNotifVenues || [];
+    const dLat = (dest && dest.lat) || (venues[0] && venues[0].lat) || null;
+    const dLng = (dest && dest.lng) || (venues[0] && venues[0].lng) || null;
+    if(dLat && dLng){
+      const loc = (window._liveLocs||{})[p.id];
+      if(loc && loc.lat && loc.lng && typeof _haversineKm==='function'){
+        if(_haversineKm(loc.lat, loc.lng, dLat, dLng) < 0.3) return {key:'arrived',lbl:'הגיע',badge:'b-active',clr:'#3dff52',order:0};
+      }
+    }
+    return {key:'enroute',lbl:'🚗 בדרך',badge:'b-deployed',clr:'#1d6cff',order:1};
+  }
+  if(app && app.approved) return {key:'approved',lbl:'⏳ מאשר',badge:'b-onduty',clr:'#f0b000',order:2};
+  if(p.available) return {key:'available',lbl:'זמין',badge:'b-active',clr:'#3dff52',order:3};
+  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',clr:'var(--text3)',order:4};
+}
 function _renderUnitsListOnly(el){
   if(!el) return;
   const flt = (window._unitsFlt || '').toLowerCase();
-  const sorted = [...PERSONNEL].sort((a, b) => (a.order||0) - (b.order||0));
+  // Sort: by status priority (arrived→enroute→approved→available→unavailable),
+  // then by the admin-defined order within each group.
+  const sorted = [...PERSONNEL].sort((a, b) => {
+    const sa = _personStatus(a), sb = _personStatus(b);
+    if(sa.order !== sb.order) return sa.order - sb.order;
+    return (a.order||0) - (b.order||0);
+  });
   const filtered = sorted.filter(p => {
     if (!flt) return true;
     return (p.name || '').toLowerCase().includes(flt)
@@ -4751,10 +4795,10 @@ function _renderUnitsListOnly(el){
   });
   var html = '';
   filtered.forEach(p => {
-    const av = p.available;
+    const st = _personStatus(p);
     const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
-    const borderClr = av ? 'rgba(61,255,82,0.3)' : 'rgba(255,51,51,0.15)';
-    const dotClr = av ? '#3dff52' : '#ff3333';
+    const borderClr = st.order <= 2 ? 'rgba(61,255,82,0.3)' : (p.available ? 'rgba(61,255,82,0.15)' : 'rgba(255,51,51,0.15)');
+    const dotClr = st.clr;
     const avatar = p.photo
       ? '<img src="' + p.photo + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid ' + dotClr + '"/>'
       : '<div style="width:32px;height:32px;border-radius:50%;background:' + (p.color || '#5a7a90') + '22;border:2px solid ' + dotClr + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:' + (p.color || '#5a7a90') + '">' + initials + '</div>';
@@ -4764,7 +4808,7 @@ function _renderUnitsListOnly(el){
     html += '<div style="font-size:13px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>';
     html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + '</div>';
     html += '</div>';
-    html += '<span class="badge ' + (av ? 'b-active' : 'b-unavail') + '" style="font-size:10px">' + (av ? 'זמין' : 'לא זמין') + '</span>';
+    html += '<span class="badge ' + st.badge + '" style="font-size:10px;color:' + st.clr + '">' + st.lbl + '</span>';
     html += '</div>';
   });
   if (!filtered.length) html = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
@@ -6834,7 +6878,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.8.8 source-code update because the merge in
+    // which survived our v5.9.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8350,6 +8394,10 @@ function listenForIncomingNotifications(){
         if(_shownNotifIds.has(notifId)) return;
         console.log('[NOTIF sdk] new', notifId, notif.title);
         _notifLastNewAt = Date.now();
+        // CRITICAL: ensure notif.id is set to the Firebase key so that
+        // respondToNotif writes the approval to the correct path
+        // (tac_notif_responses/{notifId}) that commanders are listening to.
+        notif.id = notif.id || notifId;
         _showIncomingNotif(notif, snap.ref);
       });
     } catch(e){
@@ -8394,6 +8442,9 @@ function listenForIncomingNotifications(){
         if(notif.sentAt && notif.sentAt <= ls) return;
         console.log('[NOTIF poll] new', nid, notif.title);
         _notifLastNewAt = Date.now();
+        // CRITICAL: ensure notif.id equals the Firebase key so respondToNotif
+        // writes the approval to the path commanders are listening to.
+        notif.id = notif.id || nid;
         const fbRef = window._db ? window._db.ref('tac_notifications/'+pid+'/'+nid) : null;
         _showIncomingNotif(notif, fbRef);
       });
@@ -11898,7 +11949,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.8)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
