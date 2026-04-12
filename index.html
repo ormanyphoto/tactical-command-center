@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.1.2 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.1.3 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.2</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.3</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.1.2</div>
+    <div id="fm-logo">⬡ מבצעים v6.1.3</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7030,7 +7030,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.1.2 source-code update because the merge in
+    // which survived our v6.1.3 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -10045,9 +10045,37 @@ function sendAnotherRescuer(sosNotifId, personId, personName){
   const existingIds = new Set(rec && rec.responders ? Object.keys(rec.responders) : []);
   const candidates = PERSONNEL.filter(p => p.available && p.id !== personId && !existingIds.has(p.id));
   if(!candidates.length){ showToast({icon:'⚠️',title:'אין אנשים זמינים',type:'warn'}); return; }
+  // Sort by distance from the distressed person's last known location
+  const dLat = rec ? rec.lat : null;
+  const dLng = rec ? rec.lng : null;
+  const withDist = candidates.map(p => {
+    const loc = (window._liveLocs||{})[p.id];
+    let distKm = 999;
+    if(dLat && dLng && loc && loc.lat && loc.lng && typeof _haversineKm==='function'){
+      distKm = _haversineKm(loc.lat, loc.lng, dLat, dLng);
+    }
+    return {...p, _distKm: distKm};
+  }).sort((a,b) => a._distKm - b._distKm);
   document.getElementById('modal-ttl').innerHTML = '🚗 שלח אדם נוסף לחילוץ '+escHtml(personName);
-  document.getElementById('modal-body').innerHTML = '<div style="max-height:300px;overflow-y:auto">'
-    + candidates.map(p => '<label style="display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;border-bottom:1px solid var(--border2)"><input type="radio" name="rescue-pick" value="'+p.id+'" style="accent-color:var(--accent)"/><span style="font-weight:700">'+escHtml(p.name)+'</span><span style="font-size:11px;color:var(--text3)">'+escHtml(p.role||'')+'</span></label>').join('')
+  document.getElementById('modal-body').innerHTML = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">ממוין לפי קרבה למיקום איש הצוות</div><div style="max-height:300px;overflow-y:auto">'
+    + withDist.map((p, idx) => {
+      const distStr = p._distKm < 900
+        ? (p._distKm < 1 ? Math.round(p._distKm*1000)+'מ\'' : p._distKm.toFixed(1)+'ק"מ')
+        : 'לא ידוע';
+      const isBest = idx === 0 && p._distKm < 900;
+      const badge = isBest
+        ? '<span style="font-size:9px;font-weight:800;color:#07090a;background:#3dff52;border-radius:4px;padding:1px 6px;white-space:nowrap">📍 הקרוב ביותר</span>'
+        : '';
+      const distColor = p._distKm < 2 ? 'var(--accent)' : p._distKm < 10 ? 'var(--accent2)' : 'var(--text3)';
+      return '<label style="display:flex;align-items:center;gap:8px;padding:9px 8px;cursor:pointer;border-bottom:1px solid var(--border2)'+(isBest?';background:rgba(61,255,82,0.06)':'')+'">'
+        +'<input type="radio" name="rescue-pick" value="'+p.id+'" '+(isBest?'checked':'')+' style="accent-color:var(--accent)"/>'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;align-items:center;gap:6px"><span style="font-weight:700">'+escHtml(p.name)+'</span>'+badge+'</div>'
+        +'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.role||'')+' · '+escHtml(p.unit||'')+'</div>'
+        +'</div>'
+        +'<span style="font-size:11px;font-weight:700;color:'+distColor+';white-space:nowrap">'+distStr+'</span>'
+        +'</label>';
+    }).join('')
     + '</div>';
   modalCB = ()=>{
     const sel = document.querySelector('input[name="rescue-pick"]:checked');
@@ -12851,7 +12879,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.2)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.3)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
