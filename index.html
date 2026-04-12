@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.9.7 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.0.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -21,7 +21,7 @@
 <script src="firebase-messaging-compat.js?v=2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-:root{--r:6px;--font:'Heebo',sans-serif;--font2:'Assistant',sans-serif;--trans:0.25s ease}
+:root{--r:6px;--font:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Hebrew',Arial,sans-serif;--font2:'Assistant',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Hebrew',Arial,sans-serif;--trans:0.25s ease}
 body.night{--bg:#07090a;--panel:#0d1014;--panel2:#121620;--panel3:#18202e;--panel4:#1e2838;--accent:#3dff52;--accent2:#a8e800;--warn:#ffc107;--danger:#ff3333;--blue:#29c5f6;--purple:#b06cf0;--orange:#ff7a1a;--teal:#00e8b8;--pink:#ff4aaa;--text:#9ab8c8;--text2:#5a7a90;--text3:#344858;--texthi:#d8eef8;--border:#1a2838;--border2:#243448;--border3:#2e4460;--glow:rgba(61,255,82,0.12);--glow2:rgba(61,255,82,0.06);--popup-bg:rgba(8,12,18,0.97)}
 body.day{--bg:#f0f4f8;--panel:#ffffff;--panel2:#f4f8fc;--panel3:#eaf0f8;--panel4:#e0eaf4;--accent:#1a8c2e;--accent2:#4a9e00;--warn:#d47800;--danger:#cc1111;--blue:#0a7cb8;--purple:#6040b8;--orange:#b84800;--teal:#008870;--pink:#c8006a;--text:#2a3e54;--text2:#4a6070;--text3:#7a94a8;--texthi:#0a1e30;--border:#c8dcea;--border2:#b0c8da;--border3:#88a8c0;--glow:rgba(26,140,46,0.08);--glow2:rgba(26,140,46,0.04);--popup-bg:rgba(255,255,255,0.98)}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.9.7</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1173,7 +1173,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.9.7</div>
+    <div id="fm-logo">⬡ מבצעים v6.0.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1246,6 +1246,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('plates-bo')">🚗 לוחיות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
+      <button class="bo-tab" onclick="boTab('stats-bo')">📊 סטטיסטיקה</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
   </div>
@@ -4735,15 +4736,15 @@ function renderUnitsP(c){
     _renderUnitsListOnly(existingList);
     // Also refresh the approvals + KPI sections
     const apSec = c.querySelector('#units-approvals-wrap');
-    if(apSec) apSec.innerHTML = renderApprovalsSection();
+    if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
     const kpi = c.querySelector('#units-kpi');
     if(kpi) kpi.innerHTML = _buildUnitsKPI();
     return;
   }
 
   var html = '';
-  // ── Approvals ──
-  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + '</div>';
+  // ── Approvals + status check config ──
+  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
   // ── Summary KPIs: זמינים | לא זמינים | מאשרים | בדרך | הגיעו ──
   html += '<div id="units-kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px">' + _buildUnitsKPI() + '</div>';
 
@@ -5292,7 +5293,7 @@ function boTab(tab){
     'vehicles-bo':boVehicles,
     'equipment-bo':boEquipment,'templates-bo':boTemplates,'chat-bo':boChat,
     'sessions-bo':boSessions,'plates-bo':boPlates,
-    'audit-bo':boAudit,'analytics-bo':boAnalytics,'settings-bo':boSettings,
+    'audit-bo':boAudit,'analytics-bo':boAnalytics,'stats-bo':boMonthlyStats,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
   if(fn){
@@ -6164,6 +6165,109 @@ function _exportAuditCSV(){
   showToast({icon:'⬇️',title:'יומן הביקורת יוצא',sub:auditEntries.length+' רשומות',type:'success'});
 }
 
+// ══════════════════════════════════════════════════════════
+// MONTHLY STATS — per-person activity tracking with min threshold
+// ══════════════════════════════════════════════════════════
+function boMonthlyStats(c){
+  // Role-based filtering: admin sees all, team leader sees own unit only
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const isAdmin = (typeof AUTH!=='undefined') && AUTH.isAdmin();
+  const canManage = (typeof AUTH!=='undefined') && AUTH.canDo('manage_units');
+  const myUnit = u ? u.unit : '';
+  let people = [...PERSONNEL];
+  if(!isAdmin && canManage && myUnit){
+    people = people.filter(p => p.unit === myUnit);
+  }
+  people.sort((a,b) => (a.order||0) - (b.order||0));
+
+  // Month selector — default to current month
+  const now = new Date();
+  const selMonth = window._statsMonth || (now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'));
+  const months = [];
+  for(let i=0; i<6; i++){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const lbl = d.toLocaleDateString('he-IL',{month:'long',year:'numeric'});
+    months.push({key, lbl});
+  }
+
+  // Minimum threshold
+  const minVal = Number(localStorage.getItem('tac_min_monthly') || 4);
+
+  // Parse audit entries for the selected month
+  const [sYear, sMonth] = selMonth.split('-').map(Number);
+  const mStart = new Date(sYear, sMonth-1, 1).getTime();
+  const mEnd = new Date(sYear, sMonth, 1).getTime();
+  // Count relevant actions per person
+  const counts = {}; // personId → {missions, incidents, approvals, total}
+  (typeof auditEntries!=='undefined' ? auditEntries : []).forEach(e => {
+    if(!e.ts || e.ts < mStart || e.ts >= mEnd) return;
+    const pid = e.userId || '';
+    if(!pid) return;
+    if(!counts[pid]) counts[pid] = {missions:0, incidents:0, approvals:0};
+    const a = (e.action||'').toLowerCase();
+    if(a.includes('משימה') || a.includes('mission')) counts[pid].missions++;
+    else if(a.includes('אירוע') || a.includes('incident')) counts[pid].incidents++;
+    else if(a.includes('אישור') || a.includes('הגעה') || a.includes('approved')) counts[pid].approvals++;
+  });
+
+  // Build HTML
+  let html = '<div class="bo-section">';
+  html += '<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
+  html += '<span>📊 סטטיסטיקה חודשית'+((!isAdmin && myUnit)?' — '+escHtml(myUnit):'')+'</span>';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+  html += '<select onchange="window._statsMonth=this.value;boMonthlyStats(document.getElementById(\'bo-inner\'))" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px">';
+  months.forEach(m => { html += '<option value="'+m.key+'"'+(selMonth===m.key?' selected':'')+'>'+escHtml(m.lbl)+'</option>'; });
+  html += '</select>';
+  if(isAdmin){
+    html += '<div style="display:flex;align-items:center;gap:5px"><label style="font-size:11px;color:var(--text2);white-space:nowrap">מינימום:</label>';
+    html += '<input type="number" min="0" max="99" value="'+minVal+'" onchange="localStorage.setItem(\'tac_min_monthly\',this.value);boMonthlyStats(document.getElementById(\'bo-inner\'))" style="width:50px;padding:4px 6px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;text-align:center"/>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // Stats table
+  html += '<div style="overflow-x:auto"><table class="bo-table"><thead><tr>';
+  html += '<th>שם</th><th>יחידה</th><th>משימות</th><th>אירועים</th><th>אישורים</th><th>סה"כ</th><th>סטטוס</th>';
+  html += '</tr></thead><tbody>';
+
+  let belowMin = 0;
+  people.forEach(p => {
+    const c2 = counts[p.id] || {missions:0, incidents:0, approvals:0};
+    const total = c2.missions + c2.incidents + c2.approvals;
+    const below = total < minVal;
+    if(below) belowMin++;
+    const gap = minVal - total;
+    const statusHtml = below
+      ? '<span style="color:var(--danger);font-weight:700">⚠️ חסר '+gap+'</span>'
+      : '<span style="color:var(--accent);font-weight:700">✅ עומד ביעד</span>';
+    const rowStyle = below ? 'background:rgba(255,51,51,0.06)' : '';
+    html += '<tr style="'+rowStyle+'">';
+    html += '<td style="font-weight:700;color:var(--texthi)">'+escHtml(p.name)+'</td>';
+    html += '<td style="color:var(--text3);font-size:11px">'+escHtml(p.unit||'—')+'</td>';
+    html += '<td style="text-align:center;font-weight:700">'+c2.missions+'</td>';
+    html += '<td style="text-align:center;font-weight:700">'+c2.incidents+'</td>';
+    html += '<td style="text-align:center;font-weight:700">'+c2.approvals+'</td>';
+    html += '<td style="text-align:center;font-weight:900;color:var(--accent)">'+total+'</td>';
+    html += '<td>'+statusHtml+'</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // Summary
+  if(belowMin > 0){
+    html += '<div style="margin-top:12px;background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--danger);font-weight:700">';
+    html += '⚠️ '+belowMin+' אנשי צוות מתחת למינימום ('+minVal+' פעילויות)';
+    html += '</div>';
+  } else {
+    html += '<div style="margin-top:12px;background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.25);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--accent);font-weight:700">';
+    html += '✅ כל אנשי הצוות עומדים ביעד החודשי ('+minVal+' פעילויות)';
+    html += '</div>';
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
 function boAnalytics(c){
   const act=MISSIONS.filter(m=>m.status==='active').length;
   const urg=MISSIONS.filter(m=>m.status==='urgent').length;
@@ -6895,7 +6999,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.9.7 source-code update because the merge in
+    // which survived our v6.0.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9405,6 +9509,128 @@ function _calcETAString(personId, destLat, destLng){
   return '~'+h+'שע\''+(m?' '+m+'דק\'':'');
 }
 
+// ══════════════════════════════════════════════════════════
+// STATUS CHECK — auto-send periodic status query to arrived team members
+// ══════════════════════════════════════════════════════════
+let _statusCheckTimer = null;
+let _statusCheckData = {}; // personId → {status:'ok'|'help'|'sos', ts}
+function startStatusCheck(intervalMin){
+  stopStatusCheck();
+  if(!intervalMin || intervalMin < 1) return;
+  localStorage.setItem('tac_status_check_interval', String(intervalMin));
+  // Write the interval to Firebase so all commanders can see it's active
+  if(window._db) window._db.ref('tac_status_check').set({interval:intervalMin, startedAt:Date.now()}).catch(()=>{});
+  showToast({icon:'📋',title:'בדיקת סטטוס הופעלה',sub:'כל '+intervalMin+' דקות',type:'success'});
+  _runStatusCheck();
+  _statusCheckTimer = setInterval(_runStatusCheck, intervalMin * 60 * 1000);
+}
+function stopStatusCheck(){
+  if(_statusCheckTimer){ clearInterval(_statusCheckTimer); _statusCheckTimer = null; }
+  localStorage.removeItem('tac_status_check_interval');
+  if(window._db) window._db.ref('tac_status_check').remove().catch(()=>{});
+}
+function _runStatusCheck(){
+  if(!_currentActiveNotifId) return;
+  const arrivedIds = Object.entries(_approvalsData||{})
+    .filter(([_,e]) => e.arrived || e.departed)
+    .map(([pid]) => pid);
+  if(!arrivedIds.length) return;
+  const db = window._db;
+  if(!db) return;
+  const notifId = 'sc_'+Date.now().toString(36);
+  const payload = {
+    id: notifId,
+    type: 'status_check',
+    typeLabel: 'בדיקת סטטוס',
+    title: 'בדיקת סטטוס — אשר שהכל תקין',
+    body: 'לחץ כדי לדווח על מצבך',
+    senderName: 'מערכת',
+    senderId: 'system',
+    sentAt: Date.now(),
+    statusCheck: true
+  };
+  const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  arrivedIds.forEach(pid => {
+    fetch(DB_REST+'/tac_notifications/'+pid+'/'+notifId+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).catch(()=>{});
+  });
+  // Listen for responses
+  db.ref('tac_status_responses/'+notifId).on('value', snap => {
+    const data = snap.val();
+    if(!data) return;
+    Object.values(data).forEach(d => {
+      if(d && d.personId) _statusCheckData[d.personId] = d;
+    });
+    // Refresh units panel to show status badges
+    const c = document.getElementById('rp-body');
+    if(c && currentPanel==='units') renderUnitsP(c);
+  });
+  showToast({icon:'📋',title:'בדיקת סטטוס נשלחה',sub:arrivedIds.length+' אנשים',type:'info',duration:3000});
+  auditLog('בדיקת סטטוס אוטומטית','info',arrivedIds.length+' נמענים');
+}
+// Respond to a status check (team member side)
+function respondStatusCheck(status){
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!u) return;
+  // Find the most recent status_check notification
+  const key = 'tac_last_status_check_'+u.id;
+  const scNotifId = localStorage.getItem(key);
+  if(!scNotifId) return;
+  const path = 'tac_status_responses/'+scNotifId+'/'+u.id;
+  const data = {personId:u.id, name:u.name, status, ts:Date.now()};
+  if(window._db) window._db.ref(path).set(data).catch(()=>{});
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/'+path+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).catch(()=>{});
+  document.getElementById('incoming-notif-overlay').classList.remove('open');
+  const icons = {ok:'✅',help:'⚠️',sos:'🆘'};
+  const lbls = {ok:'תקין',help:'צריך סיוע',sos:'מצוקה'};
+  showToast({icon:icons[status]||'📋',title:'סטטוס דווח: '+lbls[status],type:status==='sos'?'warn':'success'});
+}
+// UI for status check config — renders in the notification panel or approvals section
+function renderStatusCheckConfig(){
+  const isAdmin = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
+  if(!isAdmin) return '';
+  const curInterval = Number(localStorage.getItem('tac_status_check_interval') || 0);
+  const active = !!_statusCheckTimer;
+  return `<div style="background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-top:8px">
+    <div style="font-size:11px;font-weight:800;color:var(--accent2);margin-bottom:6px">📋 בדיקת סטטוס אוטומטית</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sc-interval" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:12px">
+        <option value="0">כבוי</option>
+        <option value="15" ${curInterval===15?'selected':''}>כל 15 דק׳</option>
+        <option value="30" ${curInterval===30?'selected':''}>כל 30 דק׳</option>
+        <option value="60" ${curInterval===60?'selected':''}>כל שעה</option>
+        <option value="120" ${curInterval===120?'selected':''}>כל שעתיים</option>
+      </select>
+      <button onclick="const v=Number(document.getElementById('sc-interval').value);if(v)startStatusCheck(v);else stopStatusCheck();" style="padding:4px 14px;border-radius:6px;background:var(--accent);color:#07090a;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">${active?'🔄 עדכן':'▶️ הפעל'}</button>
+      ${active?'<span style="font-size:10px;color:var(--accent);font-weight:700">● פעיל — כל '+curInterval+' דק׳</span>':''}
+    </div>
+    ${Object.keys(_statusCheckData).length ? _renderStatusResponses() : ''}
+  </div>`;
+}
+function _renderStatusResponses(){
+  const entries = Object.values(_statusCheckData);
+  if(!entries.length) return '';
+  const icons = {ok:'✅',help:'⚠️',sos:'🆘'};
+  const lbls = {ok:'תקין',help:'צריך סיוע',sos:'מצוקה!'};
+  const clrs = {ok:'var(--accent)',help:'var(--warn)',sos:'var(--danger)'};
+  let html = '<div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">';
+  entries.forEach(e => {
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0">';
+    html += '<span style="color:'+(clrs[e.status]||'var(--text3)')+'">'+icons[e.status||'ok']+'</span>';
+    html += '<span style="font-weight:700;color:var(--texthi)">'+escHtml(e.name||'')+'</span>';
+    html += '<span style="color:'+(clrs[e.status]||'var(--text3)')+';font-weight:700">'+lbls[e.status||'ok']+'</span>';
+    if(e.ts) html += '<span style="color:var(--text3);font-size:10px;margin-right:auto">'+new Date(e.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 // Remove an approval from the active notification (admin/commander only).
 // Deletes the person's response from Firebase so they disappear from the
 // "מאשרים ומגיעים" list across all devices in real time.
@@ -9775,15 +10001,29 @@ function toggleAddressLayer(){
       if(tileY < 0 || tileY >= n) return div;
       const sub = ['a','b','c'][Math.abs(tileX + tileY) % 3];
       const url = 'https://'+sub+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      // Retry helper — attempts the same URL once more after 2s
+      function _retryTile(imgEl, retryUrl){
+        if(imgEl._retried) return;
+        imgEl._retried = true;
+        setTimeout(()=>{ imgEl.src = retryUrl + '?r=1'; }, 2000);
+      }
       if(factor === 1){
         // Native zoom — render the tile directly
         const img = ownerDoc.createElement('img');
-        img.src = url;
         img.style.width = '256px';
         img.style.height = '256px';
         img.style.display = 'block';
         img.style.userSelect = 'none';
         img.draggable = false;
+        img.onerror = function(){
+          _retryTile(img, url);
+          if(img._retried && !window._addrLayerErrShown){
+            window._addrLayerErrShown = true;
+            showToast({icon:'⚠️',title:'שכבת כתובות: בעיית חיבור',sub:'חלק מהמפה לא נטען',type:'warn',duration:5000});
+            setTimeout(()=>{ window._addrLayerErrShown = false; }, 30000);
+          }
+        };
+        img.src = url;
         div.appendChild(img);
       } else {
         // Overzoom — scale parent tile up by `factor` and position to the
@@ -9791,12 +10031,23 @@ function toggleAddressLayer(){
         const subX = coord.x - tileX * factor;
         const subY = coord.y - tileY * factor;
         const bgSize = 256 * factor;
-        div.style.backgroundImage = "url('"+url+"')";
-        div.style.backgroundSize = bgSize+'px '+bgSize+'px';
-        div.style.backgroundPosition = (-subX * 256)+'px '+(-subY * 256)+'px';
-        div.style.backgroundRepeat = 'no-repeat';
-        // Use smooth scaling at low overzoom, pixelated at 4x+ so labels don't smear
-        div.style.imageRendering = factor >= 4 ? 'pixelated' : 'auto';
+        // Pre-validate the tile via Image() so we get an error event
+        const probe = new Image();
+        probe.onload = function(){
+          div.style.backgroundImage = "url('"+url+"')";
+          div.style.backgroundSize = bgSize+'px '+bgSize+'px';
+          div.style.backgroundPosition = (-subX * 256)+'px '+(-subY * 256)+'px';
+          div.style.backgroundRepeat = 'no-repeat';
+          div.style.imageRendering = factor >= 4 ? 'pixelated' : 'auto';
+        };
+        probe.onerror = function(){
+          // Retry once after 2s
+          if(!probe._retried){
+            probe._retried = true;
+            setTimeout(()=>{ probe.src = url + '?r=1'; }, 2000);
+          }
+        };
+        probe.src = url;
       }
       return div;
     },
@@ -12137,7 +12388,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.9.7)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
