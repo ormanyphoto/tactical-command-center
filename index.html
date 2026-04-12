@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.1.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.1.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.1.3</div>
+    <div id="fm-logo">⬡ מבצעים v6.1.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7030,7 +7030,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.1.3 source-code update because the merge in
+    // which survived our v6.1.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8675,13 +8675,31 @@ function _showIncomingNotif(notif, fbRef){
   if(_isStatusNotif){
     const _myId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
     const _myApproval = _myId ? (_approvalsData||{})[_myId] : null;
-    if(!_myApproval || !_myApproval.arrived){
-      // User has NOT arrived at an event — silently discard this status check
-      if(nid) _shownNotifIds.add(nid);
-      // Also delete it from Firebase so it doesn't keep resurfacing
-      const _DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
-      if(_myId) fetch(_DB+'/tac_notifications/'+_myId+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
-      return;
+    // Check multiple sources for arrival state — _approvalsData is often
+    // empty because the SDK listener stalls on Samsung WebView and the
+    // REST poll hasn't run yet when the notification arrives.
+    const arrivedViaData = _myApproval && _myApproval.arrived;
+    // Check the localStorage flag set by markArrived()
+    let arrivedViaLS = false;
+    try {
+      const lsArr = JSON.parse(localStorage.getItem('tac_arrived_at_event')||'null');
+      if(lsArr && lsArr.personId === _myId) arrivedViaLS = true;
+    } catch(_){}
+    const isAtEvent = arrivedViaData || arrivedViaLS;
+    if(!isAtEvent){
+      // Last resort: the server sent this status check TO this user,
+      // which means _runStatusCheck already verified they're arrived.
+      // Trust the server — if the notif exists, the user is at the event.
+      // Only discard truly stale notifs (> 10 min old).
+      const age = notif.sentAt ? (Date.now() - notif.sentAt) : 999999;
+      if(age > 10 * 60 * 1000){
+        // Stale status check — discard silently
+        if(nid) _shownNotifIds.add(nid);
+        const _DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+        if(_myId) fetch(_DB+'/tac_notifications/'+_myId+'/'+nid+'.json',{method:'DELETE'}).catch(()=>{});
+        return;
+      }
+      // Fresh status check — trust the server, show it
     }
   }
   if(nid) _shownNotifIds.add(nid);
@@ -9312,11 +9330,14 @@ function markArrived(){
   }).catch(e=>console.warn('[markArrived] rest:', e && e.message));
 
   // Optimistic local update — immediately show "✅ הגיע" in the panel
-  // without waiting for the REST poll or SDK listener to fire back.
   if(_approvalsData[st.personId]){
     _approvalsData[st.personId].arrived = true;
     _approvalsData[st.personId].arrivedAt = now;
   }
+  // Persist arrival state in localStorage so the status-check gate in
+  // _showIncomingNotif can verify this user is at the event even if
+  // _approvalsData hasn't loaded yet (SDK stall / page reload).
+  try { localStorage.setItem('tac_arrived_at_event', JSON.stringify({notifId:st.notifId, personId:st.personId, ts:now})); } catch(_){}
   const c = document.getElementById('rp-body');
   if(c && (currentPanel==='units'||currentPanel==='personnel')){
     if(currentPanel==='units') renderUnitsP(c);
@@ -9924,7 +9945,7 @@ function renderStatusCheckConfig(){
         <option value="120" ${curInterval===120?'selected':''}>כל שעתיים</option>
       </select>
       <button onclick="const v=Number(document.getElementById('sc-interval').value);if(v)startStatusCheck(v);else stopStatusCheck();" style="padding:4px 14px;border-radius:6px;background:var(--accent);color:#07090a;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">${active?'🔄 עדכן':'▶️ הפעל'}</button>
-      ${active?'<span style="font-size:10px;color:var(--accent);font-weight:700">● פעיל — כל '+curInterval+' דק׳</span>':''}
+      ${active?`<button onclick="stopStatusCheck();renderUnitsP(document.getElementById('rp-body'))" style="padding:4px 12px;border-radius:6px;background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">⏹ בטל</button><span style="font-size:10px;color:var(--accent);font-weight:700">● פעיל — כל ${curInterval} דק׳</span>`:''}
     </div>
     ${Object.keys(_statusCheckData).length ? _renderStatusResponses() : ''}
   </div>`;
@@ -12879,7 +12900,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
