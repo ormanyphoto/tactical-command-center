@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.0.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.1.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.1.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.0.5</div>
+    <div id="fm-logo">⬡ מבצעים v6.1.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4741,15 +4741,15 @@ function renderUnitsP(c){
     _renderUnitsListOnly(existingList);
     // Also refresh the approvals + KPI sections
     const apSec = c.querySelector('#units-approvals-wrap');
-    if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
+    if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
     const kpi = c.querySelector('#units-kpi');
     if(kpi) kpi.innerHTML = _buildUnitsKPI();
     return;
   }
 
   var html = '';
-  // ── Approvals + status check config ──
-  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
+  // ── Approvals + rescue missions + status check config ──
+  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
   // ── Summary KPIs: זמינים | לא זמינים | מאשרים | בדרך | הגיעו ──
   html += '<div id="units-kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px">' + _buildUnitsKPI() + '</div>';
 
@@ -7021,7 +7021,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.0.5 source-code update because the merge in
+    // which survived our v6.1.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8688,8 +8688,44 @@ function _showIncomingNotif(notif, fbRef){
   card.style.boxShadow = gfx.urgency>=2
     ? `0 20px 60px ${gfx.color}3a, 0 0 0 1px ${gfx.color}22`
     : '';
-  // Status check notifications — show only ✅ תקין / 🆘 זקוק לסיוע, hide
-  // the normal approve/decline/depart buttons entirely.
+  // ── RESCUE notification (commander sees navigate button to distressed person) ──
+  const isRescue = !!(notif.rescue && notif.type === 'rescue');
+  if(isRescue){
+    const scBtnsR = document.getElementById('inc-status-btns');
+    const incBtnsR = document.getElementById('inc-btns');
+    const departBtnR = document.getElementById('inc-depart-now');
+    if(incBtnsR) incBtnsR.style.display = 'none';
+    if(departBtnR) departBtnR.style.display = 'none';
+    if(scBtnsR) scBtnsR.style.display = 'none';
+    if(document.getElementById('inc-addr-wrap')) document.getElementById('inc-addr-wrap').style.display = 'none';
+    if(document.getElementById('inc-venue-wrap')) document.getElementById('inc-venue-wrap').style.display = 'none';
+    // Build rescue-specific buttons
+    let rescueBtns = document.getElementById('inc-rescue-btns');
+    if(!rescueBtns){
+      rescueBtns = document.createElement('div');
+      rescueBtns.id = 'inc-rescue-btns';
+      rescueBtns.style.cssText = 'width:100%;margin-top:10px;display:flex;flex-direction:column;gap:10px';
+      card.appendChild(rescueBtns);
+    }
+    const rLat = notif.lat||'';
+    const rLng = notif.lng||'';
+    const rPid = notif.rescuePersonId||'';
+    const rName = notif.rescuePersonName||'';
+    const rSosId = notif.id||'';
+    rescueBtns.style.display = 'flex';
+    rescueBtns.innerHTML = ''
+      +'<button onclick="respondToRescue(\''+rSosId+'\',\''+rPid+'\',\''+escHtml(rName)+'\','+rLat+','+rLng+')" style="width:100%;padding:14px;background:var(--danger);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font);box-shadow:0 5px 18px rgba(255,51,51,0.4)">🚗 נווט לאיש הצוות וצא לדרך</button>'
+      +'<button onclick="document.getElementById(\'incoming-notif-overlay\').classList.remove(\'open\')" style="width:100%;padding:10px;background:var(--panel2);color:var(--text2);border:1px solid var(--border2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">סגור</button>';
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('alert'));
+    _vibrate([500,200,500,200,500]);
+    return;
+  }
+  // Hide rescue buttons if they exist from a previous rescue popup
+  const oldRescueBtns = document.getElementById('inc-rescue-btns');
+  if(oldRescueBtns) oldRescueBtns.style.display = 'none';
+
+  // ── Status check notifications — show only ✅ תקין / 🆘 זקוק לסיוע ──
   const isStatusCheck = !!(notif.statusCheck || notif.type === 'status_check');
   const scBtns = document.getElementById('inc-status-btns');
   const departBtn = document.getElementById('inc-depart-now');
@@ -8698,19 +8734,14 @@ function _showIncomingNotif(notif, fbRef){
     if(incBtnsMain) incBtnsMain.style.display = 'none';
     if(departBtn) departBtn.style.display = 'none';
     if(scBtns) scBtns.style.display = 'flex';
-    // Hide address/venue elements — not relevant for status checks
     if(document.getElementById('inc-addr-wrap')) document.getElementById('inc-addr-wrap').style.display = 'none';
     if(document.getElementById('inc-venue-wrap')) document.getElementById('inc-venue-wrap').style.display = 'none';
-    // Save the notif ID so respondStatusCheck knows where to write
     const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     if(u2) localStorage.setItem('tac_last_status_check_'+u2.id, notif.id);
-    // Do NOT overwrite _currentIncomingNotif — status checks are separate
-    // from the emergency notification flow and should not interfere with
-    // a pending approve/depart action.
     document.getElementById('incoming-notif-overlay').classList.add('open');
     _playAlertSound(getAlertSoundForType('alert'));
     _vibrate([200,100,200]);
-    return; // ← skip all venue/marker/approve logic below
+    return;
   } else {
     if(scBtns) scBtns.style.display = 'none';
     if(incBtnsMain) incBtnsMain.style.display = '';
@@ -9697,24 +9728,48 @@ function respondStatusCheck(status){
   document.getElementById('incoming-notif-overlay').classList.remove('open');
 
   if(status === 'sos'){
-    // "זקוק לסיוע" → send SOS to arrived/departed team members at the event
-    // AND a colored distress alert to ALL חפ"ק commanders
     showToast({icon:'🆘',title:'אות מצוקה נשלח!',sub:'לצוות באירוע + חפ״ק',type:'warn',duration:5000});
     const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
     const sosNotifId = 'sos_sc_'+Date.now().toString(36);
-    // statusCheck:true ensures the popup shows ✅ תקין / 🆘 זקוק לסיוע
-    // buttons (same as the original status check) instead of approve/decline.
-    const sosPayload = {
+    // Get the distressed person's last known location for the navigate button
+    const myLoc = (window._liveLocs||{})[u.id] || {};
+    const lat = myLoc.lat || window._lastLat || null;
+    const lng = myLoc.lng || window._lastLng || null;
+
+    // Write the rescue record to Firebase so commanders can track responders
+    const rescueRecord = {
+      sosNotifId, personId:u.id, personName:u.name,
+      lat, lng, ts:Date.now(), responders:{}
+    };
+    if(window._db) window._db.ref('tac_rescue/'+sosNotifId).set(rescueRecord).catch(()=>{});
+    fetch(DB_REST+'/tac_rescue/'+sosNotifId+'.json',{
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(rescueRecord)
+    }).catch(()=>{});
+
+    // Payload for COMMANDERS — includes rescue:true + location for navigation
+    const cmdPayload = {
       id: sosNotifId,
-      type: 'status_check',
-      typeLabel: 'מצוקה',
+      type: 'rescue',
+      typeLabel: 'מצוקה — חילוץ',
       title: '🆘 '+u.name+' זקוק לסיוע!',
-      body: 'איש צוות דיווח על מצב חירום בבדיקת סטטוס',
+      body: 'לחץ לנווט למיקום איש הצוות',
       threat: 'מצוקה',
-      statusCheck: true,
+      rescue: true,
+      rescuePersonId: u.id,
+      rescuePersonName: u.name,
+      lat, lng,
+      address: lat && lng ? u.name+' — מיקום אחרון' : '',
       senderName: u.name,
       senderId: u.id,
       sentAt: Date.now()
+    };
+    // Payload for FIELD TEAM — status check buttons
+    const fieldPayload = {
+      ...cmdPayload,
+      type: 'status_check',
+      statusCheck: true,
+      rescue: false
     };
 
     // 1) Send to arrived/departed team members at the event
@@ -9724,22 +9779,21 @@ function respondStatusCheck(status){
     arrivedIds.forEach(pid => {
       fetch(DB_REST+'/tac_notifications/'+pid+'/'+sosNotifId+'.json', {
         method:'PUT', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(sosPayload)
+        body:JSON.stringify(fieldPayload)
       }).catch(()=>{});
     });
 
-    // 2) Send ALSO to all חפ"ק / commanders (even if they're not at the event)
+    // 2) Send to all חפ"ק / commanders with RESCUE payload (navigate button)
     const cmdRoles = ['מפקד יחידה','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק'];
     const cmdIds = PERSONNEL.filter(p =>
       (cmdRoles.includes(p.role) || (p.permsOverride && p.permsOverride.includes('admin')))
       && p.id !== u.id
     ).map(p => p.id);
-    // Dedupe: don't send twice to commanders already in arrivedIds
     const arrivedSet = new Set(arrivedIds);
-    cmdIds.filter(pid => !arrivedSet.has(pid)).forEach(pid => {
+    cmdIds.forEach(pid => {
       fetch(DB_REST+'/tac_notifications/'+pid+'/'+sosNotifId+'.json', {
         method:'PUT', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(sosPayload)
+        body:JSON.stringify(cmdPayload)
       }).catch(()=>{});
     });
 
@@ -9747,6 +9801,78 @@ function respondStatusCheck(status){
   } else {
     showToast({icon:'✅',title:'סטטוס דווח: תקין',type:'success'});
   }
+}
+
+// ══════════════════════════════════════════════════════════
+// RESCUE FLOW — commander navigates to distressed team member
+// ══════════════════════════════════════════════════════════
+// When a commander sees a rescue notification and clicks "נווט לאיש הצוות":
+// 1. Opens Waze/Maps to the last known location
+// 2. Registers as a responder in tac_rescue/{sosNotifId}/responders
+// 3. Sends a "עזרה בדרך" notification to the distressed person
+function respondToRescue(sosNotifId, rescuePersonId, rescuePersonName, lat, lng){
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!u) return;
+  const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+
+  // Register as responder
+  const responderData = {personId:u.id, name:u.name, ts:Date.now()};
+  if(window._db) window._db.ref('tac_rescue/'+sosNotifId+'/responders/'+u.id).set(responderData).catch(()=>{});
+  fetch(DB_REST+'/tac_rescue/'+sosNotifId+'/responders/'+u.id+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(responderData)
+  }).catch(()=>{});
+
+  // Notify the distressed person that help is on the way
+  const helpNotifId = 'help_'+Date.now().toString(36);
+  const helpPayload = {
+    id: helpNotifId,
+    type: 'status_check',
+    typeLabel: 'עזרה בדרך',
+    title: '🚗 '+u.name+' בדרך אליך!',
+    body: 'עזרה בדרך — המתן במקום',
+    statusCheck: true,
+    senderName: u.name,
+    senderId: u.id,
+    sentAt: Date.now()
+  };
+  fetch(DB_REST+'/tac_notifications/'+rescuePersonId+'/'+helpNotifId+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(helpPayload)
+  }).catch(()=>{});
+
+  // Close the popup
+  document.getElementById('incoming-notif-overlay').classList.remove('open');
+  showToast({icon:'🚗',title:'יוצא לחילוץ '+rescuePersonName,type:'success',duration:4000});
+  auditLog('🚗 '+u.name+' יוצא לחילוץ '+rescuePersonName,'danger','');
+
+  // Navigate to the distressed person's location
+  if(lat && lng) openNavToLatLng(lat, lng, rescuePersonName);
+}
+// Admin cancels a specific responder from a rescue mission
+function cancelRescueResponder(sosNotifId, responderId){
+  const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  if(window._db) window._db.ref('tac_rescue/'+sosNotifId+'/responders/'+responderId).remove().catch(()=>{});
+  fetch(DB_REST+'/tac_rescue/'+sosNotifId+'/responders/'+responderId+'.json',{method:'DELETE'}).catch(()=>{});
+  // Notify the cancelled responder
+  const cancelNotifId = 'rc_'+Date.now().toString(36);
+  const cancelPayload = {
+    id: cancelNotifId,
+    type: 'status_check',
+    typeLabel: 'ביטול יציאה',
+    title: '⛔ יציאה לחילוץ בוטלה',
+    body: 'מפקד ביטל את היציאה שלך — חזור לעמדה',
+    statusCheck: true,
+    senderName: 'מערכת',
+    senderId: 'system',
+    sentAt: Date.now()
+  };
+  fetch(DB_REST+'/tac_notifications/'+responderId+'/'+cancelNotifId+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(cancelPayload)
+  }).catch(()=>{});
+  const name = (PERSONNEL.find(x=>x.id===responderId)||{}).name || responderId;
+  showToast({icon:'⛔',title:name+' — יציאה לחילוץ בוטלה',type:'info'});
 }
 // UI for status check config — renders in the notification panel or approvals section
 function renderStatusCheckConfig(){
@@ -9789,10 +9915,51 @@ function _renderStatusResponses(){
   return html;
 }
 
+// Render active rescue missions with responder list + cancel buttons (admin)
+function renderRescueMissions(){
+  const isAdmin = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
+  // Poll active rescues from _statusCheckData — anyone with sos status
+  const sosPersons = Object.values(_statusCheckData||{}).filter(d => d.status==='sos');
+  if(!sosPersons.length) return '';
+  let html = '<div style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:8px;padding:10px 12px;margin-top:8px">';
+  html += '<div style="font-size:11px;font-weight:800;color:var(--danger);margin-bottom:6px">🆘 חילוצים פעילים</div>';
+  sosPersons.forEach(sp => {
+    html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(255,51,51,0.05);border-radius:6px">';
+    html += '<div style="font-size:12px;font-weight:800;color:var(--danger)">🆘 '+escHtml(sp.name||'')+'</div>';
+    // Show responders if we have rescue data (fetched via REST)
+    html += '<div id="rescue-responders-'+escHtml(sp.personId)+'" style="margin-top:4px"></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  // Async-load rescue responders
+  setTimeout(()=>{
+    const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    fetch(DB_REST+'/tac_rescue.json?_='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(data=>{
+      if(!data) return;
+      Object.entries(data).forEach(([sid, rec])=>{
+        if(!rec || !rec.responders) return;
+        const el = document.getElementById('rescue-responders-'+rec.personId);
+        if(!el) return;
+        const responders = Object.values(rec.responders);
+        if(!responders.length){ el.innerHTML = '<div style="font-size:10px;color:var(--text3)">ממתין לתגובה...</div>'; return; }
+        let rhtml = '<div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px">מגיבים ('+responders.length+'):</div>';
+        responders.forEach(r => {
+          const cancelBtn = isAdmin ? ' <button onclick="cancelRescueResponder(\''+sid+'\',\''+r.personId+'\')" style="background:none;border:none;color:var(--danger);font-size:11px;cursor:pointer;padding:0 3px" title="בטל יציאה">⛔</button>' : '';
+          rhtml += '<div style="display:flex;align-items:center;gap:5px;font-size:11px;padding:2px 0">';
+          rhtml += '<span style="color:var(--accent)">🚗</span>';
+          rhtml += '<span style="font-weight:700;color:var(--texthi)">'+escHtml(r.name||'')+'</span>';
+          rhtml += '<span style="color:var(--text3)">'+new Date(r.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+'</span>';
+          rhtml += cancelBtn;
+          rhtml += '</div>';
+        });
+        el.innerHTML = rhtml;
+      });
+    }).catch(()=>{});
+  }, 200);
+  return html;
+}
+
 // Remove an approval from the active notification (admin/commander only).
-// Deletes the person's response from Firebase so they disappear from the
-// "מאשרים ומגיעים" list across all devices in real time.
-// Admin marks a team member as arrived (when they forgot to press "הגעתי")
 // Admin manually set a team member's status check result
 function adminSetStatus(personId, status){
   const name = (PERSONNEL.find(x=>x.id===personId)||{}).name || personId;
@@ -12567,7 +12734,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.1.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
