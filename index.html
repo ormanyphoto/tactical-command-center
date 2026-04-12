@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.0.2 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.0.3 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.2</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.0.3</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1178,7 +1178,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.0.2</div>
+    <div id="fm-logo">⬡ מבצעים v6.0.3</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4808,10 +4808,14 @@ function _renderUnitsListOnly(el){
   var html = '';
   filtered.forEach(p => {
     const st = _personStatus(p);
+    const scData = (_statusCheckData||{})[p.id];
+    const isSOS = scData && (scData.status === 'sos' || scData.status === 'help');
     const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
-    // Row styling by status
+    // Row styling — red if status check reported SOS/help
     let rowBg, borderClr, dotClr;
-    if(st.key === 'arrived'){
+    if(isSOS){
+      rowBg = 'rgba(255,51,51,0.12)'; borderClr = 'rgba(255,51,51,0.5)'; dotClr = '#ff3333';
+    } else if(st.key === 'arrived'){
       rowBg = 'rgba(61,255,82,0.08)'; borderClr = 'rgba(61,255,82,0.4)'; dotClr = '#3dff52';
     } else if(st.key === 'enroute'){
       rowBg = 'rgba(29,108,255,0.06)'; borderClr = 'rgba(29,108,255,0.3)'; dotClr = '#29c5f6';
@@ -4828,10 +4832,23 @@ function _renderUnitsListOnly(el){
     html += '<div style="background:' + rowBg + ';border:1px solid ' + borderClr + ';border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;align-items:center;gap:9px">';
     html += avatar;
     html += '<div style="flex:1;min-width:0">';
-    html += '<div style="font-size:13px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>';
+    html += '<div style="font-size:13px;font-weight:800;color:' + (isSOS ? 'var(--danger)' : 'var(--texthi)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (isSOS ? '🆘 ' : '') + escHtml(p.name) + '</div>';
     html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + '</div>';
+    // Status check result line
+    if(scData){
+      const scIcons = {ok:'✅',help:'⚠️',sos:'🆘'};
+      const scLbls = {ok:'תקין',help:'צריך סיוע',sos:'מצוקה!'};
+      const scClrs = {ok:'var(--accent)',help:'var(--warn)',sos:'var(--danger)'};
+      html += '<div style="font-size:10px;font-weight:700;color:' + (scClrs[scData.status]||'var(--text3)') + '">' + (scIcons[scData.status]||'') + ' ' + (scLbls[scData.status]||'') + '</div>';
+    }
     html += '</div>';
     html += '<span class="badge ' + st.badge + '" style="font-size:10px">' + st.lbl + '</span>';
+    // Admin manual status buttons for arrived/departed members
+    const canAdmin = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
+    const isOnScene = st.key === 'arrived' || st.key === 'enroute';
+    if(canAdmin && isOnScene && !isSOS){
+      html += '<button onclick="adminSetStatus(\''+p.id+'\',\'sos\')" style="background:none;border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:10px;font-weight:700;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;font-family:var(--font)" title="סמן לא תקין">⚠️</button>';
+    }
     html += '</div>';
   });
   if (!filtered.length) html = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
@@ -7004,7 +7021,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.0.2 source-code update because the merge in
+    // which survived our v6.0.3 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8759,7 +8776,8 @@ function _showIncomingNotif(notif, fbRef){
     }
   } else {
     if(venueWrap) venueWrap.style.display = 'none';
-    if(incBtns){ incBtns.style.display = ''; incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true); }
+    // Don't re-show approve/decline for status_check — those were hidden above
+    if(!isStatusCheck && incBtns){ incBtns.style.display = ''; incBtns.querySelector('.inc-approve').onclick = ()=>respondToNotif(true); }
   }
 
   // Mark ALL venue addresses on map (retry until map is ready)
@@ -9656,34 +9674,50 @@ function respondStatusCheck(status){
   document.getElementById('incoming-notif-overlay').classList.remove('open');
 
   if(status === 'sos'){
-    // "זקוק לסיוע" → send SOS ONLY to arrived/departed team members at the
-    // event, NOT the whole unit. This is a targeted distress signal.
-    showToast({icon:'🆘',title:'אות מצוקה נשלח!',sub:'רק לצוות באירוע',type:'warn',duration:5000});
+    // "זקוק לסיוע" → send SOS to arrived/departed team members at the event
+    // AND a colored distress alert to ALL חפ"ק commanders
+    showToast({icon:'🆘',title:'אות מצוקה נשלח!',sub:'לצוות באירוע + חפ״ק',type:'warn',duration:5000});
+    const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    const sosNotifId = 'sos_sc_'+Date.now().toString(36);
+    const sosPayload = {
+      id: sosNotifId,
+      type: 'alert',
+      typeLabel: 'מצוקה',
+      title: '🆘 '+u.name+' זקוק לסיוע!',
+      body: 'איש צוות דיווח על מצב חירום בבדיקת סטטוס',
+      threat: 'מצוקה',
+      senderName: u.name,
+      senderId: u.id,
+      sentAt: Date.now()
+    };
+
+    // 1) Send to arrived/departed team members at the event
     const arrivedIds = Object.entries(_approvalsData||{})
       .filter(([pid,e]) => (e.arrived || e.departed) && pid !== u.id)
       .map(([pid]) => pid);
-    if(arrivedIds.length && _currentActiveNotifId){
-      const sosNotifId = 'sos_sc_'+Date.now().toString(36);
-      const sosPayload = {
-        id: sosNotifId,
-        type: 'alert',
-        typeLabel: 'מצוקה',
-        title: '🆘 '+u.name+' זקוק לסיוע!',
-        body: 'איש צוות דיווח על מצב חירום בבדיקת סטטוס',
-        threat: 'מצוקה',
-        senderName: u.name,
-        senderId: u.id,
-        sentAt: Date.now()
-      };
-      const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
-      arrivedIds.forEach(pid => {
-        fetch(DB_REST+'/tac_notifications/'+pid+'/'+sosNotifId+'.json', {
-          method:'PUT', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(sosPayload)
-        }).catch(()=>{});
-      });
-      auditLog('🆘 '+u.name+' דיווח מצוקה בבדיקת סטטוס','danger',arrivedIds.length+' נמענים');
-    }
+    arrivedIds.forEach(pid => {
+      fetch(DB_REST+'/tac_notifications/'+pid+'/'+sosNotifId+'.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(sosPayload)
+      }).catch(()=>{});
+    });
+
+    // 2) Send ALSO to all חפ"ק / commanders (even if they're not at the event)
+    const cmdRoles = ['מפקד יחידה','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק'];
+    const cmdIds = PERSONNEL.filter(p =>
+      (cmdRoles.includes(p.role) || (p.permsOverride && p.permsOverride.includes('admin')))
+      && p.id !== u.id
+    ).map(p => p.id);
+    // Dedupe: don't send twice to commanders already in arrivedIds
+    const arrivedSet = new Set(arrivedIds);
+    cmdIds.filter(pid => !arrivedSet.has(pid)).forEach(pid => {
+      fetch(DB_REST+'/tac_notifications/'+pid+'/'+sosNotifId+'.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(sosPayload)
+      }).catch(()=>{});
+    });
+
+    auditLog('🆘 '+u.name+' דיווח מצוקה בבדיקת סטטוס','danger',(arrivedIds.length+cmdIds.length)+' נמענים');
   } else {
     showToast({icon:'✅',title:'סטטוס דווח: תקין',type:'success'});
   }
@@ -9733,6 +9767,27 @@ function _renderStatusResponses(){
 // Deletes the person's response from Firebase so they disappear from the
 // "מאשרים ומגיעים" list across all devices in real time.
 // Admin marks a team member as arrived (when they forgot to press "הגעתי")
+// Admin manually set a team member's status check result
+function adminSetStatus(personId, status){
+  const name = (PERSONNEL.find(x=>x.id===personId)||{}).name || personId;
+  _statusCheckData[personId] = {personId, name, status, ts:Date.now(), setByAdmin:true};
+  const c = document.getElementById('rp-body');
+  if(c && currentPanel==='units') renderUnitsP(c);
+  // Persist to Firebase if we have a recent status check notif
+  const scKeys = Object.keys(_statusCheckData).filter(k => _statusCheckData[k] && !_statusCheckData[k].setByAdmin);
+  // Use the last known SC notif or a synthetic one
+  const scNotifId = localStorage.getItem('tac_last_admin_sc') || ('asc_'+Date.now().toString(36));
+  localStorage.setItem('tac_last_admin_sc', scNotifId);
+  const path = 'tac_status_responses/'+scNotifId+'/'+personId;
+  const data = {personId, name, status, ts:Date.now(), setByAdmin:true};
+  if(window._db) window._db.ref(path).set(data).catch(()=>{});
+  fetch('https://tactical-command-center-default-rtdb.firebaseio.com/'+path+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
+  }).catch(()=>{});
+  const icons = {ok:'✅',help:'⚠️',sos:'🆘'};
+  const lbls = {ok:'תקין',help:'צריך סיוע',sos:'מצוקה'};
+  showToast({icon:icons[status],title:name+' → '+lbls[status],type:status==='sos'?'warn':'success'});
+}
 function adminMarkArrived(personId){
   if(!_currentActiveNotifId) return;
   const now = Date.now();
@@ -12486,7 +12541,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.2)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.0.3)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
