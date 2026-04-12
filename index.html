@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v5.8.7 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v5.8.8 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -776,7 +776,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.7</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v5.8.8</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1170,7 +1170,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v5.8.7</div>
+    <div id="fm-logo">⬡ מבצעים v5.8.8</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4688,31 +4688,59 @@ function renderUnitsP(c){
   _syncTitle('units');
   // Ensure the global approvals listener is attached (idempotent).
   if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
-  // REST fallback: if approvals are empty but we know a notifId exists,
-  // try a direct REST read so the panel is never blank when the SDK
-  // listener hasn't fired yet (common on Android WebView / Samsung).
   _ensureApprovalsLoaded();
 
-  const flt = (window._unitsFlt || '').toLowerCase();
-  const avail = PERSONNEL.filter(p => p.available);
-  const unavail = PERSONNEL.filter(p => !p.available);
+  // If the panel skeleton already exists (search input etc.), just update
+  // the list portion so the search input keeps focus and cursor position.
+  const existingList = c.querySelector('#units-plist');
+  if(existingList){
+    _renderUnitsListOnly(existingList);
+    // Also refresh the approvals + KPI sections
+    const apSec = c.querySelector('#units-approvals-wrap');
+    if(apSec) apSec.innerHTML = renderApprovalsSection();
+    const kpi = c.querySelector('#units-kpi');
+    if(kpi){
+      const approvedCount = Object.keys(_approvalsData || {}).length;
+      const avail = PERSONNEL.filter(p => p.available).length;
+      const unavail = PERSONNEL.filter(p => !p.available).length;
+      kpi.innerHTML = ''
+        +'<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+approvedCount+'</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>'
+        +'<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>'
+        +'<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">'+unavail+'</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
+    }
+    return;
+  }
+
+  // First render — build full skeleton
   const approvedCount = Object.keys(_approvalsData || {}).length;
+  const avail = PERSONNEL.filter(p => p.available).length;
+  const unavail = PERSONNEL.filter(p => !p.available).length;
 
   var html = '';
-  // ── Approvals section (top, always) ──
-  html += renderApprovalsSection();
+  // ── Approvals ──
+  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + '</div>';
 
   // ── Summary KPIs ──
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
-  html += '<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">' + approvedCount + '</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>';
-  html += '<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">' + avail.length + '</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>';
-  html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">' + unavail.length + '</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
+  html += '<div id="units-kpi" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:10px">';
+  html += '<div style="background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent)">'+approvedCount+'</div><div style="font-size:10px;color:var(--text3)">מאשרים</div></div>';
+  html += '<div style="background:rgba(168,232,0,0.08);border:1px solid rgba(168,232,0,0.2);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:10px;color:var(--text3)">זמינים</div></div>';
+  html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px;text-align:center"><div style="font-size:20px;font-weight:900;color:var(--text2)">'+unavail+'</div><div style="font-size:10px;color:var(--text3)">לא זמינים</div></div>';
   html += '</div>';
 
-  // ── Search bar ──
-  html += '<input type="text" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;renderUnitsP(document.getElementById(\'rp-body\'))" style="width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
+  // ── Search bar — oninput only updates the list div, not the whole panel ──
+  html += '<input type="text" id="units-search" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;_renderUnitsListOnly(document.getElementById(\'units-plist\'))" style="width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
 
-  // ── Personnel list — same order as the אנשי צוות panel (p.order) ──
+  // ── Personnel list container ──
+  html += '<div id="units-plist"></div>';
+  c.innerHTML = html;
+  // Populate the list
+  _renderUnitsListOnly(document.getElementById('units-plist'));
+}
+// Renders ONLY the personnel cards into the given container — keeps the
+// search input alive so focus + cursor aren't lost while typing.
+function _renderUnitsListOnly(el){
+  if(!el) return;
+  const flt = (window._unitsFlt || '').toLowerCase();
   const sorted = [...PERSONNEL].sort((a, b) => (a.order||0) - (b.order||0));
   const filtered = sorted.filter(p => {
     if (!flt) return true;
@@ -4721,7 +4749,7 @@ function renderUnitsP(c){
         || (p.unit || '').toLowerCase().includes(flt)
         || (p.callsign || '').toLowerCase().includes(flt);
   });
-
+  var html = '';
   filtered.forEach(p => {
     const av = p.available;
     const initials = p.name.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2);
@@ -4739,8 +4767,8 @@ function renderUnitsP(c){
     html += '<span class="badge ' + (av ? 'b-active' : 'b-unavail') + '" style="font-size:10px">' + (av ? 'זמין' : 'לא זמין') + '</span>';
     html += '</div>';
   });
-  if (!filtered.length) html += '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
-  c.innerHTML = html;
+  if (!filtered.length) html = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:20px">אין תוצאות</p>';
+  el.innerHTML = html;
 }
 // REST fallback — if _approvalsData is empty but we know an active notifId
 // exists, fetch responses directly via REST so the panel renders immediately
@@ -6806,7 +6834,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v5.8.7 source-code update because the merge in
+    // which survived our v5.8.8 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9174,7 +9202,6 @@ function _calcETAString(personId, destLat, destLng){
 // "מאשרים ומגיעים" list across all devices in real time.
 function removeApproval(personId){
   if(!_currentActiveNotifId) return;
-  if(!confirm('להסיר את האישור?')) return;
   const notifId = _currentActiveNotifId;
   const path = 'tac_notif_responses/'+notifId+'/'+personId;
 
@@ -11871,7 +11898,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.7)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v5.8.8)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
