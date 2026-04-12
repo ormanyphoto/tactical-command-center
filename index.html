@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.2.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -970,9 +970,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </div>
       <button id="inc-depart-now" onclick="approveAndDepart()" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#1d6cff,#29c5f6);color:#fff;border:none;border-radius:10px;padding:13px 18px;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--font);box-shadow:0 5px 16px rgba(29,108,255,0.45);letter-spacing:0.02em">🚗 יצאתי לדרך</button>
       <!-- Status check buttons — shown ONLY for status_check notifications -->
-      <div id="inc-status-btns" style="display:none;width:100%;margin-top:10px;display:none;flex-direction:column;gap:10px">
+      <div id="inc-status-btns" style="display:none;width:100%;margin-top:10px;flex-direction:column;gap:10px">
         <button onclick="respondStatusCheck('ok')" style="width:100%;padding:14px;background:var(--accent);color:#07090a;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font)">✅ תקין</button>
         <button onclick="respondStatusCheck('sos')" style="width:100%;padding:14px;background:var(--danger);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font)">🆘 זקוק לסיוע</button>
+      </div>
+      <!-- Cancellation acknowledgement button -->
+      <div id="inc-cancel-btns" style="display:none;width:100%;margin-top:10px">
+        <button onclick="acknowledgeCancellation()" style="width:100%;padding:14px;background:var(--accent);color:#07090a;border:none;border-radius:10px;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--font)">✅ אשר ביטול</button>
       </div>
     </div>
   </div>
@@ -1178,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.2.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7031,7 +7035,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.2.0 source-code update because the merge in
+    // which survived our v6.2.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8496,6 +8500,82 @@ function sendNotification(){
   });
 }
 
+// ══════════════════════════════════════════════════════════
+// CANCEL MISSION — sends a cancellation notification to all
+// team members who approved/departed/arrived, with an "אשר" button.
+// ══════════════════════════════════════════════════════════
+function cancelActiveEvent(){
+  if(!_currentActiveNotifId){
+    showToast({icon:'⚠️',title:'אין אירוע פעיל לביטול',type:'warn'});
+    return;
+  }
+  document.getElementById('modal-ttl').innerHTML = '⛔ ביטול אירוע / משימה';
+  document.getElementById('modal-body').innerHTML = '<div class="form-g"><label>סיבת ביטול (אופציונלי)</label><input type="text" id="cancel-reason" placeholder="סיבה..."/></div>'
+    + '<div style="font-size:12px;color:var(--warn);margin-top:8px;font-weight:700">⚠️ הודעת ביטול תישלח לכל מי שאישר הגעה</div>';
+  modalCB = ()=>{
+    const reason = (document.getElementById('cancel-reason')||{}).value || '';
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const senderName = u ? u.name : 'מפקד';
+    const cancelNotifId = 'cancel_'+Date.now().toString(36);
+    const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    const payload = {
+      id: cancelNotifId,
+      type: 'cancellation',
+      typeLabel: 'ביטול אירוע',
+      title: '⛔ האירוע בוטל',
+      body: reason ? ('סיבה: '+reason) : 'האירוע בוטל על ידי מפקד',
+      cancellation: true,
+      senderName,
+      senderId: u ? u.id : '',
+      sentAt: Date.now()
+    };
+    // Send to ALL approvers + all commanders
+    const approverIds = Object.keys(_approvalsData||{});
+    const cmdRoles = ['מפקד יחידה','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק'];
+    const cmdIds = PERSONNEL.filter(p =>
+      cmdRoles.includes(p.role) || (p.permsOverride && p.permsOverride.includes('admin'))
+    ).map(p => p.id);
+    const allIds = [...new Set([...approverIds, ...cmdIds])];
+    allIds.forEach(pid => {
+      fetch(DB_REST+'/tac_notifications/'+pid+'/'+cancelNotifId+'.json',{
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      }).catch(()=>{});
+    });
+    // Clear active event data
+    _approvalsData = {};
+    _statusCheckData = {};
+    stopStatusCheck();
+    // Clear tac_active_notif
+    if(window._db) window._db.ref('tac_active_notif').remove().catch(()=>{});
+    fetch(DB_REST+'/tac_active_notif.json',{method:'DELETE'}).catch(()=>{});
+    // Clear pending departure/arrival banners
+    localStorage.removeItem('tac_pending_departure');
+    localStorage.removeItem('tac_pending_arrival');
+    localStorage.removeItem('tac_arrived_at_event');
+    const bar = document.getElementById('depart-banner');
+    if(bar) bar.classList.remove('active');
+    // Refresh panel
+    window._unitsLastHash = '';
+    const c = document.getElementById('rp-body');
+    if(c && currentPanel==='units') renderUnitsP(c);
+    showToast({icon:'⛔',title:'אירוע בוטל',sub:'הודעה נשלחה ל-'+allIds.length+' אנשים',type:'info',duration:5000});
+    auditLog('⛔ ביטול אירוע','danger',allIds.length+' נמענים'+(reason?' — '+reason:''));
+  };
+  document.getElementById('modal-wrap').style.display = 'flex';
+}
+// Acknowledge a cancellation (team member side)
+function acknowledgeCancellation(){
+  document.getElementById('incoming-notif-overlay').classList.remove('open');
+  // Clear local event state
+  localStorage.removeItem('tac_pending_departure');
+  localStorage.removeItem('tac_pending_arrival');
+  localStorage.removeItem('tac_arrived_at_event');
+  const bar = document.getElementById('depart-banner');
+  if(bar) bar.classList.remove('active');
+  showToast({icon:'✅',title:'אישור ביטול התקבל',type:'info'});
+}
+
 /* ── Listen for incoming notifications ── */
 function _isMobileDevice(){
   // True mobile OR narrow viewport (tablet in portrait)
@@ -8667,12 +8747,12 @@ document.addEventListener('visibilitychange', ()=>{
 
 function _showIncomingNotif(notif, fbRef){
   // ── CLASSIFY THE NOTIFICATION ──
-  // Three mutually-exclusive types: rescue > status_check > emergency
-  // This classification determines which buttons/UI to show.
+  // Four mutually-exclusive types: cancellation > rescue > status_check > emergency
   const nid = notif.id || notif.sentAt;
-  const isRescue     = !!(notif.rescue && notif.type === 'rescue');
-  const isStatusCheck = !!(notif.statusCheck || notif.type === 'status_check') && !isRescue;
-  const isEmergency  = !isRescue && !isStatusCheck;
+  const isCancellation = !!(notif.cancellation || notif.type === 'cancellation');
+  const isRescue       = !isCancellation && !!(notif.rescue && notif.type === 'rescue');
+  const isStatusCheck  = !isCancellation && !isRescue && !!(notif.statusCheck || notif.type === 'status_check');
+  const isEmergency    = !isCancellation && !isRescue && !isStatusCheck;
 
   // ── DEDUP ──
   if(nid && _shownNotifIds.has(nid)) return;
@@ -8737,17 +8817,27 @@ function _showIncomingNotif(notif, fbRef){
   const incBtnsMain = document.getElementById('inc-btns');
   const departBtn   = document.getElementById('inc-depart-now');
   const scBtns      = document.getElementById('inc-status-btns');
+  const cancelBtns  = document.getElementById('inc-cancel-btns');
   const addrWrap    = document.getElementById('inc-addr-wrap');
   const venueWrap   = document.getElementById('inc-venue-wrap');
   const rescueBtns  = document.getElementById('inc-rescue-btns');
   if(incBtnsMain) incBtnsMain.style.display = 'none';
   if(departBtn)   departBtn.style.display   = 'none';
   if(scBtns)      scBtns.style.display      = 'none';
+  if(cancelBtns)  cancelBtns.style.display  = 'none';
   if(addrWrap)    addrWrap.style.display     = 'none';
   if(venueWrap)   venueWrap.style.display    = 'none';
   if(rescueBtns)  rescueBtns.style.display   = 'none';
 
   // ── ROUTE BY TYPE ──
+  if(isCancellation){
+    // CANCELLATION popup — single "אשר ביטול" button
+    if(cancelBtns) cancelBtns.style.display = 'block';
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('alert'));
+    _vibrate([400,200,400]);
+    return;
+  }
   if(isRescue){
     // RESCUE popup — navigate to distressed person
     let rb = rescueBtns;
@@ -9937,6 +10027,7 @@ function renderStatusCheckConfig(){
       ${active?`<button onclick="stopStatusCheck();renderUnitsP(document.getElementById('rp-body'))" style="padding:4px 12px;border-radius:6px;background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">⏹ בטל</button><span style="font-size:10px;color:var(--accent);font-weight:700">● פעיל — כל ${curInterval} דק׳</span>`:''}
     </div>
     ${Object.keys(_statusCheckData).length ? _renderStatusResponses() : ''}
+    ${Object.keys(_approvalsData||{}).length ? '<button onclick="cancelActiveEvent()" style="margin-top:8px;width:100%;padding:8px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);color:var(--danger);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">⛔ ביטול אירוע / משימה</button>' : ''}
   </div>`;
 }
 function _renderStatusResponses(){
@@ -12953,7 +13044,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
