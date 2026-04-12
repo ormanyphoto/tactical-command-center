@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.2.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.2.3</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4857,6 +4857,11 @@ function _renderUnitsListOnly(el){
     }
     html += '</div>';
     html += '<span class="badge ' + st.badge + '" style="font-size:10px">' + st.lbl + '</span>';
+    // Locate button — centers map on this person's live location
+    const pLoc = (window._liveLocs||{})[p.id];
+    if(pLoc && pLoc.lat && pLoc.lng){
+      html += '<button onclick="focusOnPerson(\''+p.id+'\')" style="background:none;border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:12px;cursor:pointer;padding:2px 5px;border-radius:4px;flex-shrink:0;line-height:1" title="מקד במפה">📍</button>';
+    }
     // Admin manual status buttons for arrived/departed members
     const canAdmin = (typeof AUTH!=='undefined') && (AUTH.isAdmin() || AUTH.canDo('create_mission'));
     const isOnScene = st.key === 'arrived' || st.key === 'enroute';
@@ -4920,6 +4925,25 @@ function removeUnit(id){
 
 function setUnitF(f){const c=document.getElementById('rp-body');c._f=f;renderUnitsP(c)}
 function locUnit(id){const u=UNITS.find(x=>x.id===id);if(u&&map){map.setCenter({lat:u.lat,lng:u.lng});map.setZoom(18);}}
+// Focus map on a team member's live location + switch to map view on mobile
+function focusOnPerson(pid){
+  const loc = (window._liveLocs||{})[pid];
+  if(!loc || !loc.lat || !loc.lng){ showToast({icon:'⚠️',title:'אין מיקום חי',type:'warn'}); return; }
+  if(window.map){
+    window.map.panTo({lat:loc.lat, lng:loc.lng});
+    window.map.setZoom(18);
+  }
+  // On mobile: switch to map view so the user sees the result
+  if(window.innerWidth <= 1024){
+    currentView = 'map';
+    document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active', b.dataset.v==='map'));
+    const rp = document.getElementById('right-panel');
+    if(rp){ rp.classList.remove('mobile-open'); rp.classList.add('hidden'); }
+    if(typeof _triggerMapResize === 'function') _triggerMapResize();
+  }
+  const p = PERSONNEL.find(x=>x.id===pid);
+  showToast({icon:'📍',title:'ממקד: '+(p?p.name:pid),type:'info',duration:2000});
+}
 function openAddUnitModal(){
   document.getElementById('modal-ttl').innerHTML='👤 יחידה חדשה';
   document.getElementById('modal-body').innerHTML=`<div class="form-row"><div class="form-g"><label>מזהה</label><input type="text" id="au-id" placeholder="U0X"/></div><div class="form-g"><label>דרגה</label><input type="text" id="au-rank" placeholder="דרגה..."/></div></div>
@@ -7035,7 +7059,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.2.3 source-code update because the merge in
+    // which survived our v6.2.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13056,7 +13080,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
