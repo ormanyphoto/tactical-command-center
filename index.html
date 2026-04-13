@@ -3945,7 +3945,6 @@ function renderDrawP(c){
   <div class="mp-grid">
     <button class="mp-btn" onclick="mapGoTo(32.0667,34.7818,13)"><span>🏙️</span><span class="mp-btn-label">תל אביב</span></button>
     <button class="mp-btn" onclick="if(map)map.fitBounds({north:33.4,south:29.2,east:35.9,west:34.1})"><span>🇮🇱</span><span class="mp-btn-label">כל ישראל</span></button>
-    <button class="mp-btn" onclick="if(map)map.setTilt(map.getTilt()===0?45:0)"><span>🔭</span><span class="mp-btn-label">הטיה 45°</span></button>
   </div>
 
   <!-- ── שכבות ── -->
@@ -3955,7 +3954,6 @@ function renderDrawP(c){
     <button class="mp-btn" id="rp-geo-btn" onclick="toggleGeofenceVisibility()"><span>⬡</span><span class="mp-btn-label">גיאופנסים</span></button>
     <button class="mp-btn" id="rp-addr-btn" onclick="toggleAddressLayer()"><span>🏢</span><span class="mp-btn-label">כתובות ומבנים</span></button>
     <button class="mp-btn" onclick="plotMissions();showToast({icon:'📋',title:'משימות עודכנו',type:'info',duration:2000})"><span>📋</span><span class="mp-btn-label">משימות</span></button>
-    <button class="mp-btn" onclick="plotMissions();plotUnits();plotGFs();showToast({icon:'🔄',title:'מפה עודכנה',type:'info',duration:2000})"><span>🔄</span><span class="mp-btn-label">רענן הכל</span></button>
   </div>
 
   <!-- ── GovMap ── -->
