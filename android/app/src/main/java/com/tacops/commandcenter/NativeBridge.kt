@@ -53,7 +53,6 @@ class NativeBridge(private val context: Context) {
      * tac_fcm_tokens_native/<personId>/<deviceId> so sendPush can target it.
      */
     @JavascriptInterface
-    @android.webkit.JavascriptInterface
     fun setUserProfile(name: String, role: String) {
         prefs.edit()
             .putString("userName", name)
@@ -62,12 +61,13 @@ class NativeBridge(private val context: Context) {
         Log.d(TAG, "setUserProfile(name=$name, role=$role)")
     }
 
-    @android.webkit.JavascriptInterface
+    @JavascriptInterface
     fun setLocPublishEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("locPublishEnabled", enabled).apply()
         Log.d(TAG, "setLocPublishEnabled($enabled)")
     }
 
+    @JavascriptInterface
     fun setPersonId(personId: String) {
         if (personId.isEmpty()) return
         val prev = prefs.getString(KEY_PERSON_ID, null)
