@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.6.9 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.7.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.9</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.7.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.6.9</div>
+    <div id="fm-logo">⬡ מבצעים v6.7.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7625,7 +7625,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.6.9 source-code update because the merge in
+    // which survived our v6.7.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13206,12 +13206,15 @@ const SYNC = (() => {
     const labelBg = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
     const labelColor = isDayMode ? '#111111' : '#3dff52';
     const displayName = (fullName||initials).slice(0,18);
+    // Use 1x on mobile (smaller data URL = no broken-image placeholder),
+    // 2x on desktop for retina sharpness.
+    const _isMob = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    const DPR = _isMob ? 1 : 2;
     function _draw(imgEl){
-      const cvs=document.createElement('canvas'); cvs.width=W*2; cvs.height=H*2;
+      const cvs=document.createElement('canvas'); cvs.width=W*DPR; cvs.height=H*DPR;
       const g=cvs.getContext('2d',{alpha:true});
-      // Explicitly clear to fully transparent — fixes mobile white-box artifact
       g.clearRect(0,0,cvs.width,cvs.height);
-      g.scale(2,2);
+      g.scale(DPR,DPR);
       // Label
       const nw=Math.min(W+8,Math.max(48,displayName.length*6+14)), nx=cx-nw/2;
       g.beginPath();
@@ -13750,7 +13753,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.9)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.7.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
