@@ -2369,27 +2369,32 @@ function switchBaseMap(provider){
 
   if(provider==='govmap'){
     _activeBaseProvider='govmap';
-    // Instead of loading an iframe (which hides all markers), we keep
-    // Google Maps visible and overlay it with OSM Hebrew street tiles +
-    // GovMap data layers. All team member markers remain visible.
+    // Snapshot current Google Maps position → initialize GovMap state
+    if(map){
+      const center=map.getCenter();
+      const itm=_wgs84ToItm(center.lat(),center.lng());
+      _govmapState.x=itm.x;
+      _govmapState.y=itm.y;
+      _govmapState.z=_googleZoomToGovmap(map.getZoom());
+    }
+    // Swap map-type grid to GovMap backgrounds
     if(grid) grid.innerHTML=_GOVMAP_MTYPE_HTML;
+    // Mark the currently selected background active
     const activeBg=document.getElementById('gvm-bg-'+_govmapBackground);
     if(activeBg) activeBg.classList.add('mp-active');
-    // Hide the Google Maps iframe if it was showing, ensure gmap is visible
-    iframeEl.style.display='none';
-    iframeEl.src='about:blank';
-    if(gmapEl) gmapEl.style.display='block';
-    if(map) google.maps.event.trigger(map,'resize');
-    // Auto-activate the OSM address layer as the base (Hebrew streets)
-    if(!_addressLayer && typeof toggleAddressLayer==='function') toggleAddressLayer();
+    // Load iframe using _govmapState (not Google Maps)
+    iframeEl.src=_buildGovmapUrl();
+    iframeEl.style.display='block';
+    if(gmapEl) gmapEl.style.display='none';
+    // Button states
     if(gb) gb.classList.remove('mp-active');
     if(vm) vm.classList.add('mp-active');
-    showToast({icon:'🇮🇱',title:'GovMap — שכבות ישראל',sub:'כתובות עברית + שכבות GovMap · סמנים גלויים',type:'success',duration:4000});
+    showToast({icon:'🇮🇱',title:'GovMap',sub:'מפת ממשלה ישראלית',type:'success',duration:3000});
   } else {
     _activeBaseProvider='google';
+    // Swap map-type grid back to Google options
     if(grid) grid.innerHTML=_GOOGLE_MTYPE_HTML;
-    // Remove OSM address layer if it was auto-activated by GovMap mode
-    if(_addressLayer && typeof toggleAddressLayer==='function') toggleAddressLayer();
+    // Restore Google Maps
     iframeEl.style.display='none';
     iframeEl.src='about:blank';
     if(gmapEl) gmapEl.style.display='block';
