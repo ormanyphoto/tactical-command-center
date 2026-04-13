@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.6.8 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.6.9 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.8</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.9</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.6.8</div>
+    <div id="fm-logo">⬡ מבצעים v6.6.9</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3025,7 +3025,7 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
   const iconObj={url:iconData,scaledSize:new google.maps.Size(labelW,62),anchor:new google.maps.Point(labelW/2,19)};
 
   const mk=new google.maps.Marker({
-    position:{lat,lng},map,icon:iconObj,title:name,zIndex:200,optimized:false,draggable:false,
+    position:{lat,lng},map,icon:iconObj,title:name,zIndex:200,draggable:false,
   });
   mk._type='unit';mk._id=id;
 
@@ -7625,7 +7625,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.6.8 source-code update because the merge in
+    // which survived our v6.6.9 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9726,11 +9726,6 @@ function _placeNotifMarker(lat, lng, address, notif, venueLabel, venueColor, mar
     title: label,
     icon: markerIcon,
     zIndex: 9999,
-    // optimized:false — per-marker DOM rendering. Now that every canvas
-    // context is built with {alpha:true}, the <img> bounding box is
-    // transparent so no white 72×82 rectangle shows. This mode also
-    // avoids the tile-batch flicker on fast real-time updates.
-    optimized: false,
     animation: google.maps.Animation.BOUNCE
   });
   setTimeout(()=>{ if(marker) marker.setAnimation(null); }, 3000);
@@ -13268,14 +13263,9 @@ const SYNC = (() => {
       if(!_liveMarkers[markerKey]){
         _liveMarkers[markerKey] = new google.maps.Marker({
           position:pos, map:window.map, zIndex:reallyIsMe?800:600,
-          // optimized:false — per-marker DOM rendering. The white bounding
-          // box artifact that previously showed next to the avatar was
-          // caused by _buildMarkerIcon's canvas being created without an
-          // explicit alpha:true (Chrome Android / Samsung WebView made
-          // transparent pixels opaque white). With alpha:true now set,
-          // optimized:false is safe AND prevents the tile-batch flicker
-          // that plagued live location updates.
-          optimized:false,
+          // Use default optimized:true (tile-batched). optimized:false caused
+          // visible bounding boxes on some platforms (day mode, older WebViews).
+          // Flicker prevention is handled by the 15s grace period in cleanup.
           icon, title:d.name+(reallyIsMe?' (אני)':'')
         });
         _liveMarkers[markerKey]._lastUpdated = Date.now();
@@ -13760,7 +13750,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.8)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.9)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
