@@ -1742,6 +1742,10 @@ const AUTH = (() => {
 
   function applyPerms(){
     if(!_user) return;
+    // Sync user profile to native bridge for background location tagging
+    if(window.Android && typeof window.Android.setUserProfile === 'function'){
+      try { window.Android.setUserProfile(_user.name||'', _user.role||''); } catch(_){}
+    }
     const perms = _permsFor(_user.role, _user);
     // Nav tabs (desktop)
     document.querySelectorAll('.nav-tab[data-v]').forEach(tab=>{
@@ -13832,6 +13836,10 @@ const FIELD = (() => {
   function _setName(name){
     const el=document.getElementById('fm-display-name'); if(el) el.textContent=name;
     const role=localStorage.getItem('tac_field_role')||'שדה';
+    // Sync to native bridge so background service uses correct name
+    if(window.Android && typeof window.Android.setUserProfile === 'function'){
+      try { window.Android.setUserProfile(name, role); } catch(_){}
+    }
     SYNC.startPublishing({name,role,status:_status});
   }
 

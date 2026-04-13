@@ -377,8 +377,16 @@ class TacticalForegroundService : Service() {
 
         // Read the user profile from SharedPreferences (set by NativeBridge)
         val prefs = getSharedPreferences("tac_prefs", Context_MODE_PRIVATE)
-        val name = prefs.getString("userName", "שדה") ?: "שדה"
-        val role = prefs.getString("userRole", "לוחם") ?: "לוחם"
+        // Read user profile: try native bridge prefs first, then field-mode keys
+        var name = prefs.getString("userName", null)
+        if (name.isNullOrEmpty()) {
+            // Field mode stores name under a different key via localStorage bridge
+            name = prefs.getString("tac_field_name", null) ?: "שדה"
+        }
+        var role = prefs.getString("userRole", null)
+        if (role.isNullOrEmpty()) {
+            role = prefs.getString("tac_field_role", null) ?: "לוחם"
+        }
         val uid = prefs.getString("deviceId", null) ?: return
 
         // Check if location publishing is enabled (user toggled ON in the app)
@@ -392,7 +400,7 @@ class TacticalForegroundService : Service() {
             override fun onLocationChanged(loc: Location) {
                 val now = System.currentTimeMillis()
                 // Throttle to every 15 seconds
-                if (now - lastLocPublishTime < 15_000L) return
+                if (now - lastLocPublishTime < 5_000L) return
                 lastLocPublishTime = now
 
                 val data = hashMapOf<String, Any>(
@@ -423,18 +431,18 @@ class TacticalForegroundService : Service() {
         }
 
         try {
-            // Request updates every 10s / 10m minimum
+            // Request updates every 3s / 5m — fast enough for smooth map tracking
             locationManager?.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
-                10_000L, // minTime 10s
-                10f,     // minDistance 10m
+                3_000L,  // minTime 3s
+                5f,      // minDistance 5m
                 locationListener!!
             )
             // Also request from network provider as fallback
             try {
                 locationManager?.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
-                    15_000L, 50f,
+                    5_000L, 20f,
                     locationListener!!
                 )
             } catch (_: Exception) {}
