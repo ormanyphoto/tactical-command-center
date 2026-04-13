@@ -1256,7 +1256,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('stats-bo')">📊 סטטיסטיקה</button>
-      <button class="bo-tab" onclick="boTab('range-bo')">🎯 מטווחים</button>
+      <button class="bo-tab" onclick="boTab('range-bo')"><svg viewBox="0 0 200 70" width="22" height="8" style="fill:currentColor;vertical-align:middle;margin-left:3px"><path d="M10 38h40l5-8h18l3-10h50l8 3h25l15-3 12 5v7l-12 3H149l-8-2H90l-5 7H68l-8 3H30l-15-2-5-3z"/></svg> מטווחים</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
   </div>
@@ -6541,7 +6541,7 @@ function boShootingRange(c){
   });
 
   c.innerHTML = '<div class="bo-section">'
-    +'<div class="bo-hd">🎯 ניהול מטווחים</div>'
+    +'<div class="bo-hd" style="display:flex;align-items:center;gap:10px"><svg viewBox="0 0 200 70" width="48" height="17" style="fill:var(--accent);flex-shrink:0"><path d="M10 38h40l5-8h18l3-10h50l8 3h25l15-3 12 5v7l-12 3H149l-8-2H90l-5 7H68l-8 3H30l-15-2-5-3z"/></svg> ניהול מטווחים</div>'
     // Overdue alert
     +(overdueCount ? '<div style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--danger);font-weight:700">⚠️ '+overdueCount+' אנשי צוות חורגים ממועד אימון מטווח (מעל '+maxMonths+' חודשים)</div>' : '')
     // Weapons table
@@ -8337,7 +8337,7 @@ function editPersonModal(id){
     </div>
     <div class="form-g" style="background:var(--panel2);padding:14px;border-radius:10px;border:1px solid var(--border2)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'%3E%3Cpath d='M5 22h25l3-4h10l2-6h30l5 2h15l10-2 8 3v4l-8 2h-15l-5-1H55l-3 4H40l-5 2H20l-10-1-5-3z' fill='%23888'/%3E%3C/svg%3E" style="width:50px;height:18px;opacity:0.7"/>
+        <svg viewBox="0 0 200 70" width="44" height="16" style="fill:var(--accent);flex-shrink:0"><path d="M10 38h40l5-8h18l3-10h50l8 3h25l15-3 12 5v7l-12 3H149l-8-2H90l-5 7H68l-8 3H30l-15-2-5-3z"/></svg>
         <div style="font-weight:800;color:var(--texthi);font-size:14px">כלי נשק</div>
       </div>
       ${[0,1].map(function(i){
