@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.2.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.6 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.6</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.2.5</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.6</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4720,15 +4720,15 @@ function _buildUnitsKPI(){
       enroute++;
     } else { approved++; }
   });
-  const s = (bg,border,clr,val,lbl) =>
-    '<div style="background:'+bg+';border:1px solid '+border+';border-radius:var(--r);padding:6px 4px;text-align:center">'
-    +'<div style="font-size:18px;font-weight:900;color:'+clr+'">'+val+'</div>'
-    +'<div style="font-size:9px;color:var(--text3);white-space:nowrap">'+lbl+'</div></div>';
-  return s('rgba(61,255,82,0.1)','rgba(61,255,82,0.25)','var(--accent)',avail,'זמינים')
-       + s('var(--panel2)','var(--border)','var(--text2)',unavail,'לא זמינים')
-       + s('rgba(240,176,0,0.1)','rgba(240,176,0,0.25)','#f0b000',approved,'מאשרים')
-       + s('rgba(29,108,255,0.1)','rgba(29,108,255,0.25)','#1d6cff',enroute,'בדרך')
-       + s('rgba(61,255,82,0.15)','rgba(61,255,82,0.4)','#3dff52',arrived,'הגיעו');
+  const s = (bg,border,clr,val,lbl,icon) =>
+    '<div style="background:'+bg+';border:1.5px solid '+border+';border-radius:10px;padding:10px 4px;text-align:center">'
+    +'<div style="font-size:22px;font-weight:900;color:'+clr+';line-height:1">'+val+'</div>'
+    +'<div style="font-size:10px;color:'+clr+';font-weight:700;margin-top:3px;white-space:nowrap;opacity:0.85">'+icon+' '+lbl+'</div></div>';
+  return s('rgba(61,255,82,0.12)','rgba(61,255,82,0.35)','var(--accent)',avail,'זמינים','🟢')
+       + s('rgba(255,51,51,0.08)','rgba(255,51,51,0.25)','var(--danger)',unavail,'לא זמינים','🔴')
+       + s('rgba(240,176,0,0.12)','rgba(240,176,0,0.35)','#f0b000',approved,'מאשרים','⏳')
+       + s('rgba(29,108,255,0.12)','rgba(29,108,255,0.35)','#29c5f6',enroute,'בדרך','🚗')
+       + s('rgba(61,255,82,0.18)','rgba(61,255,82,0.5)','#3dff52',arrived,'הגיעו','✅');
 }
 
 function renderUnitsP(c){
@@ -4754,18 +4754,22 @@ function renderUnitsP(c){
     if(window._unitsLastHash !== _dataHash){
       window._unitsLastHash = _dataHash;
       const apSec = c.querySelector('#units-approvals-wrap');
-      if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
+      if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '');
       const kpi = c.querySelector('#units-kpi');
       if(kpi) kpi.innerHTML = _buildUnitsKPI();
+      const scWrap = c.querySelector('#units-sc-wrap');
+      if(scWrap) scWrap.innerHTML = (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
     }
     return;
   }
 
   var html = '';
   // ── Approvals + rescue missions + status check config ──
-  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
-  // ── Summary KPIs: זמינים | לא זמינים | מאשרים | בדרך | הגיעו ──
-  html += '<div id="units-kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px">' + _buildUnitsKPI() + '</div>';
+  html += '<div id="units-approvals-wrap">' + renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '') + '</div>';
+  // ── Summary KPIs ──
+  html += '<div id="units-kpi" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:12px 0">' + _buildUnitsKPI() + '</div>';
+  // ── Status check config (admin only, separate section) ──
+  html += '<div id="units-sc-wrap">' + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
 
   // ── Search bar — oninput only updates the list div, not the whole panel ──
   html += '<input type="text" id="units-search" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;_renderUnitsListOnly(document.getElementById(\'units-plist\'))" style="width:100%;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
@@ -7059,7 +7063,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.2.5 source-code update because the merge in
+    // which survived our v6.2.6 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -10049,21 +10053,29 @@ function renderStatusCheckConfig(){
   if(!isAdmin) return '';
   const curInterval = Number(localStorage.getItem('tac_status_check_interval') || 0);
   const active = !!_statusCheckTimer;
-  return `<div style="background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-top:8px">
-    <div style="font-size:11px;font-weight:800;color:var(--accent2);margin-bottom:6px">📋 בדיקת סטטוס אוטומטית</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="sc-interval" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:12px">
+  const statusIcon = active ? '🟢' : '⚪';
+  const statusLbl = active ? 'פעיל — כל '+curInterval+' דק׳' : 'כבוי';
+  const statusClr = active ? 'var(--accent)' : 'var(--text3)';
+  return `<div style="background:linear-gradient(135deg,var(--panel2),var(--panel3));border:1.5px solid var(--border2);border-radius:10px;padding:12px 14px;margin-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:900;color:var(--texthi);display:flex;align-items:center;gap:6px">📋 בדיקת סטטוס</div>
+      <div style="font-size:10px;font-weight:700;color:${statusClr};display:flex;align-items:center;gap:4px">${statusIcon} ${statusLbl}</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="sc-interval" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:13px;font-weight:600">
         <option value="0">כבוי</option>
         <option value="15" ${curInterval===15?'selected':''}>כל 15 דק׳</option>
         <option value="30" ${curInterval===30?'selected':''}>כל 30 דק׳</option>
         <option value="60" ${curInterval===60?'selected':''}>כל שעה</option>
         <option value="120" ${curInterval===120?'selected':''}>כל שעתיים</option>
       </select>
-      <button onclick="const v=Number(document.getElementById('sc-interval').value);if(v)startStatusCheck(v);else stopStatusCheck();" style="padding:4px 14px;border-radius:6px;background:var(--accent);color:#07090a;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">${active?'🔄 עדכן':'▶️ הפעל'}</button>
-      ${active?`<button onclick="stopStatusCheck();renderUnitsP(document.getElementById('rp-body'))" style="padding:4px 12px;border-radius:6px;background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">⏹ בטל</button><span style="font-size:10px;color:var(--accent);font-weight:700">● פעיל — כל ${curInterval} דק׳</span>`:''}
+      ${active
+        ? `<button onclick="stopStatusCheck();renderUnitsP(document.getElementById('rp-body'))" style="padding:8px 16px;border-radius:8px;background:rgba(255,51,51,0.15);border:1.5px solid rgba(255,51,51,0.4);color:var(--danger);font-size:12px;font-weight:800;cursor:pointer;font-family:var(--font);white-space:nowrap">⏹ עצור</button>`
+        : `<button onclick="const v=Number(document.getElementById('sc-interval').value);if(v)startStatusCheck(v);else showToast({icon:'⚠️',title:'בחר תדירות',type:'warn'})" style="padding:8px 16px;border-radius:8px;background:var(--accent);color:#07090a;border:none;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--font);white-space:nowrap;box-shadow:0 2px 8px rgba(61,255,82,0.3)">▶️ הפעל</button>`
+      }
     </div>
-    ${Object.keys(_statusCheckData).length ? _renderStatusResponses() : ''}
-    ${Object.keys(_approvalsData||{}).length ? '<button onclick="cancelActiveEvent()" style="margin-top:8px;width:100%;padding:8px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);color:var(--danger);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)">⛔ ביטול אירוע / משימה</button>' : ''}
+    ${Object.keys(_statusCheckData).length ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">'+_renderStatusResponses()+'</div>' : ''}
+    ${Object.keys(_approvalsData||{}).length ? '<button onclick="cancelActiveEvent()" style="margin-top:10px;width:100%;padding:10px;background:rgba(255,51,51,0.08);border:1.5px solid rgba(255,51,51,0.3);color:var(--danger);border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--font)">⛔ ביטול אירוע / משימה</button>' : ''}
   </div>`;
 }
 function _renderStatusResponses(){
@@ -13086,7 +13098,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.6)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
