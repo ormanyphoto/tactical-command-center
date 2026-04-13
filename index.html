@@ -1238,7 +1238,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-back" onclick="closeBO()">← חזרה למפה</button>
     </div>
     <div class="bo-tabs">
-      <button class="bo-tab active" onclick="boTab('overview')">📊 סקירה</button>
+      <button class="bo-tab active" onclick="boTab('overview')">📊 סקירה ואנליטיקה</button>
       <button class="bo-tab" onclick="boTab('missions-bo')">📋 משימות</button>
       <button class="bo-tab" onclick="boTab('units-bo')">👥 כוח אדם</button>
       <button class="bo-tab" onclick="boTab('personnel-bo')">👤 אנשי צוות</button>
@@ -1255,7 +1255,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('sessions-bo')">🔐 סשנים</button>
       <button class="bo-tab" onclick="boTab('plates-bo')">🚗 לוחיות</button>
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
-      <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('stats-bo')">📊 סטטיסטיקה</button>
       <button class="bo-tab" onclick="boTab('range-bo')">📋 הדרכות ואימונים</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
@@ -5362,41 +5361,52 @@ function boOverview(c){
   const completed=MISSIONS.filter(m=>m.status==='completed').length;
   const active=MISSIONS.filter(m=>m.status==='active').length;
   const urgent=MISSIONS.filter(m=>m.status==='urgent').length;
+  const dep=UNITS.filter(u=>u.status==='deployed').length;
   const avail=PERSONNEL.filter(p=>p.available).length;
-  let html='<div class="bo-section">';
-  html+='<div class="bo-hd">סקירה כללית</div>';
-  html+='<div class="bo-stats">';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--accent)">'+MISSIONS.length+'</div><div class="bo-stat-l">סה"כ משימות</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--danger)">'+urgent+'</div><div class="bo-stat-l">דחופות</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--blue)">'+UNITS.length+'</div><div class="bo-stat-l">יחידות</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--teal)">'+PERSONNEL.length+'</div><div class="bo-stat-l">כוח אדם</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--accent2)">'+avail+'</div><div class="bo-stat-l">זמינים</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--warn)">'+GFS.length+'</div><div class="bo-stat-l">גיאופנסים</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--danger)">'+ALERTS.length+'</div><div class="bo-stat-l">התראות</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--purple)">'+TEAMS.length+'</div><div class="bo-stat-l">צוותים</div></div>';
-  html+='</div>';
-  html+='<div class="bo-hd" style="font-size:16px;margin-top:20px">ביצועים 24 שעות אחרונות</div>';
+  const regions=[['תל אביב',8],['ירושלים',5],['חיפה',3],['נגב',2],['גליל',2],['יש"ע',4]];
+  const types=[['מעצר',3],['מעקב',2],['תנועה',2],['חילוץ',1],['ליווי',1]];
+  const kpi=(bg,bdr,clr,val,lbl)=>'<div style="background:'+bg+';border:1.5px solid '+bdr+';border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:'+clr+'">'+val+'</div><div style="font-size:11px;color:var(--text3)">'+lbl+'</div></div>';
+  let html='';
+  // KPIs
+  html+='<div class="bo-section"><div class="bo-hd">📊 סטטוס כללי</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">';
+  html+=kpi('rgba(255,51,51,0.08)','rgba(255,51,51,0.3)','var(--danger)',urgent,'דחופות');
+  html+=kpi('rgba(61,255,82,0.06)','rgba(61,255,82,0.25)','var(--accent)',active,'פעילות');
+  html+=kpi('rgba(41,197,246,0.06)','rgba(41,197,246,0.25)','var(--blue)',dep,'פרוסים');
+  html+=kpi('rgba(176,108,240,0.06)','rgba(176,108,240,0.25)','var(--accent2)',avail,'זמינים');
+  html+='</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
+  html+=kpi('rgba(61,255,82,0.04)','rgba(61,255,82,0.15)','var(--accent)',MISSIONS.length,'סה"כ משימות');
+  html+=kpi('rgba(0,232,184,0.06)','rgba(0,232,184,0.25)','var(--teal)',PERSONNEL.length,'כוח אדם');
+  html+=kpi('rgba(255,193,7,0.06)','rgba(255,193,7,0.25)','var(--warn)',TEAMS.length,'צוותים');
+  html+=kpi('rgba(255,51,51,0.04)','rgba(255,51,51,0.15)','var(--danger)',ALERTS.length,'התראות');
+  html+='</div></div>';
+  // Performance
+  html+='<div class="bo-section"><div class="bo-hd">⚡ ביצועים 24 שעות</div>';
   html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--accent2);font-size:22px">4.2 דק׳</div><div class="bo-stat-l">זמן תגובה</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--blue);font-size:22px">'+completed+'/'+MISSIONS.length+'</div><div class="bo-stat-l">השלמת משימות</div></div>';
-  html+='<div class="bo-stat"><div class="bo-stat-n" style="color:var(--accent);font-size:22px">87%</div><div class="bo-stat-l">כיסוי כוח אדם</div></div>';
-  html+='</div>';
-  html+='<div class="bo-hd" style="font-size:16px;margin-top:20px">משימות לפי סטטוס</div>';
-  var statuses=[['urgent','דחוף','var(--danger)'],['active','פעיל','var(--accent)'],['briefing','בריפינג','var(--purple)'],['pending','ממתין','var(--warn)'],['completed','הושלם','var(--blue)']];
-  html+='<div style="display:flex;flex-direction:column;gap:6px">';
-  statuses.forEach(function(row){
-    var s=row[0],lbl=row[1],clr=row[2];
-    var n=MISSIONS.filter(function(m){return m.status===s;}).length;
-    html+='<div style="display:flex;align-items:center;gap:8px">';
-    html+='<span style="width:70px;font-size:12px;color:var(--text2)">'+lbl+'</span>';
-    html+='<div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:'+clr+';width:'+(n*20)+'%;border-radius:4px"></div></div>';
-    html+='<span style="font-size:12px;font-weight:700;color:var(--accent2);width:20px;text-align:right">'+n+'</span>';
-    html+='</div>';
+  html+=kpi('var(--panel2)','var(--border2)','var(--accent2)','4.2 דק׳','זמן תגובה');
+  html+=kpi('var(--panel2)','var(--border2)','var(--blue)',completed+'/'+MISSIONS.length,'השלמת משימות');
+  html+=kpi('var(--panel2)','var(--border2)','var(--accent)','87%','כיסוי כוח אדם');
+  html+='</div></div>';
+  // Mission status bars
+  html+='<div class="bo-section"><div class="bo-hd">📋 סטטוס משימות</div>';
+  [['urgent','דחופות','var(--danger)'],['active','פעילות','var(--accent)'],['briefing','בריפינג','var(--blue)'],['pending','ממתינות','var(--warn)'],['completed','הושלמו','var(--text3)']].forEach(([s,lbl,clr])=>{
+    const n=MISSIONS.filter(m=>m.status===s).length;
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+lbl+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:'+clr+';width:'+Math.min(100,n*20)+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+n+'</span></div>';
   });
   html+='</div>';
+  // Regions + types
+  html+='<div class="bo-section"><div class="bo-hd">🗺️ אירועים לפי אזור</div>';
+  regions.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+l+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--accent2);width:'+v*10+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+v+'</span></div>'; });
   html+='</div>';
+  html+='<div class="bo-section"><div class="bo-hd">🎯 סוגי משימות</div>';
+  types.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+l+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--blue);width:'+v*25+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--blue);width:24px;text-align:right">'+v+'</span></div>'; });
+  html+='</div>';
+  // Export
+  html+='<div class="bo-section"><div class="bo-hd">⬇️ ייצוא</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-sec" onclick="expReport()">⬇ דוח משמרת</button><button class="btn-sec" onclick="expGeo()">⬇ GeoJSON</button></div></div>';
   c.innerHTML=html;
 }
+// Redirect analytics-bo to overview (merged)
+function boAnalytics(c){ boOverview(c); }
 
 // ── BACK OFFICE ──
 function openBO(){
@@ -6848,40 +6858,7 @@ function completeRangeSession(sid){
   document.getElementById('modal-wrap').style.display = 'flex';
 }
 
-function boAnalytics(c){
-  const act=MISSIONS.filter(m=>m.status==='active').length;
-  const urg=MISSIONS.filter(m=>m.status==='urgent').length;
-  const done=MISSIONS.filter(m=>m.status==='completed').length;
-  const dep=UNITS.filter(u=>u.status==='deployed').length;
-  const avail=PERSONNEL.filter(p=>p.available).length;
-  const regions=[['תל אביב',8],['ירושלים',5],['חיפה',3],['נגב',2],['גליל',2],['יש"ע',4]];
-  const types=[['מעצר',3],['מעקב',2],['תנועה',2],['חילוץ',1],['ליווי',1]];
-  c.innerHTML=
-    '<div class="bo-section"><div class="bo-hd">📊 סטטוס כללי</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px">'
-    +'<div class="bo-stat-card" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--danger)">'+urg+'</div><div style="font-size:11px;color:var(--text3)">דחופות</div></div>'
-    +'<div class="bo-stat-card" style="background:rgba(61,255,82,0.06);border:1px solid rgba(61,255,82,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+act+'</div><div style="font-size:11px;color:var(--text3)">פעילות</div></div>'
-    +'<div class="bo-stat-card" style="background:rgba(41,197,246,0.06);border:1px solid rgba(41,197,246,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--blue)">'+dep+'</div><div style="font-size:11px;color:var(--text3)">פרוסים</div></div>'
-    +'<div class="bo-stat-card" style="background:rgba(176,108,240,0.06);border:1px solid rgba(176,108,240,0.25);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent2)">'+avail+'</div><div style="font-size:11px;color:var(--text3)">זמינים</div></div>'
-    +'</div></div>'
-    +'<div class="bo-section"><div class="bo-hd">סטטוס משימות</div>'
-    +['urgent','active','briefing','pending','completed'].map(s=>{
-      const n=MISSIONS.filter(m=>m.status===s).length;
-      const colors={urgent:'var(--danger)',active:'var(--accent)',briefing:'var(--blue)',pending:'var(--warn)',completed:'var(--text3)'};
-      const labels={urgent:'דחופות',active:'פעילות',briefing:'בריפינג',pending:'ממתינות',completed:'הושלמו'};
-      return '<div class="bc-row"><span class="bc-lbl">'+labels[s]+'</span><div class="bc-track"><div class="bc-fill" style="background:'+colors[s]+';width:'+Math.min(100,n*20)+'%"></div></div><span class="bc-val">'+n+'</span></div>';
-    }).join('')
-    +'</div>'
-    +'<div class="bo-section"><div class="bo-hd">אירועים לפי אזור</div>'
-    +regions.map(([l,v])=>'<div class="bc-row"><span class="bc-lbl">'+l+'</span><div class="bc-track"><div class="bc-fill" style="background:var(--accent2);width:'+v*10+'%"></div></div><span class="bc-val">'+v+'</span></div>').join('')
-    +'</div>'
-    +'<div class="bo-section"><div class="bo-hd">סוגי משימות</div>'
-    +types.map(([l,v])=>'<div class="bc-row"><span class="bc-lbl">'+l+'</span><div class="bc-track"><div class="bc-fill" style="background:var(--blue);width:'+v*25+'%"></div></div><span class="bc-val">'+v+'</span></div>').join('')
-    +'</div>'
-    +'<div class="bo-section"><div class="bo-hd">ייצוא</div>'
-    +'<div style="display:flex;gap:8px"><button class="btn-sec" onclick="expReport()">⬇ דוח משמרת</button><button class="btn-sec" onclick="expGeo()">⬇ GeoJSON</button></div>'
-    +'</div>';
-}
+// boAnalytics is now merged into boOverview — see redirect above
 
 function boSettings(c){
   var isNight=document.body.classList.contains('night');
