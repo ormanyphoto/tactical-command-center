@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.7.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.7.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.7.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.7.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.7.1</div>
+    <div id="fm-logo">⬡ מבצעים v6.7.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2811,29 +2811,13 @@ function plotMissions(){
     if(!m||!m.lat||!m.lng) return; // skip missions without coordinates
     const col=SCOLORS[m.status]||'#5a7a90';
     const ico=MICONS[m.type]||'◉';
-    // Rich marker: colored circle with type emoji label
-    const canvas=document.createElement('canvas');
-    canvas.width=44;canvas.height=52;
-    // alpha:true EXPLICITLY — without it, Chrome Android / Samsung WebView
-    // treats transparent pixels as opaque white, so a 44×52 white bounding
-    // box becomes visible behind every marker when optimized:false renders
-    // them as raw <img> elements.
-    const ctx=canvas.getContext('2d',{alpha:true});
-    ctx.clearRect(0,0,44,52);
-    // Shadow
-    ctx.shadowColor='rgba(0,0,0,0.4)';ctx.shadowBlur=6;ctx.shadowOffsetY=2;
-    // Circle
-    ctx.beginPath();ctx.arc(22,22,18,0,Math.PI*2);
-    ctx.fillStyle=col;ctx.fill();
-    ctx.shadowColor='transparent';
-    ctx.strokeStyle='#ffffff';ctx.lineWidth=2.5;ctx.stroke();
-    // Pointer
-    ctx.beginPath();ctx.moveTo(17,36);ctx.lineTo(22,50);ctx.lineTo(27,36);
-    ctx.fillStyle=col;ctx.fill();
-    // Icon text
-    ctx.font='14px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(ico,22,22);
-    const iconUrl=canvas.toDataURL('image/png');
+    // Pure SVG marker — no canvas bounding box on mobile
+    const msvg='<svg xmlns="http://www.w3.org/2000/svg" width="44" height="52">'
+      +'<circle cx="22" cy="22" r="18" fill="'+col+'" stroke="#fff" stroke-width="2.5"/>'
+      +'<polygon points="17,36 22,50 27,36" fill="'+col+'"/>'
+      +'<text x="22" y="26" text-anchor="middle" font-size="14">'+ico+'</text>'
+      +'</svg>';
+    const iconUrl='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(msvg);
 
     const mk=new google.maps.Marker({
       position:{lat:m.lat,lng:m.lng},map,
@@ -2959,59 +2943,30 @@ function plotPersonnelMarker(p){
   _plotUnitMarker(markerId,p.name,lat,lng,p.color||'#29c5f6',initials,p.photo,p.role,'',p.unit,p.available?'on-duty':'off-duty',p.skills||[],p.mission,p.id);
 }
 
-function _buildMarkerCanvas(labelW,color,initials,shortName,status,imgEl){
-  // Build canvas icon: avatar circle + name label pill
-  const canvas=document.createElement('canvas');
-  canvas.width=labelW;canvas.height=62;
-  // alpha:true EXPLICITLY — Chrome Android otherwise leaves a white
-  // rectangular bounding box visible behind the avatar pill.
-  const ctx2=canvas.getContext('2d',{alpha:true});
-  ctx2.clearRect(0,0,labelW,62);
-  // Avatar circle
-  ctx2.shadowColor='rgba(0,0,0,0.4)';ctx2.shadowBlur=5;ctx2.shadowOffsetY=2;
-  ctx2.beginPath();ctx2.arc(labelW/2,19,17,0,Math.PI*2);
-  ctx2.fillStyle=color;ctx2.fill();
-  ctx2.shadowColor='transparent';
-  // Photo clip or initials
-  if(imgEl){
-    ctx2.save();
-    ctx2.beginPath();ctx2.arc(labelW/2,19,15,0,Math.PI*2);ctx2.clip();
-    ctx2.drawImage(imgEl,labelW/2-15,4,30,30);
-    ctx2.restore();
-  } else {
-    ctx2.fillStyle='#fff';ctx2.font='bold 12px Heebo,Arial,sans-serif';
-    ctx2.textAlign='center';ctx2.textBaseline='middle';
-    ctx2.fillText(initials,labelW/2,19);
-  }
-  // Avatar border
-  ctx2.beginPath();ctx2.arc(labelW/2,19,17,0,Math.PI*2);
-  ctx2.strokeStyle='#fff';ctx2.lineWidth=2.5;ctx2.stroke();
-  // Status dot (top-right)
+function _buildMarkerCanvas(labelW,color,initials,shortName,status,imgDataUrl){
+  // Pure SVG — no canvas. Fixes mobile WebView bounding-box artifact.
+  const W=labelW, H=62, cx=W/2;
   const online=(status==='deployed'||status==='on-duty');
-  ctx2.shadowColor='rgba(0,0,0,0.25)';ctx2.shadowBlur=2;
-  ctx2.beginPath();ctx2.arc(labelW/2+13,7,5.5,0,Math.PI*2);
-  ctx2.fillStyle=online?'#3dff52':'#ff3333';ctx2.fill();
-  ctx2.strokeStyle='#fff';ctx2.lineWidth=1.5;ctx2.stroke();
-  ctx2.shadowColor='transparent';
-  // Name pill background
-  ctx2.fillStyle='#fff';
-  ctx2.shadowColor='rgba(0,0,0,0.3)';ctx2.shadowBlur=3;ctx2.shadowOffsetY=1;
-  ctx2.beginPath();
-  // Manual rounded rect for browser compat
-  const px=2,py=40,pw=labelW-4,ph=18,r=4;
-  ctx2.moveTo(px+r,py);ctx2.lineTo(px+pw-r,py);ctx2.arcTo(px+pw,py,px+pw,py+r,r);
-  ctx2.lineTo(px+pw,py+ph-r);ctx2.arcTo(px+pw,py+ph,px+pw-r,py+ph,r);
-  ctx2.lineTo(px+r,py+ph);ctx2.arcTo(px,py+ph,px,py+ph-r,r);
-  ctx2.lineTo(px,py+r);ctx2.arcTo(px,py,px+r,py,r);
-  ctx2.closePath();ctx2.fill();
-  // Name pill border
-  ctx2.shadowColor='transparent';
-  ctx2.strokeStyle=color;ctx2.lineWidth=1.5;ctx2.stroke();
-  // Name text
-  ctx2.fillStyle='#111';ctx2.font='bold 9.5px Heebo,Arial,sans-serif';
-  ctx2.textAlign='center';ctx2.textBaseline='middle';
-  ctx2.fillText(shortName,labelW/2,py+ph/2);
-  return canvas.toDataURL('image/png');
+  const dotClr=online?'#3dff52':'#ff3333';
+  let svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">';
+  // Avatar circle
+  svg+='<circle cx="'+cx+'" cy="19" r="17" fill="'+color+'" stroke="#fff" stroke-width="2.5"/>';
+  // Photo or initials
+  if(imgDataUrl){
+    svg+='<defs><clipPath id="uc"><circle cx="'+cx+'" cy="19" r="15"/></clipPath></defs>';
+    svg+='<image href="'+imgDataUrl+'" x="'+(cx-15)+'" y="4" width="30" height="30" clip-path="url(#uc)" preserveAspectRatio="xMidYMid slice"/>';
+  } else {
+    svg+='<text x="'+cx+'" y="23" text-anchor="middle" font-size="12" font-weight="bold" font-family="Arial,Heebo,sans-serif" fill="#fff">'+initials+'</text>';
+  }
+  // Status dot
+  svg+='<circle cx="'+(cx+13)+'" cy="7" r="5.5" fill="'+dotClr+'" stroke="#fff" stroke-width="1.5"/>';
+  // Name pill
+  svg+='<rect x="2" y="40" width="'+(W-4)+'" height="18" rx="4" fill="#fff" stroke="'+color+'" stroke-width="1.5"/>';
+  // Name text — will be added below
+  const safeName = shortName.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  svg+='<text x="'+cx+'" y="52.5" text-anchor="middle" font-size="9.5" font-weight="bold" font-family="Arial,Heebo,sans-serif" fill="#111">'+safeName+'</text>';
+  svg+='</svg>';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 
 function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,status,skills,mission,personnelId){
@@ -3020,25 +2975,14 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
   const shortName=nameParts.length>=2?nameParts[0]+' '+nameParts[nameParts.length-1]:name;
   const labelW=Math.max(64,shortName.length*7.5+14);
 
-  // Create marker immediately with initials (no async delay)
-  const iconData=_buildMarkerCanvas(labelW,color,initials,shortName,status,null);
+  // SVG marker — photo is passed directly as data URL (no canvas conversion)
+  const iconData=_buildMarkerCanvas(labelW,color,initials,shortName,status, hasPhoto?photo:null);
   const iconObj={url:iconData,scaledSize:new google.maps.Size(labelW,62),anchor:new google.maps.Point(labelW/2,19)};
 
   const mk=new google.maps.Marker({
     position:{lat,lng},map,icon:iconObj,title:name,zIndex:200,draggable:false,
   });
   mk._type='unit';mk._id=id;
-
-  // Load photo and update icon (non-blocking)
-  if(hasPhoto){
-    const img=new Image();
-    img.onload=function(){
-      const photoData=_buildMarkerCanvas(labelW,color,initials,shortName,status,img);
-      mk.setIcon({url:photoData,scaledSize:new google.maps.Size(labelW,62),anchor:new google.maps.Point(labelW/2,19)});
-    };
-    img.onerror=function(){/* keep initials icon */};
-    img.src=photo; // data: URI works without crossOrigin
-  }
 
   // Info window with photo
   const statusLbl={deployed:'פרוס','on-duty':'בתפקיד','off-duty':'חופשי',unavailable:'לא זמין'};
@@ -7625,7 +7569,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.7.1 source-code update because the merge in
+    // which survived our v6.7.2 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13770,7 +13714,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.7.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.7.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
