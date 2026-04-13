@@ -1910,7 +1910,13 @@ async function _registerPushForUser(personId, verbose){
   if(window._runningInNativeApp && window.Android && typeof window.Android.setPersonId === 'function'){
     try {
       window.Android.setPersonId(personId);
-      console.log('[NATIVE-BRIDGE] setPersonId called for', personId);
+      // Also pass user profile so the background location service can tag
+      // the GPS data with the user's name and role
+      const _u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+      if(_u && typeof window.Android.setUserProfile === 'function'){
+        window.Android.setUserProfile(_u.name||'', _u.role||'');
+      }
+      console.log('[NATIVE-BRIDGE] setPersonId + profile called for', personId);
     } catch(e){ console.warn('[NATIVE-BRIDGE] setPersonId failed', e); }
     // Still register the SW listener for SET_USER so the in-app emergency
     // popup works when the app is foregrounded.
@@ -8687,6 +8693,10 @@ window._locPrivacyOn = localStorage.getItem('tac_loc_privacy') !== '0';
 function toggleLocPrivacy(){
   window._locPrivacyOn = !window._locPrivacyOn;
   localStorage.setItem('tac_loc_privacy', window._locPrivacyOn ? '1' : '0');
+  // Sync to native bridge so the background service knows to publish/stop
+  if(window.Android && typeof window.Android.setLocPublishEnabled === 'function'){
+    try { window.Android.setLocPublishEnabled(window._locPrivacyOn); } catch(_){}
+  }
   _applyLocPrivacyUI();
   if(window._locPrivacyOn){
     // Remove the plain green dot — avatar bubble will show position instead

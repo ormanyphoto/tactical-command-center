@@ -6,12 +6,18 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -52,6 +58,11 @@ class TacticalForegroundService : Service() {
         }
     }
 
+    // ── Background Location Tracking ──
+    private var locationManager: LocationManager? = null
+    private var locationListener: LocationListener? = null
+    private var lastLocPublishTime = 0L
+
     override fun onCreate() {
         super.onCreate()
         createForegroundChannel()
@@ -67,6 +78,7 @@ class TacticalForegroundService : Service() {
         writeDebugLog("fg.onDestroy", "Service killed by OS")
         heartbeatHandler.removeCallbacks(heartbeatRunnable)
         childListener?.let { notifRef?.removeEventListener(it) }
+        stopLocationTracking()
         super.onDestroy()
     }
 
@@ -103,19 +115,41 @@ class TacticalForegroundService : Service() {
      * in the debug panel.
      */
     private fun tryStartForeground(notif: Notification): Boolean {
-        // Attempt 1: SPECIAL_USE (Android 14+)
+        // Attempt 1: SPECIAL_USE + LOCATION combined (Android 14+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             try {
+                startForeground(FG_NOTIF_ID, notif,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                Log.d(TAG, "startForeground OK (SPECIAL_USE|LOCATION)")
+                writeDebugLog("fg.startForegroundOK", "SPECIAL_USE|LOCATION")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "SPECIAL_USE|LOCATION failed: ${e.javaClass.simpleName} ${e.message}")
+                writeDebugLog("fg.fgCombinedFail", "${e.javaClass.simpleName}: ${e.message?.take(80)}")
+            }
+            // Fallback: SPECIAL_USE only
+            try {
                 startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-                Log.d(TAG, "startForeground OK (SPECIAL_USE)")
+                Log.d(TAG, "startForeground OK (SPECIAL_USE only)")
                 writeDebugLog("fg.startForegroundOK", "SPECIAL_USE")
                 return true
             } catch (e: Exception) {
                 Log.w(TAG, "SPECIAL_USE failed: ${e.javaClass.simpleName} ${e.message}")
-                writeDebugLog("fg.fgSpecialUseFail", "${e.javaClass.simpleName}: ${e.message?.take(80)}")
             }
         }
-        // Attempt 2: DATA_SYNC (Android 10+)
+        // Attempt 2: LOCATION only (Android 10+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                Log.d(TAG, "startForeground OK (LOCATION)")
+                writeDebugLog("fg.startForegroundOK", "LOCATION")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "LOCATION failed: ${e.javaClass.simpleName} ${e.message}")
+            }
+        }
+        // Attempt 3: DATA_SYNC (Android 10+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 startForeground(FG_NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -146,6 +180,7 @@ class TacticalForegroundService : Service() {
         if (auth.currentUser != null) {
             currentPid = pid
             attachListener(pid)
+            startLocationTracking(pid)
             writeDebugLog("fg.authReady", "uid=${auth.currentUser?.uid?.take(8)}")
         } else if (attempt < 20) {
             // Retry every 500ms for up to 10 seconds waiting for signInAnonymously
@@ -157,6 +192,7 @@ class TacticalForegroundService : Service() {
             writeDebugLog("fg.authTimeout", "attach without auth")
             currentPid = pid
             attachListener(pid)
+            startLocationTracking(pid)
         }
     }
 
@@ -293,7 +329,7 @@ class TacticalForegroundService : Service() {
         return NotificationCompat.Builder(this, FG_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("🟢 מבצעים פעיל")
-            .setContentText("מאזין להתראות חירום ברקע")
+            .setContentText("מאזין להתראות חירום + מיקום חי ברקע")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -319,6 +355,104 @@ class TacticalForegroundService : Service() {
             setSound(null, null)
         }
         mgr.createNotificationChannel(channel)
+    }
+
+    // ── Background Location Tracking ──
+    // Publishes GPS to Firebase tac_locs/{uid} every 15 seconds while the
+    // app is in background. Uses the same path as the WebView JS publisher
+    // so the commander sees live locations seamlessly.
+    private fun startLocationTracking(pid: String) {
+        if (locationListener != null) return // already tracking
+
+        // Check permission at runtime
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "No FINE_LOCATION permission — skip background location")
+            writeDebugLog("fg.locNoPerm", "skip background location")
+            return
+        }
+
+        locationManager = getSystemService(LOCATION_SERVICE) as? LocationManager
+        if (locationManager == null) return
+
+        // Read the user profile from SharedPreferences (set by NativeBridge)
+        val prefs = getSharedPreferences("tac_prefs", Context_MODE_PRIVATE)
+        val name = prefs.getString("userName", "שדה") ?: "שדה"
+        val role = prefs.getString("userRole", "לוחם") ?: "לוחם"
+        val uid = prefs.getString("deviceId", null) ?: return
+
+        // Check if location publishing is enabled (user toggled ON in the app)
+        val locEnabled = prefs.getBoolean("locPublishEnabled", true)
+        if (!locEnabled) {
+            Log.d(TAG, "Location publish disabled by user preference")
+            return
+        }
+
+        locationListener = object : LocationListener {
+            override fun onLocationChanged(loc: Location) {
+                val now = System.currentTimeMillis()
+                // Throttle to every 15 seconds
+                if (now - lastLocPublishTime < 15_000L) return
+                lastLocPublishTime = now
+
+                val data = hashMapOf<String, Any>(
+                    "lat" to loc.latitude,
+                    "lng" to loc.longitude,
+                    "acc" to loc.accuracy.toDouble(),
+                    "spd" to (loc.speed * 3.6).toDouble(), // m/s → km/h
+                    "ts" to now,
+                    "name" to name,
+                    "role" to role,
+                    "status" to "active",
+                    "personId" to pid,
+                    "src" to "bg" // "bg" = background service (vs "fg" = foreground WebView)
+                )
+                try {
+                    FirebaseDatabase.getInstance()
+                        .getReference("tac_locs/$uid")
+                        .setValue(data)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Location publish failed", e)
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+
+        try {
+            // Request updates every 10s / 10m minimum
+            locationManager?.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                10_000L, // minTime 10s
+                10f,     // minDistance 10m
+                locationListener!!
+            )
+            // Also request from network provider as fallback
+            try {
+                locationManager?.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    15_000L, 50f,
+                    locationListener!!
+                )
+            } catch (_: Exception) {}
+
+            Log.d(TAG, "Background location tracking started for $pid")
+            writeDebugLog("fg.locStarted", "uid=$uid pid=$pid")
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Location permission denied at runtime", e)
+            writeDebugLog("fg.locSecurityEx", e.message ?: "")
+        }
+    }
+
+    private fun stopLocationTracking() {
+        locationListener?.let {
+            locationManager?.removeUpdates(it)
+        }
+        locationListener = null
+        locationManager = null
     }
 
     private fun writeDebugLog(event: String, detail: String) {
