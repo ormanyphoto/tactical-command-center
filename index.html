@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.3.8 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.4.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.3.8</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.4.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.3.8</div>
+    <div id="fm-logo">⬡ מבצעים v6.4.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -1256,6 +1256,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('audit-bo')">📜 ביקורת</button>
       <button class="bo-tab" onclick="boTab('analytics-bo')">📈 אנליטיקה</button>
       <button class="bo-tab" onclick="boTab('stats-bo')">📊 סטטיסטיקה</button>
+      <button class="bo-tab" onclick="boTab('range-bo')">🎯 מטווחים</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
   </div>
@@ -5462,7 +5463,7 @@ function boTab(tab){
     'vehicles-bo':boVehicles,
     'equipment-bo':boEquipment,'templates-bo':boTemplates,'chat-bo':boChat,
     'sessions-bo':boSessions,'plates-bo':boPlates,
-    'audit-bo':boAudit,'analytics-bo':boAnalytics,'stats-bo':boMonthlyStats,'settings-bo':boSettings,
+    'audit-bo':boAudit,'analytics-bo':boAnalytics,'stats-bo':boMonthlyStats,'range-bo':boShootingRange,'settings-bo':boSettings,
   };
   const fn=handlers[tab];
   if(fn){
@@ -6437,6 +6438,235 @@ function boMonthlyStats(c){
   c.innerHTML = html;
 }
 
+// ══════════════════════════════════════════════════════════
+// SHOOTING RANGE — מטווחים: weapon registry + training sessions
+// ══════════════════════════════════════════════════════════
+let RANGE_SESSIONS = [];
+function saveRangeData(){
+  try { localStorage.setItem('tac_range_sessions', JSON.stringify(RANGE_SESSIONS)); } catch(_){}
+  if(window._db) window._db.ref('tac_range_sessions').set(RANGE_SESSIONS.length ? RANGE_SESSIONS : null).catch(()=>{});
+}
+function loadRangeData(){
+  try { const d=localStorage.getItem('tac_range_sessions'); if(d) RANGE_SESSIONS=JSON.parse(d); } catch(_){}
+}
+loadRangeData();
+// Async load from Firebase
+setTimeout(()=>{
+  if(window._db) window._db.ref('tac_range_sessions').once('value').then(s=>{
+    const v=s.val(); if(Array.isArray(v) && v.length) RANGE_SESSIONS=v;
+    try { localStorage.setItem('tac_range_sessions', JSON.stringify(RANGE_SESSIONS)); } catch(_){}
+  }).catch(()=>{});
+}, 3000);
+
+function boShootingRange(c){
+  const maxMonths = Number(localStorage.getItem('tac_range_max_months') || 6);
+  const now = Date.now();
+  const cutoff = now - maxMonths * 30 * 24 * 60 * 60 * 1000;
+
+  // ── סקשן א: כלי נשק רשומים ──
+  let weaponRows = '';
+  let overdueCount = 0;
+  PERSONNEL.forEach(p => {
+    if(!p.weapons || !p.weapons.length) return;
+    p.weapons.forEach((w, wi) => {
+      const typeLbl = w.type === 'pistol' ? '🔫 אקדח' : w.type === 'rifle' ? '🎯 רובה' : '❓';
+      const ownLbl = w.ownership === 'police' ? '<span style="color:var(--blue);font-weight:700">משטרתי</span>' : '<span style="color:var(--warn);font-weight:700">פרטי</span>';
+      const lastDate = w.lastRange ? new Date(w.lastRange) : null;
+      const lastStr = lastDate ? lastDate.toLocaleDateString('he-IL') : 'לא ביצע';
+      const overdue = !lastDate || lastDate.getTime() < cutoff;
+      if(overdue) overdueCount++;
+      const rowStyle = overdue ? 'background:rgba(255,51,51,0.06)' : '';
+      const statusHtml = overdue
+        ? '<span style="color:var(--danger);font-weight:700">⚠️ חורג</span>'
+        : '<span style="color:var(--accent);font-weight:700">✅ תקין</span>';
+      weaponRows += '<tr style="'+rowStyle+'">'
+        +'<td style="font-weight:700">'+escHtml(p.name)+'</td>'
+        +'<td>'+typeLbl+'</td>'
+        +'<td style="font-family:monospace;font-weight:600">'+escHtml(w.serial||'—')+'</td>'
+        +'<td>'+ownLbl+'</td>'
+        +'<td>'+lastStr+'</td>'
+        +'<td>'+statusHtml+'</td>'
+        +'<td><button class="act-btn" onclick="editPersonModal(\''+p.id+'\')" title="ערוך">✏️</button></td>'
+        +'</tr>';
+    });
+  });
+
+  // ── סקשן ב: אימונים ──
+  const openSessions = RANGE_SESSIONS.filter(s => s.status === 'open');
+  const completedSessions = RANGE_SESSIONS.filter(s => s.status === 'completed').slice(0, 20);
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const myId = u ? u.id : '';
+  const isAdmin = (typeof AUTH!=='undefined') && AUTH.isAdmin();
+
+  let sessionsHtml = '';
+  openSessions.forEach(s => {
+    const parts = s.participants ? Object.values(s.participants) : [];
+    const amRegistered = s.participants && s.participants[myId];
+    const weaponLbl = s.weaponType === 'pistol' ? '🔫 אקדח' : s.weaponType === 'rifle' ? '🎯 רובה' : '🔫🎯 משולב';
+    sessionsHtml += '<div style="background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    sessionsHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    sessionsHtml += '<div><div style="font-size:13px;font-weight:800;color:var(--texthi)">'+escHtml(s.title)+'</div>';
+    sessionsHtml += '<div style="font-size:11px;color:var(--text3)">'+escHtml(s.date)+' '+escHtml(s.time||'')+' · '+escHtml(s.location||'')+' · '+weaponLbl+'</div></div>';
+    sessionsHtml += '<span style="font-size:11px;font-weight:700;color:var(--accent)">'+parts.length+'/'+(s.maxParticipants||'∞')+'</span>';
+    sessionsHtml += '</div>';
+    // Participants list
+    if(parts.length){
+      sessionsHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">';
+      parts.forEach(pt => {
+        sessionsHtml += '<span style="font-size:10px;background:var(--panel3);border:1px solid var(--border2);border-radius:12px;padding:2px 8px;color:var(--text2)">'+escHtml(pt.name||'')+'</span>';
+      });
+      sessionsHtml += '</div>';
+    }
+    // Action buttons
+    sessionsHtml += '<div style="display:flex;gap:6px">';
+    if(amRegistered){
+      sessionsHtml += '<button onclick="unregisterFromRange(\''+s.id+'\')" style="padding:4px 12px;border-radius:6px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">❌ בטל רישום</button>';
+    } else {
+      const full = s.maxParticipants && parts.length >= s.maxParticipants;
+      sessionsHtml += '<button onclick="registerForRange(\''+s.id+'\')" '+(full?'disabled':'')+ ' style="padding:4px 12px;border-radius:6px;background:var(--accent);border:none;color:#07090a;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)'+(full?';opacity:0.4':'')+'">✅ הירשם</button>';
+    }
+    if(isAdmin){
+      sessionsHtml += '<button onclick="completeRangeSession(\''+s.id+'\')" style="padding:4px 12px;border-radius:6px;background:rgba(29,108,255,0.1);border:1px solid rgba(29,108,255,0.3);color:#29c5f6;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">📋 סגור + נוכחות</button>';
+      sessionsHtml += '<button onclick="deleteRangeSession(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:none;border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;cursor:pointer;font-family:var(--font)">🗑️</button>';
+    }
+    sessionsHtml += '</div></div>';
+  });
+
+  // History table
+  let histHtml = '';
+  completedSessions.forEach(s => {
+    const parts = s.participants ? Object.values(s.participants) : [];
+    const attended = parts.filter(p => p.attended).length;
+    histHtml += '<tr><td>'+escHtml(s.date)+'</td><td>'+escHtml(s.title)+'</td><td>'+escHtml(s.location||'')+'</td><td>'+attended+'/'+parts.length+'</td></tr>';
+  });
+
+  c.innerHTML = '<div class="bo-section">'
+    +'<div class="bo-hd">🎯 ניהול מטווחים</div>'
+    // Overdue alert
+    +(overdueCount ? '<div style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--danger);font-weight:700">⚠️ '+overdueCount+' אנשי צוות חורגים ממועד אימון מטווח (מעל '+maxMonths+' חודשים)</div>' : '')
+    // Weapons table
+    +'<div style="font-size:12px;font-weight:800;color:var(--accent2);margin-bottom:6px">🔫 כלי נשק רשומים</div>'
+    +'<div style="overflow-x:auto;margin-bottom:16px"><table class="bo-table"><thead><tr><th>שם</th><th>סוג</th><th>מס\' סידורי</th><th>בעלות</th><th>אימון אחרון</th><th>סטטוס</th><th>פעולות</th></tr></thead>'
+    +'<tbody>'+(weaponRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">אין כלי נשק רשומים — ערוך איש צוות להוספה</td></tr>')+'</tbody></table></div>'
+    // Sessions
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    +'<div style="font-size:12px;font-weight:800;color:var(--accent2)">📋 אימונים פתוחים ('+openSessions.length+')</div>'
+    +(isAdmin ? '<button class="btn-pri" style="padding:6px 14px;font-size:12px" onclick="openNewRangeSessionModal()">+ אימון חדש</button>' : '')
+    +'</div>'
+    +(sessionsHtml || '<div style="color:var(--text3);font-size:12px;padding:10px;text-align:center">אין אימונים פתוחים</div>')
+    // History
+    +(histHtml ? '<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:16px 0 6px">📜 היסטוריה</div><div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>תאריך</th><th>כותרת</th><th>מיקום</th><th>נוכחות</th></tr></thead><tbody>'+histHtml+'</tbody></table></div>' : '')
+    // Settings
+    +(isAdmin ? '<div style="margin-top:16px;padding:10px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px"><div style="font-size:11px;font-weight:800;color:var(--text2);margin-bottom:6px">⚙ הגדרות</div><div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px;color:var(--text)">מועד אחרון לאימון (חודשים):</label><input type="number" min="1" max="24" value="'+maxMonths+'" onchange="localStorage.setItem(\'tac_range_max_months\',this.value);boShootingRange(document.getElementById(\'bo-inner\'))" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);text-align:center"/></div></div>' : '')
+    +'</div>';
+}
+function openNewRangeSessionModal(){
+  document.getElementById('modal-ttl').innerHTML = '🎯 אימון מטווח חדש';
+  document.getElementById('modal-body').innerHTML = ''
+    +'<div class="form-g"><label>כותרת *</label><input type="text" id="rng-title" placeholder="אימון מטווח — אקדח"/></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div class="form-g"><label>תאריך *</label><input type="date" id="rng-date"/></div>'
+    +'<div class="form-g"><label>שעה</label><input type="time" id="rng-time" value="09:00"/></div>'
+    +'</div>'
+    +'<div class="form-g"><label>מיקום</label><input type="text" id="rng-location" placeholder="מטווח צריפין"/></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div class="form-g"><label>סוג נשק</label><select id="rng-weapon"><option value="pistol">🔫 אקדח</option><option value="rifle">🎯 רובה</option><option value="both">🔫🎯 משולב</option></select></div>'
+    +'<div class="form-g"><label>מקסימום משתתפים</label><input type="number" id="rng-max" min="1" value="20"/></div>'
+    +'</div>';
+  modalCB = ()=>{
+    const title = (document.getElementById('rng-title')||{}).value;
+    if(!title){ showToast({icon:'⚠️',title:'נא להזין כותרת',type:'warn'}); return; }
+    const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    RANGE_SESSIONS.push({
+      id:'rng_'+Date.now().toString(36),
+      title,
+      date:(document.getElementById('rng-date')||{}).value||'',
+      time:(document.getElementById('rng-time')||{}).value||'',
+      location:(document.getElementById('rng-location')||{}).value||'',
+      weaponType:(document.getElementById('rng-weapon')||{}).value||'pistol',
+      maxParticipants:Number((document.getElementById('rng-max')||{}).value)||20,
+      status:'open',
+      createdBy:u?u.id:'',
+      createdAt:Date.now(),
+      participants:{}
+    });
+    saveRangeData();
+    boShootingRange(document.getElementById('bo-inner'));
+    showToast({icon:'🎯',title:'אימון נוצר',type:'success'});
+    auditLog('אימון מטווח נוצר: '+title,'info','');
+  };
+  document.getElementById('modal-wrap').style.display = 'flex';
+}
+function registerForRange(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!s||!u) return;
+  if(!s.participants) s.participants = {};
+  s.participants[u.id] = { name:u.name, registeredAt:Date.now() };
+  saveRangeData();
+  boShootingRange(document.getElementById('bo-inner'));
+  showToast({icon:'✅',title:'נרשמת לאימון',type:'success'});
+}
+function unregisterFromRange(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!s||!u||!s.participants) return;
+  delete s.participants[u.id];
+  saveRangeData();
+  boShootingRange(document.getElementById('bo-inner'));
+  showToast({icon:'❌',title:'רישום בוטל',type:'info'});
+}
+function deleteRangeSession(sid){
+  if(!confirm('למחוק אימון?')) return;
+  RANGE_SESSIONS = RANGE_SESSIONS.filter(x=>x.id!==sid);
+  saveRangeData();
+  boShootingRange(document.getElementById('bo-inner'));
+  showToast({icon:'🗑️',title:'אימון נמחק',type:'info'});
+}
+function completeRangeSession(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  if(!s) return;
+  // Build attendance modal
+  const parts = s.participants ? Object.entries(s.participants) : [];
+  document.getElementById('modal-ttl').innerHTML = '📋 סימון נוכחות — '+escHtml(s.title);
+  let formHtml = '<div style="max-height:350px;overflow-y:auto">';
+  parts.forEach(([pid, pt]) => {
+    formHtml += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2)">';
+    formHtml += '<label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer"><input type="checkbox" data-pid="'+pid+'" class="rng-attend" checked style="width:16px;height:16px;accent-color:var(--accent)"/><span style="font-weight:700">'+escHtml(pt.name||pid)+'</span></label>';
+    formHtml += '<input type="number" data-pid="'+pid+'" class="rng-score" placeholder="ציון" min="0" max="100" style="width:60px;padding:4px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);text-align:center;font-size:12px"/>';
+    formHtml += '</div>';
+  });
+  formHtml += '</div>';
+  document.getElementById('modal-body').innerHTML = formHtml;
+  modalCB = ()=>{
+    document.querySelectorAll('.rng-attend').forEach(cb => {
+      const pid = cb.dataset.pid;
+      const scoreEl = document.querySelector('.rng-score[data-pid="'+pid+'"]');
+      const score = scoreEl ? Number(scoreEl.value) || 0 : 0;
+      if(s.participants[pid]){
+        s.participants[pid].attended = cb.checked;
+        s.participants[pid].score = score;
+      }
+      // Update weapon lastRange for attended members
+      if(cb.checked){
+        const p = PERSONNEL.find(x=>x.id===pid);
+        if(p && p.weapons){
+          p.weapons.forEach(w => {
+            if(s.weaponType === 'both' || w.type === s.weaponType) w.lastRange = s.date || new Date().toISOString().slice(0,10);
+          });
+        }
+      }
+    });
+    s.status = 'completed';
+    saveRangeData();
+    savePersonnelToStorage();
+    boShootingRange(document.getElementById('bo-inner'));
+    showToast({icon:'📋',title:'אימון נסגר',sub:'נוכחות ותאריכים עודכנו',type:'success'});
+    auditLog('אימון מטווח נסגר: '+s.title,'info','');
+  };
+  document.getElementById('modal-wrap').style.display = 'flex';
+}
+
 function boAnalytics(c){
   const act=MISSIONS.filter(m=>m.status==='active').length;
   const urg=MISSIONS.filter(m=>m.status==='urgent').length;
@@ -7168,7 +7398,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.3.8 source-code update because the merge in
+    // which survived our v6.4.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8105,6 +8335,14 @@ function editPersonModal(id){
         `).join('')}
       </div>
     </div>
+    <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
+      <div style="font-weight:700;color:var(--accent2);margin-bottom:10px;font-size:13px">🔫 כלי נשק</div>
+      ${[0,1].map(i => {
+        const w = (p.weapons||[])[i] || {};
+        const hasW = !!(w.type || w.serial);
+        return '<div style="margin-bottom:8px;padding:8px;background:var(--panel);border:1px solid var(--border2);border-radius:8px'+(i===1&&!hasW?';opacity:0.5':'')+'"><div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">נשק '+(i+1)+(i===1?' (אופציונלי)':'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><div class="form-g" style="margin:0"><label style="font-size:10px">סוג</label><select id="ep-w${i}-type" style="font-size:11px"><option value="">— בחר —</option><option value="pistol" ${w.type==="pistol"?"selected":""}>🔫 אקדח</option><option value="rifle" ${w.type==="rifle"?"selected":""}>🎯 רובה</option></select></div><div class="form-g" style="margin:0"><label style="font-size:10px">מס\' סידורי</label><input type="text" id="ep-w${i}-serial" value="${(w.serial||"").replace(/"/g,"&quot;")}" style="font-size:11px;font-family:monospace"/></div><div class="form-g" style="margin:0"><label style="font-size:10px">בעלות</label><select id="ep-w${i}-own" style="font-size:11px"><option value="">— בחר —</option><option value="police" ${w.ownership==="police"?"selected":""}>משטרתי</option><option value="private" ${w.ownership==="private"?"selected":""}>פרטי</option></select></div></div></div>';
+      }).join('')}
+    </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>
     <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -8153,6 +8391,18 @@ function editPersonModal(id){
     p.eqMedkit=document.getElementById('ep-eq-medkit').checked;
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
+    // Weapons
+    const weapons = [];
+    [0,1].forEach(i => {
+      const type = (document.getElementById('ep-w'+i+'-type')||{}).value||'';
+      const serial = (document.getElementById('ep-w'+i+'-serial')||{}).value||'';
+      const own = (document.getElementById('ep-w'+i+'-own')||{}).value||'';
+      if(type || serial){
+        const existing = (p.weapons||[])[i] || {};
+        weapons.push({ type, serial, ownership:own, lastRange:existing.lastRange||'' });
+      }
+    });
+    p.weapons = weapons.length ? weapons : undefined;
     // Per-person permissions override
     const pOverride = document.getElementById('ep-perms-override');
     if(pOverride && pOverride.checked){
@@ -13253,7 +13503,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.3.8)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.4.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
