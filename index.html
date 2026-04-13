@@ -6469,7 +6469,7 @@ function boShootingRange(c){
   PERSONNEL.forEach(p => {
     if(!p.weapons || !p.weapons.length) return;
     p.weapons.forEach((w, wi) => {
-      const typeLbl = w.type === 'pistol' ? '🔫 אקדח' : w.type === 'rifle' ? '🎯 רובה' : '❓';
+      const typeLbl = w.type === 'pistol' ? '<span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 60 45" width="22" height="16" style="fill:var(--text)"><path d="M8 15h30l6-3h8v4l-2 6h-8l-2 8-4 6h-6l2-14H18l-4 8h-4l-2-8v-4z"/></svg>אקדח</span>' : w.type === 'rifle' ? '<span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 120 40" width="30" height="14" style="fill:var(--text)"><path d="M5 22h25l3-4h10l2-6h30l5 2h15l10-2 8 3v4l-8 2h-15l-5-1H55l-3 4H40l-5 2H20l-10-1-5-3z"/></svg>רובה</span>' : '❓';
       const ownLbl = w.ownership === 'police' ? '<span style="color:var(--blue);font-weight:700">משטרתי</span>' : '<span style="color:var(--warn);font-weight:700">פרטי</span>';
       const lastDate = w.lastRange ? new Date(w.lastRange) : null;
       const lastStr = lastDate ? lastDate.toLocaleDateString('he-IL') : 'לא ביצע';
@@ -8335,12 +8335,33 @@ function editPersonModal(id){
         `).join('')}
       </div>
     </div>
-    <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
-      <div style="font-weight:700;color:var(--accent2);margin-bottom:10px;font-size:13px">🔫 כלי נשק</div>
-      ${[0,1].map(i => {
-        const w = (p.weapons||[])[i] || {};
-        const hasW = !!(w.type || w.serial);
-        return '<div style="margin-bottom:8px;padding:8px;background:var(--panel);border:1px solid var(--border2);border-radius:8px'+(i===1&&!hasW?';opacity:0.5':'')+'"><div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">נשק '+(i+1)+(i===1?' (אופציונלי)':'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><div class="form-g" style="margin:0"><label style="font-size:10px">סוג</label><select id="ep-w${i}-type" style="font-size:11px"><option value="">— בחר —</option><option value="pistol" ${w.type==="pistol"?"selected":""}>🔫 אקדח</option><option value="rifle" ${w.type==="rifle"?"selected":""}>🎯 רובה</option></select></div><div class="form-g" style="margin:0"><label style="font-size:10px">מס\' סידורי</label><input type="text" id="ep-w${i}-serial" value="${(w.serial||"").replace(/"/g,"&quot;")}" style="font-size:11px;font-family:monospace"/></div><div class="form-g" style="margin:0"><label style="font-size:10px">בעלות</label><select id="ep-w${i}-own" style="font-size:11px"><option value="">— בחר —</option><option value="police" ${w.ownership==="police"?"selected":""}>משטרתי</option><option value="private" ${w.ownership==="private"?"selected":""}>פרטי</option></select></div></div></div>';
+    <div class="form-g" style="background:var(--panel2);padding:14px;border-radius:10px;border:1px solid var(--border2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'%3E%3Cpath d='M5 22h25l3-4h10l2-6h30l5 2h15l10-2 8 3v4l-8 2h-15l-5-1H55l-3 4H40l-5 2H20l-10-1-5-3z' fill='%23888'/%3E%3C/svg%3E" style="width:50px;height:18px;opacity:0.7"/>
+        <div style="font-weight:800;color:var(--texthi);font-size:14px">כלי נשק</div>
+      </div>
+      ${[0,1].map(function(i){
+        var w = (p.weapons||[])[i] || {};
+        return '<div style="margin-bottom:8px;padding:10px 12px;background:var(--panel);border:1.5px solid var(--border2);border-radius:10px">'
+          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+          +'<span style="font-size:12px;font-weight:800;color:var(--texthi)">נשק '+(i+1)+(i===1?' (אופציונלי)':'')+'</span>'
+          +'</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+          +'<div class="form-g" style="margin:0"><label style="font-size:10px">סוג</label>'
+          +'<select id="ep-w'+i+'-type" style="font-size:12px;padding:6px">'
+          +'<option value="">— בחר —</option>'
+          +'<option value="pistol" '+(w.type==='pistol'?'selected':'')+'>אקדח</option>'
+          +'<option value="rifle" '+(w.type==='rifle'?'selected':'')+'>רובה</option>'
+          +'</select></div>'
+          +'<div class="form-g" style="margin:0"><label style="font-size:10px">מס\' סידורי</label>'
+          +'<input type="text" id="ep-w'+i+'-serial" value="'+(w.serial||'').replace(/"/g,'&quot;')+'" style="font-size:12px;font-family:monospace;padding:6px"/></div>'
+          +'<div class="form-g" style="margin:0"><label style="font-size:10px">בעלות</label>'
+          +'<select id="ep-w'+i+'-own" style="font-size:12px;padding:6px">'
+          +'<option value="">— בחר —</option>'
+          +'<option value="police" '+(w.ownership==='police'?'selected':'')+'>משטרתי</option>'
+          +'<option value="private" '+(w.ownership==='private'?'selected':'')+'>פרטי</option>'
+          +'</select></div>'
+          +'</div></div>';
       }).join('')}
     </div>
     <div class="form-g"><label>כישורים ומיומנויות</label>${buildSkillsHtml(p.skills||[])}</div>
