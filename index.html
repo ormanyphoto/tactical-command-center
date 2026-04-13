@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.3.6 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.3.7 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.3.6</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.3.7</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.3.6</div>
+    <div id="fm-logo">⬡ מבצעים v6.3.7</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2478,9 +2478,9 @@ const _GVM_LABELS={
 const _tlvLayers = {}; // layerId → google.maps.ImageMapType
 const _tlvActive = {}; // layerId → boolean
 function _makeTLVLayer(layerId){
-  // Tel Aviv municipal ArcGIS MapServer — uses export endpoint with f=image.
-  // Each tile is a server-side render request (not pre-cached), so it can
-  // be slower than WMS tiles. The server is sometimes intermittently down.
+  // Tel Aviv municipal ArcGIS MapServer — uses export endpoint.
+  // NOTE: this server has NO CORS headers, so crossOrigin must NOT be set.
+  // On error (server down), hide the img to prevent broken-image icons.
   return {
     tileSize: new google.maps.Size(256, 256),
     maxZoom: 20,
@@ -2494,7 +2494,6 @@ function _makeTLVLayer(layerId){
       div.style.height = '256px';
       div.style.overflow = 'hidden';
       const bb = _tileToWmsBbox(coord, zoom);
-      // Skip tiles outside greater Tel Aviv area
       if(bb.lon2<34.0||bb.lon1>35.5||bb.lat2<31.5||bb.lat1>32.5) return div;
       const url = 'https://gisn.tel-aviv.gov.il/arcgis/rest/services/IView2/MapServer/export'
         +'?bbox='+bb.minX+','+bb.minY+','+bb.maxX+','+bb.maxY
@@ -2504,10 +2503,20 @@ function _makeTLVLayer(layerId){
       img.style.width = '256px';
       img.style.height = '256px';
       img.style.display = 'block';
-      img.crossOrigin = 'anonymous';
+      // Do NOT set crossOrigin — server has no CORS headers.
+      // Without crossOrigin, the browser loads the image fine as <img src>
+      // (same-origin policy only blocks canvas/fetch, not img display).
       img.onerror = function(){
-        // Retry once on failure (server intermittent)
-        if(!img._retried){ img._retried=true; setTimeout(()=>{ img.src=url+'&_r=1'; },2000); }
+        // Hide broken image icon — don't show the ugly placeholder
+        img.style.display = 'none';
+        // Retry once after 3s
+        if(!img._retried){
+          img._retried = true;
+          setTimeout(()=>{
+            img.style.display = 'block';
+            img.src = url + '&_r=1';
+          }, 3000);
+        }
       };
       img.src = url;
       div.appendChild(img);
@@ -3960,16 +3969,6 @@ function renderDrawP(c){
     <button class="mp-btn" id="gvm-gush-btn" onclick="toggleGovMap('SUB_GUSH_ALL','gvm-gush-btn')"><span>🔲</span><span class="mp-btn-label">גושים</span></button>
     <button class="mp-btn" id="gvm-nikuz-btn" onclick="toggleGovMap('Nikuz','gvm-nikuz-btn')"><span>🌊</span><span class="mp-btn-label">ניקוז</span></button>
     <button class="mp-btn" id="gvm-nachal-btn" onclick="toggleGovMap('nechalim1','gvm-nachal-btn')"><span>💧</span><span class="mp-btn-label">נחלים</span></button>
-    <button class="mp-btn" id="gvm-police-mahoz-r-btn" onclick="toggleGovMap('POLICE_Mahoz_Region','gvm-police-mahoz-r-btn')"><span>🚔</span><span class="mp-btn-label">מחוז</span></button>
-    <button class="mp-btn" id="gvm-police-merhav-r-btn" onclick="toggleGovMap('POLICE_Merhav_Region','gvm-police-merhav-r-btn')"><span>🚔</span><span class="mp-btn-label">מרחב</span></button>
-    <button class="mp-btn" id="gvm-police-yehida-r-btn" onclick="toggleGovMap('POLICE_Yehida_Region','gvm-police-yehida-r-btn')"><span>🚔</span><span class="mp-btn-label">יחידה</span></button>
-    <button class="mp-btn" id="gvm-police-mahoz-l-btn" onclick="toggleGovMap('POLICE_Mahoz_Location','gvm-police-mahoz-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום מחוז</span></button>
-    <button class="mp-btn" id="gvm-police-merhav-l-btn" onclick="toggleGovMap('POLICE_Merhav_Location','gvm-police-merhav-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום מרחב</span></button>
-    <button class="mp-btn" id="gvm-police-yehida-l-btn" onclick="toggleGovMap('POLICE_Yehida_Location','gvm-police-yehida-l-btn')"><span>📍</span><span class="mp-btn-label">מיקום יחידה</span></button>
-    <button class="mp-btn" id="gvm-mada-dist-btn" onclick="toggleGovMap('Mada_districs','gvm-mada-dist-btn')"><span>🚑</span><span class="mp-btn-label">מד"א מחוז</span></button>
-    <button class="mp-btn" id="gvm-mada-sta-btn" onclick="toggleGovMap('MADA_STATIONS','gvm-mada-sta-btn')"><span>🚑</span><span class="mp-btn-label">תחנות מד"א</span></button>
-    <button class="mp-btn" id="gvm-fire-admin-btn" onclick="toggleGovMap('fire_admin','gvm-fire-admin-btn')"><span>🚒</span><span class="mp-btn-label">כיבוי מינהל</span></button>
-    <button class="mp-btn" id="gvm-fire-sta-btn" onclick="toggleGovMap('FIRE_STATIONS','gvm-fire-sta-btn')"><span>🚒</span><span class="mp-btn-label">תחנות כיבוי</span></button>
   </div>
   <!-- דנקל / רכבת קלה + מטרו — from Tel Aviv municipal GIS (ArcGIS) -->
   <div style="font-size:10px;font-weight:700;color:var(--accent2);margin:8px 0 4px;display:flex;align-items:center;gap:5px">
@@ -7164,7 +7163,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.3.6 source-code update because the merge in
+    // which survived our v6.3.7 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13221,7 +13220,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.3.6)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.3.7)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">

@@ -1,4 +1,4 @@
-// Service Worker — מערכת מבצעים v6.3.6 + Instant Push via Firebase SSE
+// Service Worker — מערכת מבצעים v6.3.7 + Instant Push via Firebase SSE
 importScripts('firebase-app-compat.js');
 importScripts('firebase-messaging-compat.js');
 
@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6-3-6-' + '2026042130';
+const CACHE = 'tac-v6-3-7-' + '2026042145';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install
