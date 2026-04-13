@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.6.6 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.6.7 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.6</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.7</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.6.6</div>
+    <div id="fm-logo">⬡ מבצעים v6.6.7</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3928,7 +3928,7 @@ function renderDrawP(c){
   <div class="sec-hd">🗺️ מפת בסיס</div>
   <div class="mp-grid" style="margin-bottom:6px">
     <button class="mp-btn mp-active" id="rp-base-google" onclick="switchBaseMap('google')">
-      <span><img src="https://maps.gstatic.com/mapfiles/maps_lite/images/2x/ic_maps_32dp.png" width="18" height="18" style="vertical-align:middle" alt=""/></span><span class="mp-btn-label">Google Maps</span>
+      <span><svg width="18" height="18" viewBox="0 0 92 132" style="vertical-align:middle"><path d="M46 0C20.6 0 0 20.6 0 46c0 34.5 46 86 46 86s46-51.5 46-86C92 20.6 71.4 0 46 0z" fill="#34a853"/><path d="M46 0C20.6 0 0 20.6 0 46c0 34.5 46 86 46 86V66L18 30z" fill="#ea4335"/><path d="M46 0v30L18 30C25 12 35 0 46 0z" fill="#4285f4"/><path d="M92 46c0 34.5-46 86-46 86V66l37-47C89 27 92 36 92 46z" fill="#34a853"/><path d="M83 19L46 66 83 19z" fill="#1a73e8"/><path d="M46 0c17 0 30 7 37 19L46 66V30L18 30C25 12 35 0 46 0z" fill="#4285f4"/><circle cx="46" cy="46" r="16" fill="#fff"/></svg></span><span class="mp-btn-label">Google Maps</span>
     </button>
     <button class="mp-btn" id="rp-base-govmap" onclick="switchBaseMap('govmap')">
       <span>🇮🇱</span><span class="mp-btn-label">GovMap</span>
@@ -7625,7 +7625,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.6.6 source-code update because the merge in
+    // which survived our v6.6.7 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13760,7 +13760,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.6)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.7)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
