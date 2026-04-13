@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.7.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.7.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.7.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.7.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.7.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.7.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7625,7 +7625,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.7.0 source-code update because the merge in
+    // which survived our v6.7.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13198,47 +13198,64 @@ const SYNC = (() => {
     });
   }
 
-  // Build marker icon as pure SVG data URL — no canvas transparency issues
-  // ── Simple Canvas marker icon — proven to work on GitHub Pages ──
+  // Build marker icon as pure SVG data URL — no canvas, no transparency
+  // issues on ANY platform. SVG is vector-based so the browser handles
+  // transparency natively without alpha channel decoding problems.
   function _buildMarkerIcon(initials, bgColor, ringColor, isMe, photoUrl, fullName, isDayMode, cb){
-    const W=72, labelH=22, bubH=60, H=labelH+bubH;
-    const cx=W/2, bubCy=labelH+22, rOuter=20, rInner=17;
+    const W=80, H=82;
+    const cx=W/2, bubCy=44, rOuter=20, rInner=17;
     const labelBg = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
-    const labelColor = isDayMode ? '#111111' : '#3dff52';
+    const labelColor = isDayMode ? '#111' : '#3dff52';
     const displayName = (fullName||initials).slice(0,18);
-    // Use 1x on mobile (smaller data URL = no broken-image placeholder),
-    // 2x on desktop for retina sharpness.
-    const _isMob = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-    const DPR = _isMob ? 1 : 2;
-    function _draw(imgEl){
-      const cvs=document.createElement('canvas'); cvs.width=W*DPR; cvs.height=H*DPR;
-      const g=cvs.getContext('2d',{alpha:true});
-      g.clearRect(0,0,cvs.width,cvs.height);
-      g.scale(DPR,DPR);
-      // Label
-      const nw=Math.min(W+8,Math.max(48,displayName.length*6+14)), nx=cx-nw/2;
-      g.beginPath();
-      if(g.roundRect) g.roundRect(nx,2,nw,17,5);
-      else{const r=5,x=nx,y=2,w=nw,h=17;g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.quadraticCurveTo(x+w,y,x+w,y+r);g.lineTo(x+w,y+h-r);g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);g.lineTo(x+r,y+h);g.quadraticCurveTo(x,y+h,x,y+h-r);g.lineTo(x,y+r);g.quadraticCurveTo(x,y,x+r,y);g.closePath();}
-      g.fillStyle=labelBg;g.fill();
-      g.fillStyle=labelColor;g.font='700 10px Heebo,Arial,sans-serif';g.textAlign='center';g.textBaseline='top';
-      g.fillText(displayName,cx,5.5);
-      if(isMe){g.beginPath();g.arc(cx,bubCy,rOuter+5,0,Math.PI*2);g.fillStyle=ringColor+'38';g.fill();}
-      g.beginPath();g.ellipse(cx,H-2,9,3,0,0,Math.PI*2);g.fillStyle='rgba(0,0,0,0.28)';g.fill();
-      g.beginPath();g.arc(cx,bubCy,rOuter,0,Math.PI*2);g.fillStyle=ringColor;g.fill();
-      g.beginPath();g.moveTo(cx-7,bubCy+rOuter);g.lineTo(cx,H-5);g.lineTo(cx+7,bubCy+rOuter);g.closePath();g.fillStyle=ringColor;g.fill();
-      g.save();g.beginPath();g.arc(cx,bubCy,rInner,0,Math.PI*2);g.clip();
-      if(imgEl){g.drawImage(imgEl,cx-rInner,bubCy-rInner,rInner*2,rInner*2);}
-      else{g.fillStyle=bgColor;g.fillRect(cx-rInner,bubCy-rInner,rInner*2,rInner*2);g.restore();
-        g.fillStyle='#fff';g.font=`900 ${initials.length>2?9:13}px Heebo,Arial,sans-serif`;g.textAlign='center';g.textBaseline='middle';
-        g.fillText(initials,cx,bubCy+1);g.save();}
-      g.restore();
-      if(isMe){g.font='8px sans-serif';g.textAlign='center';g.textBaseline='top';g.fillText('👑',cx,labelH+1);}
-      return cvs.toDataURL('image/png');
+    function _buildSVG(photoDataUrl){
+      const nw = Math.min(W, Math.max(48, displayName.length*6+14));
+      const nx = cx - nw/2;
+      let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">';
+      // Name label pill
+      svg += '<rect x="'+nx+'" y="2" width="'+nw+'" height="17" rx="5" fill="'+labelBg+'"/>';
+      svg += '<text x="'+cx+'" y="13" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial,Heebo,sans-serif" fill="'+labelColor+'">'+displayName.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</text>';
+      // Glow ring for "me"
+      if(isMe) svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+(rOuter+5)+'" fill="'+ringColor+'" opacity="0.22"/>';
+      // Shadow
+      svg += '<ellipse cx="'+cx+'" cy="'+(H-2)+'" rx="9" ry="3" fill="rgba(0,0,0,0.28)"/>';
+      // Colored ring
+      svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/>';
+      // Pointer triangle
+      svg += '<polygon points="'+(cx-7)+','+(bubCy+rOuter)+' '+cx+','+(H-5)+' '+(cx+7)+','+(bubCy+rOuter)+'" fill="'+ringColor+'"/>';
+      // Clip for photo/initials
+      svg += '<defs><clipPath id="cp"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'"/></clipPath></defs>';
+      if(photoDataUrl){
+        svg += '<image href="'+photoDataUrl+'" x="'+(cx-rInner)+'" y="'+(bubCy-rInner)+'" width="'+(rInner*2)+'" height="'+(rInner*2)+'" clip-path="url(#cp)" preserveAspectRatio="xMidYMid slice"/>';
+      } else {
+        svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/>';
+        svg += '<text x="'+cx+'" y="'+(bubCy+4)+'" text-anchor="middle" font-size="'+(initials.length>2?9:13)+'" font-weight="900" font-family="Arial,Heebo,sans-serif" fill="#fff">'+initials+'</text>';
+      }
+      if(isMe) svg += '<text x="'+cx+'" y="30" text-anchor="middle" font-size="8">👑</text>';
+      svg += '</svg>';
+      return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
     }
-    if(photoUrl&&photoUrl.length>10){
-      const img=new Image();img.onload=()=>cb(_draw(img),W,H);img.onerror=()=>cb(_draw(null),W,H);img.src=photoUrl;
-    } else { cb(_draw(null),W,H); }
+    if(photoUrl && photoUrl.length > 10){
+      // Convert photo to base64 data URL for embedding in SVG
+      if(photoUrl.startsWith('data:')){
+        cb(_buildSVG(photoUrl), W, H);
+      } else {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = ()=>{
+          try {
+            const cvs = document.createElement('canvas');
+            cvs.width = rInner*2; cvs.height = rInner*2;
+            const g = cvs.getContext('2d');
+            g.drawImage(img, 0, 0, rInner*2, rInner*2);
+            cb(_buildSVG(cvs.toDataURL('image/jpeg',0.7)), W, H);
+          } catch(_){ cb(_buildSVG(null), W, H); }
+        };
+        img.onerror = ()=>cb(_buildSVG(null), W, H);
+        img.src = photoUrl;
+      }
+    } else {
+      cb(_buildSVG(null), W, H);
+    }
   }
 
   function _updateLiveMarker(uid, d, isMe){
@@ -13753,7 +13770,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.7.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.7.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
