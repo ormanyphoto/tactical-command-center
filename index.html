@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.6.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.6.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.6.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.6.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -6639,8 +6639,8 @@ function boShootingRange(c){
     +(filteredOpen.length ? filteredOpen.map(_buildSessionCard).join('') : '<div style="color:var(--text3);font-size:12px;padding:10px;text-align:center">אין הדרכות פתוחות</div>')
     // Weapons (only when filter is range or all)
     +(filter==='all'||filter==='range' ? '<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:14px 0 6px">🔫 כלי נשק רשומים</div><div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>סוג</th><th>סידורי</th><th>בעלות</th><th>אימון אחרון</th><th>סטטוס</th><th></th></tr></thead><tbody>'+(weaponRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:15px">אין כלי נשק</td></tr>')+'</tbody></table></div>':'')
-    // Completed
-    +(filteredCompleted.length?'<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:14px 0 6px">📜 היסטוריה ('+filteredCompleted.length+')</div>'+filteredCompleted.slice(0,15).map(s=>{const t=TRAINING_TYPES[s.trainingType||'range']||TRAINING_TYPES.range;const parts=s.participants?Object.values(s.participants):[];return '<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center"><span>'+t.icon+'</span><span style="font-weight:700">'+escHtml(s.title)+'</span><span style="color:var(--text3)">'+escHtml(s.date||'')+'</span><span style="color:var(--text3)">'+parts.filter(p=>p.attended).length+'/'+parts.length+'</span></div>';}).join(''):'')
+    // Completed — clickable rows that open detail view
+    +(filteredCompleted.length?'<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:14px 0 6px">📜 היסטוריה ('+filteredCompleted.length+')</div>'+filteredCompleted.slice(0,20).map(s=>{const t=TRAINING_TYPES[s.trainingType||'range']||TRAINING_TYPES.range;const parts=s.participants?Object.values(s.participants):[];const attended=parts.filter(p=>p.attended).length;return '<div onclick="viewTrainingDetails(\''+s.id+'\')" style="font-size:11px;padding:6px 8px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;cursor:pointer;border-radius:4px;transition:background 0.12s" onmouseover="this.style.background=\'var(--panel3)\'" onmouseout="this.style.background=\'\'"><span>'+t.icon+'</span><span style="font-weight:700;flex:1">'+escHtml(s.title)+'</span><span style="color:var(--text3)">'+escHtml(s.date||'')+'</span><span style="color:var(--accent);font-weight:700">'+attended+'/'+parts.length+'</span><span style="color:var(--text3);font-size:10px">לחץ לפרטים →</span></div>';}).join(''):'')
     // Settings
     +(isAdmin?'<div style="margin-top:14px;padding:10px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px"><div style="font-size:11px;font-weight:800;color:var(--text2);margin-bottom:6px">⚙ הגדרות</div><div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px;color:var(--text)">מועד אחרון לאימון מטווח (חודשים):</label><input type="number" min="1" max="24" value="'+maxMonths+'" onchange="localStorage.setItem(\'tac_range_max_months\',this.value);boShootingRange(document.getElementById(\'bo-inner\'))" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);text-align:center"/></div></div>':'')
     +'</div>';
@@ -6766,6 +6766,53 @@ function sendTrainingNotif(sid){
     showToast({icon:'📤',title:'הדרכה נשלחה ל-'+ids.length+' אנשים',type:'success'});
     auditLog('שליחת הדרכה: '+s.title,'info',ids.length+' נמענים');
   };
+  document.getElementById('modal-wrap').style.display = 'flex';
+}
+// View completed training session details in a modal
+function viewTrainingDetails(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  if(!s) return;
+  const t = TRAINING_TYPES[s.trainingType||'range'] || TRAINING_TYPES.range;
+  const parts = s.participants ? Object.entries(s.participants) : [];
+  const attended = parts.filter(([_,p])=>p.attended);
+  const absent = parts.filter(([_,p])=>!p.attended);
+  document.getElementById('modal-ttl').innerHTML = t.icon+' '+escHtml(s.title);
+  let html = '<div style="margin-bottom:10px">';
+  html += '<div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px">';
+  html += '<span style="color:var(--text3);font-weight:600">סוג:</span><span style="font-weight:700;color:'+t.color+'">'+t.icon+' '+t.label+'</span>';
+  html += '<span style="color:var(--text3);font-weight:600">תאריך:</span><span>'+escHtml(s.date||'—')+' '+escHtml(s.time||'')+'</span>';
+  if(s.location) html += '<span style="color:var(--text3);font-weight:600">מיקום:</span><span>📍 '+escHtml(s.location)+'</span>';
+  if(s.description) html += '<span style="color:var(--text3);font-weight:600">תיאור:</span><span>'+escHtml(s.description)+'</span>';
+  if(s.weaponType) html += '<span style="color:var(--text3);font-weight:600">נשק:</span><span>'+(s.weaponType==='pistol'?'אקדח':s.weaponType==='rifle'?'רובה':'משולב')+'</span>';
+  html += '<span style="color:var(--text3);font-weight:600">סטטוס:</span><span style="color:'+(s.status==='completed'?'var(--accent)':'var(--warn)')+'">'+( s.status==='completed'?'✅ הושלם':'📅 פתוח')+'</span>';
+  html += '</div></div>';
+  // Attended list
+  html += '<div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:4px">✅ השתתפו ('+attended.length+')</div>';
+  if(attended.length){
+    html += '<div style="max-height:200px;overflow-y:auto;margin-bottom:8px">';
+    attended.forEach(([pid,pt])=>{
+      const p = PERSONNEL.find(x=>x.id===pid);
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid var(--border2);font-size:12px">';
+      html += '<span style="color:var(--accent)">✅</span>';
+      html += '<span style="font-weight:700;flex:1">'+escHtml(pt.name||pid)+'</span>';
+      if(p) html += '<span style="color:var(--text3);font-size:10px">'+escHtml(p.role||'')+' · '+escHtml(p.unit||'')+'</span>';
+      if(pt.score) html += '<span style="color:var(--accent2);font-weight:700;font-size:11px">ציון: '+pt.score+'</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="color:var(--text3);font-size:11px;margin-bottom:8px">אין משתתפים רשומים</div>';
+  }
+  // Absent list
+  if(absent.length){
+    html += '<div style="font-size:12px;font-weight:800;color:var(--danger);margin-bottom:4px">❌ לא השתתפו ('+absent.length+')</div>';
+    html += '<div style="max-height:120px;overflow-y:auto">';
+    absent.forEach(([pid,pt])=>{
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:3px 6px;font-size:11px;color:var(--text3)"><span>❌</span><span>'+escHtml(pt.name||pid)+'</span></div>';
+    });
+    html += '</div>';
+  }
+  document.getElementById('modal-body').innerHTML = html;
   document.getElementById('modal-wrap').style.display = 'flex';
 }
 function deleteRangeSession(sid){
@@ -7563,7 +7610,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.6.0 source-code update because the merge in
+    // which survived our v6.6.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -13694,7 +13741,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
