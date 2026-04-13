@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.2.8 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.2.9 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -779,7 +779,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.8</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.2.9</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1182,7 +1182,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.2.8</div>
+    <div id="fm-logo">⬡ מבצעים v6.2.9</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4757,8 +4757,9 @@ function renderUnitsP(c){
       if(apSec) apSec.innerHTML = renderApprovalsSection() + (typeof renderRescueMissions==='function' ? renderRescueMissions() : '');
       const kpi = c.querySelector('#units-kpi');
       if(kpi) kpi.innerHTML = _buildUnitsKPI();
-      const scWrap = c.querySelector('#units-sc-wrap');
-      if(scWrap) scWrap.innerHTML = (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '');
+      // NOTE: #units-sc-wrap (status check config) is NOT re-rendered here
+      // to prevent the select dropdown from resetting while the user is
+      // interacting with it. It only rebuilds on full panel render.
     }
     return;
   }
@@ -7063,7 +7064,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.2.8 source-code update because the merge in
+    // which survived our v6.2.9 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -10062,12 +10063,12 @@ function renderStatusCheckConfig(){
       <div style="font-size:10px;font-weight:700;color:${statusClr};display:flex;align-items:center;gap:4px">${statusIcon} ${statusLbl}</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <select id="sc-interval" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:13px;font-weight:600">
-        <option value="0">כבוי</option>
-        <option value="15" ${curInterval===15?'selected':''}>כל 15 דק׳</option>
-        <option value="30" ${curInterval===30?'selected':''}>כל 30 דק׳</option>
-        <option value="60" ${curInterval===60?'selected':''}>כל שעה</option>
-        <option value="120" ${curInterval===120?'selected':''}>כל שעתיים</option>
+      <select id="sc-interval" onchange="window._scSelectedInterval=this.value" style="flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);font-size:13px;font-weight:600">
+        <option value="0" ${(window._scSelectedInterval||curInterval)==0?'selected':''}>כבוי</option>
+        <option value="15" ${(window._scSelectedInterval||curInterval)==15?'selected':''}>כל 15 דק׳</option>
+        <option value="30" ${(window._scSelectedInterval||curInterval)==30?'selected':''}>כל 30 דק׳</option>
+        <option value="60" ${(window._scSelectedInterval||curInterval)==60?'selected':''}>כל שעה</option>
+        <option value="120" ${(window._scSelectedInterval||curInterval)==120?'selected':''}>כל שעתיים</option>
       </select>
       ${active
         ? `<button onclick="stopStatusCheck();renderUnitsP(document.getElementById('rp-body'))" style="padding:8px 16px;border-radius:8px;background:rgba(255,51,51,0.15);border:1.5px solid rgba(255,51,51,0.4);color:var(--danger);font-size:12px;font-weight:800;cursor:pointer;font-family:var(--font);white-space:nowrap">⏹ עצור</button>`
@@ -13098,7 +13099,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.8)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.2.9)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
