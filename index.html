@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.5.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.6.0 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -780,7 +780,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.5.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.6.0</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1183,7 +1183,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.5.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.6.0</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4577,8 +4577,8 @@ function openNewMsnModal(){
     MISSION_TEMPLATES.forEach(t=>{ tplOpts+='<option value="'+t.id+'">'+t.name+'</option>'; });
     body+='<div class="form-g"><label>📝 תבנית משימה</label><select id="nm-tpl" onchange="applyMsnTemplate(this.value)" style="background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;width:100%">'+tplOpts+'</select></div>';
   }
-  // HIDDEN FIELDS
-  body+='<input type="hidden" id="nm-type" value="arrest"/>';
+  // MISSION TYPE
+  body+='<div class="form-g"><label>סוג משימה</label><select id="nm-type" style="background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;width:100%"><option value="arrest">מעצר</option><option value="surveillance">מעקב</option><option value="traffic">תנועה</option><option value="patrol">🚔 סיור ממונע — ניידת</option><option value="escort">ליווי</option><option value="rescue">חילוץ</option><option value="routine">שגרה</option><option value="other">אחר</option></select></div>';
   body+='<input type="hidden" id="nm-id" value="MSN-'+String(MISSIONS.length+1).padStart(3,'0')+'"/>';
   
   document.getElementById('modal-body').innerHTML=body;
@@ -4773,6 +4773,16 @@ function saveMission(){
   var schedEl = document.getElementById('nm-scheduled');
   var scheduledAt = schedEl && schedEl.value ? new Date(schedEl.value).getTime() : null;
   var isScheduled = scheduledAt && scheduledAt > Date.now();
+  // Patrol mission validation — requires at least one team member with police driving license
+  if(type === 'patrol'){
+    const assignedTeamNames = _nmAssignedTeams || [];
+    const teamMembers = PERSONNEL.filter(p => assignedTeamNames.includes(p.unit));
+    const hasLicensedDriver = teamMembers.some(p => p.policeDrivingLicense);
+    if(!hasLicensedDriver){
+      showToast({icon:'🚔',title:'לא ניתן לפתוח סיור ממונע',sub:'חסר נהג עם רישיון נהיגה בניידת משטרה בצוות המשויך',type:'warn',duration:8000});
+      return;
+    }
+  }
   MISSIONS.push({
     id:id,title:title,type:type,status:isScheduled?'scheduled':status,priority:priority,
     teams:_nmAssignedTeams.slice(),
@@ -4954,7 +4964,7 @@ function _renderUnitsListOnly(el){
     html += avatar;
     html += '<div style="flex:1;min-width:0">';
     html += '<div style="font-size:13px;font-weight:800;color:' + (isSOS ? 'var(--danger)' : 'var(--texthi)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (isSOS ? '🆘 ' : '') + escHtml(p.name) + '</div>';
-    html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + '</div>';
+    html += '<div style="font-size:10px;color:var(--text3)">' + escHtml(p.role || '—') + ' · ' + escHtml(p.unit || '—') + (p.policeDrivingLicense ? ' · <span style="color:#1d6cff;font-weight:700">🚔 רישיון ניידת</span>' : '') + '</div>';
     // Status check result line
     if(scData){
       const scIcons = {ok:'✅',help:'⚠️',sos:'🆘'};
@@ -6537,33 +6547,56 @@ function boShootingRange(c){
   // ── Build session cards ──
   function _buildSessionCard(s){
     const t = TRAINING_TYPES[s.trainingType||'range'] || TRAINING_TYPES.range;
-    const parts = s.participants ? Object.values(s.participants) : [];
-    const amReg = s.participants && s.participants[myId];
-    const full = s.maxParticipants && parts.length >= s.maxParticipants;
-    let h = '<div style="background:var(--panel2);border-right:3px solid '+t.color+';border:1px solid var(--border2);border-right:3px solid '+t.color+';border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    const partsAll = s.participants ? Object.entries(s.participants) : [];
+    const confirmed = partsAll.filter(([_,p])=>p.status==='confirmed');
+    const declined = partsAll.filter(([_,p])=>p.status==='declined');
+    const myEntry = s.participants && s.participants[myId];
+    const myStatus = myEntry ? myEntry.status : null; // null=not responded, 'confirmed', 'declined'
+    const full = s.maxParticipants && confirmed.length >= s.maxParticipants;
+    let h = '<div style="background:var(--panel2);border:1px solid var(--border2);border-right:3px solid '+t.color+';border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    // Header
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
     h += '<div><div style="font-size:13px;font-weight:800;color:var(--texthi)">'+t.icon+' '+escHtml(s.title)+'</div>';
     h += '<div style="font-size:11px;color:var(--text3)">'+escHtml(s.date||'')+' '+escHtml(s.time||'');
     if(s.location) h += ' · 📍 '+escHtml(s.location);
-    if(s.description) h += '<br>'+escHtml(s.description);
+    if(s.description) h += '<br><span style="color:var(--text2)">'+escHtml(s.description)+'</span>';
     h += '</div></div>';
-    h += '<span style="font-size:11px;font-weight:700;color:'+t.color+'">'+parts.length+'/'+(s.maxParticipants||'∞')+'</span></div>';
-    if(parts.length){
-      h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">';
-      parts.forEach(pt => { h += '<span style="font-size:10px;background:var(--panel3);border:1px solid var(--border2);border-radius:12px;padding:2px 8px;color:var(--text2)">'+escHtml(pt.name||'')+'</span>'; });
+    h += '<span style="font-size:11px;font-weight:700;color:'+t.color+'">'+confirmed.length+'/'+(s.maxParticipants||'∞')+'</span></div>';
+    // Attendance list — visible to all
+    if(confirmed.length){
+      h += '<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:2px">✅ מגיעים ('+confirmed.length+'):</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">';
+      confirmed.forEach(([_,pt])=>{ h += '<span style="font-size:10px;background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);border-radius:10px;padding:2px 7px;color:var(--accent);font-weight:600">'+escHtml(pt.name||'')+'</span>'; });
       h += '</div>';
     }
-    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-    if(s.status==='open'){
-      h += amReg
-        ? '<button onclick="unregisterFromRange(\''+s.id+'\')" style="padding:4px 12px;border-radius:6px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">❌ בטל</button>'
-        : '<button onclick="registerForRange(\''+s.id+'\')" '+(full?'disabled':'')+' style="padding:4px 12px;border-radius:6px;background:var(--accent);border:none;color:#07090a;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)'+(full?';opacity:0.4':'')+'">✅ הירשם</button>';
-      if(isAdmin){
-        h += '<button onclick="completeRangeSession(\''+s.id+'\')" style="padding:4px 12px;border-radius:6px;background:rgba(29,108,255,0.1);border:1px solid rgba(29,108,255,0.3);color:#29c5f6;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">📋 סגור</button>';
-        h += '<button onclick="deleteRangeSession(\''+s.id+'\')" style="padding:4px 8px;border-radius:6px;background:none;border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;cursor:pointer;font-family:var(--font)">🗑️</button>';
-      }
+    if(declined.length){
+      h += '<div style="font-size:10px;font-weight:700;color:var(--danger);margin-bottom:2px">❌ לא מגיעים ('+declined.length+'):</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">';
+      declined.forEach(([_,pt])=>{ h += '<span style="font-size:10px;background:rgba(255,51,51,0.06);border:1px solid rgba(255,51,51,0.2);border-radius:10px;padding:2px 7px;color:var(--danger);font-weight:600">'+escHtml(pt.name||'')+'</span>'; });
+      h += '</div>';
     }
-    h += '</div></div>';
+    // Action buttons — ALL users can confirm/decline
+    if(s.status==='open'){
+      h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">';
+      if(myStatus==='confirmed'){
+        h += '<span style="font-size:10px;color:var(--accent);font-weight:700;padding:4px 0">✅ אישרת הגעה</span>';
+        h += '<button onclick="declineRange(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);color:var(--danger);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">שינוי → לא מגיע</button>';
+      } else if(myStatus==='declined'){
+        h += '<span style="font-size:10px;color:var(--danger);font-weight:700;padding:4px 0">❌ סימנת לא מגיע</span>';
+        h += '<button onclick="registerForRange(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(61,255,82,0.1);border:1px solid rgba(61,255,82,0.25);color:var(--accent);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">שינוי → מגיע</button>';
+      } else {
+        h += '<button onclick="registerForRange(\''+s.id+'\')" '+(full?'disabled':'')+' style="padding:5px 14px;border-radius:6px;background:var(--accent);border:none;color:#07090a;font-size:11px;font-weight:800;cursor:pointer;font-family:var(--font)'+(full?';opacity:0.4':'')+'">✅ מגיע</button>';
+        h += '<button onclick="declineRange(\''+s.id+'\')" style="padding:5px 14px;border-radius:6px;background:rgba(255,51,51,0.1);border:1px solid rgba(255,51,51,0.3);color:var(--danger);font-size:11px;font-weight:800;cursor:pointer;font-family:var(--font)">❌ לא מגיע</button>';
+      }
+      // Admin actions
+      if(isAdmin){
+        h += '<button onclick="completeRangeSession(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(29,108,255,0.1);border:1px solid rgba(29,108,255,0.25);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">📋 סגור</button>';
+        h += '<button onclick="sendTrainingNotif(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(176,108,240,0.1);border:1px solid rgba(176,108,240,0.25);color:var(--purple);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">📤 שלח</button>';
+        h += '<button onclick="deleteRangeSession(\''+s.id+'\')" style="padding:4px 8px;border-radius:6px;background:none;border:1px solid rgba(255,51,51,0.25);color:var(--danger);font-size:10px;cursor:pointer;font-family:var(--font)">🗑️</button>';
+      }
+      h += '</div>';
+    }
+    h += '</div>';
     return h;
   }
 
@@ -6662,10 +6695,20 @@ function registerForRange(sid){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   if(!s||!u) return;
   if(!s.participants) s.participants = {};
-  s.participants[u.id] = { name:u.name, registeredAt:Date.now() };
+  s.participants[u.id] = { name:u.name, status:'confirmed', registeredAt:Date.now() };
   saveRangeData();
   boShootingRange(document.getElementById('bo-inner'));
-  showToast({icon:'✅',title:'נרשמת לאימון',type:'success'});
+  showToast({icon:'✅',title:'אישרת הגעה',type:'success'});
+}
+function declineRange(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!s||!u) return;
+  if(!s.participants) s.participants = {};
+  s.participants[u.id] = { name:u.name, status:'declined', registeredAt:Date.now() };
+  saveRangeData();
+  boShootingRange(document.getElementById('bo-inner'));
+  showToast({icon:'❌',title:'סימנת שלא מגיע',type:'info'});
 }
 function unregisterFromRange(sid){
   const s = RANGE_SESSIONS.find(x=>x.id===sid);
@@ -6674,7 +6717,56 @@ function unregisterFromRange(sid){
   delete s.participants[u.id];
   saveRangeData();
   boShootingRange(document.getElementById('bo-inner'));
-  showToast({icon:'❌',title:'רישום בוטל',type:'info'});
+  showToast({icon:'↩️',title:'ביטלת רישום',type:'info'});
+}
+// Send training notification to specific targets
+function sendTrainingNotif(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  if(!s) return;
+  const t = TRAINING_TYPES[s.trainingType||'range']||TRAINING_TYPES.range;
+  document.getElementById('modal-ttl').innerHTML = '📤 שלח הדרכה — '+escHtml(s.title);
+  const teamOpts = (typeof TEAMS!=='undefined'?TEAMS:[]).map(tm=>'<option value="team:'+tm.id+'">'+escHtml(tm.name)+'</option>').join('');
+  document.getElementById('modal-body').innerHTML = ''
+    +'<div class="form-g"><label>שלח ל-</label><select id="trn-target">'
+    +'<option value="all">👥 כל אנשי הצוות</option>'
+    +teamOpts
+    +'<option value="custom">🔍 בחירה ידנית</option>'
+    +'</select></div>'
+    +'<div id="trn-custom-wrap" style="display:none;max-height:200px;overflow-y:auto">'
+    +PERSONNEL.map(p=>'<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer"><input type="checkbox" class="trn-pick" value="'+p.id+'" style="accent-color:var(--accent)"/>'+escHtml(p.name)+'</label>').join('')
+    +'</div>';
+  document.getElementById('trn-target').onchange = function(){
+    document.getElementById('trn-custom-wrap').style.display = this.value==='custom'?'block':'none';
+  };
+  modalCB = ()=>{
+    const target = document.getElementById('trn-target').value;
+    let ids = [];
+    if(target==='all') ids = PERSONNEL.map(p=>p.id);
+    else if(target.startsWith('team:')){
+      const tm = (typeof TEAMS!=='undefined'?TEAMS:[]).find(t2=>t2.id===target.split(':')[1]);
+      if(tm) ids = PERSONNEL.filter(p=>p.unit===tm.name).map(p=>p.id);
+    } else {
+      document.querySelectorAll('.trn-pick:checked').forEach(cb=>ids.push(cb.value));
+    }
+    if(!ids.length){ showToast({icon:'⚠️',title:'לא נבחרו נמענים',type:'warn'}); return; }
+    const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    const nid = 'trn_'+Date.now().toString(36);
+    const payload = {
+      id:nid, type:'alert', typeLabel:'הדרכה',
+      title: t.icon+' '+s.title,
+      body: (s.date||'')+' '+(s.time||'')+' · '+(s.location||'')+'\n'+(s.description||''),
+      senderName: u2?u2.name:'מערכת', senderId: u2?u2.id:'system', sentAt:Date.now()
+    };
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    ids.forEach(pid=>{
+      fetch(DB+'/tac_notifications/'+pid+'/'+nid+'.json',{
+        method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+      }).catch(()=>{});
+    });
+    showToast({icon:'📤',title:'הדרכה נשלחה ל-'+ids.length+' אנשים',type:'success'});
+    auditLog('שליחת הדרכה: '+s.title,'info',ids.length+' נמענים');
+  };
+  document.getElementById('modal-wrap').style.display = 'flex';
 }
 function deleteRangeSession(sid){
   if(!confirm('למחוק אימון?')) return;
@@ -6707,12 +6799,25 @@ function completeRangeSession(sid){
         s.participants[pid].attended = cb.checked;
         s.participants[pid].score = score;
       }
-      // Update weapon lastRange for attended members
+      // Update weapon lastRange + personal training file for attended members
       if(cb.checked){
         const p = PERSONNEL.find(x=>x.id===pid);
-        if(p && p.weapons){
-          p.weapons.forEach(w => {
-            if(s.weaponType === 'both' || w.type === s.weaponType) w.lastRange = s.date || new Date().toISOString().slice(0,10);
+        if(p){
+          // Weapon update (for range/dry training)
+          if(p.weapons && (s.trainingType==='range'||s.trainingType==='dry'||s.weaponType)){
+            p.weapons.forEach(w => {
+              if(!s.weaponType || s.weaponType === 'both' || w.type === s.weaponType) w.lastRange = s.date || new Date().toISOString().slice(0,10);
+            });
+          }
+          // Record in personal training file
+          if(!p.trainingHistory) p.trainingHistory = [];
+          p.trainingHistory.push({
+            sessionId: s.id,
+            type: s.trainingType || 'range',
+            title: s.title,
+            date: s.date || new Date().toISOString().slice(0,10),
+            score: score || null,
+            attended: true
           });
         }
       }
@@ -7458,7 +7563,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.5.0 source-code update because the merge in
+    // which survived our v6.6.0 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8363,10 +8468,14 @@ function editPersonModal(id){
           <option value="motorcycle" ${p.vehicleType==='motorcycle'?'selected':''}>אופנוע</option>
         </select>
       </div>
-      <div class="form-g" style="display:flex;align-items:center;gap:6px;padding-bottom:8px">
+      <div class="form-g" style="display:flex;align-items:center;gap:12px;padding-bottom:8px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;white-space:nowrap">
           <input type="checkbox" id="ep-vpolice" ${p.vehiclePoliceApproved?'checked':''} style="width:16px;height:16px;cursor:pointer"/>
           מאושר משטרתית
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="ep-police-license" ${p.policeDrivingLicense?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:#1d6cff"/>
+          🚔 רישיון נהיגה בניידת משטרה
         </label>
       </div>
     </div>
@@ -8460,6 +8569,7 @@ function editPersonModal(id){
     p.vehiclePlate=document.getElementById('ep-vplate').value;
     p.vehicleType=document.getElementById('ep-vtype').value;
     p.vehiclePoliceApproved=document.getElementById('ep-vpolice').checked;
+    p.policeDrivingLicense=document.getElementById('ep-police-license').checked;
     p.vehicleMileage=(document.getElementById('ep-vmileage')||{}).value||'';
     p.vehicleFuel=(document.getElementById('ep-vfuel')||{}).value||'';
     p.vehicleNextService=(document.getElementById('ep-vservice')||{}).value||'';
@@ -13584,7 +13694,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.5.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.6.0)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
