@@ -3920,6 +3920,7 @@ function renderDrawP(c){
   <div class="mp-grid">
     <button class="mp-btn" onclick="locateMe()"><span>📍</span><span class="mp-btn-label">מיקומי</span></button>
     <button class="mp-btn" id="rp-gps-btn" onclick="toggleGPS()" title="GPS מעקב רציף"><span>🛰️</span><span class="mp-btn-label">GPS</span></button>
+    <button class="mp-btn" id="rp-sv-btn" onclick="toggleStreetViewMode('rp-sv-btn')" title="לחץ על המפה לפתוח Street View"><span>👁️</span><span class="mp-btn-label">Street View</span></button>
   </div>
 
   <!-- ── תצוגת מפה ── -->
@@ -10982,6 +10983,34 @@ function openStreetView(lat, lng){
   auditLog('Street View נפתח','info',lat.toFixed(4)+','+lng.toFixed(4));
 }
 function closeStreetView(){ const p=document.getElementById('street-view-pano'); if(p) p.style.display='none'; }
+// Street View click mode — click anywhere on the map to open Street View
+let _svClickMode = false;
+let _svClickListener = null;
+function toggleStreetViewMode(btnId){
+  const btn = document.getElementById(btnId);
+  if(_svClickMode){
+    // Turn off
+    _svClickMode = false;
+    if(_svClickListener && window.map){
+      google.maps.event.removeListener(_svClickListener);
+      _svClickListener = null;
+    }
+    if(btn) btn.classList.remove('mp-active');
+    window.map.setOptions({draggableCursor:null});
+    showToast({icon:'👁️',title:'Street View כבוי',type:'info',duration:2000});
+  } else {
+    // Turn on
+    _svClickMode = true;
+    if(btn) btn.classList.add('mp-active');
+    window.map.setOptions({draggableCursor:'crosshair'});
+    showToast({icon:'👁️',title:'Street View — לחץ על המפה',sub:'לחץ בכל מקום לפתיחת תצוגת רחוב',type:'success',duration:3000});
+    _svClickListener = window.map.addListener('click', function(e){
+      openStreetView(e.latLng.lat(), e.latLng.lng());
+      // Auto-disable after opening
+      toggleStreetViewMode(btnId);
+    });
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // #13 COMMAND ROUTES — draw route and broadcast to teams
