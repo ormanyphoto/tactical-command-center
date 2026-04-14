@@ -441,6 +441,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .bo-tab{background:var(--panel2);border:1px solid var(--border2);padding:7px 14px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;border-radius:8px;font-family:var(--font);white-space:nowrap;transition:all 0.15s}
 .bo-tab:hover{background:var(--panel3);color:var(--texthi)}
 .bo-tab.active{background:var(--accent);color:#07090a;border-color:var(--accent)}
+/* Desktop hides the dropdown — buttons are shown. Mobile flips this. */
+.bo-tab-select{display:none;width:100%;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:14px;font-weight:800;color:var(--texthi);font-family:var(--font);cursor:pointer;direction:rtl;text-align:right;-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);background-position:calc(100% - 18px) 16px,calc(100% - 12px) 16px;background-size:6px 6px,6px 6px;background-repeat:no-repeat;padding-left:36px}
+.bo-tab-select option{background:var(--panel2);color:var(--texthi);padding:8px}
 .bo-back{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);white-space:nowrap}
 #bo-content{flex:1;overflow-y:auto;padding:20px;direction:rtl}
 .bo-inner{max-width:1200px;margin:0 auto}
@@ -740,6 +743,9 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #search-wrap{top:8px;left:6px;right:6px;max-width:none}
   #bo-topbar{padding:5px 10px 3px}
   .bo-tab{padding:4px 9px;font-size:11px}
+  /* Mobile: hide the wide button strip, show compact dropdown instead. */
+  .bo-tabs{display:none}
+  .bo-tab-select{display:block}
   #modal-box{max-width:100%;width:100%;margin:0;border-radius:12px 12px 0 0;position:fixed;bottom:0;max-height:85vh}
   #modal-wrap{align-items:flex-end}
 }
@@ -1259,6 +1265,8 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <button class="bo-tab" onclick="boTab('range-bo')">📋 הדרכות ואימונים</button>
       <button class="bo-tab" onclick="boTab('settings-bo')">⚙ הגדרות</button>
     </div>
+    <!-- Mobile-only dropdown — populated from .bo-tab buttons at openBO time -->
+    <select id="bo-tab-select" class="bo-tab-select" onchange="boTab(this.value)" aria-label="פאנל ניהול"></select>
   </div>
   <div id="bo-content"><div class="bo-inner"></div></div>
 </div>
@@ -5194,7 +5202,24 @@ function homeView(){if(map)map.setCenter({lat:32.0667,lng:34.7818});if(map)map.s
 document.addEventListener('click',e=>{if(!e.target.closest('#search-wrap'))document.getElementById('search-results').style.display='none'});
 
 // ─── BACK OFFICE ───
-function openBO(){document.getElementById('bo-wrap').classList.add('show');boTab('overview')}
+function openBO(){document.getElementById('bo-wrap').classList.add('show');_populateBoTabSelect();boTab('overview')}
+// Populate the mobile-only <select> from the visible .bo-tab buttons, so the
+// labels/icons stay in sync with the desktop button strip without maintaining
+// two separate lists.
+function _populateBoTabSelect(){
+  const sel=document.getElementById('bo-tab-select');
+  if(!sel||sel._populated)return;
+  const btns=document.querySelectorAll('.bo-tabs .bo-tab');
+  let html='';
+  btns.forEach(b=>{
+    const oc=b.getAttribute('onclick')||'';
+    const m=oc.match(/boTab\('([^']+)'\)/);
+    if(!m)return;
+    html+='<option value="'+m[1]+'">'+b.textContent.trim()+'</option>';
+  });
+  sel.innerHTML=html;
+  sel._populated=true;
+}
 function closeBO(){document.getElementById('bo-wrap').classList.remove('show')}
 // boTab defined below (unified)
 function boOverview(c){
@@ -5427,6 +5452,9 @@ function boTab(tab){
   document.querySelectorAll('.bo-tab').forEach(t=>{
     t.classList.toggle('active',t.getAttribute('onclick').includes("'"+tab+"'"));
   });
+  // Keep the mobile dropdown in sync with the active tab
+  const _boSel=document.getElementById('bo-tab-select');
+  if(_boSel && _boSel.value!==tab) _boSel.value=tab;
   const c=document.getElementById('bo-content');if(!c)return;
   c.innerHTML='<div class="bo-inner" id="bo-inner"></div>';
   const bi=document.getElementById('bo-inner');
