@@ -442,8 +442,11 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .bo-tab:hover{background:var(--panel3);color:var(--texthi)}
 .bo-tab.active{background:var(--accent);color:#07090a;border-color:var(--accent)}
 /* Desktop hides the dropdown — buttons are shown. Mobile flips this. */
-.bo-tab-select{display:none;width:100%;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:14px;font-weight:800;color:var(--texthi);font-family:var(--font);cursor:pointer;direction:rtl;text-align:right;-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);background-position:calc(100% - 18px) 16px,calc(100% - 12px) 16px;background-size:6px 6px,6px 6px;background-repeat:no-repeat;padding-left:36px}
-.bo-tab-select option{background:var(--panel2);color:var(--texthi);padding:8px}
+/* Keep the select rendering NATIVE on Android — appearance:none + custom arrow
+   reliably breaks the WebView's tap-to-open behavior, so we accept the native
+   dropdown caret in exchange for a working menu. */
+.bo-tab-select{display:none;width:100%;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;padding:11px 14px;font-size:14px;font-weight:800;color:var(--texthi);font-family:var(--font);direction:rtl;text-align:right}
+.bo-tab-select option{background:var(--panel2);color:var(--texthi);padding:8px;font-size:14px;font-weight:700}
 .bo-back{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);white-space:nowrap}
 #bo-content{flex:1;overflow-y:auto;padding:20px;direction:rtl}
 .bo-inner{max-width:1200px;margin:0 auto}
@@ -5439,6 +5442,9 @@ function openBO(){
   // Body class is used by the global approvals bar CSS to hide itself
   // so it doesn't cover the BO back button.
   document.body.classList.add('bo-active');
+  // Populate the mobile dropdown from the existing button strip BEFORE
+  // boTab runs so the value-sync inside boTab finds non-empty options.
+  if(typeof _populateBoTabSelect==='function') _populateBoTabSelect();
   boTab('overview');
 }
 function closeBO(){
