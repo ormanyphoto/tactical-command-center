@@ -2956,7 +2956,7 @@ function _buildMarkerCanvas(labelW,color,initials,shortName,status,imgDataUrl){
   // Pure SVG — no canvas. Fixes mobile WebView bounding-box artifact.
   const W=labelW, H=62, cx=W/2;
   const online=(status==='deployed'||status==='on-duty');
-  const dotClr=online?'#3dff52':'#ff3333';
+  const dotClr=online?'#22c55e':'#ff3333';
   let svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">';
   // Avatar circle
   svg+='<circle cx="'+cx+'" cy="19" r="17" fill="'+color+'" stroke="#fff" stroke-width="2.5"/>';
@@ -7513,6 +7513,18 @@ function savePersonnelToStorage(){
       teams: TEAMS.length ? TEAMS : null,
       units: Object.keys(units).length ? units : null
     }).catch(()=>{});
+    // Full personnel sync: name, role, contact, callsign, address, skills,
+    // color, order, coords, available flag, perms, weapons, mission.
+    // Photos are synced separately via tac_photos. Passwords are NEVER synced.
+    try {
+      const cleanList = PERSONNEL.map(p => {
+        const c = Object.assign({}, p);
+        delete c.photo;
+        delete c.loginPassword;
+        return c;
+      });
+      window._db.ref('tac_personnel_sync').set(cleanList).catch(()=>{});
+    } catch(_){}
   }
 }
 function loadPersonnelFromStorage(){
@@ -12583,7 +12595,7 @@ const SYNC = (() => {
       _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
       _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
       _subscribeHidden();
-      _hideBanner(); loadPhotos(); _autoStartPublishing();
+      _hideBanner(); loadPhotos(); loadPersonnelFromFirebase(); _autoStartPublishing();
       // Auth for writes (location publishing, etc.)
       firebase.auth().signInAnonymously()
         .then(()=>{ console.log('[SYNC] auth OK'); })
@@ -13140,7 +13152,7 @@ const SYNC = (() => {
     const W=80, H=82;
     const cx=W/2, bubCy=44, rOuter=20, rInner=17;
     const labelBg = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
-    const labelColor = isDayMode ? '#111' : '#3dff52';
+    const labelColor = isDayMode ? '#111' : '#22c55e';
     const displayName = (fullName||initials).slice(0,18);
     function _buildSVG(photoDataUrl){
       const nw = Math.min(W, Math.max(48, displayName.length*6+14));
@@ -13196,7 +13208,7 @@ const SYNC = (() => {
   function _updateLiveMarker(uid, d, isMe){
     if(!d.lat||!d.lng||!window.google||!google.maps) return;
     const pos = {lat:d.lat, lng:d.lng};
-    const STATUS = {active:'#3dff52', urgent:'#ff3333', standby:'#ffc107', busy:'#ff7a1a'};
+    const STATUS = {active:'#22c55e', urgent:'#ff3333', standby:'#ffc107', busy:'#ff7a1a'};
     const ringColor = STATUS[d.status] || '#29c5f6';
     const person = (typeof PERSONNEL!=='undefined')
       ? (PERSONNEL.find(p=>p.id===d.personId) || PERSONNEL.find(p=>p.name===d.name))
@@ -13344,6 +13356,48 @@ const SYNC = (() => {
     });
   }
 
+  // ── Personnel: load all team member info (name, role, contact, skills,
+  //    assignments) from Firebase and merge into PERSONNEL. Photos and
+  //    passwords are NOT touched — photos load via tac_photos, passwords
+  //    stay local. New devices get the full team roster without re-entry.
+  function loadPersonnelFromFirebase(){
+    if(!_db) return;
+    _db.ref('tac_personnel_sync').once('value', snap=>{
+      const data = snap.val();
+      if(!data) return;
+      const list = Array.isArray(data) ? data : Object.values(data);
+      if(!list.length) return;
+      let changed = false;
+      list.forEach(sp => {
+        if(!sp || !sp.id) return;
+        const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+        if(idx > -1){
+          // Merge remote → local, but PRESERVE local photo and loginPassword
+          const existing = PERSONNEL[idx];
+          const photo = existing.photo;
+          const pwd   = existing.loginPassword;
+          Object.assign(existing, sp);
+          if(photo) existing.photo = photo;
+          if(pwd)   existing.loginPassword = pwd;
+          changed = true;
+        } else {
+          // New personnel added on another device
+          PERSONNEL.push(Object.assign({photo:'', loginPassword:''}, sp));
+          changed = true;
+        }
+      });
+      if(!changed) return;
+      try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
+      // Re-render personnel panel if currently open
+      const rpBody = document.getElementById('rp-body');
+      if(rpBody && rpBody.innerHTML && typeof renderPersonnelP==='function'){
+        try { renderPersonnelP(rpBody); } catch(_){}
+      }
+      // Re-render markers so new names/roles appear in bubbles
+      [500, 2000].forEach(ms => setTimeout(rerenderMarkers, ms));
+    });
+  }
+
   function boot(){
     // Always use the built-in config — credentials are permanent
     // Retry with backoff if firebase SDK not yet loaded
@@ -13369,7 +13423,7 @@ const SYNC = (() => {
     _tryBoot();
   }
 
-  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
 })();
 
 // ══════════════════════════════════════════════════════════
