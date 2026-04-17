@@ -8735,6 +8735,19 @@ function editPersonModal(id){
           </label>
         `).join('')}
       </div>
+      ${(function(){
+        const assigned = EQUIPMENT_ITEMS.filter(e=>e.holderId===p.id || e.holder===p.name);
+        if(!assigned.length) return '<div style="margin-top:10px;padding:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border2)">📦 אין ציוד מחסן חתום — שייך ציוד דרך "מחסן ציוד" בפאנל ניהול</div>';
+        return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">'
+          +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">📦 ציוד מחסן חתום ('+assigned.length+')</div>'
+          +assigned.map(it=>'<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px;font-size:12px">'
+            +'<span style="color:var(--warn);font-weight:700">•</span>'
+            +'<span style="font-weight:600;color:var(--texthi)">'+escHtml(it.name)+'</span>'
+            +'<span style="color:var(--text3);font-size:10px">'+escHtml(it.category||'')+(it.serial?' · '+escHtml(it.serial):'')+'</span>'
+            +(it.takenAt?'<span style="margin-right:auto;font-size:10px;color:var(--text3)">'+new Date(it.takenAt).toLocaleDateString('he-IL')+'</span>':'')
+            +'</div>').join('')
+          +'</div>';
+      })()}
     </div>
     <div class="form-g" style="background:var(--panel2);padding:14px;border-radius:10px;border:1px solid var(--border2)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
@@ -12032,38 +12045,108 @@ function boEquipment(c){
 }
 function _renderEquipment(c){
   const filter = (window._eqFilter||'').toLowerCase();
+  const tab = window._eqTab || 'warehouse';
   const items = EQUIPMENT_ITEMS.filter(e=>{
     if(!filter) return true;
-    return (e.name||'').toLowerCase().includes(filter) || (e.holder||'').toLowerCase().includes(filter);
+    return (e.name||'').toLowerCase().includes(filter) || (e.holderId||e.holder||'').toLowerCase().includes(filter)
+      || (e.holderName||'').toLowerCase().includes(filter);
   });
-  let rows='';
-  items.forEach((it,i)=>{
-    const status = it.holder ? '<span style="color:var(--warn)">בשימוש</span>' : '<span style="color:var(--accent)">זמין</span>';
-    rows += '<tr>'
-      +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
-      +'<td>'+escHtml(it.category||'')+'</td>'
-      +'<td>'+escHtml(it.serial||'')+'</td>'
-      +'<td>'+status+'</td>'
-      +'<td>'+escHtml(it.holder||'—')+'</td>'
-      +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
-      +'<td><button class="act-btn" onclick="toggleEquipmentHolder(\''+it.id+'\')" title="החזר/הוצא">⇄</button>'
-      +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
-      +'</tr>';
-  });
-  const stats = {available:EQUIPMENT_ITEMS.filter(e=>!e.holder).length, inUse:EQUIPMENT_ITEMS.filter(e=>e.holder).length};
-  c.innerHTML='<div class="bo-section">'
-    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center">'
-    +'<span>🎒 מחסן ציוד ('+EQUIPMENT_ITEMS.length+' פריטים)</span>'
+  const stats = {
+    total: EQUIPMENT_ITEMS.length,
+    available: EQUIPMENT_ITEMS.filter(e=>!e.holderId && !e.holder).length,
+    inUse: EQUIPMENT_ITEMS.filter(e=>e.holderId || e.holder).length
+  };
+
+  // ── TAB SWITCHER ──
+  let html = '<div class="bo-section">'
+    +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+    +'<span>🎒 ניהול לוגיסטי ('+stats.total+' פריטים)</span>'
     +'<button class="btn-sec" onclick="addEquipmentModal()">+ פריט חדש</button>'
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
-    +'<div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+stats.available+'</div><div style="font-size:11px;color:var(--text3)">זמין</div></div>'
-    +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+stats.inUse+'</div><div style="font-size:11px;color:var(--text3)">בשימוש</div></div>'
+    // Stats cards
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
+    +'<div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+stats.available+'</div><div style="font-size:11px;color:var(--text3)">זמין במחסן</div></div>'
+    +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+stats.inUse+'</div><div style="font-size:11px;color:var(--text3)">חתום אישי</div></div>'
+    +'<div style="background:rgba(41,197,246,0.08);border:1px solid rgba(41,197,246,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--blue)">'+stats.total+'</div><div style="font-size:11px;color:var(--text3)">סה"כ</div></div>'
     +'</div>'
-    +'<input type="text" placeholder="חיפוש..." value="'+(window._eqFilter||'')+'" oninput="window._eqFilter=this.value;boEquipment(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin-bottom:10px"/>'
-    +'<table class="bo-table"><thead><tr><th>פריט</th><th>קטגוריה</th><th>סריאלי</th><th>סטטוס</th><th>מחזיק</th><th>תאריך הוצאה</th><th>פעולות</th></tr></thead><tbody>'
-    +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">אין פריטים</td></tr>')
-    +'</tbody></table></div>';
+    // Tabs
+    +'<div style="display:flex;gap:5px;margin-bottom:12px">'
+    +'<button class="bo-tab '+(tab==='warehouse'?'active':'')+'" onclick="window._eqTab=\'warehouse\';_renderEquipment(document.getElementById(\'bo-inner\'))">📦 מלאי מחסן</button>'
+    +'<button class="bo-tab '+(tab==='personal'?'active':'')+'" onclick="window._eqTab=\'personal\';_renderEquipment(document.getElementById(\'bo-inner\'))">👤 ציוד אישי חתום</button>'
+    +'</div>'
+    +'<input type="text" placeholder="חיפוש פריט או שם..." value="'+(window._eqFilter||'')+'" oninput="window._eqFilter=this.value;_renderEquipment(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin-bottom:10px;font-family:var(--font)"/>';
+
+  if(tab === 'personal'){
+    // ── PERSONAL EQUIPMENT VIEW: grouped by person ──
+    const byPerson = {};
+    EQUIPMENT_ITEMS.forEach(it=>{
+      if(!it.holderId && !it.holder) return;
+      const pid = it.holderId || it.holder;
+      if(!byPerson[pid]) byPerson[pid] = { person:null, items:[] };
+      byPerson[pid].items.push(it);
+      if(!byPerson[pid].person){
+        byPerson[pid].person = PERSONNEL.find(p=>p.id===pid) || PERSONNEL.find(p=>p.name===pid);
+      }
+    });
+    const personIds = Object.keys(byPerson).filter(k=>{
+      if(!filter) return true;
+      const bp = byPerson[k];
+      const pName = bp.person ? bp.person.name.toLowerCase() : k.toLowerCase();
+      return pName.includes(filter) || bp.items.some(it=>(it.name||'').toLowerCase().includes(filter));
+    });
+    if(!personIds.length){
+      html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין ציוד חתום — הוצא ציוד מהמחסן כדי לשייך אותו לאיש צוות</div>';
+    } else {
+      personIds.forEach(pid=>{
+        const bp = byPerson[pid];
+        const p = bp.person;
+        const name = p ? p.name : pid;
+        const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2);
+        const color = p ? (p.color||'#29c5f6') : '#5a7a90';
+        html += '<div style="background:var(--panel2);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+          +(p && p.photo ? '<img src="'+p.photo+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid '+color+'"/>'
+            : '<div style="width:36px;height:36px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff">'+initials+'</div>')
+          +'<div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--texthi)">'+escHtml(name)+'</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+(p?escHtml(p.role||''):'')
+          +' · '+bp.items.length+' פריטים</div></div></div>';
+        bp.items.forEach(it=>{
+          html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">'
+            +'<span style="font-size:13px">📦</span>'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+'</div>'
+            +'<div style="font-size:10px;color:var(--text3)">'+escHtml(it.category||'')+' · '+escHtml(it.serial||'ללא סריאלי')
+            +(it.takenAt?' · '+new Date(it.takenAt).toLocaleDateString('he-IL'):'')+'</div>'
+            +'</div>'
+            +'<button class="act-btn" onclick="returnEquipmentFromPerson(\''+it.id+'\')" title="החזר למחסן" style="font-size:11px">↩ החזר</button>'
+            +'</div>';
+        });
+        html += '</div>';
+      });
+    }
+  } else {
+    // ── WAREHOUSE VIEW: full inventory table ──
+    let rows='';
+    items.forEach(it=>{
+      const holderName = it.holderName || it.holder || '';
+      const status = holderName ? '<span style="color:var(--warn)">חתום</span>' : '<span style="color:var(--accent)">זמין</span>';
+      rows += '<tr>'
+        +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
+        +'<td>'+escHtml(it.category||'')+'</td>'
+        +'<td style="font-family:monospace;font-size:11px">'+escHtml(it.serial||'')+'</td>'
+        +'<td>'+status+'</td>'
+        +'<td>'+(holderName?escHtml(holderName):'—')+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
+        +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'הוצא לאיש צוות')+'">⇄</button>'
+        +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+        +'</tr>';
+    });
+    html += '<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>פריט</th><th>קטגוריה</th><th>סריאלי</th><th>סטטוס</th><th>חתום ע"י</th><th>תאריך</th><th>פעולות</th></tr></thead><tbody>'
+      +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">אין פריטים — הוסף ציוד למחסן</td></tr>')
+      +'</tbody></table></div>';
+  }
+  html += '</div>';
+  c.innerHTML = html;
 }
 function addEquipmentModal(){
   document.getElementById('modal-ttl').textContent='🎒 פריט ציוד חדש';
@@ -12093,21 +12176,62 @@ function delEquipment(id){
   _saveEquipment();
   boEquipment(document.getElementById('bo-inner'));
 }
-function toggleEquipmentHolder(id){
+// ── Assign equipment to a person via modal picker ──
+function assignEquipmentModal(id){
   const it = EQUIPMENT_ITEMS.find(e=>e.id===id);
   if(!it) return;
-  if(it.holder){
-    it.holder=''; it.takenAt=null;
-    auditLog('החזרת ציוד: '+it.name,'info','');
-  } else {
-    const holder = prompt('שם מחזיק:',AUTH.getUser()?AUTH.getUser().name:'');
-    if(!holder) return;
-    it.holder = holder; it.takenAt = Date.now();
-    auditLog('הוצאת ציוד: '+it.name,'info',holder);
+  // If already assigned — offer return or reassign
+  const currentHolder = it.holderName || it.holder || '';
+  document.getElementById('modal-ttl').textContent = currentHolder ? '⇄ '+it.name+' — חתום ע"י '+currentHolder : '📦 הוצאת ציוד: '+it.name;
+  let body = '';
+  if(currentHolder){
+    body += '<div style="background:rgba(255,193,7,0.1);border:1px solid var(--warn);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--texthi)">'
+      +'📦 <strong>'+escHtml(it.name)+'</strong> חתום כרגע על <strong>'+escHtml(currentHolder)+'</strong>'
+      +(it.takenAt?' מ-'+new Date(it.takenAt).toLocaleDateString('he-IL'):'')
+      +'</div>'
+      +'<button onclick="returnEquipmentFromPerson(\''+it.id+'\');closeModal()" style="width:100%;padding:12px;background:var(--accent);color:#07090a;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);margin-bottom:14px">↩ החזר למחסן</button>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;border-top:1px solid var(--border2);padding-top:10px">או העבר לאיש צוות אחר:</div>';
   }
-  _saveEquipment();
-  boEquipment(document.getElementById('bo-inner'));
+  body += '<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
+    +PERSONNEL.sort((a,b)=>(a.order||0)-(b.order||0)).map(p=>{
+      const initials = p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
+      return '<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer" onclick="_assignEquipTo(\''+it.id+'\',\''+p.id+'\')">'
+        +(p.photo?'<img src="'+p.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid '+(p.color||'#9ab8c8')+'"/>'
+          :'<div style="width:28px;height:28px;border-radius:50%;background:'+(p.color||'#9ab8c8')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">'+initials+'</div>')
+        +'<div><div style="font-size:13px;font-weight:700;color:var(--texthi)">'+escHtml(p.name)+'</div>'
+        +'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.role||'')+'</div></div>'
+        +'</div>';
+    }).join('')+'</div>';
+  document.getElementById('modal-body').innerHTML = body;
+  modalCB = null;
+  document.getElementById('modal-wrap').style.display='flex';
 }
+function _assignEquipTo(eqId, personId){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!it||!p) return;
+  it.holderId = p.id;
+  it.holderName = p.name;
+  it.holder = p.name; // compat
+  it.takenAt = Date.now();
+  _saveEquipment();
+  auditLog('הוצאת ציוד: '+it.name+' → '+p.name,'info',p.name);
+  closeModal();
+  boEquipment(document.getElementById('bo-inner'));
+  showToast({icon:'📦',title:it.name+' חתום על '+p.name,type:'success'});
+}
+function returnEquipmentFromPerson(eqId){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
+  if(!it) return;
+  const prevHolder = it.holderName || it.holder || '?';
+  it.holderId = ''; it.holderName = ''; it.holder = ''; it.takenAt = null;
+  _saveEquipment();
+  auditLog('החזרת ציוד: '+it.name+' מ-'+prevHolder,'info','');
+  boEquipment(document.getElementById('bo-inner'));
+  showToast({icon:'↩',title:it.name+' הוחזר למחסן',sub:'מ-'+prevHolder,type:'info'});
+}
+// Legacy compat
+function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 
 // ══════════════════════════════════════════════════════════
 // #7 GROUP CHAT — realtime team chat via Firebase
