@@ -5496,9 +5496,21 @@ function boOverview(c){
   const urgent=MISSIONS.filter(m=>m.status==='urgent').length;
   const dep=UNITS.filter(u=>u.status==='deployed').length;
   const avail=PERSONNEL.filter(p=>p.available).length;
-  const regions=[['תל אביב',8],['ירושלים',5],['חיפה',3],['נגב',2],['גליל',2],['יש"ע',4]];
-  const types=[['מעצר',3],['מעקב',2],['תנועה',2],['חילוץ',1],['ליווי',1]];
+  const totalP=PERSONNEL.length;
+  const coveragePct = totalP>0 ? Math.round(avail*100/totalP)+'%' : '—';
+  const completionRate = MISSIONS.length>0 ? completed+'/'+MISSIONS.length : '—';
+  // Real types aggregated from MISSIONS
+  const typeCounts = {};
+  MISSIONS.forEach(m=>{ const t=m.type||'אחר'; typeCounts[t]=(typeCounts[t]||0)+1; });
+  const types = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxTypes = types.reduce((m,r)=>Math.max(m,r[1]),0)||1;
+  // Real units distribution (by unit string on personnel)
+  const unitCounts = {};
+  PERSONNEL.forEach(p=>{ const u=p.unit||'לא משויך'; unitCounts[u]=(unitCounts[u]||0)+1; });
+  const units = Object.entries(unitCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxUnits = units.reduce((m,r)=>Math.max(m,r[1]),0)||1;
   const kpi=(bg,bdr,clr,val,lbl)=>'<div style="background:'+bg+';border:1.5px solid '+bdr+';border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:'+clr+'">'+val+'</div><div style="font-size:11px;color:var(--text3)">'+lbl+'</div></div>';
+  const emptyRow = '<div style="color:var(--text3);font-size:12px;padding:10px;text-align:center;border:1px dashed var(--border2);border-radius:8px">אין נתונים להצגה</div>';
   let html='';
   // KPIs
   html+='<div class="bo-section"><div class="bo-hd">📊 סטטוס כללי</div>';
@@ -5513,29 +5525,39 @@ function boOverview(c){
   html+=kpi('rgba(255,193,7,0.06)','rgba(255,193,7,0.25)','var(--warn)',TEAMS.length,'צוותים');
   html+=kpi('rgba(255,51,51,0.04)','rgba(255,51,51,0.15)','var(--danger)',ALERTS.length,'התראות');
   html+='</div></div>';
-  // Performance
-  html+='<div class="bo-section"><div class="bo-hd">⚡ ביצועים 24 שעות</div>';
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">';
-  html+=kpi('var(--panel2)','var(--border2)','var(--accent2)','4.2 דק׳','זמן תגובה');
-  html+=kpi('var(--panel2)','var(--border2)','var(--blue)',completed+'/'+MISSIONS.length,'השלמת משימות');
-  html+=kpi('var(--panel2)','var(--border2)','var(--accent)','87%','כיסוי כוח אדם');
+  // Performance — only real metrics
+  html+='<div class="bo-section"><div class="bo-hd">⚡ ביצועים</div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  html+=kpi('var(--panel2)','var(--border2)','var(--blue)',completionRate,'השלמת משימות');
+  html+=kpi('var(--panel2)','var(--border2)','var(--accent)',coveragePct,'כיסוי כוח אדם (זמינים/סה״כ)');
   html+='</div></div>';
   // Mission status bars
   html+='<div class="bo-section"><div class="bo-hd">📋 סטטוס משימות</div>';
-  [['urgent','דחופות','var(--danger)'],['active','פעילות','var(--accent)'],['briefing','בריפינג','var(--blue)'],['pending','ממתינות','var(--warn)'],['completed','הושלמו','var(--text3)']].forEach(([s,lbl,clr])=>{
-    const n=MISSIONS.filter(m=>m.status===s).length;
-    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+lbl+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:'+clr+';width:'+Math.min(100,n*20)+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+n+'</span></div>';
-  });
+  if(!MISSIONS.length){ html+=emptyRow; }
+  else {
+    [['urgent','דחופות','var(--danger)'],['active','פעילות','var(--accent)'],['briefing','בריפינג','var(--blue)'],['pending','ממתינות','var(--warn)'],['completed','הושלמו','var(--text3)']].forEach(([s,lbl,clr])=>{
+      const n=MISSIONS.filter(m=>m.status===s).length;
+      const pct = MISSIONS.length>0 ? Math.round(n*100/MISSIONS.length) : 0;
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+lbl+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:'+clr+';width:'+pct+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+n+'</span></div>';
+    });
+  }
   html+='</div>';
-  // Regions + types
-  html+='<div class="bo-section"><div class="bo-hd">🗺️ אירועים לפי אזור</div>';
-  regions.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+l+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--accent2);width:'+v*10+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+v+'</span></div>'; });
+  // Personnel per unit
+  html+='<div class="bo-section"><div class="bo-hd">👥 כוח אדם לפי יחידה</div>';
+  if(!units.length){ html+=emptyRow; }
+  else {
+    units.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:120px;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(l)+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--accent2);width:'+Math.round(v*100/maxUnits)+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--accent2);width:24px;text-align:right">'+v+'</span></div>'; });
+  }
   html+='</div>';
+  // Mission types
   html+='<div class="bo-section"><div class="bo-hd">🎯 סוגי משימות</div>';
-  types.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:70px;font-size:12px;color:var(--text2)">'+l+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--blue);width:'+v*25+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--blue);width:24px;text-align:right">'+v+'</span></div>'; });
+  if(!types.length){ html+=emptyRow; }
+  else {
+    types.forEach(([l,v])=>{ html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:120px;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(typeHe(l))+'</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--blue);width:'+Math.round(v*100/maxTypes)+'%;border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:var(--blue);width:24px;text-align:right">'+v+'</span></div>'; });
+  }
   html+='</div>';
   // Export
-  html+='<div class="bo-section"><div class="bo-hd">⬇️ ייצוא</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-sec" onclick="expReport()">⬇ דוח משמרת</button><button class="btn-sec" onclick="expGeo()">⬇ GeoJSON</button></div></div>';
+  html+='<div class="bo-section"><div class="bo-hd">⬆ ייצוא</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="expReport()">⬆ דוח משמרת</button><button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="expGeo()">⬆ GeoJSON</button></div></div>';
   c.innerHTML=html;
 }
 // Redirect analytics-bo to overview (merged)
@@ -6833,7 +6855,7 @@ function boShootingRange(c){
     +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
     +'<span>📋 הדרכות ואימונים</span>'
     +'<div style="display:flex;gap:6px">'
-    +(isAdmin?'<button class="btn-pri" style="padding:5px 12px;font-size:11px" onclick="openNewRangeSessionModal()">+ הדרכה חדשה</button>':'')
+    +(isAdmin?'<button class="btn-pri" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="openNewRangeSessionModal()">+ הדרכה חדשה</button>':'')
     +'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="_exportTrainingCSV()">⬆ ייצוא CSV</button>'
     +(isAdmin?'<button class="btn-sec" style="width:auto;padding:6px 14px;font-size:12px;margin:0" onclick="_importTrainingCSV()">⬇ ייבוא CSV</button>':'')
     +'</div></div>'
