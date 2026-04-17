@@ -12189,7 +12189,8 @@ function _renderEquipment(c){
   let html = '<div class="bo-section">'
     +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
     +'<span>🎒 ניהול לוגיסטי ('+EQUIPMENT_ITEMS.length+' סוגי פריטים, '+totalUnits+' יח׳)</span>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sec" onclick="refreshEquipmentFromCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="רענן מהענן">🔄 רענן</button>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sec" onclick="refreshEquipmentFromCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="משוך מהענן">⬇ מהענן</button>'
+    +'<button class="btn-sec" onclick="pushEquipmentToCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="העלה לענן">⬆ לענן</button>'
     +'<button class="btn-sec" onclick="manageEqCategoriesModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ קטגוריות</button>'
     +'<button class="btn-sec" onclick="addEquipmentModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">+ פריט חדש</button></div>'
     +'</div>'
@@ -12684,6 +12685,24 @@ function returnEquipmentFromPerson(eqId){
 // Legacy compat
 function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 
+// Force-push the current local state to Firebase. Useful when the app
+// was used while offline/misconfigured and nothing reached the cloud.
+function pushEquipmentToCloud(){
+  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
+  if(!confirm('להעלות '+EQUIPMENT_ITEMS.length+' פריטי ציוד ו־'+PERSONNEL.length+' אנשי צוות לענן? (ידרוס את הנתונים בענן)')) return;
+  showToast({icon:'☁️',title:'מעלה לענן...',type:'info',duration:2000});
+  const cleanList = PERSONNEL.map(p => { const c = Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; });
+  Promise.all([
+    window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS),
+    window._db.ref('tac_personnel_sync').set(cleanList)
+  ]).then(()=>{
+    console.log('[push] success — eq:'+EQUIPMENT_ITEMS.length+' p:'+cleanList.length);
+    showToast({icon:'✅',title:'הועלו '+EQUIPMENT_ITEMS.length+' פריטים',sub:'+ '+cleanList.length+' אנשי צוות',type:'success',duration:4000});
+  }).catch(e=>{
+    console.error('[push] failed:', e);
+    showToast({icon:'⚠️',title:'העלאה נכשלה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:6000});
+  });
+}
 // Force a fresh fetch from Firebase — bypass the client SDK cache by
 // hitting the REST endpoint directly so we always see the latest
 // server-side state.
