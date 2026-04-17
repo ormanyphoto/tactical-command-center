@@ -6783,6 +6783,7 @@ function boShootingRange(c){
       }
       // Admin actions
       if(isAdmin){
+        h += '<button onclick="editRangeSession(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);color:var(--warn);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">✏ ערוך</button>';
         h += '<button onclick="completeRangeSession(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(29,108,255,0.1);border:1px solid rgba(29,108,255,0.25);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">📋 סגור</button>';
         h += '<button onclick="sendTrainingNotif(\''+s.id+'\')" style="padding:4px 10px;border-radius:6px;background:rgba(176,108,240,0.1);border:1px solid rgba(176,108,240,0.25);color:var(--purple);font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font)">📤 שלח</button>';
         h += '<button onclick="deleteRangeSession(\''+s.id+'\')" style="padding:4px 8px;border-radius:6px;background:none;border:1px solid rgba(255,51,51,0.25);color:var(--danger);font-size:10px;cursor:pointer;font-family:var(--font)">🗑️</button>';
@@ -6830,30 +6831,51 @@ function boShootingRange(c){
     // Open sessions
     +'<div style="font-size:12px;font-weight:800;color:var(--accent2);margin-bottom:6px">📅 הדרכות פתוחות ('+filteredOpen.length+')</div>'
     +(filteredOpen.length ? filteredOpen.map(_buildSessionCard).join('') : '<div style="color:var(--text3);font-size:12px;padding:10px;text-align:center">אין הדרכות פתוחות</div>')
-    // Weapons (only when filter is range or all)
-    +(filter==='all'||filter==='range' ? '<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:14px 0 6px">🔫 כלי נשק רשומים</div><div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>סוג</th><th>סידורי</th><th>בעלות</th><th>אימון אחרון</th><th>סטטוס</th><th></th></tr></thead><tbody>'+(weaponRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:15px">אין כלי נשק</td></tr>')+'</tbody></table></div>':'')
+    // Weapons (only when filter is range or all) — collapsible
+    +(filter==='all'||filter==='range' ? (function(){
+      const hidden = localStorage.getItem('tac_training_hide_weapons')==='1';
+      const hdr = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 6px"><div style="font-size:12px;font-weight:800;color:var(--accent2)">🔫 כלי נשק רשומים</div>'
+        +'<button onclick="window._trainingToggleWeapons()" style="padding:4px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--font)">'+(hidden?'▼ הצג רשימה':'▲ הסתר רשימה')+'</button></div>';
+      if(hidden) return hdr;
+      return hdr+'<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>שם</th><th>סוג</th><th>סידורי</th><th>בעלות</th><th>אימון אחרון</th><th>סטטוס</th><th></th></tr></thead><tbody>'+(weaponRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:15px">אין כלי נשק</td></tr>')+'</tbody></table></div>';
+    })():'')
     // Completed — clickable rows that open detail view
     +(filteredCompleted.length?'<div style="font-size:12px;font-weight:800;color:var(--accent2);margin:14px 0 6px">📜 היסטוריה ('+filteredCompleted.length+')</div>'+filteredCompleted.slice(0,20).map(s=>{const t=TRAINING_TYPES[s.trainingType||'range']||TRAINING_TYPES.range;const parts=s.participants?Object.values(s.participants):[];const attended=parts.filter(p=>p.attended).length;return '<div style="font-size:11px;padding:6px 8px;border-bottom:1px solid var(--border2);display:flex;gap:8px;align-items:center;border-radius:4px"><span onclick="viewTrainingDetails(\''+s.id+'\')" style="display:flex;gap:8px;align-items:center;flex:1;cursor:pointer" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"><span>'+t.icon+'</span><span style="font-weight:700;flex:1">'+escHtml(s.title)+'</span><span style="color:var(--text3)">'+escHtml(s.date||'')+'</span><span style="color:var(--accent);font-weight:700">'+attended+'/'+parts.length+'</span><span style="color:var(--text3);font-size:10px">פרטים →</span></span>'+(isAdmin?'<button onclick="event.stopPropagation();deleteCompletedTraining(\''+s.id+'\')" style="background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;padding:2px 4px;opacity:0.5;flex-shrink:0" title="מחק">🗑️</button>':'')+'</div>';}).join(''):'')
     // Settings
     +(isAdmin?'<div style="margin-top:14px;padding:10px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px"><div style="font-size:11px;font-weight:800;color:var(--text2);margin-bottom:6px">⚙ הגדרות</div><div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px;color:var(--text)">מועד אחרון לאימון מטווח (חודשים):</label><input type="number" min="1" max="24" value="'+maxMonths+'" onchange="localStorage.setItem(\'tac_range_max_months\',this.value);boShootingRange(document.getElementById(\'bo-inner\'))" style="width:60px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2);background:var(--panel);color:var(--text);font-family:var(--font);text-align:center"/></div></div>':'')
     +'</div>';
 }
-function openNewRangeSessionModal(){
-  document.getElementById('modal-ttl').innerHTML = '📋 הדרכה / אימון חדש';
+window._trainingToggleWeapons = function(){
+  const cur = localStorage.getItem('tac_training_hide_weapons')==='1';
+  localStorage.setItem('tac_training_hide_weapons', cur?'0':'1');
+  const inner = document.getElementById('bo-inner'); if(inner) boShootingRange(inner);
+};
+function openNewRangeSessionModal(){ _openRangeSessionForm(null); }
+function editRangeSession(sid){
+  const s = RANGE_SESSIONS.find(x=>x.id===sid);
+  if(!s) return;
+  _openRangeSessionForm(s);
+}
+function _openRangeSessionForm(existing){
+  const isEdit = !!existing;
+  document.getElementById('modal-ttl').innerHTML = isEdit ? '✏ עריכת הדרכה / אימון' : '📋 הדרכה / אימון חדש';
+  const cur = existing || {};
   document.getElementById('modal-body').innerHTML = ''
     +'<div class="form-g"><label>סוג הדרכה *</label><select id="rng-type">'
-    +Object.entries(TRAINING_TYPES).map(([k,v])=>'<option value="'+k+'">'+v.icon+' '+v.label+'</option>').join('')
+    +Object.entries(TRAINING_TYPES).map(([k,v])=>'<option value="'+k+'"'+((cur.trainingType||'range')===k?' selected':'')+'>'+v.icon+' '+v.label+'</option>').join('')
     +'</select></div>'
-    +'<div class="form-g"><label>כותרת *</label><input type="text" id="rng-title" placeholder="נושא ההדרכה / אימון"/></div>'
-    +'<div class="form-g"><label>תיאור / מהות</label><input type="text" id="rng-desc" placeholder="פירוט קצר של תוכן ההדרכה"/></div>'
+    +'<div class="form-g"><label>כותרת *</label><input type="text" id="rng-title" value="'+escHtml(cur.title||'')+'" placeholder="נושא ההדרכה / אימון"/></div>'
+    +'<div class="form-g"><label>תיאור / מהות</label><input type="text" id="rng-desc" value="'+escHtml(cur.description||'')+'" placeholder="פירוט קצר של תוכן ההדרכה"/></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +'<div class="form-g"><label>תאריך *</label><input type="date" id="rng-date"/></div>'
-    +'<div class="form-g"><label>שעה</label><input type="time" id="rng-time" value="09:00"/></div>'
+    +'<div class="form-g"><label>תאריך *</label><input type="date" id="rng-date" value="'+escHtml(cur.date||'')+'"/></div>'
+    +'<div class="form-g"><label>שעה</label><input type="time" id="rng-time" value="'+escHtml(cur.time||'09:00')+'"/></div>'
     +'</div>'
-    +'<div class="form-g"><label>מיקום / לינק זום</label><input type="text" id="rng-location" placeholder="מטווח / כתובת / קישור Zoom"/></div>'
+    +'<div class="form-g"><label>מיקום / לינק זום</label><input type="text" id="rng-location" value="'+escHtml(cur.location||'')+'" placeholder="מטווח / כתובת / קישור Zoom"/></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +'<div class="form-g"><label>סוג נשק (למטווח/יבש)</label><select id="rng-weapon"><option value="">לא רלוונטי</option><option value="pistol">אקדח</option><option value="rifle">רובה</option><option value="both">משולב</option></select></div>'
-    +'<div class="form-g"><label>מקסימום משתתפים</label><input type="number" id="rng-max" min="1" value="30"/></div>'
+    +'<div class="form-g"><label>סוג נשק (למטווח/יבש)</label><select id="rng-weapon">'
+    + [['','לא רלוונטי'],['pistol','אקדח'],['rifle','רובה'],['both','משולב']].map(([k,lbl])=>'<option value="'+k+'"'+((cur.weaponType||'')===k?' selected':'')+'>'+lbl+'</option>').join('')
+    +'</select></div>'
+    +'<div class="form-g"><label>מקסימום משתתפים</label><input type="number" id="rng-max" min="1" value="'+(cur.maxParticipants||30)+'"/></div>'
     +'</div>';
   modalCB = ()=>{
     const title = (document.getElementById('rng-title')||{}).value;
@@ -6861,8 +6883,7 @@ function openNewRangeSessionModal(){
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     const ttype = (document.getElementById('rng-type')||{}).value||'range';
     const tt = TRAINING_TYPES[ttype]||TRAINING_TYPES.range;
-    RANGE_SESSIONS.push({
-      id:'rng_'+Date.now().toString(36),
+    const payload = {
       trainingType: ttype,
       title,
       description:(document.getElementById('rng-desc')||{}).value||'',
@@ -6870,16 +6891,29 @@ function openNewRangeSessionModal(){
       time:(document.getElementById('rng-time')||{}).value||'',
       location:(document.getElementById('rng-location')||{}).value||'',
       weaponType:(document.getElementById('rng-weapon')||{}).value||'',
-      maxParticipants:Number((document.getElementById('rng-max')||{}).value)||30,
-      status:'open',
-      createdBy:u?u.id:'',
-      createdAt:Date.now(),
-      participants:{}
-    });
-    saveRangeData();
-    boShootingRange(document.getElementById('bo-inner'));
-    showToast({icon:tt.icon,title:tt.label+' נוצר',type:'success'});
-    auditLog(tt.label+' נוצר: '+title,'info','');
+      maxParticipants:Number((document.getElementById('rng-max')||{}).value)||30
+    };
+    if(isEdit){
+      Object.assign(existing, payload);
+      existing.updatedAt = Date.now();
+      existing.updatedBy = u?u.id:'';
+      saveRangeData();
+      boShootingRange(document.getElementById('bo-inner'));
+      showToast({icon:'✏',title:tt.label+' עודכן',sub:title,type:'success'});
+      auditLog(tt.label+' עודכן: '+title,'info','');
+    } else {
+      RANGE_SESSIONS.push(Object.assign({
+        id:'rng_'+Date.now().toString(36),
+        status:'open',
+        createdBy:u?u.id:'',
+        createdAt:Date.now(),
+        participants:{}
+      }, payload));
+      saveRangeData();
+      boShootingRange(document.getElementById('bo-inner'));
+      showToast({icon:tt.icon,title:tt.label+' נוצר',type:'success'});
+      auditLog(tt.label+' נוצר: '+title,'info','');
+    }
   };
   document.getElementById('modal-wrap').style.display = 'flex';
 }
