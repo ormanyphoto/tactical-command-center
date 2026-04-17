@@ -12128,7 +12128,16 @@ function _saveEqCategories(){
 
 function _saveEquipment(){
   try{ localStorage.setItem('tac_equipment',JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-  if(window._db) window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS).catch(()=>{});
+  if(window._db){
+    window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
+      .then(()=>console.log('[EQ] saved to cloud:', EQUIPMENT_ITEMS.length, 'items'))
+      .catch(e=>{
+        console.error('[EQ] cloud save failed:', e && e.code, e && e.message);
+        showToast({icon:'⚠️',title:'שמירה לענן נכשלה',sub:(e && e.code)||'',type:'warn',duration:5000});
+      });
+  } else {
+    console.warn('[EQ] no _db — saved locally only');
+  }
 }
 
 // Returns {assigned: N, available: M} for an item. For serialized items: assigned=1 if holder else 0.
@@ -12675,21 +12684,25 @@ function returnEquipmentFromPerson(eqId){
 // Legacy compat
 function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 
-// Force a fresh fetch from Firebase — useful on mobile when the page was
-// already open before a peer device saved changes.
+// Force a fresh fetch from Firebase — bypass the client SDK cache by
+// hitting the REST endpoint directly so we always see the latest
+// server-side state.
 function refreshEquipmentFromCloud(){
-  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
+  const cfgRaw = localStorage.getItem('tac_fb_cfg');
+  let dbUrl = '';
+  try { const cfg = cfgRaw ? JSON.parse(cfgRaw) : null; if(cfg && cfg.databaseURL) dbUrl = cfg.databaseURL; } catch(e){}
+  if(!dbUrl) dbUrl = 'https://tactical-command-center-default-rtdb.firebaseio.com';
   const inner = document.getElementById('bo-inner');
+  showToast({icon:'🔄',title:'מסנכרן...',type:'info',duration:1500});
   Promise.all([
-    window._db.ref('tac_equipment').once('value'),
-    window._db.ref('tac_personnel_sync').once('value')
-  ]).then(([eqSnap, pSnap])=>{
-    const v = eqSnap.val();
-    const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+    fetch(dbUrl+'/tac_equipment.json?_='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null),
+    fetch(dbUrl+'/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null)
+  ]).then(([eqVal, pVal])=>{
+    console.log('[refresh] eq keys:', eqVal?Object.keys(eqVal).length:0, 'p keys:', pVal?Object.keys(pVal).length:0);
+    const next = Array.isArray(eqVal) ? eqVal : (eqVal && typeof eqVal==='object' ? Object.values(eqVal) : []);
     EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x));
     try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-    // Also refresh personnel so weapon assignments appear
-    const pv = pSnap.val();
+    const pv = pVal;
     const list = Array.isArray(pv) ? pv : (pv && typeof pv==='object' ? Object.values(pv) : []);
     if(list.length){
       // Merge: preserve photo + password on local entries
@@ -12707,7 +12720,11 @@ function refreshEquipmentFromCloud(){
       try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
     }
     if(inner) boEquipment(inner);
-    showToast({icon:'🔄',title:'רשימה עודכנה מהענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success'});
+    if(EQUIPMENT_ITEMS.length===0){
+      showToast({icon:'⚠️',title:'אין פריטים בענן',sub:'ה־DB ריק — הוסף פריט במכשיר אחר',type:'warn',duration:5000});
+    } else {
+      showToast({icon:'🔄',title:'רשימה עודכנה מהענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success'});
+    }
   }).catch(e=>{
     console.warn('[refresh] failed:', e);
     showToast({icon:'⚠️',title:'שגיאה בריענון',sub:e.message||'',type:'warn'});
