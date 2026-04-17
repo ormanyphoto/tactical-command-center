@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.13 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.14 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -369,6 +369,9 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 .act-btn{background:var(--panel3);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:all 0.12s}
 .act-btn:hover{border-color:var(--border3);color:var(--texthi)}
 .act-btn.del:hover{border-color:var(--danger);color:var(--danger)}
+/* Equipment actions column: uniform button size + small gap between buttons */
+.eq-actions{display:inline-flex;gap:6px;align-items:center}
+.eq-actions .act-btn{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
 .msn-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px;cursor:pointer;transition:all 0.12s;border-right:3px solid var(--border2)}
 .msn-card:hover{border-color:var(--border3);background:var(--panel3)}
 .msn-card.u-urgent{border-right-color:var(--danger)}
@@ -801,7 +804,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.13</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.14</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1207,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.13</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.14</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7909,7 +7912,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.13 source-code update because the merge in
+    // which survived our v6.8.14 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12488,9 +12491,11 @@ function _renderEquipment(c){
               +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">📦 מלאי</span></td>'
               +'<td style="font-family:monospace"><strong style="color:'+statusColor+'">'+s.available+'</strong>/'+s.total+'</td>'
               +'<td><span style="color:'+statusColor+';font-weight:700">'+(s.available===0?'אזל':(s.available<s.total?'חלקי':'זמין'))+'</span></td>'
-              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+              +'<td><div class="eq-actions">'
+              +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
               +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
-              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
+              +'</div></td>'
               +'</tr>';
           } else {
             const holderName = it.holderName || it.holder || '';
@@ -12500,9 +12505,11 @@ function _renderEquipment(c){
               +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">🏷️ סריאלי</span></td>'
               +'<td style="font-family:monospace;font-size:11px">'+escHtml(it.serial||'—')+'</td>'
               +'<td>'+status+'</td>'
-              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'החתמת ציוד לאיש צוות')+'">⇄</button>'
+              +'<td><div class="eq-actions">'
+              +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'החתמת ציוד לאיש צוות')+'">⇄</button>'
               +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
-              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
+              +'</div></td>'
               +'</tr>';
           }
         });
@@ -15260,7 +15267,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.13)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.14)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
