@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "tac_equipment":        { ".read": true, ".write": true },
+    "tac_personnel_sync":   { ".read": true, ".write": true },
+    "tac_range_sessions":   { ".read": true, ".write": true },
+    "tac_eq_categories":    { ".read": true, ".write": true },
+    "tac_sight_types":      { ".read": true, ".write": true },
+    "tac_weapon_models":    { ".read": true, ".write": true },
+    "tac_write_probe":      { ".read": true, ".write": true },
+    "tac_notifications":    { ".read": true, ".write": true },
+    "tac_missions":         { ".read": true, ".write": true },
+    "tac_messages":         { ".read": true, ".write": true },
+    "tac_shifts":           { ".read": true, ".write": true },
+    "tac_sos":              { ".read": true, ".write": true }
+  }
+}
