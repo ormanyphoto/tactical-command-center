@@ -8721,22 +8721,6 @@ function editPersonModal(id){
     <div class="form-g"><label>הערות לרכב</label><input type="text" id="ep-vnotes" value="${(p.vehicleNotes||'').replace(/"/g,'&quot;')}" placeholder="פגיעה, תקלה, הערה..."/></div>
     <div class="form-g" style="background:var(--panel2);padding:12px 14px;border-radius:10px;border:1px solid var(--border2)">
       <div style="font-weight:700;color:var(--accent2);margin-bottom:10px;font-size:13px">🎒 ציוד אישי</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${[
-          ['helmet','🪖','כובע מגן',p.eqHelmet],
-          ['vest','🦺','אפוד',p.eqVest],
-          ['night','🌙','ציוד לילה',p.eqNight],
-          ['bodycam','📹','מצלמת גוף',p.eqBodyCam],
-          ['radio','📻','מכשיר קשר',p.eqRadio],
-          ['medkit','⛑️','ערכה רפואית',p.eqMedkit]
-        ].map(([k,icon,lbl,checked])=>`
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text2);transition:all 0.15s;user-select:none;white-space:nowrap" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
-            <input type="checkbox" id="ep-eq-${k}" ${checked?'checked':''} style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:var(--accent)"/>
-            <span style="font-size:15px">${icon}</span>
-            <span>${lbl}</span>
-          </label>
-        `).join('')}
-      </div>
       ${(function(){
         // Serialized assigned to this person
         const serialized = EQUIPMENT_ITEMS.filter(e=>!e.bulk && (e.holderId===p.id || e.holder===p.name));
@@ -8841,12 +8825,6 @@ function editPersonModal(id){
     p.vehicleFuel=(document.getElementById('ep-vfuel')||{}).value||'';
     p.vehicleNextService=(document.getElementById('ep-vservice')||{}).value||'';
     p.vehicleNotes=(document.getElementById('ep-vnotes')||{}).value||'';
-    p.eqHelmet=document.getElementById('ep-eq-helmet').checked;
-    p.eqVest=document.getElementById('ep-eq-vest').checked;
-    p.eqNight=document.getElementById('ep-eq-night').checked;
-    p.eqBodyCam=document.getElementById('ep-eq-bodycam').checked;
-    p.eqRadio=document.getElementById('ep-eq-radio').checked;
-    p.eqMedkit=document.getElementById('ep-eq-medkit').checked;
     p.available=document.getElementById('ep-avail').value==='true';
     p.skills=getSelectedSkills();
     // Weapons
