@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.4 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.5 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.4</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.5</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.4</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.5</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7870,7 +7870,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.4 source-code update because the merge in
+    // which survived our v6.8.5 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12126,18 +12126,39 @@ function _saveEqCategories(){
   if(window._db) window._db.ref('tac_eq_categories').set(EQUIPMENT_CATEGORIES).catch(()=>{});
 }
 
+const _EQ_DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+
+// Save equipment — localStorage first, then REST API (bypasses SDK auth)
 function _saveEquipment(){
   try{ localStorage.setItem('tac_equipment',JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-  if(window._db){
-    window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
-      .then(()=>console.log('[EQ] saved to cloud:', EQUIPMENT_ITEMS.length, 'items'))
-      .catch(e=>{
-        console.error('[EQ] cloud save failed:', e && e.code, e && e.message);
-        showToast({icon:'⚠️',title:'שמירה לענן נכשלה',sub:(e && e.code)||'',type:'warn',duration:5000});
-      });
-  } else {
-    console.warn('[EQ] no _db — saved locally only');
-  }
+  fetch(_EQ_DB+'/tac_equipment.json', {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(EQUIPMENT_ITEMS)
+  })
+  .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+  .then(()=>console.log('[EQ] saved to cloud:', EQUIPMENT_ITEMS.length, 'items'))
+  .catch(e=>{
+    console.error('[EQ] cloud save failed:', e.message);
+    showToast({icon:'⚠️',title:'שמירה לענן נכשלה',sub:e.message||'',type:'warn',duration:5000});
+  });
+}
+
+// On startup: if cloud is empty but local has items, auto-push via REST
+function _autoSeedCloud(){
+  if(!EQUIPMENT_ITEMS.length) return;
+  fetch(_EQ_DB+'/tac_equipment.json?_='+Date.now(), {cache:'no-store'})
+  .then(r=>r.ok?r.json():null)
+  .then(v=>{
+    const existing = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
+    if(existing && existing.length > 0){ console.log('[autoSeed] cloud has data, skipping'); return; }
+    console.log('[autoSeed] cloud empty — pushing', EQUIPMENT_ITEMS.length, 'local items');
+    return fetch(_EQ_DB+'/tac_equipment.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(EQUIPMENT_ITEMS)
+    }).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(()=>{ showToast({icon:'☁️',title:'ציוד סונכרן לענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:3000}); });
+  })
+  .catch(e=>console.warn('[autoSeed] failed:', e.message));
 }
 
 // Returns {assigned: N, available: M} for an item. For serialized items: assigned=1 if holder else 0.
@@ -12153,31 +12174,22 @@ function _eqStock(it){
   return {assigned: has?1:0, available: has?0:1, total:1};
 }
 function boEquipment(c){
-  // Render immediately — Firebase subscription (_subscribeLogistics) will
-  // push updates as they arrive. Force a fresh fetch here too so users
-  // opening the tab always see the latest server state.
+  // Render immediately from local state
   _renderEquipment(c);
-  try {
-    if(window._db){
-      window._db.ref('tac_equipment').once('value').then(s=>{
-        const v=s.val();
-        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-        if(next && next.length > 0){
-          // Cloud has data — apply it
-          EQUIPMENT_ITEMS.length = 0;
-          next.forEach(x=>EQUIPMENT_ITEMS.push(x));
-          try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-          _renderEquipment(c);
-        } else if(EQUIPMENT_ITEMS.length > 0){
-          // Cloud is empty but local has data → auto-seed cloud
-          console.log('[boEquipment] cloud empty, auto-seeding:', EQUIPMENT_ITEMS.length, 'items');
-          window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
-            .then(()=>{ showToast({icon:'☁️',title:'ציוד סונכרן לענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:3000}); })
-            .catch(e=>console.warn('[boEquipment] auto-seed failed:', e && e.code, e && e.message));
-        }
-      }).catch(e=>console.warn('[boEquipment] fb read failed:', e && e.message));
+  // Fetch latest from cloud via REST (no SDK auth needed)
+  fetch(_EQ_DB+'/tac_equipment.json?_='+Date.now(), {cache:'no-store'})
+  .then(r=>r.ok?r.json():null)
+  .then(v=>{
+    const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
+    if(next && next.length > 0){
+      EQUIPMENT_ITEMS.length = 0;
+      next.forEach(x=>EQUIPMENT_ITEMS.push(x));
+      try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+      _renderEquipment(c);
     }
-  } catch(e){ console.warn('[boEquipment] error:', e && e.message); }
+    // cloud empty → keep local (auto-seed already handled at boot)
+  })
+  .catch(e=>console.warn('[boEquipment] cloud fetch failed:', e.message));
 }
 function _renderEquipment(c){
   const filter = (window._eqFilter||'').toLowerCase();
@@ -12694,34 +12706,28 @@ function returnEquipmentFromPerson(eqId){
 function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 
 // Force-push the current local state to Firebase. Useful when the app
-// was used while offline/misconfigured and nothing reached the cloud.
+// Force-push local state to Firebase via REST API — no SDK auth required.
 function pushEquipmentToCloud(){
-  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
   if(EQUIPMENT_ITEMS.length===0){ showToast({icon:'⚠️',title:'אין פריטי ציוד להעלות',sub:'הרשימה המקומית ריקה',type:'warn'}); return; }
   if(!confirm('להעלות '+EQUIPMENT_ITEMS.length+' פריטי ציוד לענן?\n(ידרוס את נתוני הציוד בענן)')) return;
   _snapshotEquipmentState('before-push');
-  // Probe write permission first so we can give a useful error if rules deny.
-  window._db.ref('tac_write_probe/'+Date.now()).set({ok:1}).then(()=>{
-    return window._db.ref('tac_write_probe').remove().catch(()=>{});
+  showToast({icon:'☁️',title:'מעלה לענן...',type:'info',duration:2000});
+  const cleanList = PERSONNEL.map(p => { const c = Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; });
+  Promise.all([
+    fetch(_EQ_DB+'/tac_equipment.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(EQUIPMENT_ITEMS)
+    }).then(r=>{ if(!r.ok) throw new Error('ציוד: HTTP '+r.status); return r.json(); }),
+    fetch(_EQ_DB+'/tac_personnel_sync.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(cleanList)
+    }).then(r=>{ if(!r.ok) throw new Error('אנשי צוות: HTTP '+r.status); return r.json(); })
+  ]).then(()=>{
+    console.log('[push] success — eq:'+EQUIPMENT_ITEMS.length+' p:'+cleanList.length);
+    showToast({icon:'✅',title:'הועלו '+EQUIPMENT_ITEMS.length+' פריטים',sub:'+ '+cleanList.length+' אנשי צוות',type:'success',duration:4000});
   }).catch(e=>{
-    console.error('[push] write probe failed:', e && e.code, e && e.message);
-    showToast({icon:'⚠️',title:'אין הרשאות כתיבה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:10000});
-    throw e;
-  }).then(()=>{
-    showToast({icon:'☁️',title:'מעלה לענן...',type:'info',duration:2000});
-    const cleanList = PERSONNEL.map(p => { const c = Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; });
-    return Promise.all([
-      window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS),
-      window._db.ref('tac_personnel_sync').set(cleanList)
-    ]).then(()=>{
-      console.log('[push] success — eq:'+EQUIPMENT_ITEMS.length+' p:'+cleanList.length);
-      showToast({icon:'✅',title:'הועלו '+EQUIPMENT_ITEMS.length+' פריטים',sub:'+ '+cleanList.length+' אנשי צוות',type:'success',duration:4000});
-    });
-  }).catch(e=>{
-    if(e && !String(e.message||'').includes('probe')){
-      console.error('[push] failed:', e && e.code, e);
-      showToast({icon:'⚠️',title:'העלאה נכשלה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:10000});
-    }
+    console.error('[push] failed:', e);
+    showToast({icon:'⚠️',title:'העלאה נכשלה',sub:e.message||'',type:'warn',duration:10000});
   });
 }
 // Snapshot EQUIPMENT_ITEMS + PERSONNEL to a rolling backup slot before
@@ -14276,24 +14282,13 @@ const SYNC = (() => {
       const inner = document.getElementById('bo-inner');
       if(inner && typeof boShootingRange==='function') try{ boShootingRange(inner); }catch(e){}
     };
-    let _eqSeeded = false; // prevent repeated auto-seed loops
     try{
       _db.ref('tac_equipment').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-        if(!next || next.length===0){
-          // Cloud is empty. If local has items and we haven't seeded yet, push now.
-          if(!_eqSeeded && EQUIPMENT_ITEMS.length > 0){
-            _eqSeeded = true;
-            console.log('[SYNC] tac_equipment: cloud empty, auto-seeding local data:', EQUIPMENT_ITEMS.length, 'items');
-            _db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
-              .then(()=>{ showToast({icon:'☁️',title:'ציוד סונכרן לענן אוטומטית',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:4000}); })
-              .catch(e=>{ console.warn('[SYNC] auto-seed failed:', e && e.code, e && e.message); _eqSeeded = false; });
-          }
-          return;
-        }
+        // SAFETY: cloud empty → preserve local (auto-seed handled by _autoSeedCloud on startup)
+        if(!next || next.length===0) return;
         // Cloud has data — apply it
-        _eqSeeded = true; // cloud has canonical data, no need to seed
         try{ EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x)); }catch(e){}
         try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
         const inner=document.getElementById('bo-inner');
@@ -15086,7 +15081,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.4)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.5)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -15462,6 +15457,8 @@ const FIELD = (() => {
   // PWA install prompt — disabled (was annoying on mobile)
   // Firebase sync
   SYNC.boot();
+  // Auto-seed cloud with local equipment if cloud is empty (runs 2s after boot)
+  setTimeout(_autoSeedCloud, 2000);
   // Field mode (auto on mobile)
   FIELD.boot();
   // Add sync toggle to topbar GPS tracking
