@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.5 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.6 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.5</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.6</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.5</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.6</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7870,7 +7870,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.5 source-code update because the merge in
+    // which survived our v6.8.6 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12127,17 +12127,24 @@ function _saveEqCategories(){
 }
 
 const _EQ_DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+// Guard flag: true while a REST write is in-flight so the realtime listener
+// doesn't overwrite local memory with stale cloud data mid-write.
+// Exposed on window so the SYNC IIFE closure can read it.
+let _eqWritePending = false;
+Object.defineProperty(window, '_eqWritePending', { get(){ return _eqWritePending; } });
 
 // Save equipment — localStorage first, then REST API (bypasses SDK auth)
 function _saveEquipment(){
   try{ localStorage.setItem('tac_equipment',JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+  _eqWritePending = true;
   fetch(_EQ_DB+'/tac_equipment.json', {
     method:'PUT', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(EQUIPMENT_ITEMS)
   })
   .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-  .then(()=>console.log('[EQ] saved to cloud:', EQUIPMENT_ITEMS.length, 'items'))
+  .then(()=>{ _eqWritePending = false; console.log('[EQ] saved to cloud:', EQUIPMENT_ITEMS.length, 'items'); })
   .catch(e=>{
+    _eqWritePending = false;
     console.error('[EQ] cloud save failed:', e.message);
     showToast({icon:'⚠️',title:'שמירה לענן נכשלה',sub:e.message||'',type:'warn',duration:5000});
   });
@@ -12174,22 +12181,12 @@ function _eqStock(it){
   return {assigned: has?1:0, available: has?0:1, total:1};
 }
 function boEquipment(c){
-  // Render immediately from local state
+  // Render from in-memory EQUIPMENT_ITEMS only.
+  // _subscribeLogistics keeps EQUIPMENT_ITEMS live via realtime listener and
+  // calls boEquipment again on any cloud change — no extra fetch needed here.
+  // A fetch here would race with concurrent _saveEquipment() REST writes and
+  // return stale data that silently wipes newly added items.
   _renderEquipment(c);
-  // Fetch latest from cloud via REST (no SDK auth needed)
-  fetch(_EQ_DB+'/tac_equipment.json?_='+Date.now(), {cache:'no-store'})
-  .then(r=>r.ok?r.json():null)
-  .then(v=>{
-    const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-    if(next && next.length > 0){
-      EQUIPMENT_ITEMS.length = 0;
-      next.forEach(x=>EQUIPMENT_ITEMS.push(x));
-      try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-      _renderEquipment(c);
-    }
-    // cloud empty → keep local (auto-seed already handled at boot)
-  })
-  .catch(e=>console.warn('[boEquipment] cloud fetch failed:', e.message));
 }
 function _renderEquipment(c){
   const filter = (window._eqFilter||'').toLowerCase();
@@ -14286,8 +14283,11 @@ const SYNC = (() => {
       _db.ref('tac_equipment').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-        // SAFETY: cloud empty → preserve local (auto-seed handled by _autoSeedCloud on startup)
+        // SAFETY: cloud empty → preserve local
         if(!next || next.length===0) return;
+        // SAFETY: a local write is in-flight — skip this snapshot, the
+        // next one (fired after the write completes) will have the full data.
+        if(window._eqWritePending) return;
         // Cloud has data — apply it
         try{ EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x)); }catch(e){}
         try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
@@ -15081,7 +15081,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.5)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.6)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
