@@ -12595,7 +12595,19 @@ function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 
 // ── WEAPONS (צל״מ) — aggregated across personnel ──
 const WEAPON_TYPES = { pistol:'אקדח', rifle:'רובה', smg:'תמ"ק', sniper:'צלפים', shotgun:'רובה ציד', mg:'מקלע' };
-const SIGHT_TYPES = ['אדום','ACOG','טלסקופי 4x','טלסקופי 6x','טלסקופי 8x','לילה','מייצב','לייזר','פנס טקטי','אחר'];
+const _DEFAULT_SIGHT_TYPES = ['אדום','ACOG','טלסקופי 4x','טלסקופי 6x','טלסקופי 8x','לילה','מייצב','לייזר','פנס טקטי','אחר'];
+let SIGHT_TYPES = (function(){ try{ const s=localStorage.getItem('tac_sight_types'); if(s){ const p=JSON.parse(s); if(Array.isArray(p)&&p.length) return p; } }catch(e){} return _DEFAULT_SIGHT_TYPES.slice(); })();
+function _saveSightTypes(){ try{ localStorage.setItem('tac_sight_types', JSON.stringify(SIGHT_TYPES)); }catch(e){} }
+const _DEFAULT_WEAPON_MODELS = {
+  pistol:['Glock 17','Glock 19','Glock 26','SIG Sauer P226','SIG Sauer P320','CZ 75','Jericho 941','Beretta 92','H&K USP'],
+  rifle:['M4','AR-15','M16','Tavor X95','Tavor TAR-21','Galil ACE','Galil SAR','IWI Arad','SCAR-L','AK-47'],
+  smg:['MP5','UZI','Mini UZI','Micro UZI','CZ Scorpion','B&T APC9'],
+  sniper:['Remington 700','Barrett M82','M24','HTR 2000','AWM','SR-25','Dan .338'],
+  shotgun:['Remington 870','Mossberg 500','Benelli M4','Saiga-12'],
+  mg:['FN MAG','IWI Negev','M240','M249 SAW','PKM']
+};
+let WEAPON_MODELS = (function(){ try{ const s=localStorage.getItem('tac_weapon_models'); if(s){ const p=JSON.parse(s); if(p&&typeof p==='object') return Object.assign({},_DEFAULT_WEAPON_MODELS,p); } }catch(e){} return JSON.parse(JSON.stringify(_DEFAULT_WEAPON_MODELS)); })();
+function _saveWeaponModels(){ try{ localStorage.setItem('tac_weapon_models', JSON.stringify(WEAPON_MODELS)); }catch(e){} }
 function _weaponTypeLbl(t){ return WEAPON_TYPES[t] || (t||'—'); }
 function _renderWeaponsTab(filter){
   // Gather all weapons from personnel
@@ -12621,16 +12633,19 @@ function _renderWeaponsTab(filter){
     +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:24px;font-weight:900;color:var(--warn)">'+totals.private+'</div><div style="font-size:11px;color:var(--text3)">פרטי</div></div>'
     +'<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:12px;text-align:center"><div style="font-size:24px;font-weight:900;color:var(--accent)">'+totals.sights+'</div><div style="font-size:11px;color:var(--text3)">כוונות אופטיות</div></div>'
     +'</div>'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-    +'<div style="font-size:12px;color:var(--text3)">צל״מ — ציוד לחימה ממוספר. סנכרון אוטומטי עם פרופיל איש הצוות ומסך ההדרכות.</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">'
+    +'<div style="font-size:12px;color:var(--text3);flex:1;min-width:200px">צל״מ — ציוד לחימה ממוספר. סנכרון אוטומטי עם פרופיל איש הצוות ומסך ההדרכות.</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<button class="btn-sec" onclick="manageWeaponModelsModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ דגמים</button>'
+    +'<button class="btn-sec" onclick="manageSightTypesModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ סוגי כוונות</button>'
     +'<button class="btn-sec" onclick="addWeaponModal()" style="width:auto;padding:6px 14px;font-size:12px;margin:0">+ כלי נשק חדש</button>'
-    +'</div>';
+    +'</div></div>';
   if(!filtered.length){
     html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">'+(rows.length?'אין תוצאות לחיפוש':'אין כלי נשק רשומים — הוסף כלי נשק')+'</div>';
     return html;
   }
   html += '<div style="overflow-x:auto"><table class="bo-table" style="font-size:12px"><thead><tr>'
-    +'<th>איש צוות</th><th>סוג</th><th>מס\' סידורי</th><th>בעלות</th><th>כוונות אופטיות</th><th>אימון אחרון</th><th>פעולות</th>'
+    +'<th>איש צוות</th><th>סוג</th><th>דגם</th><th>מס\' סידורי</th><th>בעלות</th><th>כוונות אופטיות</th><th>אימון אחרון</th><th>פעולות</th>'
     +'</tr></thead><tbody>';
   filtered.forEach(r=>{
     const p=r.person, w=r.w;
@@ -12641,6 +12656,7 @@ function _renderWeaponsTab(filter){
     html += '<tr>'
       +'<td style="font-weight:700">'+escHtml(p.name)+'</td>'
       +'<td>'+escHtml(_weaponTypeLbl(w.type))+'</td>'
+      +'<td style="font-size:11px">'+escHtml(w.model||'—')+'</td>'
       +'<td style="font-family:monospace">'+escHtml(w.serial||'—')+'</td>'
       +'<td>'+ownLbl+'</td>'
       +'<td>'+sightsHtml+'</td>'
@@ -12656,7 +12672,7 @@ function addWeaponModal(){ editWeaponModal('', -1); }
 function editWeaponModal(personId, idx){
   const editing = !!personId && idx>=0;
   const p = editing ? PERSONNEL.find(x=>x.id===personId) : null;
-  const w = editing ? ((p.weapons||[])[idx]||{}) : { type:'', serial:'', ownership:'', sights:[] };
+  const w = editing ? ((p.weapons||[])[idx]||{}) : { type:'', model:'', serial:'', ownership:'', sights:[] };
   window._weaponEdit = { personId:personId||'', idx, w: JSON.parse(JSON.stringify(w)) };
   document.getElementById('modal-ttl').textContent = editing ? '✏ עריכת כלי נשק — '+p.name : '🎯 כלי נשק חדש';
   _renderWeaponEditBody();
@@ -12674,8 +12690,11 @@ function _renderWeaponEditBody(){
     + '<option value="police"'+(s.w.ownership==='police'?' selected':'')+'>משטרתי</option>'
     + '<option value="private"'+(s.w.ownership==='private'?' selected':'')+'>פרטי</option>';
   let body = '<div class="form-g"><label>איש צוות</label><select id="we-person"'+(s.idx>=0?' disabled':'')+'>'+personOpts+'</select></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
-    +'<div class="form-g" style="margin:0"><label>סוג</label><select id="we-type">'+typeOpts+'</select></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div class="form-g" style="margin:0"><label>סוג נשק</label><select id="we-type" onchange="_weaponTypeChanged()">'+typeOpts+'</select></div>'
+    +'<div class="form-g" style="margin:0"><label>דגם / חברה</label><div id="we-model-wrap">'+_weaponModelField(s.w.type, s.w.model||'')+'</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
     +'<div class="form-g" style="margin:0"><label>מס\' סידורי</label><input type="text" id="we-serial" value="'+escHtml(s.w.serial||'')+'" style="font-family:monospace"/></div>'
     +'<div class="form-g" style="margin:0"><label>בעלות</label><select id="we-own">'+ownOpts+'</select></div>'
     +'</div>'
@@ -12721,6 +12740,9 @@ function saveWeaponFromModal(){
   const p = PERSONNEL.find(x=>x.id===personId);
   if(!p) return;
   const type = (document.getElementById('we-type')||{}).value || '';
+  const modelSel = (document.getElementById('we-model')||{}).value || '';
+  const modelTxt = (document.getElementById('we-model-text')||{}).value || '';
+  const model = (modelSel==='__custom__' ? modelTxt : modelSel) || modelTxt;
   const serial = (document.getElementById('we-serial')||{}).value || '';
   const ownership = (document.getElementById('we-own')||{}).value || '';
   const lastRange = (document.getElementById('we-last')||{}).value || '';
@@ -12728,9 +12750,9 @@ function saveWeaponFromModal(){
   const sights = (s.w.sights||[]).filter(x=>x.type||x.serial);
   if(!p.weapons) p.weapons = [];
   if(s.idx>=0 && p.weapons[s.idx]){
-    Object.assign(p.weapons[s.idx], { type, serial, ownership, lastRange, sights });
+    Object.assign(p.weapons[s.idx], { type, model, serial, ownership, lastRange, sights });
   } else {
-    p.weapons.push({ type, serial, ownership, lastRange, sights });
+    p.weapons.push({ type, model, serial, ownership, lastRange, sights });
   }
   _savePersonnel && _savePersonnel();
   if(typeof savePERSONNEL==='function') savePERSONNEL();
@@ -12751,6 +12773,110 @@ function deleteWeapon(personId, idx){
   showToast({icon:'🗑',title:'כלי נשק נמחק',type:'info'});
   const inner = document.getElementById('bo-inner'); if(inner) boEquipment(inner);
 }
+function _weaponModelField(type, current){
+  const models = (type && WEAPON_MODELS[type]) || [];
+  if(!type) return '<input type="text" id="we-model-text" value="'+escHtml(current||'')+'" placeholder="בחר סוג תחילה..." disabled style="opacity:0.6"/>';
+  const inList = !current || models.indexOf(current)>=0;
+  const opts = '<option value="">— בחר דגם —</option>'
+    + models.map(m=>'<option value="'+escHtml(m)+'"'+(current===m?' selected':'')+'>'+escHtml(m)+'</option>').join('')
+    + '<option value="__custom__"'+(!inList?' selected':'')+'>✏ אחר / מותאם...</option>';
+  return '<select id="we-model" onchange="_weaponModelChanged()">'+opts+'</select>'
+    +'<input type="text" id="we-model-text" value="'+escHtml(inList?'':(current||''))+'" placeholder="דגם מותאם..." style="margin-top:4px;display:'+(inList?'none':'block')+'"/>';
+}
+function _weaponTypeChanged(){
+  const s = window._weaponEdit;
+  const type = (document.getElementById('we-type')||{}).value || '';
+  s.w.type = type;
+  document.getElementById('we-model-wrap').innerHTML = _weaponModelField(type, '');
+}
+function _weaponModelChanged(){
+  const sel = document.getElementById('we-model');
+  const txt = document.getElementById('we-model-text');
+  if(!sel || !txt) return;
+  txt.style.display = sel.value==='__custom__' ? 'block' : 'none';
+  if(sel.value!=='__custom__') txt.value = '';
+}
+// ── Manage optical sight types ──
+function manageSightTypesModal(){
+  document.getElementById('modal-ttl').textContent='🔭 ניהול סוגי כוונות אופטיות';
+  _renderSightTypesList();
+  document.getElementById('modal-wrap').style.display='flex';
+  modalCB = null;
+}
+function _renderSightTypesList(){
+  const n = SIGHT_TYPES.length;
+  const html = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">הוסף/ערוך/מחק/סדר סוגי כוונות. גרור או השתמש בחצים לסידור.</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:12px">'
+    +'<input type="text" id="new-sight-name" placeholder="שם סוג חדש..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);direction:rtl" onkeydown="if(event.key===&quot;Enter&quot;)addSightType()"/>'
+    +'<button onclick="addSightType()" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font)">+ הוסף</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
+    +SIGHT_TYPES.map((t,idx)=>'<div draggable="true" ondragstart="_sightDragStart(event,'+idx+')" ondragover="_sightDragOver(event)" ondragleave="_sightDragLeave(event)" ondrop="_sightDrop(event,'+idx+')" ondragend="_sightDragEnd(event)" style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:grab">'
+      +'<span style="color:var(--text3);font-size:14px" title="גרור">⋮⋮</span>'
+      +'<span style="flex:1;font-size:13px;color:var(--texthi);font-weight:600">'+escHtml(t)+'</span>'
+      +'<button onclick="moveSightType('+idx+',-1)" class="act-btn" title="למעלה"'+(idx===0?' disabled style="opacity:0.35"':'')+'>▲</button>'
+      +'<button onclick="moveSightType('+idx+',1)" class="act-btn" title="למטה"'+(idx===n-1?' disabled style="opacity:0.35"':'')+'>▼</button>'
+      +'<button onclick="renameSightType('+idx+')" class="act-btn" title="ערוך">✏</button>'
+      +'<button onclick="deleteSightType('+idx+')" class="act-btn del" title="מחק">✕</button>'
+      +'</div>').join('')
+    +'</div>';
+  document.getElementById('modal-body').innerHTML = html;
+}
+let _sightDragIdx = -1;
+function _sightDragStart(e,idx){ _sightDragIdx=idx; e.dataTransfer.effectAllowed='move'; e.currentTarget.style.opacity='0.4'; }
+function _sightDragOver(e){ e.preventDefault(); e.currentTarget.style.borderColor='var(--accent)'; }
+function _sightDragLeave(e){ e.currentTarget.style.borderColor='var(--border)'; }
+function _sightDragEnd(e){ e.currentTarget.style.opacity=''; _sightDragIdx=-1; }
+function _sightDrop(e,idx){ e.preventDefault(); e.currentTarget.style.borderColor='var(--border)'; if(_sightDragIdx<0||_sightDragIdx===idx) return; const [m]=SIGHT_TYPES.splice(_sightDragIdx,1); SIGHT_TYPES.splice(idx,0,m); _sightDragIdx=-1; _saveSightTypes(); _renderSightTypesList(); }
+function addSightType(){ const v=(document.getElementById('new-sight-name')||{}).value?.trim(); if(!v) return; if(SIGHT_TYPES.includes(v)){ showToast({icon:'⚠️',title:'קיים כבר',type:'warn'}); return; } SIGHT_TYPES.push(v); _saveSightTypes(); _renderSightTypesList(); }
+function renameSightType(idx){ const cur=SIGHT_TYPES[idx]; const nv=prompt('שם חדש:', cur); if(!nv||nv.trim()===cur) return; SIGHT_TYPES[idx]=nv.trim(); _saveSightTypes(); _renderSightTypesList(); }
+function deleteSightType(idx){ if(!confirm('למחוק "'+SIGHT_TYPES[idx]+'"?')) return; SIGHT_TYPES.splice(idx,1); _saveSightTypes(); _renderSightTypesList(); }
+function moveSightType(idx,dir){ const j=idx+dir; if(j<0||j>=SIGHT_TYPES.length) return; const t=SIGHT_TYPES[idx]; SIGHT_TYPES[idx]=SIGHT_TYPES[j]; SIGHT_TYPES[j]=t; _saveSightTypes(); _renderSightTypesList(); }
+
+// ── Manage weapon models per weapon type ──
+let _modelsEditType = 'pistol';
+function manageWeaponModelsModal(){
+  document.getElementById('modal-ttl').textContent='🔫 ניהול דגמי כלי נשק';
+  if(!WEAPON_MODELS[_modelsEditType]) _modelsEditType = Object.keys(WEAPON_TYPES)[0];
+  _renderModelsManager();
+  document.getElementById('modal-wrap').style.display='flex';
+  modalCB = null;
+}
+function _renderModelsManager(){
+  const types = Object.entries(WEAPON_TYPES);
+  const list = WEAPON_MODELS[_modelsEditType] || (WEAPON_MODELS[_modelsEditType]=[]);
+  const n = list.length;
+  const html = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">בחר סוג נשק ונהל את רשימת הדגמים. הדגמים יופיעו ברשימה נפתחת בעת עריכת כלי נשק.</div>'
+    +'<div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap">'
+    +types.map(([k,v])=>'<button onclick="_modelsEditType=\''+k+'\';_renderModelsManager()" style="padding:6px 12px;font-size:12px;border-radius:6px;border:1px solid var(--border2);cursor:pointer;font-family:var(--font);background:'+(_modelsEditType===k?'var(--accent)':'var(--panel2)')+';color:'+(_modelsEditType===k?'#07090a':'var(--text2)')+';font-weight:700">'+escHtml(v)+' <span style="opacity:0.7">('+((WEAPON_MODELS[k]||[]).length)+')</span></button>').join('')
+    +'</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:10px">'
+    +'<input type="text" id="new-model-name" placeholder="שם דגם חדש..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);direction:rtl" onkeydown="if(event.key===&quot;Enter&quot;)addWeaponModel()"/>'
+    +'<button onclick="addWeaponModel()" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font)">+ הוסף</button>'
+    +'</div>'
+    +(n===0 ? '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center;border:1px dashed var(--border2);border-radius:8px">אין דגמים — הוסף דגם חדש</div>' :
+      '<div style="display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto">'
+      +list.map((m,idx)=>'<div draggable="true" ondragstart="_modelDragStart(event,'+idx+')" ondragover="_modelDragOver(event)" ondragleave="_modelDragLeave(event)" ondrop="_modelDrop(event,'+idx+')" ondragend="_modelDragEnd(event)" style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:grab">'
+        +'<span style="color:var(--text3);font-size:14px" title="גרור">⋮⋮</span>'
+        +'<span style="flex:1;font-size:13px;color:var(--texthi);font-weight:600">'+escHtml(m)+'</span>'
+        +'<button onclick="moveWeaponModel('+idx+',-1)" class="act-btn" title="למעלה"'+(idx===0?' disabled style="opacity:0.35"':'')+'>▲</button>'
+        +'<button onclick="moveWeaponModel('+idx+',1)" class="act-btn" title="למטה"'+(idx===n-1?' disabled style="opacity:0.35"':'')+'>▼</button>'
+        +'<button onclick="renameWeaponModel('+idx+')" class="act-btn" title="ערוך">✏</button>'
+        +'<button onclick="deleteWeaponModel('+idx+')" class="act-btn del" title="מחק">✕</button>'
+        +'</div>').join('')
+      +'</div>');
+  document.getElementById('modal-body').innerHTML = html;
+}
+let _modelDragIdx = -1;
+function _modelDragStart(e,idx){ _modelDragIdx=idx; e.dataTransfer.effectAllowed='move'; e.currentTarget.style.opacity='0.4'; }
+function _modelDragOver(e){ e.preventDefault(); e.currentTarget.style.borderColor='var(--accent)'; }
+function _modelDragLeave(e){ e.currentTarget.style.borderColor='var(--border)'; }
+function _modelDragEnd(e){ e.currentTarget.style.opacity=''; _modelDragIdx=-1; }
+function _modelDrop(e,idx){ e.preventDefault(); e.currentTarget.style.borderColor='var(--border)'; const list=WEAPON_MODELS[_modelsEditType]; if(!list||_modelDragIdx<0||_modelDragIdx===idx) return; const [m]=list.splice(_modelDragIdx,1); list.splice(idx,0,m); _modelDragIdx=-1; _saveWeaponModels(); _renderModelsManager(); }
+function addWeaponModel(){ const v=(document.getElementById('new-model-name')||{}).value?.trim(); if(!v) return; const list=WEAPON_MODELS[_modelsEditType]||(WEAPON_MODELS[_modelsEditType]=[]); if(list.includes(v)){ showToast({icon:'⚠️',title:'קיים כבר',type:'warn'}); return; } list.push(v); _saveWeaponModels(); _renderModelsManager(); }
+function renameWeaponModel(idx){ const list=WEAPON_MODELS[_modelsEditType]; const cur=list[idx]; const nv=prompt('שם חדש:', cur); if(!nv||nv.trim()===cur) return; list[idx]=nv.trim(); _saveWeaponModels(); _renderModelsManager(); }
+function deleteWeaponModel(idx){ const list=WEAPON_MODELS[_modelsEditType]; if(!confirm('למחוק "'+list[idx]+'"?')) return; list.splice(idx,1); _saveWeaponModels(); _renderModelsManager(); }
+function moveWeaponModel(idx,dir){ const list=WEAPON_MODELS[_modelsEditType]; const j=idx+dir; if(j<0||j>=list.length) return; const t=list[idx]; list[idx]=list[j]; list[j]=t; _saveWeaponModels(); _renderModelsManager(); }
 
 // ══════════════════════════════════════════════════════════
 // #7 GROUP CHAT — realtime team chat via Firebase
