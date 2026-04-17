@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.0 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.1 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.0</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.1</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.0</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.1</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7870,7 +7870,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.0 source-code update because the merge in
+    // which survived our v6.8.1 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12144,14 +12144,21 @@ function _eqStock(it){
   return {assigned: has?1:0, available: has?0:1, total:1};
 }
 function boEquipment(c){
-  // Render immediately — Firebase will refresh async
+  // Render immediately — Firebase subscription (_subscribeLogistics) will
+  // push updates as they arrive. Force a fresh fetch here too so users
+  // opening the tab always see the latest server state.
   _renderEquipment(c);
   try {
     if(window._db){
       window._db.ref('tac_equipment').once('value').then(s=>{
         const v=s.val();
-        if(Array.isArray(v)){ EQUIPMENT_ITEMS=v; _renderEquipment(c); }
-        else if(v && typeof v==='object'){ EQUIPMENT_ITEMS=Object.values(v); _renderEquipment(c); }
+        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
+        if(next){
+          EQUIPMENT_ITEMS.length = 0;
+          next.forEach(x=>EQUIPMENT_ITEMS.push(x));
+          try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+          _renderEquipment(c);
+        }
       }).catch(e=>console.warn('[boEquipment] fb read failed:', e && e.message));
     }
   } catch(e){ console.warn('[boEquipment] error:', e && e.message); }
@@ -12173,8 +12180,9 @@ function _renderEquipment(c){
   let html = '<div class="bo-section">'
     +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
     +'<span>🎒 ניהול לוגיסטי ('+EQUIPMENT_ITEMS.length+' סוגי פריטים, '+totalUnits+' יח׳)</span>'
-    +'<div style="display:flex;gap:6px"><button class="btn-sec" onclick="manageEqCategoriesModal()" style="padding:6px 12px;font-size:12px">⚙ קטגוריות</button>'
-    +'<button class="btn-sec" onclick="addEquipmentModal()">+ פריט חדש</button></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sec" onclick="refreshEquipmentFromCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="רענן מהענן">🔄 רענן</button>'
+    +'<button class="btn-sec" onclick="manageEqCategoriesModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ קטגוריות</button>'
+    +'<button class="btn-sec" onclick="addEquipmentModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">+ פריט חדש</button></div>'
     +'</div>'
     // Stats cards — count UNITS not types
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
@@ -12666,6 +12674,45 @@ function returnEquipmentFromPerson(eqId){
 }
 // Legacy compat
 function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
+
+// Force a fresh fetch from Firebase — useful on mobile when the page was
+// already open before a peer device saved changes.
+function refreshEquipmentFromCloud(){
+  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
+  const inner = document.getElementById('bo-inner');
+  Promise.all([
+    window._db.ref('tac_equipment').once('value'),
+    window._db.ref('tac_personnel_sync').once('value')
+  ]).then(([eqSnap, pSnap])=>{
+    const v = eqSnap.val();
+    const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+    EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x));
+    try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+    // Also refresh personnel so weapon assignments appear
+    const pv = pSnap.val();
+    const list = Array.isArray(pv) ? pv : (pv && typeof pv==='object' ? Object.values(pv) : []);
+    if(list.length){
+      // Merge: preserve photo + password on local entries
+      list.forEach(sp=>{
+        if(!sp || !sp.id) return;
+        const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
+        if(idx>-1){
+          const existing = PERSONNEL[idx];
+          const photo = existing.photo, pwd = existing.loginPassword;
+          Object.assign(existing, sp);
+          if(photo) existing.photo = photo;
+          if(pwd)   existing.loginPassword = pwd;
+        } else PERSONNEL.push(sp);
+      });
+      try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
+    }
+    if(inner) boEquipment(inner);
+    showToast({icon:'🔄',title:'רשימה עודכנה מהענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success'});
+  }).catch(e=>{
+    console.warn('[refresh] failed:', e);
+    showToast({icon:'⚠️',title:'שגיאה בריענון',sub:e.message||'',type:'warn'});
+  });
+}
 
 // ── WEAPONS (צל״מ) — aggregated across personnel ──
 const WEAPON_TYPES = { pistol:'אקדח', rifle:'רובה', smg:'תמ"ק', sniper:'צלפים', shotgun:'רובה ציד', mg:'מקלע' };
@@ -14156,6 +14203,27 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_weapon_models', err));
     }catch(e){ console.warn('[SYNC] tac_weapon_models subscribe error', e); }
     try{
+      _db.ref('tac_personnel_sync').on('value', s=>{
+        const v=s.val();
+        const list = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        if(!list.length) return;
+        list.forEach(sp=>{
+          if(!sp || !sp.id) return;
+          const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
+          if(idx>-1){
+            const existing = PERSONNEL[idx];
+            const photo = existing.photo, pwd = existing.loginPassword;
+            Object.assign(existing, sp);
+            if(photo) existing.photo = photo;
+            if(pwd)   existing.loginPassword = pwd;
+          } else PERSONNEL.push(sp);
+        });
+        try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
+        const inner=document.getElementById('bo-inner');
+        if(inner && typeof boEquipment==='function' && (window._eqTab==='weapons'||window._eqTab==='personal')) try{ boEquipment(inner); }catch(e){}
+      }, err=>console.warn('[SYNC] tac_personnel_sync', err));
+    }catch(e){ console.warn('[SYNC] tac_personnel_sync subscribe error', e); }
+    try{
       _db.ref('tac_range_sessions').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
@@ -14892,7 +14960,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.0)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.1)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
