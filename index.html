@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.3 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.4 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.3</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.4</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.3</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.4</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7870,7 +7870,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.3 source-code update because the merge in
+    // which survived our v6.8.4 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12162,11 +12162,18 @@ function boEquipment(c){
       window._db.ref('tac_equipment').once('value').then(s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-        if(next){
+        if(next && next.length > 0){
+          // Cloud has data — apply it
           EQUIPMENT_ITEMS.length = 0;
           next.forEach(x=>EQUIPMENT_ITEMS.push(x));
           try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
           _renderEquipment(c);
+        } else if(EQUIPMENT_ITEMS.length > 0){
+          // Cloud is empty but local has data → auto-seed cloud
+          console.log('[boEquipment] cloud empty, auto-seeding:', EQUIPMENT_ITEMS.length, 'items');
+          window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
+            .then(()=>{ showToast({icon:'☁️',title:'ציוד סונכרן לענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:3000}); })
+            .catch(e=>console.warn('[boEquipment] auto-seed failed:', e && e.code, e && e.message));
         }
       }).catch(e=>console.warn('[boEquipment] fb read failed:', e && e.message));
     }
@@ -12690,8 +12697,8 @@ function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 // was used while offline/misconfigured and nothing reached the cloud.
 function pushEquipmentToCloud(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
-  if(EQUIPMENT_ITEMS.length===0 && PERSONNEL.length===0){ showToast({icon:'⚠️',title:'אין מה להעלות',sub:'הרשימה המקומית ריקה',type:'warn'}); return; }
-  if(!confirm('להעלות '+EQUIPMENT_ITEMS.length+' פריטי ציוד ו־'+PERSONNEL.length+' אנשי צוות לענן? (ידרוס את הנתונים בענן)')) return;
+  if(EQUIPMENT_ITEMS.length===0){ showToast({icon:'⚠️',title:'אין פריטי ציוד להעלות',sub:'הרשימה המקומית ריקה',type:'warn'}); return; }
+  if(!confirm('להעלות '+EQUIPMENT_ITEMS.length+' פריטי ציוד לענן?\n(ידרוס את נתוני הציוד בענן)')) return;
   _snapshotEquipmentState('before-push');
   // Probe write permission first so we can give a useful error if rules deny.
   window._db.ref('tac_write_probe/'+Date.now()).set({ok:1}).then(()=>{
@@ -14269,15 +14276,24 @@ const SYNC = (() => {
       const inner = document.getElementById('bo-inner');
       if(inner && typeof boShootingRange==='function') try{ boShootingRange(inner); }catch(e){}
     };
+    let _eqSeeded = false; // prevent repeated auto-seed loops
     try{
       _db.ref('tac_equipment').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
-        // SAFETY: never wipe local data when the cloud is empty. The
-        // cloud is only canonical when it has content; empty cloud is
-        // indistinguishable from "no one seeded it yet" and we must
-        // preserve the local copy.
-        if(!next || next.length===0) return;
+        if(!next || next.length===0){
+          // Cloud is empty. If local has items and we haven't seeded yet, push now.
+          if(!_eqSeeded && EQUIPMENT_ITEMS.length > 0){
+            _eqSeeded = true;
+            console.log('[SYNC] tac_equipment: cloud empty, auto-seeding local data:', EQUIPMENT_ITEMS.length, 'items');
+            _db.ref('tac_equipment').set(EQUIPMENT_ITEMS)
+              .then(()=>{ showToast({icon:'☁️',title:'ציוד סונכרן לענן אוטומטית',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:4000}); })
+              .catch(e=>{ console.warn('[SYNC] auto-seed failed:', e && e.code, e && e.message); _eqSeeded = false; });
+          }
+          return;
+        }
+        // Cloud has data — apply it
+        _eqSeeded = true; // cloud has canonical data, no need to seed
         try{ EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x)); }catch(e){}
         try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
         const inner=document.getElementById('bo-inner');
@@ -15070,7 +15086,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.3)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.4)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
