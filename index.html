@@ -4214,92 +4214,187 @@ function advMsn(id){
 function renderCommsP(c){
   if(!c)c=document.getElementById('rp-body');
   _syncTitle('comms');
-  const ch=c._ch||'הכל';
-  const channels=['הכל','MSN-001','MSN-002','חירום','כל היחידות'];
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const senderName = u ? u.name : 'מפקד';
+
+  // Real team-based channels (from TEAMS array)
+  const teamChannels = TEAMS.map(t=>({id:t.id, label:t.name}));
+  const ch = c._ch || 'all';
+
   c.innerHTML=`
-  <!-- CHANNEL SELECTOR -->
-  <div class="sec-hd">ערוץ תקשורת</div>
-  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
-    ${channels.map(s=>`<button class="ch-tab ${ch===s?'active':''}" onclick="document.getElementById('rp-body')._ch='${s}';renderCommsP(document.getElementById('rp-body'))">${s==='חירום'?'🆘 '+s:s==='כל היחידות'?'📢 '+s:s}</button>`).join('')}
-  </div>
-  <!-- QUICK ACTIONS -->
-  <div class="sec-hd">פעולות מהירות</div>
-  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
-    <button class="comms-qa-btn sos-btn" onclick="sendStatus('🆘 מצוקה – נדרש סיוע מיידי')"><span class="qa-icon">🆘</span>מצוקה</button>
-    <button class="comms-qa-btn" onclick="sendStatus('✅ שטח נקי')" style="color:var(--accent);border-color:rgba(61,255,82,0.4)"><span class="qa-icon">✅</span>שטח נקי</button>
-    <button class="comms-qa-btn" onclick="sendStatus('🔴 בקשת תגבור')" style="color:var(--orange);border-color:rgba(255,122,26,0.4)"><span class="qa-icon">🔴</span>בקשת תגבור</button>
-    <button class="comms-qa-btn" onclick="sendStatus('📍 במיקום')" style="color:var(--blue);border-color:rgba(41,197,246,0.4)"><span class="qa-icon">📍</span>במיקום</button>
-    <button class="comms-qa-btn" onclick="sendStatus('👁️ בתצפית')" style="color:var(--purple);border-color:rgba(176,108,240,0.4)"><span class="qa-icon">👁️</span>בתצפית</button>
-    <button class="comms-qa-btn" onclick="sendStatus('🚗 בנסיעה')" style="color:var(--teal);border-color:rgba(0,232,184,0.4)"><span class="qa-icon">🚗</span>בנסיעה</button>
-    <button class="comms-qa-btn" onclick="sendStatus('⚠️ אירוע פעיל')" style="color:var(--warn);border-color:rgba(255,193,7,0.4)"><span class="qa-icon">⚠️</span>אירוע פעיל</button>
-    <button class="comms-qa-btn" onclick="sendStatus('📻 קבלה – אאוט')" style="color:var(--text2)"><span class="qa-icon">📻</span>קבלה אאוט</button>
-  </div>
-  <!-- MESSAGES -->
-  <div class="sec-hd">הודעות</div>
-  <div id="msg-ul" style="max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
-    ${MSGS.filter(m=>ch==='הכל'||m.ch===ch).map(m=>`
-    <div style="background:${m.type==='sos'?'rgba(255,51,51,0.08)':m.type==='broadcast'?'rgba(255,193,7,0.06)':'var(--panel2)'};border:1px solid ${m.type==='sos'?'var(--danger)':m.type==='broadcast'?'var(--warn)':'var(--border)'};border-radius:var(--r);padding:10px 12px;direction:rtl">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:12px;font-weight:800;color:${m.type==='sos'?'var(--danger)':m.type==='broadcast'?'var(--warn)':'var(--accent2)'}">${m.from}</span>
-        <span style="font-size:10px;color:var(--text3);background:var(--panel3);padding:1px 6px;border-radius:4px">${m.time} · ${m.ch}</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6">${m.body}</div>
-    </div>`).join('')}
-    ${MSGS.filter(m=>ch==='הכל'||m.ch===ch).length===0?'<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;border:1px dashed var(--border2);border-radius:var(--r)">אין הודעות בערוץ זה</div>':''}
-  </div>
-  <!-- COMPOSE -->
-  <div class="sec-hd">שלח הודעה</div>
-  <select id="msg-ch" style="width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 12px;color:var(--text);font-size:13px;font-family:var(--font);outline:none;margin-bottom:8px">
-    ${channels.filter(ch=>ch!=='הכל').map(ch=>`<option value="${ch}">${ch}</option>`).join('')}
-  </select>
-  <button id="rec-btn" class="rec-btn-pro" onclick="toggleRecord(this)" title="הקלט הודעה קולית" style="width:100%;margin-bottom:8px">
-    <span class="rec-dot"></span><span class="rec-label">🎙️ הקלט הודעה קולית</span>
-  </button>
-  <div style="display:flex;gap:8px">
-    <input type="text" id="msg-txt" placeholder="הקלד הודעה לשידור..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;color:var(--texthi);font-size:14px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.key==='Enter')sendMsg()"/>
-    <button onclick="sendMsg()" style="background:var(--glow);border:2px solid var(--accent);border-radius:var(--r);padding:12px 20px;color:var(--accent);cursor:pointer;font-size:20px;font-weight:900;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='rgba(61,255,82,0.2)'" onmouseout="this.style.background='var(--glow)'">📤</button>
-  </div>
-  <!-- SOS MANAGEMENT -->
-  <div class="sec-hd" style="margin-top:18px">🆘 ניהול אות מצוקה</div>
+  <!-- SOS MANAGEMENT — TOP PRIORITY -->
+  <div class="sec-hd">🆘 ניהול אות מצוקה</div>
   <div id="comms-sos-status" style="font-size:13px;color:var(--text2);margin:8px 0 10px;min-height:20px">
     ${_sosData && _sosData.active
       ? `<span style="color:#ff4444">⚠️ אות מצוקה פעיל — <b>${_sosData.name||'?'}</b> (${new Date(_sosData.ts||0).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})})</span>`
-      : '<span style="color:#3dff52">✓ אין אות מצוקה פעיל</span>'}
+      : '<span style="color:#22c55e">✓ אין אות מצוקה פעיל</span>'}
   </div>
   <button onclick="adminCancelAllSOS()"
     ${_sosData && _sosData.active ? '' : 'disabled'}
-    style="width:100%;font-size:13px;font-weight:700;padding:10px 0;border-radius:8px;border:none;cursor:${_sosData && _sosData.active ? 'pointer' : 'default'};background:${_sosData && _sosData.active ? '#c0392b' : 'var(--panel2)'};color:${_sosData && _sosData.active ? '#fff' : 'var(--text3)'}">
+    style="width:100%;font-size:13px;font-weight:700;padding:10px 0;border-radius:8px;border:none;cursor:${_sosData && _sosData.active ? 'pointer' : 'default'};background:${_sosData && _sosData.active ? '#c0392b' : 'var(--panel2)'};color:${_sosData && _sosData.active ? '#fff' : 'var(--text3)'};margin-bottom:4px">
     🚫 בטל אות מצוקה לכולם
-  </button>`;
+  </button>
+
+  <!-- MANUAL GPS PLACEMENT -->
+  <div class="sec-hd" style="margin-top:12px">📍 מיקום ידני</div>
+  <div style="font-size:11px;color:var(--text3);margin-bottom:6px">אם GPS לא מדויק — מקם את עצמך ידנית על המפה</div>
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    <button id="manual-loc-btn" onclick="_startManualPlacement()" style="flex:1;background:var(--glow);border:1.5px solid var(--accent);border-radius:8px;padding:10px;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">📍 לחץ ובחר מיקום במפה</button>
+    <button onclick="_resetToGPS()" style="background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap">🔄 חזור ל-GPS</button>
+  </div>
+
+  <!-- STATUS BROADCAST — sends real notification to all team members -->
+  <div class="sec-hd">📡 שדר סטטוס</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+    <button class="comms-qa-btn sos-btn" onclick="commsBroadcast('🆘 מצוקה – נדרש סיוע מיידי','alert')"><span class="qa-icon">🆘</span>מצוקה</button>
+    <button class="comms-qa-btn" onclick="commsBroadcast('✅ שטח נקי','message')" style="color:var(--accent);border-color:rgba(61,255,82,0.4)"><span class="qa-icon">✅</span>שטח נקי</button>
+    <button class="comms-qa-btn" onclick="commsBroadcast('🔴 בקשת תגבור','alert')" style="color:var(--orange);border-color:rgba(255,122,26,0.4)"><span class="qa-icon">🔴</span>בקשת תגבור</button>
+    <button class="comms-qa-btn" onclick="commsBroadcast('📍 במיקום','message')" style="color:var(--blue);border-color:rgba(41,197,246,0.4)"><span class="qa-icon">📍</span>במיקום</button>
+    <button class="comms-qa-btn" onclick="commsBroadcast('⚠️ אירוע פעיל','alert')" style="color:var(--warn);border-color:rgba(255,193,7,0.4)"><span class="qa-icon">⚠️</span>אירוע פעיל</button>
+    <button class="comms-qa-btn" onclick="commsBroadcast('📻 קבלה – אאוט','message')" style="color:var(--text2)"><span class="qa-icon">📻</span>קבלה אאוט</button>
+  </div>
+
+  <!-- TEAM CHAT — Firebase-synced -->
+  <div class="sec-hd">💬 צ׳אט צוות</div>
+  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+    <button class="ch-tab ${ch==='all'?'active':''}" onclick="document.getElementById('rp-body')._ch='all';renderCommsP(document.getElementById('rp-body'))">📢 כולם</button>
+    ${teamChannels.map(t=>`<button class="ch-tab ${ch===t.id?'active':''}" onclick="document.getElementById('rp-body')._ch='${t.id}';renderCommsP(document.getElementById('rp-body'))">${t.label}</button>`).join('')}
+  </div>
+  <div id="comms-chat-msgs" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;min-height:60px">
+    <div style="font-size:12px;color:var(--text3);text-align:center;padding:12px">טוען הודעות...</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <input type="text" id="comms-chat-inp" placeholder="הקלד הודעה..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;color:var(--texthi);font-size:14px;font-family:var(--font);outline:none;direction:rtl" onkeydown="if(event.key==='Enter')commsSendChat()"/>
+    <button onclick="commsSendChat()" style="background:var(--glow);border:2px solid var(--accent);border-radius:var(--r);padding:12px 20px;color:var(--accent);cursor:pointer;font-size:20px;font-weight:900;flex-shrink:0;transition:all 0.15s" onmouseover="this.style.background='rgba(61,255,82,0.2)'" onmouseout="this.style.background='var(--glow)'">📤</button>
+  </div>`;
+
+  // Load Firebase chat for the selected channel
+  _loadCommsChat(ch);
 }
-function sendMsg(){
-  const ch=document.getElementById('msg-ch')?.value||'הכל';
-  const body=document.getElementById('msg-txt')?.value?.trim();
-  if(!body)return;
-  MSGS.unshift({id:Date.now(),from:'מבצע // פיקוד',ch,body,time:nowT(),type:'normal'});
-  const inp=document.getElementById('msg-txt');if(inp)inp.value='';
-  renderCommsP(document.getElementById('rp-body'));
-  addAct({txt:'הודעה ל-'+ch,type:'active'});
-  showToast({icon:'📤',title:'הודעה נשלחה',sub:ch,type:'success'});
+// ── Comms: broadcast status to all team members via Firebase notifications ──
+function commsBroadcast(statusText, type){
+  const db = window._db;
+  if(!db){ showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'}); return; }
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const senderName = u ? u.name : 'מפקד';
+  const nid = 'status_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,5);
+  const payload = {
+    id:nid, type: type||'message', typeLabel:'סטטוס',
+    title: statusText, body: senderName+' שידר: '+statusText,
+    senderName, senderId: u?u.id:'', sentAt: Date.now()
+  };
+  // Write to every team member's notification node
+  const recipients = PERSONNEL.map(p=>p.id).filter(pid=> !u || pid !== u.id);
+  const DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+  recipients.forEach(pid=>{
+    fetch(DB_REST+'/tac_notifications/'+pid+'/'+nid+'.json',{
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).catch(()=>{});
+  });
+  // Also add to local messages and chat
+  MSGS.unshift({id:Date.now(),from:senderName,ch:'all',body:statusText,time:nowT(),type:'broadcast'});
+  addAct({txt:'שידור: '+statusText,type:'active'});
+  showToast({icon:'📡',title:'סטטוס שודר לכל הצוות',sub:statusText,type:'success'});
 }
-let _recording=false,_mediaRec=null;
-function toggleRecord(btn){
-  if(_recording){
-    if(_mediaRec)_mediaRec.stop();
-    _recording=false;
-    btn.style.borderColor='var(--text3)';btn.style.color='var(--text2)';
-    showToast({icon:'⏹️',title:'הקלטה הסתיימה',type:'info'});
-  } else {
-    navigator.mediaDevices?.getUserMedia({audio:true}).then(stream=>{
-      _recording=true;
-      btn.style.borderColor='var(--danger)';btn.style.color='var(--danger)';
-      btn.textContent='⏹️';
-      showToast({icon:'🎙️',title:'מקליט...',sub:'לחץ שוב לעצור',type:'warn',duration:30000});
-      _mediaRec=new MediaRecorder(stream);
-      _mediaRec.onstop=()=>{stream.getTracks().forEach(t=>t.stop());btn.textContent='🎙️';};
-      _mediaRec.start();
-    }).catch(()=>showToast({icon:'⚠️',title:'מיקרופון לא זמין',type:'warn'}));
+
+// ── Comms: Firebase-synced team chat ──
+let _commsChatUnsub = null;
+function _loadCommsChat(channel){
+  if(_commsChatUnsub){ _commsChatUnsub(); _commsChatUnsub=null; }
+  const db = window._db;
+  if(!db){
+    const box=document.getElementById('comms-chat-msgs');
+    if(box) box.innerHTML='<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px">אין חיבור לשרת</div>';
+    return;
   }
+  const chatKey = channel==='all' ? 'comms_all' : 'comms_'+channel;
+  const ref = db.ref('tac_chat/'+chatKey).orderByChild('ts').limitToLast(50);
+  const handler = ref.on('value', snap=>{
+    const box=document.getElementById('comms-chat-msgs');
+    if(!box)return;
+    const data=snap.val();
+    if(!data){ box.innerHTML='<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px;border:1px dashed var(--border2);border-radius:var(--r)">אין הודעות עדיין — שלח הודעה ראשונה</div>'; return; }
+    const msgs=Object.values(data).sort((a,b)=>(a.ts||0)-(b.ts||0));
+    const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+    box.innerHTML=msgs.map(m=>{
+      const isMe = u2 && m.senderId === u2.id;
+      const t = m.ts ? new Date(m.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div style="background:${isMe?'var(--glow2)':'var(--panel2)'};border:1px solid ${isMe?'rgba(34,197,94,0.25)':'var(--border)'};border-radius:var(--r);padding:8px 11px;direction:rtl${isMe?';border-right:3px solid var(--accent)':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:11px;font-weight:800;color:${isMe?'var(--accent)':'var(--accent2)'}">${escHtml(m.sender||'?')}</span>
+          <span style="font-size:10px;color:var(--text3)">${t}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5">${escHtml(m.text||'')}</div>
+      </div>`;
+    }).join('');
+    box.scrollTop=box.scrollHeight;
+  });
+  _commsChatUnsub = ()=>ref.off('value', handler);
+}
+function commsSendChat(){
+  const inp=document.getElementById('comms-chat-inp');
+  if(!inp||!inp.value.trim())return;
+  const text=inp.value.trim(); inp.value='';
+  const db=window._db; if(!db){showToast({icon:'⚠️',title:'אין חיבור',type:'warn'});return;}
+  const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
+  const c=document.getElementById('rp-body');
+  const ch=c?c._ch||'all':'all';
+  const chatKey=ch==='all'?'comms_all':'comms_'+ch;
+  db.ref('tac_chat/'+chatKey).push({
+    sender: u?u.name:'אנונימי',
+    senderId: u?u.id:'',
+    text, ts: Date.now()
+  }).catch(()=>showToast({icon:'⚠️',title:'שליחה נכשלה',type:'warn'}));
+}
+
+// ── Manual GPS placement ──
+let _manualPlacementListener = null;
+function _startManualPlacement(){
+  if(!window.map || !window.google){ showToast({icon:'⚠️',title:'המפה לא מוכנה',type:'warn'}); return; }
+  // Close the side panel so user can see the map
+  const rp=document.getElementById('right-panel');
+  if(rp) rp.classList.remove('mobile-open');
+  showToast({icon:'📍',title:'לחץ על המפה לבחירת מיקום',sub:'לחץ במקום בו אתה נמצא',type:'info',duration:8000});
+  // Remove previous listener
+  if(_manualPlacementListener){ google.maps.event.removeListener(_manualPlacementListener); }
+  document.getElementById('map')?.style.setProperty('cursor','crosshair');
+  _manualPlacementListener = google.maps.event.addListenerOnce(window.map, 'click', function(e){
+    document.getElementById('map')?.style.removeProperty('cursor');
+    const lat=e.latLng.lat(), lng=e.latLng.lng();
+    // Publish this position as if GPS returned it
+    const db=window._db; if(!db)return;
+    const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
+    const uid = (typeof SYNC!=='undefined' && SYNC.myUid) ? SYNC.myUid() : 'anon';
+    const d={
+      name: u?u.name:'?', role: u?(u.role||''):'',
+      status: 'active', color: u?(u.color||'#29c5f6'):'#29c5f6',
+      personId: u?(u.id||''):'',
+      lat, lng, acc:0, hdg:0, spd:0,
+      ts: Date.now(), uid: uid, manual: true
+    };
+    db.ref('tac_locs/'+uid).set(d);
+    window._lastLat=lat; window._lastLng=lng;
+    window._manualLocOverride=true;
+    // Stop GPS watch so it doesn't overwrite
+    if(typeof SYNC!=='undefined' && SYNC._watchId!==undefined){
+      try{ navigator.geolocation.clearWatch(SYNC._watchId); }catch(e){}
+    }
+    showToast({icon:'✅',title:'מיקום עודכן ידנית',sub:'נ.צ: '+lat.toFixed(5)+', '+lng.toFixed(5),type:'success'});
+    // Center map there
+    window.map.panTo({lat,lng});
+  });
+}
+function _resetToGPS(){
+  window._manualLocOverride=false;
+  if(_manualPlacementListener){ google.maps.event.removeListener(_manualPlacementListener); _manualPlacementListener=null; }
+  document.getElementById('map')?.style.removeProperty('cursor');
+  // Re-start GPS publishing
+  if(typeof SYNC!=='undefined'){
+    const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
+    SYNC.startPublishing(u?{name:u.name,role:u.role||'',status:'active'}:{});
+  }
+  showToast({icon:'🔄',title:'חזרה למיקום GPS',sub:'המערכת תעדכן לפי GPS',type:'info'});
 }
 
 // ── ANALYTICS ──
@@ -5039,11 +5134,8 @@ function openAddUnitModal(){
   document.getElementById('modal-wrap').style.display='flex';
 }
 
-// ─── COMMS (legacy helpers, renderCommsP is defined above) ───
-let recMode=false;
-function toggleVoice(){recMode=!recMode;const btn=document.getElementById('voice-btn');if(btn){btn.classList.toggle('recording',recMode);btn.textContent=recMode?'🔴 מקליט... לחץ לסיום':'🎙️ לחץ להקלטה';if(!recMode)showToast({icon:'🎙️',title:'הודעה קולית נשמרה',sub:'3.2 שניות',type:'success'})}}
-function filterCh(el,ch){document.querySelectorAll('.ch-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.querySelectorAll('#msg-ul .msg-card').forEach(li=>{li.style.display=(ch==='הכל'||li.querySelector('.msg-ch')?.textContent?.includes(ch))?'':'none'})}
-function sendStatus(s){MSGS.unshift({id:Date.now(),from:'עדכון סטטוס',ch:'הכל',body:'סטטוס: '+s,time:nowT(),type:'broadcast'});addAct({txt:'סטטוס: '+s,type:'active'});if(currentPanel==='comms')renderCommsP(document.getElementById('rp-body'));showToast({icon:'📡',title:'סטטוס שודר',sub:s,type:'info'})}
+// ─── COMMS (legacy compat — sendStatus still used by some old callers) ───
+function sendStatus(s){ commsBroadcast(s,'message'); }
 
 // ─── INCIDENTS ───
 function renderIncidentsP(c){
@@ -13457,7 +13549,7 @@ const SYNC = (() => {
     _tryBoot();
   }
 
-  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid };
+  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid, get _watchId(){ return _watchId; } };
 })();
 
 // ══════════════════════════════════════════════════════════
