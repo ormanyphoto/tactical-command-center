@@ -5707,7 +5707,63 @@ function boShifts(c){
     +'</div>'
     +cards+'</div>';
 }
+// Track selected personnel for the new-shift modal
+let _shiftSelectedPersonnel = new Set();
+
+function _renderShiftPersonnelPicker(){
+  const container = document.getElementById('sh-personnel-list');
+  if(!container) return;
+  const sorted = [...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0));
+  container.innerHTML = sorted.map(p=>{
+    const sel = _shiftSelectedPersonnel.has(p.id);
+    const initials = p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
+    return `<div onclick="_toggleShiftPerson('${p.id}')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${sel?'var(--glow)':'var(--panel2)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};border-radius:8px;cursor:pointer;transition:all 0.12s">
+      <div style="width:8px;height:8px;border-radius:50%;background:${sel?'var(--accent)':'var(--border2)'};flex-shrink:0"></div>
+      ${p.photo?`<img src="${p.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#9ab8c8'}"/>`
+        :`<div style="width:26px;height:26px;border-radius:50%;background:${p.color||'#9ab8c8'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">${initials}</div>`}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.name)}</div>
+        <div style="font-size:10px;color:var(--text3)">${escHtml(p.role||p.callsign||'')}</div>
+      </div>
+      ${sel?'<span style="font-size:11px;color:var(--accent);font-weight:800">✓</span>':''}
+    </div>`;
+  }).join('');
+  // Update counter
+  const cnt = document.getElementById('sh-sel-count');
+  if(cnt) cnt.textContent = _shiftSelectedPersonnel.size;
+}
+
+function _toggleShiftPerson(pid){
+  if(_shiftSelectedPersonnel.has(pid)) _shiftSelectedPersonnel.delete(pid);
+  else _shiftSelectedPersonnel.add(pid);
+  _renderShiftPersonnelPicker();
+}
+
+function _shiftSelectTeam(teamId){
+  if(!teamId){ return; }
+  // Find members of this team by callsign or unit match
+  const team = TEAMS.find(t=>t.id===teamId);
+  if(!team) return;
+  PERSONNEL.forEach(p=>{
+    // Match by callsign (teams use callsign grouping) or unit name
+    if(p.callsign===team.name || p.unit===team.name){
+      _shiftSelectedPersonnel.add(p.id);
+    }
+  });
+  // Also try matching by team desc or team id references
+  // Fallback: match by callsign number (צוות 1 → callsign '1')
+  const numMatch = team.name.match(/\d+/);
+  if(numMatch){
+    PERSONNEL.forEach(p=>{
+      if(p.callsign===numMatch[0]) _shiftSelectedPersonnel.add(p.id);
+    });
+  }
+  _renderShiftPersonnelPicker();
+  showToast({icon:'👥',title:'צוות '+team.name+' נבחר',sub:_shiftSelectedPersonnel.size+' אנשים',type:'info',duration:2000});
+}
+
 function addShiftModal(){
+  _shiftSelectedPersonnel = new Set();
   document.getElementById('modal-ttl').innerHTML='🕐 משמרת חדשה';
   document.getElementById('modal-body').innerHTML=`
     <div class="form-g"><label>שם משמרת *</label><input type="text" id="sh-name" placeholder="משמרת א׳ — בוקר"/></div>
@@ -5715,16 +5771,13 @@ function addShiftModal(){
       <div class="form-g"><label>שעת התחלה</label><input type="time" id="sh-start" value="06:00"/></div>
       <div class="form-g"><label>שעת סיום</label><input type="time" id="sh-end" value="14:00"/></div>
     </div>
-    <div class="form-g"><label>מפקד</label>
+    <div class="form-g"><label>מפקד משמרת</label>
       <select id="sh-cmd">
         <option value="">— בחר מפקד —</option>
-        ${PERSONNEL.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-g"><label>יחידה</label>
-      <select id="sh-dept">
-        <option value="">— בחר יחידה —</option>
-        ${DEPARTMENTS.map(d=>`<option value="${d.id}">${d.name}</option>`).join('')}
+        ${PERSONNEL.filter(p=>p.role).map(p=>`<option value="${p.id}">${p.name} (${p.role})</option>`).join('')}
+        <optgroup label="── כל אנשי הצוות ──">
+        ${PERSONNEL.filter(p=>!p.role).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+        </optgroup>
       </select>
     </div>
     <div class="form-g"><label>סטטוס</label>
@@ -5734,23 +5787,46 @@ function addShiftModal(){
         <option value="active">פעילה</option>
       </select>
     </div>
-    <div class="form-g"><label>הערות</label><input type="text" id="sh-notes" placeholder="הערות למשמרת..."/></div>`;
+    <div class="form-g"><label>הערות</label><input type="text" id="sh-notes" placeholder="הערות למשמרת..."/></div>
+
+    <!-- TEAM / PERSONNEL ASSIGNMENT -->
+    <div style="border-top:2px solid var(--border2);margin-top:12px;padding-top:12px">
+      <div style="font-size:14px;font-weight:800;color:var(--texthi);margin-bottom:10px">👥 שיבוץ אנשי צוות</div>
+
+      <!-- Quick team select -->
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">בחר צוות קיים (הוסף את כל חבריו):</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
+        ${TEAMS.map(t=>`<button onclick="_shiftSelectTeam('${t.id}')" style="background:var(--panel2);border:1.5px solid ${t.color||'var(--border2)'};border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;color:${t.color||'var(--text)'};cursor:pointer;font-family:var(--font);transition:all 0.12s" onmouseover="this.style.background='var(--panel3)'" onmouseout="this.style.background='var(--panel2)'">${escHtml(t.name)}</button>`).join('')}
+        <button onclick="_shiftSelectedPersonnel=new Set(PERSONNEL.map(p=>p.id));_renderShiftPersonnelPicker()" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;font-family:var(--font)">✓ כולם</button>
+        <button onclick="_shiftSelectedPersonnel.clear();_renderShiftPersonnelPicker()" style="background:var(--panel2);border:1.5px solid var(--border2);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--text3);cursor:pointer;font-family:var(--font)">✕ נקה</button>
+      </div>
+
+      <!-- Individual picker -->
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">או בחר אנשים ספציפיים (לחץ לסימון/ביטול): <strong id="sh-sel-count" style="color:var(--accent)">0</strong> נבחרו</div>
+      <div id="sh-personnel-list" style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;padding:2px"></div>
+    </div>`;
+
+  _renderShiftPersonnelPicker();
+
   modalCB=()=>{
-    const nm=document.getElementById('sh-name').value.trim();if(!nm)return;
+    const nm=document.getElementById('sh-name').value.trim();
+    if(!nm){showToast({icon:'⚠️',title:'נא להזין שם משמרת',type:'warn'});return;}
+    if(!_shiftSelectedPersonnel.size){showToast({icon:'⚠️',title:'נא לבחור לפחות איש צוות אחד',type:'warn'});return;}
     const start=document.getElementById('sh-start').value;
     const end=document.getElementById('sh-end').value;
-    const deptId=document.getElementById('sh-dept').value;
-    const dept=DEPARTMENTS.find(d=>d.id===deptId);
+    const status=document.getElementById('sh-status').value;
     SHIFTS.push({
       id:'S'+String(Date.now()).slice(-4),name:nm,
       hours:start+'–'+end,
       commander:document.getElementById('sh-cmd').value,
-      department:deptId,
-      units:dept?dept.members.slice():[],
-      coverage:0,status:document.getElementById('sh-status').value,
-      color:{draft:'#5a7a90',pending:'#ffc107',active:'#3dff52'}[document.getElementById('sh-status').value]||'#5a7a90',
+      department:'',
+      units:[..._shiftSelectedPersonnel],
+      coverage:Math.min(100,Math.round(_shiftSelectedPersonnel.size/Math.max(1,PERSONNEL.length)*100)),
+      status,
+      color:{draft:'#5a7a90',pending:'#ffc107',active:'#22c55e'}[status]||'#5a7a90',
       notes:document.getElementById('sh-notes').value,
     });
+    _shiftSelectedPersonnel.clear();
     boShifts(document.getElementById('bo-inner'));
     showToast({icon:'🕐',title:'משמרת נוצרה',sub:nm,type:'success'});
   };
