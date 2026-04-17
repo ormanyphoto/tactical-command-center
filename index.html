@@ -426,7 +426,9 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #modal-box{background:var(--panel);border:1px solid var(--border3);border-radius:10px;padding:20px;min-width:300px;max-width:640px;width:96%;max-height:92vh;overflow-y:auto;position:relative;direction:rtl;box-shadow:0 16px 48px rgba(0,0,0,0.6)}
 #modal-box::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px 10px 0 0}
-#modal-ttl{font-size:16px;font-weight:800;color:var(--texthi);margin-bottom:14px}
+#modal-ttl{font-size:16px;font-weight:800;color:var(--texthi);margin-bottom:14px;padding-left:32px}
+#modal-x{position:absolute;top:10px;left:10px;width:30px;height:30px;border-radius:50%;background:var(--panel2);border:1px solid var(--border2);color:var(--text2);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--font);line-height:1;padding:0;z-index:2;transition:all 0.12s}
+#modal-x:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
 .modal-acts{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
 .modal-acts button{background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font)}
 #modal-ok{background:var(--glow);color:var(--accent);border-color:var(--accent)}
@@ -1187,7 +1189,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 </div>
 
 <!-- MODAL -->
-<div id="modal-wrap"><div id="modal-box"><div id="modal-ttl"></div><div id="modal-body"></div><div class="modal-acts"><button id="modal-ok" onclick="modalConfirm()">✓ אישור</button><button id="modal-cancel" onclick="closeModal()">✕ ביטול</button></div></div></div>
+<div id="modal-wrap"><div id="modal-box"><button id="modal-x" onclick="closeModal()" title="סגור" aria-label="סגור">✕</button><div id="modal-ttl"></div><div id="modal-body"></div><div class="modal-acts"><button id="modal-ok" onclick="modalConfirm()">✓ אישור</button><button id="modal-cancel" onclick="closeModal()">✕ ביטול</button></div></div></div>
 
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
@@ -3848,7 +3850,7 @@ function _clearSOSUI(){
 function updateAlertBadge(){const el=document.getElementById('alert-badge');if(el)el.textContent=ALERTS.length;}
 
 // ── MODAL ──
-function modalConfirm(){if(modalCB){modalCB();closeModal();}}
+function modalConfirm(){if(modalCB){modalCB();}closeModal();}
 function closeModal(){document.getElementById('modal-wrap').style.display='none';modalCB=null;const ok=document.getElementById('modal-ok');if(ok)ok.style.display='';}
 
 // ── PANEL ──
@@ -12148,6 +12150,7 @@ function _renderEquipment(c){
     if(!filtered.length){
       html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין אנשי צוות להצגה</div>';
     } else {
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">';
       filtered.forEach(([pid,bp])=>{
         const p = bp.person;
         const name = p.name;
@@ -12163,33 +12166,33 @@ function _renderEquipment(c){
         });
         const catList = Object.keys(byCat).sort();
 
-        html += '<div style="background:var(--panel2);border:1.5px solid '+(hasItems?'var(--border)':'var(--border)')+';border-radius:12px;padding:12px 14px;margin-bottom:8px;'+(hasItems?'':'opacity:0.6')+'">'
-          +'<div style="display:flex;align-items:center;gap:10px;'+(hasItems?'margin-bottom:10px':'')+'">'
-          +(p.photo ? '<img src="'+p.photo+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid '+color+'"/>'
-            : '<div style="width:34px;height:34px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff">'+initials+'</div>')
+        html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px;'+(hasItems?'':'opacity:0.55')+'">'
+          +'<div style="display:flex;align-items:center;gap:10px;'+(hasItems?'margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border2)':'')+'">'
+          +(p.photo ? '<img src="'+p.photo+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid '+color+';flex-shrink:0"/>'
+            : '<div style="width:38px;height:38px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">'+initials+'</div>')
           +'<div style="flex:1;min-width:0">'
           +'<div style="font-size:14px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(name)+'</div>'
-          +'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.role||p.callsign||'—')
-          +' · '+(hasItems?(bp.items.length+' פריטים'):'ללא ציוד חתום')+'</div>'
+          +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(p.role||p.callsign||'—')
+          +' · '+(hasItems?(bp.items.length+' פריטים'):'ללא ציוד')+'</div>'
           +'</div>'
-          +'<button class="btn-sec" onclick="_quickAssignToPerson(\''+p.id+'\')" style="padding:4px 10px;font-size:11px;flex-shrink:0">+ הוצא ציוד</button>'
+          +'<button onclick="_quickAssignToPerson(\''+p.id+'\')" title="החתמת ציוד" style="width:auto;margin:0;padding:6px 10px;font-size:11px;font-weight:700;background:var(--glow);color:var(--accent);border:1px solid var(--accent);border-radius:6px;cursor:pointer;font-family:var(--font);flex-shrink:0;white-space:nowrap">+ החתם</button>'
           +'</div>';
         if(hasItems){
           catList.forEach(cat=>{
-            html += '<div style="margin-bottom:6px">'
-              +'<div style="font-size:10px;font-weight:800;color:var(--accent2);margin-bottom:3px;padding-right:4px;text-transform:uppercase">'+escHtml(cat)+'</div>';
+            html += '<div style="margin-bottom:10px">'
+              +'<div style="font-size:10px;font-weight:800;color:var(--accent2);margin-bottom:5px;padding-right:2px;letter-spacing:0.5px;text-transform:uppercase">'+escHtml(cat)+' <span style="color:var(--text3);font-weight:600">('+byCat[cat].length+')</span></div>';
             byCat[cat].forEach(x=>{
               const it = x.item;
               const qty = x.qty || 1;
               const dateStr = x.date?new Date(x.date).toLocaleDateString('he-IL'):'';
-              html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px">'
-                +'<span style="font-size:11px">📦</span>'
+              html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">'
+                +'<span style="font-size:13px;flex-shrink:0">📦</span>'
                 +'<div style="flex:1;min-width:0">'
-                +'<div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+qty+'</span>':'')+'</div>'
-                +'<div style="font-size:10px;color:var(--text3)">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':'ללא סריאלי'))
+                +'<div style="font-size:12px;font-weight:700;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+qty+'</span>':'')+'</div>'
+                +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':'ללא סריאלי'))
                 +(dateStr?' · '+dateStr:'')+'</div>'
                 +'</div>'
-                +'<button class="act-btn" onclick="'+(it.bulk?'_returnBulkFromPerson(\''+it.id+'\',\''+p.id+'\')':'returnEquipmentFromPerson(\''+it.id+'\')')+'" title="החזר למחסן" style="font-size:11px">↩</button>'
+                +'<button class="act-btn" onclick="'+(it.bulk?'_returnBulkFromPerson(\''+it.id+'\',\''+p.id+'\')':'returnEquipmentFromPerson(\''+it.id+'\')')+'" title="החזר למחסן" style="font-size:12px;flex-shrink:0">↩</button>'
                 +'</div>';
             });
             html += '</div>';
@@ -12197,6 +12200,7 @@ function _renderEquipment(c){
         }
         html += '</div>';
       });
+      html += '</div>';
     }
   } else {
     // ── WAREHOUSE TAB — grouped by category ──
@@ -12258,7 +12262,7 @@ function _renderEquipment(c){
               +'<td>'+status+'</td>'
               +'<td>'+(holderName?escHtml(holderName):'—')+'</td>'
               +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
-              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'הוצא לאיש צוות')+'">⇄</button>'
+              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'החתמת ציוד לאיש צוות')+'">⇄</button>'
               +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
               +'</tr>';
           }
@@ -12397,7 +12401,7 @@ function assignEquipmentModal(id){
   if(it.bulk){ _assignBulkModal(it); return; }
   // SERIALIZED ITEM
   const currentHolder = it.holderName || it.holder || '';
-  document.getElementById('modal-ttl').textContent = currentHolder ? '⇄ '+it.name+' — חתום ע"י '+currentHolder : '📦 הוצאת ציוד: '+it.name;
+  document.getElementById('modal-ttl').textContent = currentHolder ? '⇄ '+it.name+' — חתום ע"י '+currentHolder : '📦 החתמת ציוד: '+it.name;
   let body = '';
   if(currentHolder){
     body += '<div style="background:rgba(255,193,7,0.1);border:1px solid var(--warn);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--texthi)">'
@@ -12440,14 +12444,14 @@ function _assignBulkModal(it){
     body += '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">חלוקה נוכחית:</div>'+existing
       +'<div style="border-top:1px solid var(--border2);margin:10px 0"></div>';
   }
-  body += '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">הוצא ל:</div>'
+  body += '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">החתם את</div>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px">'
     +'<select id="bulk-person" style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px;color:var(--text);font-size:13px;font-family:var(--font)">'
     +'<option value="">— בחר איש צוות —</option>'
     +[...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0)).map(p=>'<option value="'+p.id+'">'+escHtml(p.name)+' ('+escHtml(p.role||p.callsign||'')+')</option>').join('')
     +'</select>'
     +'<input type="number" id="bulk-qty" value="1" min="1" max="'+s.available+'" style="width:80px;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px;color:var(--text);font-size:13px;font-family:monospace;text-align:center"/>'
-    +'<button onclick="_doAssignBulk(\''+it.id+'\')" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font);font-size:13px">+ הוצא</button>'
+    +'<button onclick="_doAssignBulk(\''+it.id+'\')" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font);font-size:13px">+ החתם</button>'
     +'</div>';
   document.getElementById('modal-body').innerHTML = body;
   modalCB = null;
@@ -12495,7 +12499,7 @@ function _returnBulkFromPerson(eqId, personId){
 function _quickAssignToPerson(personId){
   const p = PERSONNEL.find(x=>x.id===personId);
   if(!p) return;
-  document.getElementById('modal-ttl').textContent='📦 הוצאת ציוד ל-'+p.name;
+  document.getElementById('modal-ttl').textContent='📦 החתמת ציוד ל '+p.name;
   const available = EQUIPMENT_ITEMS.filter(it=>{
     const s = _eqStock(it);
     return s.available > 0;
@@ -12520,7 +12524,7 @@ function _quickAssignToPerson(personId){
         +'<span>📦</span>'
         +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+'</div>'
         +'<div style="font-size:10px;color:var(--text3)">'+(it.bulk?'זמין: '+s.available+'/'+s.total:(it.serial?'SN: '+escHtml(it.serial):'ללא סריאלי'))+'</div></div>'
-        +'<span style="font-size:11px;color:var(--accent)">'+(it.bulk?'חלק →':'הוצא →')+'</span>'
+        +'<span style="font-size:11px;color:var(--accent)">'+(it.bulk?'חלק →':'החתם →')+'</span>'
         +'</div>';
     });
   });
