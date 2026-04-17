@@ -3850,7 +3850,7 @@ function _clearSOSUI(){
 function updateAlertBadge(){const el=document.getElementById('alert-badge');if(el)el.textContent=ALERTS.length;}
 
 // ── MODAL ──
-function modalConfirm(){if(modalCB){modalCB();}closeModal();}
+function modalConfirm(){try{if(modalCB)modalCB();}catch(e){console.warn('[modalConfirm]',e);}closeModal();}
 function closeModal(){document.getElementById('modal-wrap').style.display='none';modalCB=null;const ok=document.getElementById('modal-ok');if(ok)ok.style.display='';}
 
 // ── PANEL ──
@@ -12754,8 +12754,8 @@ function saveWeaponFromModal(){
   } else {
     p.weapons.push({ type, model, serial, ownership, lastRange, sights });
   }
-  _savePersonnel && _savePersonnel();
-  if(typeof savePERSONNEL==='function') savePERSONNEL();
+  try{ if(typeof _savePersonnel==='function') _savePersonnel(); }catch(e){}
+  try{ if(typeof savePERSONNEL==='function') savePERSONNEL(); }catch(e){}
   try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
   try{ if(typeof saveToCloud==='function') saveToCloud(); }catch(e){}
   showToast({icon:'🎯',title:'כלי נשק נשמר',sub:p.name,type:'success'});
