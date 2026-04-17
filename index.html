@@ -5766,7 +5766,36 @@ function addShiftModal(){
   _shiftSelectedPersonnel = new Set();
   document.getElementById('modal-ttl').innerHTML='🕐 משמרת חדשה';
   document.getElementById('modal-body').innerHTML=`
-    <div class="form-g"><label>שם משמרת *</label><input type="text" id="sh-name" placeholder="משמרת א׳ — בוקר"/></div>
+    <div class="form-g"><label>שם משמרת *</label>
+      <select id="sh-name-preset" onchange="var inp=document.getElementById('sh-name');if(this.value){inp.value=this.value;}this.selectedIndex=0;" style="width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;color:var(--text);font-size:13px;font-family:var(--font);margin-bottom:6px">
+        <option value="">📋 בחר מתוך רשימה...</option>
+        <optgroup label="── משמרות יומיות ──">
+          <option value="משמרת בוקר">משמרת בוקר</option>
+          <option value="משמרת אחר צהריים">משמרת אחר צהריים</option>
+          <option value="משמרת לילה">משמרת לילה</option>
+          <option value="משמרת סופ״ש">משמרת סופ״ש</option>
+        </optgroup>
+        <optgroup label="── כוננויות ──">
+          <option value="כוננות מוגברת">כוננות מוגברת</option>
+          <option value="כוננות חירום">כוננות חירום</option>
+          <option value="כוננות חגים">כוננות חגים</option>
+          <option value="כוננות שגרה">כוננות שגרה</option>
+        </optgroup>
+        <optgroup label="── מבצעים ──">
+          <option value="פריסה מבצעית">פריסה מבצעית</option>
+          <option value="סיור לילה">סיור לילה</option>
+          <option value="אבטחת אירוע">אבטחת אירוע</option>
+          <option value="חיפוש ולכידה">חיפוש ולכידה</option>
+          <option value="תרגיל יחידתי">תרגיל יחידתי</option>
+        </optgroup>
+        <optgroup label="── מנהלי ──">
+          <option value="תדריך מפקדים">תדריך מפקדים</option>
+          <option value="מבדק ציוד">מבדק ציוד</option>
+          <option value="אימון מטווח">אימון מטווח</option>
+        </optgroup>
+      </select>
+      <input type="text" id="sh-name" placeholder="או הקלד שם חופשי..."/>
+    </div>
     <div class="form-row">
       <div class="form-g"><label>שעת התחלה</label><input type="time" id="sh-start" value="06:00"/></div>
       <div class="form-g"><label>שעת סיום</label><input type="time" id="sh-end" value="14:00"/></div>
