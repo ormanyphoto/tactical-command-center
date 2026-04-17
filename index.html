@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.1 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.2 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.1</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.2</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.1</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.2</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7870,7 +7870,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.1 source-code update because the merge in
+    // which survived our v6.8.2 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12191,6 +12191,7 @@ function _renderEquipment(c){
     +'<span>🎒 ניהול לוגיסטי ('+EQUIPMENT_ITEMS.length+' סוגי פריטים, '+totalUnits+' יח׳)</span>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sec" onclick="refreshEquipmentFromCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="משוך מהענן">⬇ מהענן</button>'
     +'<button class="btn-sec" onclick="pushEquipmentToCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="העלה לענן">⬆ לענן</button>'
+    +'<button class="btn-sec" onclick="restoreLastEquipmentSnapshot()" style="width:auto;padding:6px 12px;font-size:12px;margin:0;background:rgba(255,193,7,0.08);border-color:var(--warn)" title="שחזר מגיבוי מקומי">♻ שחזר</button>'
     +'<button class="btn-sec" onclick="manageEqCategoriesModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ קטגוריות</button>'
     +'<button class="btn-sec" onclick="addEquipmentModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">+ פריט חדש</button></div>'
     +'</div>'
@@ -12689,23 +12690,87 @@ function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 // was used while offline/misconfigured and nothing reached the cloud.
 function pushEquipmentToCloud(){
   if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לענן',type:'warn'}); return; }
+  if(EQUIPMENT_ITEMS.length===0 && PERSONNEL.length===0){ showToast({icon:'⚠️',title:'אין מה להעלות',sub:'הרשימה המקומית ריקה',type:'warn'}); return; }
   if(!confirm('להעלות '+EQUIPMENT_ITEMS.length+' פריטי ציוד ו־'+PERSONNEL.length+' אנשי צוות לענן? (ידרוס את הנתונים בענן)')) return;
-  showToast({icon:'☁️',title:'מעלה לענן...',type:'info',duration:2000});
-  const cleanList = PERSONNEL.map(p => { const c = Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; });
-  Promise.all([
-    window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS),
-    window._db.ref('tac_personnel_sync').set(cleanList)
-  ]).then(()=>{
-    console.log('[push] success — eq:'+EQUIPMENT_ITEMS.length+' p:'+cleanList.length);
-    showToast({icon:'✅',title:'הועלו '+EQUIPMENT_ITEMS.length+' פריטים',sub:'+ '+cleanList.length+' אנשי צוות',type:'success',duration:4000});
+  _snapshotEquipmentState('before-push');
+  // Probe write permission first so we can give a useful error if rules deny.
+  window._db.ref('tac_write_probe/'+Date.now()).set({ok:1}).then(()=>{
+    return window._db.ref('tac_write_probe').remove().catch(()=>{});
   }).catch(e=>{
-    console.error('[push] failed:', e);
-    showToast({icon:'⚠️',title:'העלאה נכשלה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:6000});
+    console.error('[push] write probe failed:', e && e.code, e && e.message);
+    showToast({icon:'⚠️',title:'אין הרשאות כתיבה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:10000});
+    throw e;
+  }).then(()=>{
+    showToast({icon:'☁️',title:'מעלה לענן...',type:'info',duration:2000});
+    const cleanList = PERSONNEL.map(p => { const c = Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; });
+    return Promise.all([
+      window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS),
+      window._db.ref('tac_personnel_sync').set(cleanList)
+    ]).then(()=>{
+      console.log('[push] success — eq:'+EQUIPMENT_ITEMS.length+' p:'+cleanList.length);
+      showToast({icon:'✅',title:'הועלו '+EQUIPMENT_ITEMS.length+' פריטים',sub:'+ '+cleanList.length+' אנשי צוות',type:'success',duration:4000});
+    });
+  }).catch(e=>{
+    if(e && !String(e.message||'').includes('probe')){
+      console.error('[push] failed:', e && e.code, e);
+      showToast({icon:'⚠️',title:'העלאה נכשלה',sub:(e && e.code)||(e && e.message)||'',type:'warn',duration:10000});
+    }
   });
 }
-// Force a fresh fetch from Firebase — bypass the client SDK cache by
-// hitting the REST endpoint directly so we always see the latest
-// server-side state.
+// Snapshot EQUIPMENT_ITEMS + PERSONNEL to a rolling backup slot before
+// any destructive sync operation. Keeps the last N snapshots so the user
+// can recover accidentally deleted state.
+function _snapshotEquipmentState(label){
+  try{
+    const snap = {
+      ts: Date.now(),
+      label: label||'',
+      equipment: JSON.parse(JSON.stringify(EQUIPMENT_ITEMS)),
+      personnel: PERSONNEL.map(p=>{ const c=Object.assign({}, p); delete c.photo; delete c.loginPassword; return c; })
+    };
+    const KEY = 'tac_equipment_snapshots';
+    let arr = [];
+    try { arr = JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(e){}
+    arr.unshift(snap);
+    arr = arr.slice(0, 5); // keep last 5
+    localStorage.setItem(KEY, JSON.stringify(arr));
+    localStorage.setItem('tac_equipment_last_snapshot', JSON.stringify(snap));
+  }catch(e){ console.warn('[snapshot]', e); }
+}
+function restoreLastEquipmentSnapshot(){
+  try{
+    const raw = localStorage.getItem('tac_equipment_last_snapshot');
+    if(!raw){ showToast({icon:'⚠️',title:'אין גיבוי זמין',type:'warn'}); return; }
+    const snap = JSON.parse(raw);
+    const ts = new Date(snap.ts||Date.now()).toLocaleString('he-IL');
+    const msg = 'לשחזר מגיבוי מקומי מ־'+ts+'?\n\nציוד: '+(snap.equipment||[]).length+'\nאנשי צוות: '+(snap.personnel||[]).length;
+    if(!confirm(msg)) return;
+    if(Array.isArray(snap.equipment)){
+      EQUIPMENT_ITEMS.length = 0;
+      snap.equipment.forEach(x=>EQUIPMENT_ITEMS.push(x));
+      try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+    }
+    if(Array.isArray(snap.personnel)){
+      snap.personnel.forEach(sp=>{
+        if(!sp||!sp.id) return;
+        const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
+        if(idx>-1){
+          const existing = PERSONNEL[idx];
+          const photo = existing.photo, pwd = existing.loginPassword;
+          Object.assign(existing, sp);
+          if(photo) existing.photo = photo;
+          if(pwd)   existing.loginPassword = pwd;
+        } else PERSONNEL.push(sp);
+      });
+      try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
+    }
+    const inner = document.getElementById('bo-inner');
+    if(inner) boEquipment(inner);
+    showToast({icon:'♻',title:'שוחזר מגיבוי',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:4000});
+  }catch(e){ showToast({icon:'⚠️',title:'שגיאה בשחזור',sub:e.message,type:'warn'}); }
+}
+// Pull from Firebase — NEVER overwrites local data with empty cloud state.
+// A snapshot is taken before any change.
 function refreshEquipmentFromCloud(){
   const cfgRaw = localStorage.getItem('tac_fb_cfg');
   let dbUrl = '';
@@ -12717,15 +12782,22 @@ function refreshEquipmentFromCloud(){
     fetch(dbUrl+'/tac_equipment.json?_='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null),
     fetch(dbUrl+'/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null)
   ]).then(([eqVal, pVal])=>{
-    console.log('[refresh] eq keys:', eqVal?Object.keys(eqVal).length:0, 'p keys:', pVal?Object.keys(pVal).length:0);
-    const next = Array.isArray(eqVal) ? eqVal : (eqVal && typeof eqVal==='object' ? Object.values(eqVal) : []);
-    EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x));
-    try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
-    const pv = pVal;
-    const list = Array.isArray(pv) ? pv : (pv && typeof pv==='object' ? Object.values(pv) : []);
-    if(list.length){
-      // Merge: preserve photo + password on local entries
-      list.forEach(sp=>{
+    const eqList = Array.isArray(eqVal) ? eqVal : (eqVal && typeof eqVal==='object' ? Object.values(eqVal) : []);
+    const pList  = Array.isArray(pVal)  ? pVal  : (pVal  && typeof pVal ==='object' ? Object.values(pVal)  : []);
+    console.log('[refresh] cloud eq:', eqList.length, 'cloud p:', pList.length, 'local eq:', EQUIPMENT_ITEMS.length, 'local p:', PERSONNEL.length);
+    // SAFETY: if cloud is empty, NEVER overwrite local data — show
+    // warning and suggest using the upload button to seed the cloud.
+    if(eqList.length === 0 && pList.length === 0){
+      showToast({icon:'⚠️',title:'אין נתונים בענן',sub:'הנתונים המקומיים נשמרו. השתמש בכפתור "לענן" כדי לסנכרן',type:'warn',duration:8000});
+      return;
+    }
+    _snapshotEquipmentState('before-refresh');
+    if(eqList.length > 0){
+      EQUIPMENT_ITEMS.length = 0; eqList.forEach(x=>EQUIPMENT_ITEMS.push(x));
+      try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+    }
+    if(pList.length > 0){
+      pList.forEach(sp=>{
         if(!sp || !sp.id) return;
         const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
         if(idx>-1){
@@ -12739,11 +12811,7 @@ function refreshEquipmentFromCloud(){
       try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
     }
     if(inner) boEquipment(inner);
-    if(EQUIPMENT_ITEMS.length===0){
-      showToast({icon:'⚠️',title:'אין פריטים בענן',sub:'ה־DB ריק — הוסף פריט במכשיר אחר',type:'warn',duration:5000});
-    } else {
-      showToast({icon:'🔄',title:'רשימה עודכנה מהענן',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success'});
-    }
+    showToast({icon:'🔄',title:'סונכרן מהענן',sub:EQUIPMENT_ITEMS.length+' פריטים · '+PERSONNEL.length+' אנשי צוות',type:'success',duration:4000});
   }).catch(e=>{
     console.warn('[refresh] failed:', e);
     showToast({icon:'⚠️',title:'שגיאה בריענון',sub:e.message||'',type:'warn'});
@@ -14204,7 +14272,12 @@ const SYNC = (() => {
     try{
       _db.ref('tac_equipment').on('value', s=>{
         const v=s.val();
-        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
+        // SAFETY: never wipe local data when the cloud is empty. The
+        // cloud is only canonical when it has content; empty cloud is
+        // indistinguishable from "no one seeded it yet" and we must
+        // preserve the local copy.
+        if(!next || next.length===0) return;
         try{ EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x)); }catch(e){}
         try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
         const inner=document.getElementById('bo-inner');
@@ -14262,7 +14335,8 @@ const SYNC = (() => {
     try{
       _db.ref('tac_range_sessions').on('value', s=>{
         const v=s.val();
-        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
+        if(!next || next.length===0) return; // preserve local
         try{ RANGE_SESSIONS.length = 0; next.forEach(x=>RANGE_SESSIONS.push(x)); }catch(e){}
         try{ localStorage.setItem('tac_range_sessions', JSON.stringify(RANGE_SESSIONS)); }catch(e){}
         const inner=document.getElementById('bo-inner');
@@ -14996,7 +15070,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.1)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.2)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
