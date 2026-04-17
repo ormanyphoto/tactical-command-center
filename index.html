@@ -12329,19 +12329,47 @@ function manageEqCategoriesModal(){
   modalCB = null;
 }
 function _renderCatsList(){
-  const html = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">הוסף/ערוך/מחק קטגוריות. שינוי קטגוריה לא ישפיע על פריטים קיימים.</div>'
+  const n = EQUIPMENT_CATEGORIES.length;
+  const html = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">הוסף/ערוך/מחק/סדר קטגוריות. גרור או השתמש בחצים לסידור. שינוי קטגוריה לא ישפיע על פריטים קיימים.</div>'
     +'<div style="display:flex;gap:6px;margin-bottom:12px">'
     +'<input type="text" id="new-cat-name" placeholder="שם קטגוריה חדשה..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);direction:rtl" onkeydown="if(event.key===&quot;Enter&quot;)addEqCategory()"/>'
     +'<button onclick="addEqCategory()" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font)">+ הוסף</button>'
     +'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
-    +EQUIPMENT_CATEGORIES.map((cat,idx)=>'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px">'
+    +'<div id="cats-list" style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
+    +EQUIPMENT_CATEGORIES.map((cat,idx)=>'<div draggable="true" data-idx="'+idx+'" ondragstart="_catDragStart(event,'+idx+')" ondragover="_catDragOver(event)" ondragleave="_catDragLeave(event)" ondrop="_catDrop(event,'+idx+')" ondragend="_catDragEnd(event)" style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;cursor:grab">'
+      +'<span style="color:var(--text3);font-size:14px;cursor:grab" title="גרור">⋮⋮</span>'
       +'<span style="flex:1;font-size:13px;color:var(--texthi);font-weight:600">'+escHtml(cat)+'</span>'
+      +'<button onclick="moveEqCategory('+idx+',-1)" class="act-btn" title="הזז למעלה"'+(idx===0?' disabled style="opacity:0.35"':'')+'>▲</button>'
+      +'<button onclick="moveEqCategory('+idx+',1)" class="act-btn" title="הזז למטה"'+(idx===n-1?' disabled style="opacity:0.35"':'')+'>▼</button>'
       +'<button onclick="renameEqCategory('+idx+')" class="act-btn" title="ערוך">✏</button>'
       +'<button onclick="deleteEqCategory('+idx+')" class="act-btn del" title="מחק">✕</button>'
       +'</div>').join('')
     +'</div>';
   document.getElementById('modal-body').innerHTML = html;
+}
+let _catDragIdx = -1;
+function _catDragStart(e,idx){ _catDragIdx = idx; e.dataTransfer.effectAllowed='move'; e.currentTarget.style.opacity='0.4'; }
+function _catDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.style.borderColor='var(--accent)'; }
+function _catDragLeave(e){ e.currentTarget.style.borderColor='var(--border)'; }
+function _catDragEnd(e){ e.currentTarget.style.opacity=''; _catDragIdx=-1; }
+function _catDrop(e,idx){
+  e.preventDefault();
+  e.currentTarget.style.borderColor='var(--border)';
+  if(_catDragIdx<0 || _catDragIdx===idx) return;
+  const [moved] = EQUIPMENT_CATEGORIES.splice(_catDragIdx,1);
+  EQUIPMENT_CATEGORIES.splice(idx,0,moved);
+  _catDragIdx=-1;
+  _saveEqCategories();
+  _renderCatsList();
+}
+function moveEqCategory(idx,dir){
+  const j = idx + dir;
+  if(j<0 || j>=EQUIPMENT_CATEGORIES.length) return;
+  const t = EQUIPMENT_CATEGORIES[idx];
+  EQUIPMENT_CATEGORIES[idx] = EQUIPMENT_CATEGORIES[j];
+  EQUIPMENT_CATEGORIES[j] = t;
+  _saveEqCategories();
+  _renderCatsList();
 }
 function addEqCategory(){
   const v = (document.getElementById('new-cat-name')||{}).value?.trim();
