@@ -8787,10 +8787,11 @@ function editPersonModal(id){
           +'<option value="private" '+(w.ownership==='private'?'selected':'')+'>פרטי</option>'
           +'</select></div>'
           +'</div>'
+          +(w.model ? '<div style="margin-top:8px;font-size:11px"><span style="color:var(--accent2);font-weight:700">🔫 דגם: </span><span style="color:var(--texthi);font-weight:600">'+escHtml(w.model)+'</span></div>' : '<div style="margin-top:8px;font-size:11px;color:var(--text3)">🔫 דגם לא הוגדר — ערוך ב־"צל״מ (כלי נשק)"</div>')
           +(function(){
             var sights = w.sights||[];
-            if(!sights.length) return '<div style="margin-top:8px;font-size:11px;color:var(--text3)">🔭 אין כוונות אופטיות — ערוך ב־"צל״מ (כלי נשק)"</div>';
-            return '<div style="margin-top:8px;font-size:11px"><span style="color:var(--accent2);font-weight:700">🔭 כוונות: </span>'
+            if(!sights.length) return '<div style="margin-top:4px;font-size:11px;color:var(--text3)">🔭 אין כוונות אופטיות — ערוך ב־"צל״מ (כלי נשק)"</div>';
+            return '<div style="margin-top:4px;font-size:11px"><span style="color:var(--accent2);font-weight:700">🔭 כוונות: </span>'
               + sights.map(function(s){ return escHtml(s.type||'—')+(s.serial?' ('+escHtml(s.serial)+')':''); }).join(' · ')
               +'</div>';
           })()
@@ -8848,7 +8849,7 @@ function editPersonModal(id){
       const own = (document.getElementById('ep-w'+i+'-own')||{}).value||'';
       if(type || serial){
         const existing = (p.weapons||[])[i] || {};
-        weapons.push({ type, serial, ownership:own, lastRange:existing.lastRange||'', sights:existing.sights||[] });
+        weapons.push({ type, model:existing.model||'', serial, ownership:own, lastRange:existing.lastRange||'', sights:existing.sights||[] });
       }
     });
     // Preserve additional weapons (index >= 2) created via צל״מ tab
@@ -12754,9 +12755,7 @@ function saveWeaponFromModal(){
   } else {
     p.weapons.push({ type, model, serial, ownership, lastRange, sights });
   }
-  try{ if(typeof _savePersonnel==='function') _savePersonnel(); }catch(e){}
-  try{ if(typeof savePERSONNEL==='function') savePERSONNEL(); }catch(e){}
-  try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
+  try{ if(typeof savePersonnelToStorage==='function') savePersonnelToStorage(); else localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
   try{ if(typeof saveToCloud==='function') saveToCloud(); }catch(e){}
   showToast({icon:'🎯',title:'כלי נשק נשמר',sub:p.name,type:'success'});
   const inner = document.getElementById('bo-inner'); if(inner) boEquipment(inner);
@@ -12768,7 +12767,7 @@ function deleteWeapon(personId, idx){
   if(!confirm('למחוק את כלי הנשק '+(w.serial||_weaponTypeLbl(w.type))+' של '+p.name+'?')) return;
   p.weapons.splice(idx,1);
   if(!p.weapons.length) p.weapons = undefined;
-  try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
+  try{ if(typeof savePersonnelToStorage==='function') savePersonnelToStorage(); else localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
   try{ if(typeof saveToCloud==='function') saveToCloud(); }catch(e){}
   showToast({icon:'🗑',title:'כלי נשק נמחק',type:'info'});
   const inner = document.getElementById('bo-inner'); if(inner) boEquipment(inner);
