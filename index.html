@@ -8736,17 +8736,37 @@ function editPersonModal(id){
         `).join('')}
       </div>
       ${(function(){
-        const assigned = EQUIPMENT_ITEMS.filter(e=>e.holderId===p.id || e.holder===p.name);
-        if(!assigned.length) return '<div style="margin-top:10px;padding:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border2)">📦 אין ציוד מחסן חתום — שייך ציוד דרך "מחסן ציוד" בפאנל ניהול</div>';
-        return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">'
-          +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">📦 ציוד מחסן חתום ('+assigned.length+')</div>'
-          +assigned.map(it=>'<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px;font-size:12px">'
-            +'<span style="color:var(--warn);font-weight:700">•</span>'
-            +'<span style="font-weight:600;color:var(--texthi)">'+escHtml(it.name)+'</span>'
-            +'<span style="color:var(--text3);font-size:10px">'+escHtml(it.category||'')+(it.serial?' · '+escHtml(it.serial):'')+'</span>'
-            +(it.takenAt?'<span style="margin-right:auto;font-size:10px;color:var(--text3)">'+new Date(it.takenAt).toLocaleDateString('he-IL')+'</span>':'')
-            +'</div>').join('')
-          +'</div>';
+        // Serialized assigned to this person
+        const serialized = EQUIPMENT_ITEMS.filter(e=>!e.bulk && (e.holderId===p.id || e.holder===p.name));
+        // Bulk assignments to this person
+        const bulk = [];
+        EQUIPMENT_ITEMS.forEach(e=>{
+          if(!e.bulk || !Array.isArray(e.assignments)) return;
+          const a = e.assignments.find(x=>x.personId===p.id);
+          if(a) bulk.push({item:e, qty:a.qty, date:a.date});
+        });
+        const total = serialized.length + bulk.length;
+        if(!total) return '<div style="margin-top:10px;padding:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border2)">📦 אין ציוד מחסן חתום — שייך ציוד דרך "מחסן ציוד" בפאנל ניהול</div>';
+        // Group by category
+        const all = serialized.map(it=>({item:it,qty:1,date:it.takenAt})).concat(bulk);
+        const byCat = {};
+        all.forEach(x=>{ const c=x.item.category||'ללא קטגוריה'; if(!byCat[c]) byCat[c]=[]; byCat[c].push(x); });
+        let out = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">'
+          +'<div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">📦 ציוד מחסן חתום ('+total+')</div>';
+        Object.keys(byCat).sort().forEach(cat=>{
+          out += '<div style="font-size:10px;font-weight:800;color:var(--accent2);margin:6px 0 3px">'+escHtml(cat)+'</div>';
+          byCat[cat].forEach(x=>{
+            const it=x.item;
+            out += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px;font-size:12px">'
+              +'<span style="color:var(--warn);font-weight:700">•</span>'
+              +'<span style="font-weight:600;color:var(--texthi)">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+x.qty+'</span>':'')+'</span>'
+              +'<span style="color:var(--text3);font-size:10px">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':''))+'</span>'
+              +(x.date?'<span style="margin-right:auto;font-size:10px;color:var(--text3)">'+new Date(x.date).toLocaleDateString('he-IL')+'</span>':'')
+              +'</div>';
+          });
+        });
+        out += '</div>';
+        return out;
       })()}
     </div>
     <div class="form-g" style="background:var(--panel2);padding:14px;border-radius:10px;border:1px solid var(--border2)">
@@ -12024,11 +12044,34 @@ setInterval(()=>{
 // ══════════════════════════════════════════════════════════
 // #26/27 EQUIPMENT — personal gear + shared warehouse
 // ══════════════════════════════════════════════════════════
-let EQUIPMENT_ITEMS = []; // warehouse items
+let EQUIPMENT_ITEMS = []; // warehouse items — both serialized (single) and bulk (quantity)
 try{ EQUIPMENT_ITEMS = JSON.parse(localStorage.getItem('tac_equipment')||'[]'); }catch(e){}
+
+// Equipment categories — defaults + custom (editable via UI)
+const _DEFAULT_EQ_CATEGORIES = ['רדיו','ציוד רפואי','נשק','סולם','ערכת חילוץ','ציוד לילה','ביגוד ומיגון','אמצעי מיגון','כלי פריצה','אחר'];
+let EQUIPMENT_CATEGORIES = [];
+try{ EQUIPMENT_CATEGORIES = JSON.parse(localStorage.getItem('tac_eq_categories')||'null') || _DEFAULT_EQ_CATEGORIES.slice(); }catch(e){ EQUIPMENT_CATEGORIES = _DEFAULT_EQ_CATEGORIES.slice(); }
+function _saveEqCategories(){
+  try{ localStorage.setItem('tac_eq_categories', JSON.stringify(EQUIPMENT_CATEGORIES)); }catch(e){}
+  if(window._db) window._db.ref('tac_eq_categories').set(EQUIPMENT_CATEGORIES).catch(()=>{});
+}
+
 function _saveEquipment(){
   try{ localStorage.setItem('tac_equipment',JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
   if(window._db) window._db.ref('tac_equipment').set(EQUIPMENT_ITEMS).catch(()=>{});
+}
+
+// Returns {assigned: N, available: M} for an item. For serialized items: assigned=1 if holder else 0.
+// For bulk items: sums item.assignments[*].qty vs item.quantity.
+function _eqStock(it){
+  if(!it) return {assigned:0, available:0, total:0};
+  if(it.bulk || Array.isArray(it.assignments)){
+    const total = Number(it.quantity) || 0;
+    const assigned = (it.assignments||[]).reduce((s,a)=>s+(Number(a.qty)||0), 0);
+    return {assigned, available: Math.max(0,total-assigned), total};
+  }
+  const has = !!(it.holderId || it.holder);
+  return {assigned: has?1:0, available: has?0:1, total:1};
 }
 function boEquipment(c){
   // Render immediately — Firebase will refresh async
@@ -12046,129 +12089,300 @@ function boEquipment(c){
 function _renderEquipment(c){
   const filter = (window._eqFilter||'').toLowerCase();
   const tab = window._eqTab || 'warehouse';
-  const items = EQUIPMENT_ITEMS.filter(e=>{
-    if(!filter) return true;
-    return (e.name||'').toLowerCase().includes(filter) || (e.holderId||e.holder||'').toLowerCase().includes(filter)
-      || (e.holderName||'').toLowerCase().includes(filter);
-  });
-  const stats = {
-    total: EQUIPMENT_ITEMS.length,
-    available: EQUIPMENT_ITEMS.filter(e=>!e.holderId && !e.holder).length,
-    inUse: EQUIPMENT_ITEMS.filter(e=>e.holderId || e.holder).length
-  };
 
-  // ── TAB SWITCHER ──
+  // Compute stats using the stock helper (handles both serialized and bulk)
+  let totalUnits = 0, availableUnits = 0, assignedUnits = 0;
+  EQUIPMENT_ITEMS.forEach(it=>{
+    const s = _eqStock(it);
+    totalUnits += s.total;
+    availableUnits += s.available;
+    assignedUnits += s.assigned;
+  });
+
+  // ── HEADER + STATS + TABS ──
   let html = '<div class="bo-section">'
     +'<div class="bo-hd" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-    +'<span>🎒 ניהול לוגיסטי ('+stats.total+' פריטים)</span>'
-    +'<button class="btn-sec" onclick="addEquipmentModal()">+ פריט חדש</button>'
+    +'<span>🎒 ניהול לוגיסטי ('+EQUIPMENT_ITEMS.length+' סוגי פריטים, '+totalUnits+' יח׳)</span>'
+    +'<div style="display:flex;gap:6px"><button class="btn-sec" onclick="manageEqCategoriesModal()" style="padding:6px 12px;font-size:12px">⚙ קטגוריות</button>'
+    +'<button class="btn-sec" onclick="addEquipmentModal()">+ פריט חדש</button></div>'
     +'</div>'
-    // Stats cards
+    // Stats cards — count UNITS not types
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
-    +'<div style="background:rgba(61,255,82,0.08);border:1px solid rgba(61,255,82,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+stats.available+'</div><div style="font-size:11px;color:var(--text3)">זמין במחסן</div></div>'
-    +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+stats.inUse+'</div><div style="font-size:11px;color:var(--text3)">חתום אישי</div></div>'
-    +'<div style="background:rgba(41,197,246,0.08);border:1px solid rgba(41,197,246,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--blue)">'+stats.total+'</div><div style="font-size:11px;color:var(--text3)">סה"כ</div></div>'
+    +'<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--accent)">'+availableUnits+'</div><div style="font-size:11px;color:var(--text3)">זמין במחסן (יח׳)</div></div>'
+    +'<div style="background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--warn)">'+assignedUnits+'</div><div style="font-size:11px;color:var(--text3)">חתום אישי (יח׳)</div></div>'
+    +'<div style="background:rgba(41,197,246,0.08);border:1px solid rgba(41,197,246,0.3);border-radius:10px;padding:14px;text-align:center"><div style="font-size:28px;font-weight:900;color:var(--blue)">'+totalUnits+'</div><div style="font-size:11px;color:var(--text3)">סה"כ יח׳</div></div>'
     +'</div>'
-    // Tabs
     +'<div style="display:flex;gap:5px;margin-bottom:12px">'
     +'<button class="bo-tab '+(tab==='warehouse'?'active':'')+'" onclick="window._eqTab=\'warehouse\';_renderEquipment(document.getElementById(\'bo-inner\'))">📦 מלאי מחסן</button>'
     +'<button class="bo-tab '+(tab==='personal'?'active':'')+'" onclick="window._eqTab=\'personal\';_renderEquipment(document.getElementById(\'bo-inner\'))">👤 ציוד אישי חתום</button>'
     +'</div>'
-    +'<input type="text" placeholder="חיפוש פריט או שם..." value="'+(window._eqFilter||'')+'" oninput="window._eqFilter=this.value;_renderEquipment(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin-bottom:10px;font-family:var(--font)"/>';
+    +'<input type="text" placeholder="חיפוש פריט או שם..." value="'+(window._eqFilter||'')+'" oninput="window._eqFilter=this.value;_renderEquipment(document.getElementById(\'bo-inner\'))" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);color:var(--text);width:100%;margin-bottom:12px;font-family:var(--font)"/>';
 
   if(tab === 'personal'){
-    // ── PERSONAL EQUIPMENT VIEW: grouped by person ──
+    // ── PERSONAL TAB — ALL PERSONNEL, equipment grouped by category ──
+    // Build assignment map: personId → [{item, qty, date}]
     const byPerson = {};
+    PERSONNEL.forEach(p=>{ byPerson[p.id] = { person:p, items:[] }; });
     EQUIPMENT_ITEMS.forEach(it=>{
-      if(!it.holderId && !it.holder) return;
-      const pid = it.holderId || it.holder;
-      if(!byPerson[pid]) byPerson[pid] = { person:null, items:[] };
-      byPerson[pid].items.push(it);
-      if(!byPerson[pid].person){
-        byPerson[pid].person = PERSONNEL.find(p=>p.id===pid) || PERSONNEL.find(p=>p.name===pid);
+      if(it.bulk || Array.isArray(it.assignments)){
+        (it.assignments||[]).forEach(a=>{
+          if(!byPerson[a.personId]) byPerson[a.personId] = { person: PERSONNEL.find(p=>p.id===a.personId), items:[] };
+          byPerson[a.personId].items.push({ item:it, qty:a.qty, date:a.date });
+        });
+      } else if(it.holderId || it.holder){
+        const pid = it.holderId || (PERSONNEL.find(p=>p.name===it.holder)||{}).id || it.holder;
+        if(!byPerson[pid]) byPerson[pid] = { person: PERSONNEL.find(p=>p.id===pid), items:[] };
+        byPerson[pid].items.push({ item:it, qty:1, date:it.takenAt });
       }
     });
-    const personIds = Object.keys(byPerson).filter(k=>{
-      if(!filter) return true;
-      const bp = byPerson[k];
-      const pName = bp.person ? bp.person.name.toLowerCase() : k.toLowerCase();
-      return pName.includes(filter) || bp.items.some(it=>(it.name||'').toLowerCase().includes(filter));
+    // Sort: people with items first, then empty ones
+    const sortedEntries = Object.entries(byPerson).filter(([pid,bp])=>bp.person).sort((a,b)=>{
+      if((a[1].items.length===0)!==(b[1].items.length===0)) return a[1].items.length===0?1:-1;
+      return (a[1].person.order||0)-(b[1].person.order||0);
     });
-    if(!personIds.length){
-      html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין ציוד חתום — הוצא ציוד מהמחסן כדי לשייך אותו לאיש צוות</div>';
+    const filtered = filter ? sortedEntries.filter(([pid,bp])=>{
+      return bp.person.name.toLowerCase().includes(filter) ||
+             bp.items.some(x=>(x.item.name||'').toLowerCase().includes(filter) || (x.item.category||'').toLowerCase().includes(filter));
+    }) : sortedEntries;
+
+    if(!filtered.length){
+      html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין אנשי צוות להצגה</div>';
     } else {
-      personIds.forEach(pid=>{
-        const bp = byPerson[pid];
+      filtered.forEach(([pid,bp])=>{
         const p = bp.person;
-        const name = p ? p.name : pid;
+        const name = p.name;
         const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2);
-        const color = p ? (p.color||'#29c5f6') : '#5a7a90';
-        html += '<div style="background:var(--panel2);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">'
-          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
-          +(p && p.photo ? '<img src="'+p.photo+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid '+color+'"/>'
-            : '<div style="width:36px;height:36px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff">'+initials+'</div>')
-          +'<div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--texthi)">'+escHtml(name)+'</div>'
-          +'<div style="font-size:11px;color:var(--text3)">'+(p?escHtml(p.role||''):'')
-          +' · '+bp.items.length+' פריטים</div></div></div>';
-        bp.items.forEach(it=>{
-          html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">'
-            +'<span style="font-size:13px">📦</span>'
-            +'<div style="flex:1;min-width:0">'
-            +'<div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+'</div>'
-            +'<div style="font-size:10px;color:var(--text3)">'+escHtml(it.category||'')+' · '+escHtml(it.serial||'ללא סריאלי')
-            +(it.takenAt?' · '+new Date(it.takenAt).toLocaleDateString('he-IL'):'')+'</div>'
-            +'</div>'
-            +'<button class="act-btn" onclick="returnEquipmentFromPerson(\''+it.id+'\')" title="החזר למחסן" style="font-size:11px">↩ החזר</button>'
-            +'</div>';
+        const color = p.color||'#29c5f6';
+        const hasItems = bp.items.length>0;
+        // Group items by category
+        const byCat = {};
+        bp.items.forEach(x=>{
+          const cat = x.item.category || 'ללא קטגוריה';
+          if(!byCat[cat]) byCat[cat]=[];
+          byCat[cat].push(x);
         });
+        const catList = Object.keys(byCat).sort();
+
+        html += '<div style="background:var(--panel2);border:1.5px solid '+(hasItems?'var(--border)':'var(--border)')+';border-radius:12px;padding:12px 14px;margin-bottom:8px;'+(hasItems?'':'opacity:0.6')+'">'
+          +'<div style="display:flex;align-items:center;gap:10px;'+(hasItems?'margin-bottom:10px':'')+'">'
+          +(p.photo ? '<img src="'+p.photo+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid '+color+'"/>'
+            : '<div style="width:34px;height:34px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff">'+initials+'</div>')
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:14px;font-weight:800;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(name)+'</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.role||p.callsign||'—')
+          +' · '+(hasItems?(bp.items.length+' פריטים'):'ללא ציוד חתום')+'</div>'
+          +'</div>'
+          +'<button class="btn-sec" onclick="_quickAssignToPerson(\''+p.id+'\')" style="padding:4px 10px;font-size:11px;flex-shrink:0">+ הוצא ציוד</button>'
+          +'</div>';
+        if(hasItems){
+          catList.forEach(cat=>{
+            html += '<div style="margin-bottom:6px">'
+              +'<div style="font-size:10px;font-weight:800;color:var(--accent2);margin-bottom:3px;padding-right:4px;text-transform:uppercase">'+escHtml(cat)+'</div>';
+            byCat[cat].forEach(x=>{
+              const it = x.item;
+              const qty = x.qty || 1;
+              const dateStr = x.date?new Date(x.date).toLocaleDateString('he-IL'):'';
+              html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px">'
+                +'<span style="font-size:11px">📦</span>'
+                +'<div style="flex:1;min-width:0">'
+                +'<div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+qty+'</span>':'')+'</div>'
+                +'<div style="font-size:10px;color:var(--text3)">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':'ללא סריאלי'))
+                +(dateStr?' · '+dateStr:'')+'</div>'
+                +'</div>'
+                +'<button class="act-btn" onclick="'+(it.bulk?'_returnBulkFromPerson(\''+it.id+'\',\''+p.id+'\')':'returnEquipmentFromPerson(\''+it.id+'\')')+'" title="החזר למחסן" style="font-size:11px">↩</button>'
+                +'</div>';
+            });
+            html += '</div>';
+          });
+        }
         html += '</div>';
       });
     }
   } else {
-    // ── WAREHOUSE VIEW: full inventory table ──
-    let rows='';
-    items.forEach(it=>{
-      const holderName = it.holderName || it.holder || '';
-      const status = holderName ? '<span style="color:var(--warn)">חתום</span>' : '<span style="color:var(--accent)">זמין</span>';
-      rows += '<tr>'
-        +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
-        +'<td>'+escHtml(it.category||'')+'</td>'
-        +'<td style="font-family:monospace;font-size:11px">'+escHtml(it.serial||'')+'</td>'
-        +'<td>'+status+'</td>'
-        +'<td>'+(holderName?escHtml(holderName):'—')+'</td>'
-        +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
-        +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'הוצא לאיש צוות')+'">⇄</button>'
-        +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
-        +'</tr>';
+    // ── WAREHOUSE TAB — grouped by category ──
+    const items = EQUIPMENT_ITEMS.filter(e=>{
+      if(!filter) return true;
+      return (e.name||'').toLowerCase().includes(filter)
+        || (e.category||'').toLowerCase().includes(filter)
+        || (e.serial||'').toLowerCase().includes(filter)
+        || (e.holderName||e.holder||'').toLowerCase().includes(filter);
     });
-    html += '<div style="overflow-x:auto"><table class="bo-table"><thead><tr><th>פריט</th><th>קטגוריה</th><th>סריאלי</th><th>סטטוס</th><th>חתום ע"י</th><th>תאריך</th><th>פעולות</th></tr></thead><tbody>'
-      +(rows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">אין פריטים — הוסף ציוד למחסן</td></tr>')
-      +'</tbody></table></div>';
+    // Group by category
+    const byCat = {};
+    items.forEach(it=>{
+      const cat = it.category || 'ללא קטגוריה';
+      if(!byCat[cat]) byCat[cat]=[];
+      byCat[cat].push(it);
+    });
+    const catOrder = [...EQUIPMENT_CATEGORIES, 'ללא קטגוריה'].filter(c=>byCat[c]);
+
+    if(!catOrder.length){
+      html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין פריטים — הוסף ציוד למחסן</div>';
+    } else {
+      catOrder.forEach(cat=>{
+        const list = byCat[cat];
+        // Category summary: sum of units
+        const catStats = list.reduce((acc,it)=>{ const s=_eqStock(it); acc.total+=s.total; acc.available+=s.available; return acc; }, {total:0, available:0});
+        html += '<div style="margin-bottom:16px">'
+          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px 10px;background:var(--panel3);border-radius:6px;border-right:3px solid var(--accent)">'
+          +'<span style="font-size:13px;font-weight:800;color:var(--texthi)">'+escHtml(cat)+'</span>'
+          +'<span style="font-size:11px;color:var(--text3)">('+list.length+' סוגים · '+catStats.available+'/'+catStats.total+' זמינים)</span>'
+          +'</div>'
+          +'<div style="overflow-x:auto"><table class="bo-table" style="font-size:12px"><thead><tr><th>פריט</th><th>סוג</th><th>סריאלי / כמות</th><th>סטטוס</th><th>חתום ע"י</th><th>תאריך</th><th>פעולות</th></tr></thead><tbody>';
+        list.forEach(it=>{
+          const s = _eqStock(it);
+          if(it.bulk){
+            // Bulk item — show quantity status
+            const assignedList = (it.assignments||[]).map(a=>{
+              const p = PERSONNEL.find(px=>px.id===a.personId);
+              return (p?p.name:a.personId)+' ('+a.qty+')';
+            }).join(', ');
+            const statusColor = s.available===0?'var(--danger)':(s.available<s.total*0.2?'var(--warn)':'var(--accent)');
+            html += '<tr>'
+              +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
+              +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">📦 מלאי</span></td>'
+              +'<td style="font-family:monospace"><strong style="color:'+statusColor+'">'+s.available+'</strong>/'+s.total+'</td>'
+              +'<td><span style="color:'+statusColor+';font-weight:700">'+(s.available===0?'אזל':(s.available<s.total?'חלקי':'זמין'))+'</span></td>'
+              +'<td style="font-size:11px;color:var(--text3)">'+(assignedList?escHtml(assignedList):'—')+'</td>'
+              +'<td style="font-size:11px;color:var(--text3)">—</td>'
+              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+              +'</tr>';
+          } else {
+            const holderName = it.holderName || it.holder || '';
+            const status = holderName ? '<span style="color:var(--warn)">חתום</span>' : '<span style="color:var(--accent)">זמין</span>';
+            html += '<tr>'
+              +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
+              +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">🏷️ סריאלי</span></td>'
+              +'<td style="font-family:monospace;font-size:11px">'+escHtml(it.serial||'—')+'</td>'
+              +'<td>'+status+'</td>'
+              +'<td>'+(holderName?escHtml(holderName):'—')+'</td>'
+              +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
+              +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'הוצא לאיש צוות')+'">⇄</button>'
+              +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
+              +'</tr>';
+          }
+        });
+        html += '</tbody></table></div></div>';
+      });
+    }
   }
   html += '</div>';
   c.innerHTML = html;
 }
 function addEquipmentModal(){
   document.getElementById('modal-ttl').textContent='🎒 פריט ציוד חדש';
-  document.getElementById('modal-body').innerHTML='<div class="form-g"><label>שם פריט *</label><input type="text" id="eq-name"/></div>'
-    +'<div class="form-g"><label>קטגוריה</label><select id="eq-cat"><option>רדיו</option><option>ציוד רפואי</option><option>נשק</option><option>סולם</option><option>ערכת חילוץ</option><option>ציוד לילה</option><option>אחר</option></select></div>'
-    +'<div class="form-g"><label>מספר סריאלי</label><input type="text" id="eq-serial"/></div>'
-    +'<div class="form-g"><label>הערות</label><input type="text" id="eq-notes"/></div>';
+  const catsOpts = EQUIPMENT_CATEGORIES.map(c=>`<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-g"><label>שם פריט *</label><input type="text" id="eq-name" placeholder="למשל: אפוד קרמי, מכשיר קשר..."/></div>
+    <div class="form-g"><label>קטגוריה</label>
+      <div style="display:flex;gap:6px;align-items:stretch">
+        <select id="eq-cat" style="flex:1">${catsOpts}</select>
+        <button type="button" onclick="manageEqCategoriesModal()" title="נהל קטגוריות" style="background:var(--panel3);border:1px solid var(--border2);border-radius:6px;padding:0 12px;color:var(--text2);cursor:pointer;font-size:13px">⚙</button>
+      </div>
+    </div>
+    <div class="form-g" style="background:var(--panel2);padding:10px 12px;border-radius:8px;border:1px solid var(--border2)">
+      <div style="display:flex;gap:14px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--texthi)">
+          <input type="radio" name="eq-type" value="serial" checked onchange="_toggleEqType('serial')" style="accent-color:var(--accent)"/>
+          🏷️ פריט ממוספר (סריאלי)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:700;color:var(--texthi)">
+          <input type="radio" name="eq-type" value="bulk" onchange="_toggleEqType('bulk')" style="accent-color:var(--accent)"/>
+          📦 מלאי בכמות
+        </label>
+      </div>
+      <div id="eq-serial-wrap">
+        <label style="font-size:11px;color:var(--text3)">מספר סריאלי</label>
+        <input type="text" id="eq-serial" placeholder="SN-12345" style="font-family:monospace"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">פריט אחד עם מספר סידורי ייחודי (לדוג׳ מכשיר קשר)</div>
+      </div>
+      <div id="eq-qty-wrap" style="display:none">
+        <label style="font-size:11px;color:var(--text3)">כמות במלאי</label>
+        <input type="number" id="eq-qty" value="1" min="1" step="1" style="font-family:monospace"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">מלאי גנרי שאפשר לחלק לאנשי צוות (לדוג׳ 20 אפודים)</div>
+      </div>
+    </div>
+    <div class="form-g"><label>הערות</label><input type="text" id="eq-notes" placeholder="הערות פתוחות..."/></div>`;
   modalCB=()=>{
     const name = document.getElementById('eq-name').value.trim();
     if(!name) return;
-    EQUIPMENT_ITEMS.push({
-      id:'eq_'+Date.now(),name,
-      category:document.getElementById('eq-cat').value,
-      serial:document.getElementById('eq-serial').value,
-      notes:document.getElementById('eq-notes').value,
-      holder:'',takenAt:null
-    });
+    const type = (document.querySelector('input[name="eq-type"]:checked')||{}).value || 'serial';
+    const base = {
+      id:'eq_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+      name,
+      category: document.getElementById('eq-cat').value,
+      notes: document.getElementById('eq-notes').value
+    };
+    if(type === 'bulk'){
+      const qty = Math.max(1, parseInt(document.getElementById('eq-qty').value)||1);
+      EQUIPMENT_ITEMS.push(Object.assign(base,{ bulk:true, quantity:qty, assignments:[] }));
+      auditLog('ציוד בכמות נוסף: '+name+' ('+qty+' יח׳)','info','');
+    } else {
+      EQUIPMENT_ITEMS.push(Object.assign(base,{
+        serial: document.getElementById('eq-serial').value,
+        holder:'', holderId:'', holderName:'', takenAt:null
+      }));
+      auditLog('פריט ציוד נוסף: '+name,'info','');
+    }
     _saveEquipment();
-    auditLog('פריט ציוד נוסף: '+name,'info','');
     boEquipment(document.getElementById('bo-inner'));
   };
   document.getElementById('modal-wrap').style.display='flex';
+}
+function _toggleEqType(t){
+  const ser=document.getElementById('eq-serial-wrap'), qty=document.getElementById('eq-qty-wrap');
+  if(!ser||!qty)return;
+  ser.style.display = t==='serial' ? '' : 'none';
+  qty.style.display = t==='bulk' ? '' : 'none';
+}
+
+// ── Manage custom equipment categories ──
+function manageEqCategoriesModal(){
+  document.getElementById('modal-ttl').textContent='⚙ ניהול קטגוריות ציוד';
+  _renderCatsList();
+  document.getElementById('modal-wrap').style.display='flex';
+  modalCB = null;
+}
+function _renderCatsList(){
+  const html = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">הוסף/ערוך/מחק קטגוריות. שינוי קטגוריה לא ישפיע על פריטים קיימים.</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:12px">'
+    +'<input type="text" id="new-cat-name" placeholder="שם קטגוריה חדשה..." style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);direction:rtl" onkeydown="if(event.key===&quot;Enter&quot;)addEqCategory()"/>'
+    +'<button onclick="addEqCategory()" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font)">+ הוסף</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
+    +EQUIPMENT_CATEGORIES.map((cat,idx)=>'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px">'
+      +'<span style="flex:1;font-size:13px;color:var(--texthi);font-weight:600">'+escHtml(cat)+'</span>'
+      +'<button onclick="renameEqCategory('+idx+')" class="act-btn" title="ערוך">✏</button>'
+      +'<button onclick="deleteEqCategory('+idx+')" class="act-btn del" title="מחק">✕</button>'
+      +'</div>').join('')
+    +'</div>';
+  document.getElementById('modal-body').innerHTML = html;
+}
+function addEqCategory(){
+  const v = (document.getElementById('new-cat-name')||{}).value?.trim();
+  if(!v) return;
+  if(EQUIPMENT_CATEGORIES.includes(v)){ showToast({icon:'⚠️',title:'הקטגוריה כבר קיימת',type:'warn'}); return; }
+  EQUIPMENT_CATEGORIES.push(v);
+  _saveEqCategories();
+  _renderCatsList();
+  showToast({icon:'✅',title:'קטגוריה נוספה',sub:v,type:'success'});
+}
+function renameEqCategory(idx){
+  const cur = EQUIPMENT_CATEGORIES[idx];
+  const nv = prompt('שם חדש לקטגוריה:', cur);
+  if(!nv || nv.trim()===cur) return;
+  EQUIPMENT_CATEGORIES[idx] = nv.trim();
+  _saveEqCategories();
+  _renderCatsList();
+}
+function deleteEqCategory(idx){
+  const cur = EQUIPMENT_CATEGORIES[idx];
+  const inUse = EQUIPMENT_ITEMS.some(e=>e.category===cur);
+  if(inUse){ if(!confirm('הקטגוריה "'+cur+'" בשימוש בפריטים קיימים. למחוק בכל זאת?')) return; }
+  EQUIPMENT_CATEGORIES.splice(idx,1);
+  _saveEqCategories();
+  _renderCatsList();
 }
 function delEquipment(id){
   if(!confirm('למחוק פריט?')) return;
@@ -12180,7 +12394,8 @@ function delEquipment(id){
 function assignEquipmentModal(id){
   const it = EQUIPMENT_ITEMS.find(e=>e.id===id);
   if(!it) return;
-  // If already assigned — offer return or reassign
+  if(it.bulk){ _assignBulkModal(it); return; }
+  // SERIALIZED ITEM
   const currentHolder = it.holderName || it.holder || '';
   document.getElementById('modal-ttl').textContent = currentHolder ? '⇄ '+it.name+' — חתום ע"י '+currentHolder : '📦 הוצאת ציוד: '+it.name;
   let body = '';
@@ -12192,8 +12407,8 @@ function assignEquipmentModal(id){
       +'<button onclick="returnEquipmentFromPerson(\''+it.id+'\');closeModal()" style="width:100%;padding:12px;background:var(--accent);color:#07090a;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--font);margin-bottom:14px">↩ החזר למחסן</button>'
       +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;border-top:1px solid var(--border2);padding-top:10px">או העבר לאיש צוות אחר:</div>';
   }
-  body += '<div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">'
-    +PERSONNEL.sort((a,b)=>(a.order||0)-(b.order||0)).map(p=>{
+  body += '<div style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto">'
+    +[...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0)).map(p=>{
       const initials = p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
       return '<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer" onclick="_assignEquipTo(\''+it.id+'\',\''+p.id+'\')">'
         +(p.photo?'<img src="'+p.photo+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid '+(p.color||'#9ab8c8')+'"/>'
@@ -12206,6 +12421,115 @@ function assignEquipmentModal(id){
   modalCB = null;
   document.getElementById('modal-wrap').style.display='flex';
 }
+
+// Bulk assignment modal — choose person + quantity
+function _assignBulkModal(it){
+  const s = _eqStock(it);
+  document.getElementById('modal-ttl').textContent = '📦 חלוקת '+it.name+' ('+s.available+' זמינים)';
+  const existing = (it.assignments||[]).map(a=>{
+    const p = PERSONNEL.find(px=>px.id===a.personId);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:3px">'
+      +'<span style="flex:1;font-size:12px;color:var(--texthi)"><strong>'+(p?escHtml(p.name):escHtml(a.personId))+'</strong> — '+a.qty+' יח׳</span>'
+      +'<button class="act-btn" onclick="_returnBulkFromPerson(\''+it.id+'\',\''+a.personId+'\')" title="החזר">↩</button>'
+      +'</div>';
+  }).join('');
+  let body = '<div style="background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">'
+    +'<div>מלאי כולל: <strong>'+s.total+'</strong> · זמין: <strong style="color:var(--accent)">'+s.available+'</strong> · מחולק: <strong style="color:var(--warn)">'+s.assigned+'</strong></div>'
+    +'</div>';
+  if(existing){
+    body += '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">חלוקה נוכחית:</div>'+existing
+      +'<div style="border-top:1px solid var(--border2);margin:10px 0"></div>';
+  }
+  body += '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">הוצא ל:</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+    +'<select id="bulk-person" style="flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px;color:var(--text);font-size:13px;font-family:var(--font)">'
+    +'<option value="">— בחר איש צוות —</option>'
+    +[...PERSONNEL].sort((a,b)=>(a.order||0)-(b.order||0)).map(p=>'<option value="'+p.id+'">'+escHtml(p.name)+' ('+escHtml(p.role||p.callsign||'')+')</option>').join('')
+    +'</select>'
+    +'<input type="number" id="bulk-qty" value="1" min="1" max="'+s.available+'" style="width:80px;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px;color:var(--text);font-size:13px;font-family:monospace;text-align:center"/>'
+    +'<button onclick="_doAssignBulk(\''+it.id+'\')" style="background:var(--glow);border:1.5px solid var(--accent);border-radius:6px;padding:0 16px;color:var(--accent);font-weight:700;cursor:pointer;font-family:var(--font);font-size:13px">+ הוצא</button>'
+    +'</div>';
+  document.getElementById('modal-body').innerHTML = body;
+  modalCB = null;
+  document.getElementById('modal-wrap').style.display='flex';
+}
+function _doAssignBulk(eqId){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
+  if(!it) return;
+  const personId = document.getElementById('bulk-person').value;
+  const qty = parseInt(document.getElementById('bulk-qty').value)||0;
+  if(!personId || qty<1){ showToast({icon:'⚠️',title:'בחר איש צוות וכמות',type:'warn'}); return; }
+  const s = _eqStock(it);
+  if(qty > s.available){ showToast({icon:'⚠️',title:'אין מספיק במלאי',sub:'זמין: '+s.available,type:'warn'}); return; }
+  if(!it.assignments) it.assignments = [];
+  // Merge into existing row if same person
+  const existing = it.assignments.find(a=>a.personId===personId);
+  if(existing){ existing.qty += qty; existing.date = Date.now(); }
+  else it.assignments.push({ personId, qty, date: Date.now() });
+  _saveEquipment();
+  const p = PERSONNEL.find(x=>x.id===personId);
+  auditLog('הוצאת '+qty+' יח׳ '+it.name+' → '+(p?p.name:personId),'info',p?p.name:personId);
+  showToast({icon:'📦',title:qty+' יח׳ '+it.name+' → '+(p?p.name:personId),type:'success'});
+  _assignBulkModal(it); // refresh same modal
+  boEquipment(document.getElementById('bo-inner'));
+}
+function _returnBulkFromPerson(eqId, personId){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
+  if(!it || !Array.isArray(it.assignments)) return;
+  const idx = it.assignments.findIndex(a=>a.personId===personId);
+  if(idx<0) return;
+  const qty = it.assignments[idx].qty;
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!confirm('להחזיר '+qty+' יח׳ '+it.name+' מ-'+(p?p.name:personId)+'?')) return;
+  it.assignments.splice(idx,1);
+  _saveEquipment();
+  auditLog('החזרת '+qty+' יח׳ '+it.name+' מ-'+(p?p.name:personId),'info','');
+  showToast({icon:'↩',title:qty+' יח׳ '+it.name+' הוחזרו למחסן',type:'info'});
+  // Refresh UI
+  const wrap=document.getElementById('modal-wrap');
+  if(wrap && wrap.style.display!=='none') _assignBulkModal(it);
+  boEquipment(document.getElementById('bo-inner'));
+}
+
+// Quick-assign from the personal card — show all equipment (serialized + bulk)
+function _quickAssignToPerson(personId){
+  const p = PERSONNEL.find(x=>x.id===personId);
+  if(!p) return;
+  document.getElementById('modal-ttl').textContent='📦 הוצאת ציוד ל-'+p.name;
+  const available = EQUIPMENT_ITEMS.filter(it=>{
+    const s = _eqStock(it);
+    return s.available > 0;
+  });
+  if(!available.length){
+    document.getElementById('modal-body').innerHTML='<div style="padding:20px;text-align:center;color:var(--text3)">אין ציוד זמין במחסן</div>';
+    modalCB=null;
+    document.getElementById('modal-wrap').style.display='flex';
+    return;
+  }
+  // Group by category
+  const byCat = {};
+  available.forEach(it=>{ const c=it.category||'ללא קטגוריה'; if(!byCat[c]) byCat[c]=[]; byCat[c].push(it); });
+  let body = '<div style="max-height:400px;overflow-y:auto">';
+  Object.keys(byCat).sort().forEach(cat=>{
+    body += '<div style="font-size:11px;font-weight:800;color:var(--accent2);margin:8px 0 4px;padding-right:4px">'+escHtml(cat)+'</div>';
+    byCat[cat].forEach(it=>{
+      const s = _eqStock(it);
+      body += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;margin-bottom:3px;cursor:pointer" onclick="'
+        +(it.bulk?'closeModal();setTimeout(()=>{_assignBulkModal(EQUIPMENT_ITEMS.find(e=>e.id===\''+it.id+'\'));document.getElementById(\'bulk-person\').value=\''+personId+'\';},100)'
+          :'_assignEquipTo(\''+it.id+'\',\''+personId+'\')')+'">'
+        +'<span>📦</span>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--texthi)">'+escHtml(it.name)+'</div>'
+        +'<div style="font-size:10px;color:var(--text3)">'+(it.bulk?'זמין: '+s.available+'/'+s.total:(it.serial?'SN: '+escHtml(it.serial):'ללא סריאלי'))+'</div></div>'
+        +'<span style="font-size:11px;color:var(--accent)">'+(it.bulk?'חלק →':'הוצא →')+'</span>'
+        +'</div>';
+    });
+  });
+  body += '</div>';
+  document.getElementById('modal-body').innerHTML = body;
+  modalCB=null;
+  document.getElementById('modal-wrap').style.display='flex';
+}
+
 function _assignEquipTo(eqId, personId){
   const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
   const p = PERSONNEL.find(x=>x.id===personId);
