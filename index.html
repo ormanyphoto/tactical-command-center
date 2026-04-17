@@ -3012,8 +3012,10 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
   const iconData=_buildMarkerCanvas(labelW,color,initials,shortName,status, hasPhoto?photo:null);
   const iconObj={url:iconData,scaledSize:new google.maps.Size(labelW,62),anchor:new google.maps.Point(labelW/2,19)};
 
+  // No native `title` — the SVG marker already paints the name. On mobile,
+  // `title` pops a second duplicate label below the pin after tap.
   const mk=new google.maps.Marker({
-    position:{lat,lng},map,icon:iconObj,title:name,zIndex:200,draggable:false,
+    position:{lat,lng},map,icon:iconObj,zIndex:200,draggable:false,optimized:false,
   });
   mk._type='unit';mk._id=id;
 
@@ -12669,7 +12671,7 @@ function toggleEquipmentHolder(id){ assignEquipmentModal(id); }
 const WEAPON_TYPES = { pistol:'אקדח', rifle:'רובה', smg:'תמ"ק', sniper:'צלפים', shotgun:'רובה ציד', mg:'מקלע' };
 const _DEFAULT_SIGHT_TYPES = ['אדום','ACOG','טלסקופי 4x','טלסקופי 6x','טלסקופי 8x','לילה','מייצב','לייזר','פנס טקטי','אחר'];
 let SIGHT_TYPES = (function(){ try{ const s=localStorage.getItem('tac_sight_types'); if(s){ const p=JSON.parse(s); if(Array.isArray(p)&&p.length) return p; } }catch(e){} return _DEFAULT_SIGHT_TYPES.slice(); })();
-function _saveSightTypes(){ try{ localStorage.setItem('tac_sight_types', JSON.stringify(SIGHT_TYPES)); }catch(e){} }
+function _saveSightTypes(){ try{ localStorage.setItem('tac_sight_types', JSON.stringify(SIGHT_TYPES)); }catch(e){} if(window._db) window._db.ref('tac_sight_types').set(SIGHT_TYPES).catch(()=>{}); }
 const _DEFAULT_WEAPON_MODELS = {
   pistol:['Glock 17','Glock 19','Glock 26','SIG Sauer P226','SIG Sauer P320','CZ 75','Jericho 941','Beretta 92','H&K USP'],
   rifle:['M4','AR-15','M16','Tavor X95','Tavor TAR-21','Galil ACE','Galil SAR','IWI Arad','SCAR-L','AK-47'],
@@ -12679,7 +12681,7 @@ const _DEFAULT_WEAPON_MODELS = {
   mg:['FN MAG','IWI Negev','M240','M249 SAW','PKM']
 };
 let WEAPON_MODELS = (function(){ try{ const s=localStorage.getItem('tac_weapon_models'); if(s){ const p=JSON.parse(s); if(p&&typeof p==='object') return Object.assign({},_DEFAULT_WEAPON_MODELS,p); } }catch(e){} return JSON.parse(JSON.stringify(_DEFAULT_WEAPON_MODELS)); })();
-function _saveWeaponModels(){ try{ localStorage.setItem('tac_weapon_models', JSON.stringify(WEAPON_MODELS)); }catch(e){} }
+function _saveWeaponModels(){ try{ localStorage.setItem('tac_weapon_models', JSON.stringify(WEAPON_MODELS)); }catch(e){} if(window._db) window._db.ref('tac_weapon_models').set(WEAPON_MODELS).catch(()=>{}); }
 function _weaponTypeLbl(t){ return WEAPON_TYPES[t] || (t||'—'); }
 function _renderWeaponsTab(filter){
   // Gather all weapons from personnel
@@ -13661,6 +13663,7 @@ const SYNC = (() => {
       _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
       _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
       _subscribeHidden();
+      _subscribeLogistics();
       _hideBanner(); loadPhotos(); loadPersonnelFromFirebase(); _autoStartPublishing();
       // Auth for writes (location publishing, etc.)
       firebase.auth().signInAnonymously()
@@ -14098,6 +14101,70 @@ const SYNC = (() => {
         _applyHiddenState(data || {});
       } catch(e){ /* silent — subscription may still be live */ }
     }, 2000);
+  }
+
+  // Real-time subscriptions for logistics data: equipment warehouse,
+  // equipment categories, weapon sight types, weapon models, and
+  // training/range sessions. Keeps every client in sync across devices.
+  function _subscribeLogistics(){
+    if(!_db) return;
+    const _refreshBO = ()=>{
+      const inner = document.getElementById('bo-inner');
+      if(!inner) return;
+      const eqOpen = (window._eqTab||'') && document.querySelector('.bo-tab.active')?.textContent?.includes('מחסן');
+      if(typeof boEquipment==='function') try{ boEquipment(inner); }catch(e){}
+    };
+    const _refreshRange = ()=>{
+      const inner = document.getElementById('bo-inner');
+      if(inner && typeof boShootingRange==='function') try{ boShootingRange(inner); }catch(e){}
+    };
+    try{
+      _db.ref('tac_equipment').on('value', s=>{
+        const v=s.val();
+        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        try{ EQUIPMENT_ITEMS.length = 0; next.forEach(x=>EQUIPMENT_ITEMS.push(x)); }catch(e){}
+        try{ localStorage.setItem('tac_equipment', JSON.stringify(EQUIPMENT_ITEMS)); }catch(e){}
+        const inner=document.getElementById('bo-inner');
+        if(inner && typeof boEquipment==='function') try{ boEquipment(inner); }catch(e){}
+      }, err=>console.warn('[SYNC] tac_equipment', err));
+    }catch(e){ console.warn('[SYNC] tac_equipment subscribe error', e); }
+    try{
+      _db.ref('tac_eq_categories').on('value', s=>{
+        const v=s.val();
+        if(Array.isArray(v) && v.length){
+          try{ EQUIPMENT_CATEGORIES.length = 0; v.forEach(x=>EQUIPMENT_CATEGORIES.push(x)); }catch(e){}
+          try{ localStorage.setItem('tac_eq_categories', JSON.stringify(v)); }catch(e){}
+        }
+      }, err=>console.warn('[SYNC] tac_eq_categories', err));
+    }catch(e){ console.warn('[SYNC] tac_eq_categories subscribe error', e); }
+    try{
+      _db.ref('tac_sight_types').on('value', s=>{
+        const v=s.val();
+        if(Array.isArray(v) && v.length){
+          try{ SIGHT_TYPES.length = 0; v.forEach(x=>SIGHT_TYPES.push(x)); }catch(e){}
+          try{ localStorage.setItem('tac_sight_types', JSON.stringify(v)); }catch(e){}
+        }
+      }, err=>console.warn('[SYNC] tac_sight_types', err));
+    }catch(e){ console.warn('[SYNC] tac_sight_types subscribe error', e); }
+    try{
+      _db.ref('tac_weapon_models').on('value', s=>{
+        const v=s.val();
+        if(v && typeof v==='object' && !Array.isArray(v)){
+          try{ Object.keys(WEAPON_MODELS).forEach(k=>delete WEAPON_MODELS[k]); Object.assign(WEAPON_MODELS, v); }catch(e){}
+          try{ localStorage.setItem('tac_weapon_models', JSON.stringify(v)); }catch(e){}
+        }
+      }, err=>console.warn('[SYNC] tac_weapon_models', err));
+    }catch(e){ console.warn('[SYNC] tac_weapon_models subscribe error', e); }
+    try{
+      _db.ref('tac_range_sessions').on('value', s=>{
+        const v=s.val();
+        const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        try{ RANGE_SESSIONS.length = 0; next.forEach(x=>RANGE_SESSIONS.push(x)); }catch(e){}
+        try{ localStorage.setItem('tac_range_sessions', JSON.stringify(RANGE_SESSIONS)); }catch(e){}
+        const inner=document.getElementById('bo-inner');
+        if(inner && typeof boShootingRange==='function') try{ boShootingRange(inner); }catch(e){}
+      }, err=>console.warn('[SYNC] tac_range_sessions', err));
+    }catch(e){ console.warn('[SYNC] tac_range_sessions subscribe error', e); }
   }
 
   // Auto-cleanup very old entries from Firebase (> 7 days)
