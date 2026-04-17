@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.11 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.12 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -801,7 +801,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.11</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.12</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1204,7 +1204,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.11</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.12</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7909,7 +7909,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.11 source-code update because the merge in
+    // which survived our v6.8.12 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12491,6 +12491,7 @@ function _renderEquipment(c){
               +'<td style="font-size:11px;color:var(--text3)">'+(assignedList?escHtml(assignedList):'—')+'</td>'
               +'<td style="font-size:11px;color:var(--text3)">—</td>'
               +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+              +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
               +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
               +'</tr>';
           } else {
@@ -12504,6 +12505,7 @@ function _renderEquipment(c){
               +'<td>'+(holderName?escHtml(holderName):'—')+'</td>'
               +'<td style="font-size:11px;color:var(--text3)">'+(it.takenAt?new Date(it.takenAt).toLocaleString('he-IL'):'')+'</td>'
               +'<td><button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'החתמת ציוד לאיש צוות')+'">⇄</button>'
+              +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
               +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')">✕</button></td>'
               +'</tr>';
           }
@@ -12662,6 +12664,53 @@ function delEquipment(id){
   EQUIPMENT_ITEMS = EQUIPMENT_ITEMS.filter(e=>e.id!==id);
   _saveEquipment();
   boEquipment(document.getElementById('bo-inner'));
+}
+
+// Edit an existing warehouse item — reuses the same form as addEquipmentModal
+// but pre-populates fields and updates in place instead of pushing a new row.
+function editEquipmentItemModal(id){
+  const it = EQUIPMENT_ITEMS.find(e=>e.id===id);
+  if(!it){ showToast({icon:'⚠️',title:'פריט לא נמצא',type:'warn'}); return; }
+  document.getElementById('modal-ttl').textContent='✏ עריכת פריט ציוד';
+  const catsOpts = EQUIPMENT_CATEGORIES.map(c=>`<option value="${escHtml(c)}"${c===it.category?' selected':''}>${escHtml(c)}</option>`).join('');
+  const isBulk = !!it.bulk;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-g"><label>שם פריט *</label><input type="text" id="eq-name" value="${escHtml(it.name||'')}" placeholder="למשל: אפוד קרמי..."/></div>
+    <div class="form-g"><label>קטגוריה</label>
+      <div style="display:flex;gap:6px;align-items:stretch">
+        <select id="eq-cat" style="flex:1">${catsOpts}</select>
+        <button type="button" onclick="manageEqCategoriesModal()" title="נהל קטגוריות" style="background:var(--panel3);border:1px solid var(--border2);border-radius:6px;padding:0 12px;color:var(--text2);cursor:pointer;font-size:13px">⚙</button>
+      </div>
+    </div>
+    <div class="form-g" style="background:var(--panel2);padding:10px 12px;border-radius:8px;border:1px solid var(--border2)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">סוג פריט (לא ניתן לשינוי — מחק וצור חדש במידת הצורך)</div>
+      <div style="font-size:13px;font-weight:700;color:var(--texthi)">${isBulk?'📦 מלאי בכמות':'🏷️ פריט ממוספר (סריאלי)'}</div>
+      ${isBulk
+        ? `<div style="margin-top:8px"><label style="font-size:11px;color:var(--text3)">כמות במלאי</label>
+           <input type="number" id="eq-qty" value="${Number(it.quantity)||1}" min="1" step="1" style="font-family:monospace"/>
+           <div style="font-size:10px;color:var(--text3);margin-top:3px">שים לב: שינוי הכמות לא משפיע על חתימות קיימות</div></div>`
+        : `<div style="margin-top:8px"><label style="font-size:11px;color:var(--text3)">מספר סריאלי</label>
+           <input type="text" id="eq-serial" value="${escHtml(it.serial||'')}" placeholder="SN-12345" style="font-family:monospace"/></div>`}
+    </div>
+    <div class="form-g"><label>הערות</label><input type="text" id="eq-notes" value="${escHtml(it.notes||'')}" placeholder="הערות פתוחות..."/></div>`;
+  modalCB=()=>{
+    const name = document.getElementById('eq-name').value.trim();
+    if(!name){ showToast({icon:'⚠️',title:'שם פריט חובה',type:'warn'}); return; }
+    it.name = name;
+    it.category = document.getElementById('eq-cat').value;
+    it.notes = document.getElementById('eq-notes').value;
+    if(isBulk){
+      const qty = Math.max(1, parseInt(document.getElementById('eq-qty').value)||1);
+      it.quantity = qty;
+    } else {
+      it.serial = document.getElementById('eq-serial').value;
+    }
+    auditLog('פריט ציוד עודכן: '+name,'info','');
+    _saveEquipment();
+    boEquipment(document.getElementById('bo-inner'));
+    showToast({icon:'✅',title:'הפריט עודכן',sub:name,type:'success',duration:2500});
+  };
+  document.getElementById('modal-wrap').style.display='flex';
 }
 // ── Assign equipment to a person via modal picker ──
 function assignEquipmentModal(id){
@@ -15215,7 +15264,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.11)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.12)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
