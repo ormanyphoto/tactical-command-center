@@ -8729,12 +8729,12 @@ function editPersonModal(id){
         EQUIPMENT_ITEMS.forEach(e=>{
           if(!e.bulk || !Array.isArray(e.assignments)) return;
           const a = e.assignments.find(x=>x.personId===p.id);
-          if(a) bulk.push({item:e, qty:a.qty, date:a.date});
+          if(a) bulk.push({item:e, qty:a.qty, date:a.date, signedBy:a.signedBy});
         });
         const total = serialized.length + bulk.length;
         if(!total) return '<div style="margin-top:10px;padding:8px;font-size:11px;color:var(--text3);border-top:1px solid var(--border2)">📦 אין ציוד מחסן חתום — שייך ציוד דרך "מחסן ציוד" בפאנל ניהול</div>';
         // Group by category
-        const all = serialized.map(it=>({item:it,qty:1,date:it.takenAt})).concat(bulk);
+        const all = serialized.map(it=>({item:it,qty:1,date:it.takenAt,signedBy:it.signedBy})).concat(bulk);
         const byCat = {};
         all.forEach(x=>{ const c=x.item.category||'ללא קטגוריה'; if(!byCat[c]) byCat[c]=[]; byCat[c].push(x); });
         let out = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">'
@@ -8748,6 +8748,7 @@ function editPersonModal(id){
               +'<span style="font-weight:600;color:var(--texthi)">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+x.qty+'</span>':'')+'</span>'
               +'<span style="color:var(--text3);font-size:10px">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':''))+'</span>'
               +(x.date?'<span style="margin-right:auto;font-size:10px;color:var(--text3)">'+new Date(x.date).toLocaleDateString('he-IL')+'</span>':'')
+              +(x.signedBy?'<span style="font-size:10px;color:var(--text3)">· ע״י '+escHtml(x.signedBy)+'</span>':'')
               +'</div>';
           });
         });
@@ -12107,12 +12108,12 @@ function _renderEquipment(c){
       if(it.bulk || Array.isArray(it.assignments)){
         (it.assignments||[]).forEach(a=>{
           if(!byPerson[a.personId]) byPerson[a.personId] = { person: PERSONNEL.find(p=>p.id===a.personId), items:[] };
-          byPerson[a.personId].items.push({ item:it, qty:a.qty, date:a.date });
+          byPerson[a.personId].items.push({ item:it, qty:a.qty, date:a.date, signedBy:a.signedBy });
         });
       } else if(it.holderId || it.holder){
         const pid = it.holderId || (PERSONNEL.find(p=>p.name===it.holder)||{}).id || it.holder;
         if(!byPerson[pid]) byPerson[pid] = { person: PERSONNEL.find(p=>p.id===pid), items:[] };
-        byPerson[pid].items.push({ item:it, qty:1, date:it.takenAt });
+        byPerson[pid].items.push({ item:it, qty:1, date:it.takenAt, signedBy:it.signedBy });
       }
     });
     // Sort: people with items first, then empty ones
@@ -12168,7 +12169,8 @@ function _renderEquipment(c){
                 +'<div style="flex:1;min-width:0">'
                 +'<div style="font-size:12px;font-weight:700;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(it.name)+(it.bulk?' <span style="color:var(--warn);font-weight:900">×'+qty+'</span>':'')+'</div>'
                 +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.serial?'SN: '+escHtml(it.serial):(it.bulk?'מלאי':'ללא סריאלי'))
-                +(dateStr?' · '+dateStr:'')+'</div>'
+                +(dateStr?' · '+dateStr:'')
+                +(x.signedBy?' · ע״י '+escHtml(x.signedBy):'')+'</div>'
                 +'</div>'
                 +'<button class="act-btn" onclick="'+(it.bulk?'_returnBulkFromPerson(\''+it.id+'\',\''+p.id+'\')':'returnEquipmentFromPerson(\''+it.id+'\')')+'" title="החזר למחסן" style="font-size:12px;flex-shrink:0">↩</button>'
                 +'</div>';
@@ -12444,10 +12446,13 @@ function _doAssignBulk(eqId){
   const s = _eqStock(it);
   if(qty > s.available){ showToast({icon:'⚠️',title:'אין מספיק במלאי',sub:'זמין: '+s.available,type:'warn'}); return; }
   if(!it.assignments) it.assignments = [];
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const signedBy = (u&&u.name)||'';
+  const signedById = (u&&u.id)||'';
   // Merge into existing row if same person
   const existing = it.assignments.find(a=>a.personId===personId);
-  if(existing){ existing.qty += qty; existing.date = Date.now(); }
-  else it.assignments.push({ personId, qty, date: Date.now() });
+  if(existing){ existing.qty += qty; existing.date = Date.now(); existing.signedBy = signedBy; existing.signedById = signedById; }
+  else it.assignments.push({ personId, qty, date: Date.now(), signedBy, signedById });
   _saveEquipment();
   const p = PERSONNEL.find(x=>x.id===personId);
   auditLog('הוצאת '+qty+' יח׳ '+it.name+' → '+(p?p.name:personId),'info',p?p.name:personId);
@@ -12516,10 +12521,13 @@ function _assignEquipTo(eqId, personId){
   const it = EQUIPMENT_ITEMS.find(e=>e.id===eqId);
   const p = PERSONNEL.find(x=>x.id===personId);
   if(!it||!p) return;
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   it.holderId = p.id;
   it.holderName = p.name;
   it.holder = p.name; // compat
   it.takenAt = Date.now();
+  it.signedBy = (u&&u.name)||'';
+  it.signedById = (u&&u.id)||'';
   _saveEquipment();
   auditLog('הוצאת ציוד: '+it.name+' → '+p.name,'info',p.name);
   closeModal();
