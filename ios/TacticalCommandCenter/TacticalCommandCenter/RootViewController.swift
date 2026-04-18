@@ -193,15 +193,16 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
           try{ _watchers[id].success && _watchers[id].success(pos); }catch(err){}
         });
       });
-      var _origGeo = navigator.geolocation;
-      navigator.geolocation = {
-        getCurrentPosition: function(success, error, options){
-          // If we already have a fresh native fix, return it immediately.
+      // Patch methods on the existing navigator.geolocation object instead
+      // of replacing it — WKWebView makes navigator.geolocation read-only,
+      // so `navigator.geolocation = {...}` silently fails. Mutating the
+      // object's methods works in all browsers.
+      if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition = function(success, error, options){
           if(_lastNativePos && (Date.now() - (_lastNativePos.ts||0) < 15000)){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
             return;
           }
-          // Ensure native tracking is on, then resolve on the next fix.
           try{ post('startLocation',{}); }catch(_){}
           var resolved = false;
           var handler = function(e){
@@ -219,8 +220,8 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             if(_lastNativePos){ try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){} }
             else if(error){ try{ error({code:3, message:'Timeout (native shim)'}); }catch(_){} }
           }, timeout);
-        },
-        watchPosition: function(success, error, options){
+        };
+        navigator.geolocation.watchPosition = function(success, error, options){
           var id = _nextWatchId++;
           _watchers[id] = { success: success, error: error };
           try{ post('startLocation',{}); }catch(_){}
@@ -228,15 +229,14 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
           }
           return id;
-        },
-        clearWatch: function(id){
+        };
+        navigator.geolocation.clearWatch = function(id){
           delete _watchers[id];
           if(Object.keys(_watchers).length === 0){
-            // No more watchers — stop native GPS to save battery.
             try{ post('stopLocation',{}); }catch(_){}
           }
-        }
-      };
+        };
+      }
 
       document.addEventListener('DOMContentLoaded', function(){
         try { window.TCC_NATIVE.requestPushToken(); } catch(_){}
