@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.38 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.39 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.38</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.39</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.38</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.39</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8193,7 +8193,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.38 source-code update because the merge in
+    // which survived our v6.8.39 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -10411,25 +10411,44 @@ function respondToNotif(approved){
   const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
   const myId = u ? u.id : null;
 
-  // Write response (approved=true means "confirmed" but NOT yet departed — ETA waits for markDeparted)
-  if(db && myId){
-    db.ref('tac_notif_responses/'+notif.id+'/'+myId).set({
+  // Write response via REST (works without Firebase SDK anon auth) —
+  // the SDK .set() was failing silently so approvals never propagated
+  // to the sender's real-time status view.
+  if(myId){
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    const responsePayload = {
       personId: myId,
       name: u.name||'',
       role: u.role||'',
       color: u.color||'#29c5f6',
       approved,
-      departed: false,     // explicit: not yet on the road
+      departed: false,
       departedAt: null,
       venueId: window._pendingVenueId || null,
       ts: Date.now()
-    });
-    // Remove notification from queue (fbRef may be null if notification came via SSE/push)
-    if(fbRef){
-      fbRef.remove();
-    } else if(notif.id){
-      // Fallback: delete directly by path so it won't re-appear after page refresh
-      db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{});
+    };
+    fetch(DB+'/tac_notif_responses/'+notif.id+'/'+myId+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(responsePayload)
+    })
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); console.log('[notifResponse] sent:', notif.id, approved?'approved':'declined'); })
+    .catch(e=>console.warn('[notifResponse] REST failed:', e.message));
+    // Parallel SDK so realtime listeners get child_added instantly
+    try{ if(db) db.ref('tac_notif_responses/'+notif.id+'/'+myId).set(responsePayload).catch(()=>{}); }catch(_){}
+
+    // Also update my live status so the commander's 'כוחות' panel shows
+    // the change in real time. approved → 'busy' (dispatched), declined
+    // → 'standby'. SYNC.updateStatus already uses REST PATCH.
+    try{
+      if(typeof SYNC!=='undefined' && SYNC.updateStatus){
+        SYNC.updateStatus(approved ? 'busy' : 'standby');
+      }
+    }catch(_){}
+
+    // Remove notification from queue — REST DELETE (fbRef may be null)
+    if(notif.id){
+      fetch(DB+'/tac_notifications/'+myId+'/'+notif.id+'.json', {method:'DELETE'}).catch(()=>{});
+      try{ if(fbRef) fbRef.remove().catch(()=>{}); else if(db) db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{}); }catch(_){}
     }
   }
 
@@ -10557,11 +10576,18 @@ function markDeparted(openWaze){
   if(!st){ _hideDepartBanner(); return; }
   const db = window._db;
   const now = Date.now();
-  if(db && st.notifId && st.personId){
-    db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update({
-      departed: true,
-      departedAt: now
-    }).catch(e=>console.warn('[markDeparted] fb:', e && e.message));
+  if(st.notifId && st.personId){
+    // REST PATCH — merges {departed,departedAt} into existing response
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    fetch(DB+'/tac_notif_responses/'+st.notifId+'/'+st.personId+'.json', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ departed: true, departedAt: now })
+    })
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); console.log('[markDeparted] broadcast sent'); })
+    .catch(e=>console.warn('[markDeparted] REST failed:', e.message));
+    try{ if(db) db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update({departed:true,departedAt:now}).catch(()=>{}); }catch(_){}
+    // Update my live status to 'urgent' so the commander's panel lights up
+    try{ if(typeof SYNC!=='undefined' && SYNC.updateStatus) SYNC.updateStatus('urgent'); }catch(_){}
   }
   // Clear pending state so the banner doesn't re-appear on reload
   localStorage.removeItem('tac_pending_departure');
@@ -15156,12 +15182,9 @@ const SYNC = (() => {
 
   function _subscribeLocations(){
     if(!_db) return;
-    // Polling fallback — refresh locations every 5s. Only removes markers
-    // that haven't been updated in ≥15 seconds to avoid a race with the
-    // async marker creation in _updateLiveMarker (which dispatches a canvas
-    // draw before committing the marker). Without this guard, the cleanup
-    // loop would remove markers just as they were about to be created,
-    // causing visible flicker on mobile.
+    // SDK polling fallback — 5s interval, for when WebSocket on('value')
+    // misses updates. Only removes markers stale >15s to avoid race with
+    // async marker creation.
     setInterval(()=>{
       if(!_db || !window.map || !window._googleReady) return;
       _db.ref('tac_locs').once('value', snap=>{
@@ -15179,6 +15202,36 @@ const SYNC = (() => {
           }
         });
       });
+    }, 5000);
+
+    // REST polling fallback — runs 3s after SDK poll so status changes
+    // propagate even if the SDK WebSocket is broken. Updates the
+    // in-memory live-locs map and refreshes the commander's "כוחות" UI
+    // so status badges reflect the latest value within ~5s.
+    setInterval(()=>{
+      if(!window.map || !window._googleReady) return;
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs.json?_='+Date.now(), {cache:'no-store'})
+      .then(r => r.ok ? r.json() : null)
+      .then(raw => {
+        if(!raw) return;
+        const fd = _dedupeByPerson(raw);
+        Object.entries(fd).forEach(([uid,d])=>{ if(d) _updateLiveMarker(uid,d,uid===_myUid); });
+        // Update window._liveLocs so the personnel panel sees fresh data
+        window._liveLocs = {};
+        Object.entries(fd).forEach(([uid,d])=>{
+          const key = d.personId || uid;
+          window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name, status:d.status};
+        });
+        // Re-render the units panel if it's the current view so status
+        // badges update in real time
+        try{
+          const rpBody = document.getElementById('rp-body');
+          if(rpBody && typeof currentPanel !== 'undefined' && currentPanel === 'units' && typeof renderUnitsP === 'function'){
+            renderUnitsP(rpBody);
+          }
+        }catch(_){}
+      })
+      .catch(()=>{});
     }, 5000);
     _db.ref('tac_locs').on('value', snap=>{
       const rawData = snap.val()||{};
@@ -15877,7 +15930,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.38)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.39)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
