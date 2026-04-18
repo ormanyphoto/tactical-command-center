@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.31 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.32 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.31</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.32</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.31</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.32</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8091,7 +8091,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.31 source-code update because the merge in
+    // which survived our v6.8.32 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15127,10 +15127,32 @@ const SYNC = (() => {
         return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
       }
     }
-    // Always downscale the photo through a canvas to rInner*2 (34x34).
-    // Previously we embedded raw data: URLs directly — if the photo was
-    // high-res (500KB+ base64), mobile WebViews silently failed to render
-    // the enclosing SVG, showing the broken-image placeholder.
+    // Pre-validate the final SVG data URL before handing it to Google Maps.
+    // Builds an Image(), sets src = svg_url. If it loads → use it. If it
+    // fails → fall back to an initials-only SVG (no embedded photo) and
+    // validate THAT too. If even that fails → hand Maps a tiny inline
+    // colored circle. This guarantees Maps never gets a URL that would
+    // render as a broken-image placeholder.
+    function _verifyAndEmit(url, fallbackLevel){
+      const probe = new Image();
+      probe.onload  = () => cb(url, W, H);
+      probe.onerror = () => {
+        if(fallbackLevel === 0){
+          // Photo SVG failed — try initials-only SVG
+          _verifyAndEmit(_buildSVG(null), 1);
+        } else if(fallbackLevel === 1){
+          // Initials SVG also failed — try minimal SVG (circle only)
+          const minSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/></svg>';
+          let minUrl;
+          try{ minUrl = 'data:image/svg+xml;base64,'+btoa(minSvg); }
+          catch(_){ minUrl = 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(minSvg); }
+          cb(minUrl, W, H); // last resort, emit without further validation
+        }
+      };
+      probe.src = url;
+    }
+    // Always downscale the photo through canvas to rInner*2 (34x34) before
+    // embedding so the encoded SVG stays small.
     function _downscaleAndBuild(src){
       const img = new Image();
       if(!src.startsWith('data:')) img.crossOrigin = 'anonymous';
@@ -15141,18 +15163,17 @@ const SYNC = (() => {
           const g = cvs.getContext('2d');
           g.drawImage(img, 0, 0, rInner*2, rInner*2);
           const small = cvs.toDataURL('image/jpeg', 0.7);
-          // Sanity check: toDataURL can return 'data:,' on tainted canvas
-          if(small && small.length > 30) cb(_buildSVG(small), W, H);
-          else cb(_buildSVG(null), W, H);
-        } catch(_){ cb(_buildSVG(null), W, H); }
+          if(small && small.length > 30) _verifyAndEmit(_buildSVG(small), 0);
+          else _verifyAndEmit(_buildSVG(null), 1);
+        } catch(_){ _verifyAndEmit(_buildSVG(null), 1); }
       };
-      img.onerror = ()=>cb(_buildSVG(null), W, H);
+      img.onerror = ()=>_verifyAndEmit(_buildSVG(null), 1);
       img.src = src;
     }
     if(photoUrl && photoUrl.length > 10){
       _downscaleAndBuild(photoUrl);
     } else {
-      cb(_buildSVG(null), W, H);
+      _verifyAndEmit(_buildSVG(null), 1);
     }
   }
 
@@ -15714,7 +15735,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.31)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.32)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
