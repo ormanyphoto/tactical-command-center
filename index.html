@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.28 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.29 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.28</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.29</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.28</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.29</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3305,16 +3305,31 @@ function _updateRouteCtrlPts(){
   if(btn) btn.disabled = n < 2;
 }
 function finishRouteDraw(){
-  const n = _getRoutePointCount();
-  const polyN = (typeof drawPolyline !== 'undefined' && drawPolyline) ? (drawPolyline.getPath ? drawPolyline.getPath().getLength() : 0) : 0;
-  console.log('[finishRouteDraw] n=', n, 'polyN=', polyN, '_routePoints.length=', (typeof _routePoints !== 'undefined') ? _routePoints.length : 'undef');
+  // Try every possible source for the point count — whichever has ≥2 wins.
+  let polyN = 0, pointsN = 0, dotsN = 0;
+  try{ if(drawPolyline && drawPolyline.getPath) polyN = drawPolyline.getPath().getLength(); }catch(_){}
+  try{ if(typeof _routePoints !== 'undefined') pointsN = _routePoints.length; }catch(_){}
+  try{ if(typeof _routeDots !== 'undefined') dotsN = _routeDots.length; }catch(_){}
+  const n = Math.max(polyN, pointsN, dotsN);
+  console.log('[finishRouteDraw] poly=', polyN, 'points=', pointsN, 'dots=', dotsN, '→ n=', n);
   if(n < 2){
-    showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',sub:'n='+n+' poly='+polyN,type:'warn',duration:4000});
+    showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',sub:'poly='+polyN+' pts='+pointsN+' dots='+dotsN,type:'warn',duration:5000});
     return;
+  }
+  // If we have dots/points but no polyline (shouldn't normally happen but be
+  // defensive), rebuild the polyline from whichever source has the path data.
+  if(!drawPolyline || !drawPolyline.getPath || drawPolyline.getPath().getLength() < 2){
+    const src = (pointsN >= 2) ? _routePoints : _routeDots.map(m=>m.getPosition());
+    if(drawPolyline) try{ drawPolyline.setMap(null); }catch(_){}
+    drawPolyline = new google.maps.Polyline({
+      map, path: src, strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,
+      strokeWeight:3, strokeOpacity:0.85
+    });
   }
   _hideRouteCtrlBar();
   if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
   deactivateTool();
+  // Open the metadata popup at the polyline's midpoint
   if(drawPolyline && drawPolyline.getPath){
     const path = drawPolyline.getPath();
     const mid = path.getAt(Math.floor(path.getLength()/2));
@@ -8238,7 +8253,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.28 source-code update because the merge in
+    // which survived our v6.8.29 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15328,10 +15343,14 @@ const SYNC = (() => {
       if(!_liveMarkers[markerKey]){
         _liveMarkers[markerKey] = new google.maps.Marker({
           position:pos, map:window.map, zIndex:reallyIsMe?800:600,
-          // Use default optimized:true (tile-batched). optimized:false caused
-          // visible bounding boxes on some platforms (day mode, older WebViews).
-          // Flicker prevention is handled by the 15s grace period in cleanup.
-          icon, title:d.name+(reallyIsMe?' (אני)':'')
+          // optimized:false forces each marker to its own standalone <img>
+          // element. On mobile WebView with optimized:true, the shared
+          // canvas batch renderer was drawing phantom broken-image
+          // placeholders next to our custom SVG icons. Name is baked into
+          // the SVG label pill so we omit `title` too (title was triggering
+          // a hidden tooltip <img> that showed as broken on mobile).
+          optimized:false,
+          icon
         });
         _liveMarkers[markerKey]._lastUpdated = Date.now();
         _liveMarkers[markerKey]._data = d;
@@ -15857,7 +15876,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.28)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.29)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
