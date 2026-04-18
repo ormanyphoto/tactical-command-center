@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>he</string>
+	<key>CFBundleDisplayName</key>
+	<string>מערכת מבצעים</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>6.8.40</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- Universal app: iPhone + iPad -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+
+	<!-- Launch screen storyboard name (create a LaunchScreen.storyboard in Xcode) -->
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+
+	<!-- RTL support -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>he</string>
+		<string>en</string>
+	</array>
+
+	<!-- Supported orientations -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- Status bar — light content on dark backgrounds -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+
+	<!-- Background modes: location updates + remote push (silent + alert) + background fetch -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+
+	<!-- Permission usage descriptions (Hebrew strings shown in system prompts) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>המערכת צריכה את מיקומך לצורך תיאום פעולות בזמן אמת עם שאר הצוות.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>המערכת ממשיכה לעדכן את מיקומך גם כאשר האפליקציה ברקע — חיוני לתיאום חירום ומצוקה.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>המערכת ממשיכה לעדכן את מיקומך גם כאשר האפליקציה ברקע — חיוני לתיאום חירום ומצוקה.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>נדרש לצילום תמונות פרופיל ודיווחי שטח.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>נדרש לשמירת צילומי מסך וטעינת תמונות פרופיל.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>נדרש לדיבור והקלטת הודעות קוליות בצ׳אט הצוות.</string>
+
+	<!-- Allow loading of the web app over HTTPS (default on iOS 9+, explicit here) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<false/>
+	</dict>
+
+	<!-- Declare the URL schemes we want to open (tel, waze, google maps, etc.) -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>sms</string>
+		<string>mailto</string>
+		<string>waze</string>
+		<string>maps</string>
+		<string>comgooglemaps</string>
+		<string>googlemaps</string>
+		<string>whatsapp</string>
+	</array>
+
+	<!-- Firebase Messaging: enable APNs alert + background delivery -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+
+	<!-- Face ID / Touch ID usage (for biometric login already in the web app) -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>זיהוי פנים משמש לכניסה מהירה ומאובטחת למערכת.</string>
+</dict>
+</plist>

@@ -1,0 +1,22 @@
+# Podfile — Firebase SDK via CocoaPods.
+# Alternative: Swift Package Manager (recommended). See SETUP.md for SPM instructions.
+
+platform :ios, '15.0'
+use_frameworks! :linkage => :static
+
+target 'TacticalCommandCenter' do
+  pod 'Firebase/Core'
+  pod 'Firebase/Messaging'
+  # Optional (for future Remote Config, Analytics, Crashlytics):
+  # pod 'Firebase/RemoteConfig'
+  # pod 'Firebase/Analytics'
+  # pod 'Firebase/Crashlytics'
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
+  end
+end

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Use "development" for debug builds; switch to "production" for App Store release. -->
+	<key>aps-environment</key>
+	<string>development</string>
+
+	<!-- Critical Alerts (bypasses silent mode + DND) for SOS / emergency pushes.
+	     Requires approval from Apple — request at
+	     https://developer.apple.com/contact/request/notifications-critical-alerts-entitlement/
+	     Without approval, this key is ignored and emergencies behave like normal alerts. -->
+	<key>com.apple.developer.usernotifications.critical-alerts</key>
+	<true/>
+
+	<!-- Background processing (supports iOS background task scheduler) -->
+	<key>com.apple.developer.background-processing</key>
+	<array>
+		<string>com.tacops.commandcenter.refresh</string>
+	</array>
+</dict>
+</plist>
