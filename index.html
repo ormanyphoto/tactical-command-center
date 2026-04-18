@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.20 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.21 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.20</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.21</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.20</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.21</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -4387,9 +4387,8 @@ function _startManualPlacement(){
     document.getElementById('map')?.style.removeProperty('cursor');
     const lat=e.latLng.lat(), lng=e.latLng.lng();
     // Publish this position as if GPS returned it
-    const db=window._db; if(!db)return;
     const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
-    const uid = (typeof SYNC!=='undefined' && SYNC.myUid) ? SYNC.myUid() : 'anon';
+    const uid = (typeof SYNC!=='undefined' && SYNC.myUid) ? SYNC.myUid : (localStorage.getItem('tac_uid') || 'anon');
     const d={
       name: u?u.name:'?', role: u?(u.role||''):'',
       status: 'active', color: u?(u.color||'#29c5f6'):'#29c5f6',
@@ -4397,7 +4396,13 @@ function _startManualPlacement(){
       lat, lng, acc:0, hdg:0, spd:0,
       ts: Date.now(), uid: uid, manual: true
     };
-    db.ref('tac_locs/'+uid).set(d);
+    // Use REST API (open rules, no auth dependency) — same reliability as equipment sync
+    fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/'+uid+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(d)
+    }).catch(e=>console.warn('[manual-loc] publish failed:', e.message));
+    // Also push via SDK if available for realtime listener
+    try{ if(window._db) window._db.ref('tac_locs/'+uid).set(d); }catch(_){}
     window._lastLat=lat; window._lastLng=lng;
     window._manualLocOverride=true;
     // Stop GPS watch so it doesn't overwrite
@@ -7918,7 +7923,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.20 source-code update because the merge in
+    // which survived our v6.8.21 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15476,7 +15481,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.20)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.21)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
