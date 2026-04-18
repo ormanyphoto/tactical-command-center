@@ -193,12 +193,21 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
           try{ _watchers[id].success && _watchers[id].success(pos); }catch(err){}
         });
       });
-      // Patch methods on the existing navigator.geolocation object instead
-      // of replacing it — WKWebView makes navigator.geolocation read-only,
-      // so `navigator.geolocation = {...}` silently fails. Mutating the
-      // object's methods works in all browsers.
+      // Patch methods on the existing navigator.geolocation object.
+      // Some WKWebView versions freeze these methods — we use
+      // Object.defineProperty with configurable:true as a fallback so
+      // the override sticks even if simple assignment is read-only.
+      function _installGeoMethod(name, fn){
+        try { navigator.geolocation[name] = fn; } catch(_){}
+        try {
+          Object.defineProperty(navigator.geolocation, name, {
+            value: fn, writable: true, configurable: true, enumerable: true
+          });
+        } catch(_){}
+      }
       if(navigator.geolocation){
-        navigator.geolocation.getCurrentPosition = function(success, error, options){
+        post('nativeLog',{msg:'[geo-shim] installing overrides'});
+        _installGeoMethod('getCurrentPosition', function(success, error, options){
           if(_lastNativePos && (Date.now() - (_lastNativePos.ts||0) < 15000)){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
             return;
@@ -220,22 +229,23 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             if(_lastNativePos){ try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){} }
             else if(error){ try{ error({code:3, message:'Timeout (native shim)'}); }catch(_){} }
           }, timeout);
-        };
-        navigator.geolocation.watchPosition = function(success, error, options){
+        });
+        _installGeoMethod('watchPosition', function(success, error, options){
           var id = _nextWatchId++;
           _watchers[id] = { success: success, error: error };
+          post('nativeLog',{msg:'[geo-shim] watchPosition called, id='+id});
           try{ post('startLocation',{}); }catch(_){}
           if(_lastNativePos){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
           }
           return id;
-        };
-        navigator.geolocation.clearWatch = function(id){
+        });
+        _installGeoMethod('clearWatch', function(id){
           delete _watchers[id];
           if(Object.keys(_watchers).length === 0){
             try{ post('stopLocation',{}); }catch(_){}
           }
-        };
+        });
       }
 
       document.addEventListener('DOMContentLoaded', function(){
