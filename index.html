@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.33 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.34 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.33</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.34</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.33</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.34</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3745,30 +3745,61 @@ let _sosLastSent=0;    // rate limiting
 let _notifLastSent=0;  // rate limiting
 
 function triggerSOS(){
-  // Two-tap confirmation to prevent accidents
+  // Single-tap → modal confirmation (not double-tap)
   if(!_sosConfirmPending){
-    _sosConfirmPending=true;
-    const btn=document.getElementById('map-sos-btn');
-    if(btn){btn.textContent='⚠️ לחץ שוב לאישור';btn.style.background='rgba(255,100,0,0.95)';}
-    showToast({icon:'⚠️',title:'לחץ שוב לאישור שידור מצוקה',type:'warn',duration:3000});
-    setTimeout(()=>{
-      _sosConfirmPending=false;
-      const b=document.getElementById('map-sos-btn');
-      if(b){b.innerHTML='🆘 לחצן מצוקה';b.style.background='';}
-    },3000);
+    _sosConfirmPending = true;
+    document.getElementById('modal-ttl').innerHTML = '🆘 שידור אות מצוקה';
+    document.getElementById('modal-body').innerHTML = `
+      <div style="text-align:center;padding:10px 4px">
+        <div style="font-size:54px;margin-bottom:10px;animation:pulse 1.4s ease-in-out infinite">🆘</div>
+        <div style="font-size:15px;font-weight:800;color:var(--danger);margin-bottom:8px">האם אתה בטוח שברצונך לשדר אות מצוקה?</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6">
+          ההודעה תישלח <b>מיידית לכל חברי הצוות</b>.<br>
+          משוגר מיקום GPS נוכחי.
+        </div>
+      </div>
+      <style>@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}</style>`;
+    const okBtn = document.getElementById('modal-ok');
+    const cancelBtn = document.getElementById('modal-cancel');
+    if(okBtn){
+      okBtn.textContent = '🆘 כן — שדר מצוקה';
+      okBtn.style.background = 'var(--danger)';
+      okBtn.style.color = '#fff';
+      okBtn.style.borderColor = 'var(--danger)';
+    }
+    if(cancelBtn){ cancelBtn.textContent = '✕ ביטול'; }
+    modalCB = () => {
+      _sosConfirmPending = false;
+      // Reset modal button styling so other modals aren't tinted red
+      if(okBtn){ okBtn.style.background=''; okBtn.style.color=''; okBtn.style.borderColor=''; }
+      _doSendSOS();
+    };
+    // Also clear the flag on cancel
+    const wrap = document.getElementById('modal-wrap');
+    const onClose = () => {
+      _sosConfirmPending = false;
+      if(okBtn){ okBtn.style.background=''; okBtn.style.color=''; okBtn.style.borderColor=''; }
+      wrap.removeEventListener('click', onOutside, true);
+    };
+    const onOutside = (e)=>{ if(e.target === wrap) onClose(); };
+    wrap.addEventListener('click', onOutside, true);
+    const xBtn = document.getElementById('modal-x');
+    if(xBtn) xBtn.addEventListener('click', onClose, { once:true });
+    if(cancelBtn) cancelBtn.addEventListener('click', onClose, { once:true });
+    wrap.style.display = 'flex';
     return;
   }
-  _sosConfirmPending=false;
-  const b=document.getElementById('map-sos-btn');
-  if(b){b.innerHTML='🆘 לחצן מצוקה';b.style.background='';}
+}
 
+// Actual SOS dispatch — extracted so the modal confirm can call it directly.
+function _doSendSOS(){
   // Rate limit: max 1 SOS per 30 seconds
-  const now=Date.now();
-  if(now-_sosLastSent < 30000){
+  const now = Date.now();
+  if(now - _sosLastSent < 30000){
     showToast({icon:'⏳',title:'המתן '+(Math.ceil((30000-(now-_sosLastSent))/1000))+' שניות לפני שידור נוסף',type:'warn',duration:3000});
     return;
   }
-  _sosLastSent=now;
+  _sosLastSent = now;
   auditLog('שידור SOS','danger','');
 
   const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
@@ -8091,7 +8122,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.33 source-code update because the merge in
+    // which survived our v6.8.34 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15733,7 +15764,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.33)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.34)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
