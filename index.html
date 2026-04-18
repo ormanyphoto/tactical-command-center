@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.25 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.26 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.25</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.26</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.25</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.26</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2098,6 +2098,10 @@ setInterval(_checkPushStatus, 30000);
 let map=null, _markers={}, _circles={}, _polylines={}, _infoWindows=[];
 let currentPanel='', currentView='map', modalCB=null;
 let labelNum=1, activeDrawMode=null, drawPoints=[], drawPolyline=null, activeDrawColor='#3dff52';
+// Explicit SVG circle path — avoids relying on _SVG_CIRCLE
+// which in some API loads was being interpreted as a failed image URL,
+// causing "broken image" placeholders on the map.
+const _SVG_CIRCLE = 'M 0,-1 A 1,1 0 1,1 0,1 A 1,1 0 1,1 0,-1 Z';
 let trackingOn=false, trackMks={}, autoTrackInterval=null;
 let gpsWatchId=null, gpsMarker=null;
 let _selectedPersonnel=new Set(), dragSrcEl=null;
@@ -3114,7 +3118,7 @@ function _applyPos(pos, method){
     return;
   }
   // Privacy OFF — show the simple dot (user sees own position privately)
-  const icon={path:google.maps.SymbolPath.CIRCLE,scale:9,
+  const icon={path:_SVG_CIRCLE,scale:9,
     fillColor:method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107',
     fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2};
   if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon,title:'מיקומי',zIndex:500});}
@@ -3352,7 +3356,7 @@ function addDrawPoint(latLng){
   const meta = { name:'סימן '+num, desc:'', color: activeDrawColor, expanded:false };
   const mk=new google.maps.Marker({
     position:latLng,map,draggable:true,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:meta.color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
+    icon:{path:_SVG_CIRCLE,scale:7,fillColor:meta.color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
     label:{text:String(num),color:'#fff',fontSize:'10px',fontWeight:'bold'},
     title:meta.name, zIndex:300,
   });
@@ -3416,7 +3420,7 @@ function addDrawPoint(latLng){
       mk.__meta.desc = (descIn.value||'').trim();
       mk.__meta.color = chosenCol;
       mk.__meta.expanded = false;
-      mk.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2});
+      mk.setIcon({path:_SVG_CIRCLE,scale:7,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2});
       mk.setTitle(mk.__meta.name);
       iw.setContent(_buildContent());
       google.maps.event.addListenerOnce(iw,'domready',_wireHandlers);
@@ -3480,10 +3484,23 @@ let _routeDots=[]; // dot markers along the route — tracked so clearAll can re
 let _routeMeta=null; // { name, team, color, notes }
 function addRoutePoint(latLng){
   _routePoints.push(latLng);
+  // Keep a single persistent polyline — extending its path rather than
+  // destroying and recreating. This way drawPolyline.getPath() is always
+  // an accurate source of truth for the finish check.
+  if(!drawPolyline){
+    drawPolyline = new google.maps.Polyline({
+      map,
+      path:[latLng],
+      strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,
+      strokeWeight:3,
+      strokeOpacity:0.85
+    });
+  } else {
+    drawPolyline.getPath().push(latLng);
+  }
   _updateRouteCtrlPts();
-  if(_routePoints.length>=2){
-    if(drawPolyline){drawPolyline.setMap(null);}
-    drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,strokeWeight:3,strokeOpacity:0.85});
+  if(_routePoints.length>=2 && !drawPolyline.__clickWired){
+    drawPolyline.__clickWired = true;
     const iwId = 'iwrt-'+Date.now();
     drawPolyline.addListener('click', e=>{
       closeAllInfoWindows();
@@ -3535,14 +3552,14 @@ function addRoutePoint(latLng){
             color: chosenCol
           };
           drawPolyline.setOptions({strokeColor: chosenCol});
-          _routeDots.forEach(m=>{ try{ m.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5}); }catch(_){} });
+          _routeDots.forEach(m=>{ try{ m.setIcon({path:_SVG_CIRCLE,scale:5,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5}); }catch(_){} });
           closeAllInfoWindows();
           showToast({icon:'✅',title:'פרטי מסלול נשמרו',sub:_routeMeta.name||'ללא שם',type:'success',duration:2500});
         };
       });
     });
   }
-  const dotMk = new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
+  const dotMk = new google.maps.Marker({position:latLng,map,icon:{path:_SVG_CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
   _routeDots.push(dotMk);
 }
 function startCircleAt(latLng){activateTool('circle');addDrawCircle(latLng);}
@@ -3578,12 +3595,12 @@ function addPulseMarker(){
   const c=map.getCenter();
   const mk=new google.maps.Marker({
     position:c,map,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:12,fillColor:'#3dff52',fillOpacity:0.8,strokeColor:'#3dff52',strokeWeight:3},
+    icon:{path:_SVG_CIRCLE,scale:12,fillColor:'#3dff52',fillOpacity:0.8,strokeColor:'#3dff52',strokeWeight:3},
     zIndex:400,title:'אות מעקב פעיל',
   });
   _animatedOverlays.push(mk);
   let sc=12,dir=1;
-  setInterval(()=>{sc+=dir*0.5;if(sc>18||sc<10)dir=-dir;mk.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:sc,fillColor:'#3dff52',fillOpacity:0.7,strokeColor:'#3dff52',strokeWeight:2});},60);
+  setInterval(()=>{sc+=dir*0.5;if(sc>18||sc<10)dir=-dir;mk.setIcon({path:_SVG_CIRCLE,scale:sc,fillColor:'#3dff52',fillOpacity:0.7,strokeColor:'#3dff52',strokeWeight:2});},60);
   showToast({icon:'📡',title:'סמן מונפש נוסף',type:'success'});
 }
 
@@ -4023,7 +4040,7 @@ function _placeSOSMapMarker(sos,ts){
     position:{lat:sos.lat,lng:sos.lng},
     map:window.map,
     title:'🆘 מצוקה — '+sos.name,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:18,fillColor:'#ff0000',fillOpacity:1,strokeColor:'#fff',strokeWeight:3},
+    icon:{path:_SVG_CIRCLE,scale:18,fillColor:'#ff0000',fillOpacity:1,strokeColor:'#fff',strokeWeight:3},
     zIndex:99999,
     animation:google.maps.Animation.BOUNCE
   });
@@ -5673,36 +5690,83 @@ function loadAdminBoundary(type){
 // ── ANIMATED LAYERS ──
 
 function addAnimatedZone(){
-  // Add a pulsing circle at map center
   const center=map.getCenter();
-  const circle=new google.maps.Circle({map,center,radius:300,strokeColor:'#ff3333',strokeOpacity:0.9,strokeWeight:2,fillColor:'#ff3333',fillOpacity:0.1,clickable:false});
+  const circle=new google.maps.Circle({
+    map,center,radius:300,
+    strokeColor:'#ff3333',strokeOpacity:0.9,strokeWeight:2,
+    fillColor:'#ff3333',fillOpacity:0.1,clickable:true,
+  });
   _animatedOverlays.push(circle);
-  // Pulse animation via CSS
-  if(!document.getElementById('anim-css')){
-    const s=document.createElement('style');s.id='anim-css';
-    s.textContent='.animated-zone{animation:zone-pulse 2s ease-in-out infinite}'
-      +'@keyframes zone-pulse{0%,100%{opacity:0.8;stroke-width:2}50%{opacity:0.3;stroke-width:4}}';
-    document.head.appendChild(s);
-  }
-  // Also add to Google Maps as a circle if available
-  if(gmap&&window.google){
-    const gmCircle=new google.maps.Circle({
-      map:map,center:{lat:center.lat,lng:center.lng},radius:300,
-      strokeColor:'#ff3333',strokeOpacity:0.9,strokeWeight:2,
-      fillColor:'#ff3333',fillOpacity:0.1,
+  // Pulse animation
+  let op=0.1, dir=1;
+  const anim = setInterval(()=>{op+=dir*0.02;if(op>0.25||op<0.05)dir=-dir;circle.setOptions({fillOpacity:op});},80);
+  circle._anim = anim;
+  // Click to show info + delete button
+  const iwId = 'iwaz-'+Date.now();
+  circle.addListener('click', e=>{
+    closeAllInfoWindows();
+    const iw = new google.maps.InfoWindow({
+      content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:170px">
+        <div style="font-size:13px;font-weight:800;color:#c62828;margin-bottom:6px">⭕ אזור ניטור מואר</div>
+        <div style="font-size:11px;color:#555;margin-bottom:6px">רדיוס: ${Math.round(circle.getRadius())}מ</div>
+        <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:5px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק אזור</button>
+      </div>`,
+      position: e.latLng,
     });
-    _animatedOverlays.push({_gmCircle:gmCircle,remove:function(){gmCircle.setMap(null);}});
-  }
-  showToast({icon:'⭕',title:'אזור ניטור נוסף',sub:'לחץ על המעגל לפרטים',type:'success'});
+    iw.open(map);
+    _infoWindows.push(iw);
+    google.maps.event.addListenerOnce(iw,'domready',()=>{
+      const del = document.getElementById(iwId+'-del');
+      if(del) del.onclick = ()=>{
+        clearInterval(anim);
+        circle.setMap(null);
+        const i=_animatedOverlays.indexOf(circle); if(i>=0) _animatedOverlays.splice(i,1);
+        closeAllInfoWindows();
+        showToast({icon:'🗑️',title:'אזור נמחק',type:'info',duration:2000});
+      };
+    });
+  });
+  showToast({icon:'⭕',title:'אזור ניטור נוסף',sub:'לחץ עליו למחיקה',type:'success',duration:3000});
 }
 
 function addPulseMarker(){
-  // Add an animated pulsing marker at map center using Leaflet DivIcon
   const center=map.getCenter();
-  const mk=new google.maps.Marker({position:center,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:12,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#3dff52',strokeWeight:3},title:'אות מעקב פעיל',zIndex:400});
+  const mk=new google.maps.Marker({
+    position:center,map,
+    icon:{path:_SVG_CIRCLE,scale:12,fillColor:'#3dff52',fillOpacity:0.85,strokeColor:'#3dff52',strokeWeight:3},
+    title:'אות מעקב פעיל',zIndex:400,
+  });
   _animatedOverlays.push(mk);
-  let _sc=12,_dir=1;const _pi=setInterval(()=>{_sc+=_dir*0.6;if(_sc>18||_sc<10)_dir=-_dir;mk.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:_sc,fillColor:'#3dff52',fillOpacity:0.7,strokeColor:'#3dff52',strokeWeight:2});},60);
-  showToast({icon:'📡',title:'סמן פעיל נוסף',type:'success'});
+  let _sc=12,_dir=1;
+  const _pi = setInterval(()=>{
+    _sc+=_dir*0.6; if(_sc>18||_sc<10)_dir=-_dir;
+    mk.setIcon({path:_SVG_CIRCLE,scale:_sc,fillColor:'#3dff52',fillOpacity:0.7,strokeColor:'#3dff52',strokeWeight:2});
+  },60);
+  mk._pulseInterval = _pi;
+  // Click to show info + delete button
+  const iwId = 'iwps-'+Date.now();
+  const iw = new google.maps.InfoWindow({
+    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:170px">
+      <div style="font-size:13px;font-weight:800;color:#2e7d32;margin-bottom:6px">📡 סמן מעקב פועם</div>
+      <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:5px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק סמן</button>
+    </div>`
+  });
+  mk.addListener('click', ()=>{
+    closeAllInfoWindows();
+    iw.open(map, mk);
+    _infoWindows.push(iw);
+    google.maps.event.addListenerOnce(iw,'domready',()=>{
+      const del = document.getElementById(iwId+'-del');
+      if(del) del.onclick = ()=>{
+        clearInterval(_pi);
+        mk.setMap(null);
+        const i=_animatedOverlays.indexOf(mk); if(i>=0) _animatedOverlays.splice(i,1);
+        closeAllInfoWindows();
+        showToast({icon:'🗑️',title:'סמן נמחק',type:'info',duration:2000});
+      };
+    });
+  });
+  showToast({icon:'📡',title:'סמן פועם נוסף',sub:'לחץ עליו למחיקה',type:'success',duration:3000});
 }
 
 function clearAnimatedLayers(){
@@ -7857,7 +7921,7 @@ function startBoundaryDraw(){
     // Add small dot at each point — tracked so we can clean up later
     const _dotMk = new google.maps.Marker({
       position:e.latLng,map:map,
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:4,fillColor:activeDrawColor,fillOpacity:1,strokeColor:'#fff',strokeWeight:1.5},
+      icon:{path:_SVG_CIRCLE,scale:4,fillColor:activeDrawColor,fillOpacity:1,strokeColor:'#fff',strokeWeight:1.5},
       zIndex:500,
     });
     _boundaryDots.push(_dotMk);
@@ -8168,7 +8232,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.25 source-code update because the merge in
+    // which survived our v6.8.26 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -8391,7 +8455,7 @@ function locateTeamOnMap(tid){
   members.forEach(p=>{
     const u=UNITS.find(x=>x.id===p.id.replace('P','U'));
     const lat=u?u.lat:(31.5+Math.random()*2);const lng=u?u.lng:(34.8+Math.random());
-    if(map&&window.google){const mk=new google.maps.Marker({position:{lat,lng},map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:t.color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},title:p.name,zIndex:300});_animatedOverlays.push(mk);}
+    if(map&&window.google){const mk=new google.maps.Marker({position:{lat,lng},map,icon:{path:_SVG_CIRCLE,scale:10,fillColor:t.color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},title:p.name,zIndex:300});_animatedOverlays.push(mk);}
   });
   showToast({icon:'📍',title:'כולם מוצגים במפה',sub:t.name+' · '+members.length+' חברים',type:'success'});
   if(currentPanel==='teams')goPanel('draw');
@@ -11717,7 +11781,56 @@ function toggleGeofenceVisibility(){
   showToast({icon:'⬡',title:_geofencesVisible?'גיאופנסים מוצגים':'גיאופנסים מוסתרים',type:'info'});
 }
 function takeMapSnapshot(){
-  showToast({icon:'📸',title:'צילום מפה',sub:'שמור ידנית עם Print Screen',type:'info'});
+  if(!window.map){ showToast({icon:'⚠️',title:'המפה לא מוכנה',type:'warn'}); return; }
+  const c = map.getCenter();
+  const z = Math.min(20, Math.max(1, map.getZoom()));
+  const typeMap = { roadmap:'roadmap', satellite:'satellite', hybrid:'hybrid', terrain:'terrain' };
+  const mt = typeMap[map.getMapTypeId()] || 'roadmap';
+  // Device pixel size, capped at Static API limit (640 per side for free tier; 1280 with scale=2)
+  const w = Math.min(640, Math.round(Math.min(window.innerWidth || 640, 1280) / 2));
+  const h = Math.min(640, Math.round(Math.min(window.innerHeight || 640, 1280) / 2));
+  const key = 'AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo';
+  // Add live personnel as red markers (up to 20 to keep URL under ~2000 chars)
+  const markerParts = [];
+  try{
+    const live = window._liveLocs || {};
+    let count = 0;
+    for(const k in live){
+      if(count >= 20) break;
+      const p = live[k];
+      if(p && p.lat && p.lng){
+        markerParts.push('markers=color:red%7Csize:small%7C'+p.lat+','+p.lng);
+        count++;
+      }
+    }
+  }catch(_){}
+  const url = 'https://maps.googleapis.com/maps/api/staticmap'
+    + '?center='+c.lat()+','+c.lng()
+    + '&zoom='+z
+    + '&size='+w+'x'+h
+    + '&scale=2'
+    + '&maptype='+mt
+    + '&language=he&region=IL'
+    + (markerParts.length ? '&'+markerParts.join('&') : '')
+    + '&key='+key;
+  showToast({icon:'📸',title:'מצלם מפה...',type:'info',duration:2000});
+  // Fetch → blob → download so the user gets a real file, not a new tab
+  fetch(url)
+    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'map_' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      showToast({icon:'✅',title:'המפה נשמרה',sub:a.download,type:'success',duration:3500});
+    })
+    .catch(e => {
+      console.warn('[snapshot] fetch failed, falling back to new tab:', e.message);
+      window.open(url, '_blank');
+      showToast({icon:'📸',title:'המפה נפתחה בכרטיסייה חדשה',sub:'לחץ ימני → שמור תמונה',type:'info',duration:5000});
+    });
 }
 
 // ── HEATMAP OF INCIDENTS ──
@@ -12011,7 +12124,7 @@ function togglePOILayer(type){
         map:window.map,
         title:place.name,
         label:{text:_poiIcons[type].icon,fontSize:'18px'},
-        icon:{path:google.maps.SymbolPath.CIRCLE,scale:14,fillColor:_poiIcons[type].color,fillOpacity:0.88,strokeColor:'#fff',strokeWeight:2}
+        icon:{path:_SVG_CIRCLE,scale:14,fillColor:_poiIcons[type].color,fillOpacity:0.88,strokeColor:'#fff',strokeWeight:2}
       });
       m.addListener('click',()=>{
         const iw = new google.maps.InfoWindow({content:
@@ -12099,7 +12212,7 @@ function startRouteDraw(){
     if(!_cmdRouteDrawing) return;
     _cmdRoutePoints.push(e.latLng);
     const m = new google.maps.Marker({position:e.latLng,map:window.map,label:String(_cmdRoutePoints.length),
-      icon:{path:google.maps.SymbolPath.CIRCLE,scale:12,fillColor:'#29c5f6',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2}});
+      icon:{path:_SVG_CIRCLE,scale:12,fillColor:'#29c5f6',fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2}});
     _cmdRouteMarkers.push(m);
     if(_cmdRoutePoints.length>=2){
       if(_cmdRoutePolyline) _cmdRoutePolyline.setMap(null);
@@ -15721,7 +15834,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.25)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.26)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -15884,7 +15997,7 @@ const FIELD = (() => {
       const color=method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107';
       if(_fmap){
         _fmap.setCenter(ll);
-        const icon={path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2};
+        const icon={path:_SVG_CIRCLE,scale:10,fillColor:color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2};
         if(!_fMarker){_fMarker=new google.maps.Marker({position:ll,map:_fmap,icon,zIndex:500});}
         else{_fMarker.setPosition(ll);_fMarker.setIcon(icon);}
       }
