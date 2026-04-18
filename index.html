@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.30 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.31 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.30</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.31</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.30</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.31</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2680,7 +2680,6 @@ function toggle3D(){
 function onMapClick(e){
   if(activeDrawMode==='point'){addDrawPoint(e.latLng);return;}
   if(activeDrawMode==='circle'){addDrawCircle(e.latLng);return;}
-  if(activeDrawMode==='route'){addRoutePoint(e.latLng);return;}
   // Left-click: only close any open InfoWindows — no popup
   closeAllInfoWindows();
 }
@@ -2764,12 +2763,10 @@ function showCtxMenu(latLng, pixel){
     {icon:'📋',label:'משימה חדשה כאן',          action:`closeAllInfoWindows();_nmLat=${latLng.lat()};_nmLng=${latLng.lng()};openNewMsnModal()`},
     {icon:'👤',label:'פרוס יחידה',               action:`closeAllInfoWindows();showToast({icon:'👤',title:'פריסת יחידה',sub:'${lat}°, ${lng}°',type:'info'})`},
     {icon:'⭕',label:'מעגל רדיוס (200מ)',         action:`closeAllInfoWindows();startCircleAt(_ctxLatLng)`},
-    {icon:'🛣️',label:'הוסף נקודת מסלול',        action:`closeAllInfoWindows();activateTool('route');addRoutePoint(_ctxLatLng)`},
     {icon:'⬡',label:'צור גיאופנס כאן',          action:`closeAllInfoWindows();addGF({lat:${latLng.lat()},lng:${latLng.lng()}})`},
     {icon:'🎯',label:'הגדר כמרכז המפה',          action:`closeAllInfoWindows();map.setCenter({lat:${latLng.lat()},lng:${latLng.lng()}})`},
     {icon:'🔍',label:'זום לנקודה זו',             action:`closeAllInfoWindows();map.setCenter({lat:${latLng.lat()},lng:${latLng.lng()}});map.setZoom(Math.min(19,map.getZoom()+2))`},
     {icon:'🧭',label:'נווט לנקודה זו',           action:`closeAllInfoWindows();goPanel('navigation');setTimeout(()=>{const t=document.getElementById('nav-to');if(t)t.value='${lat}, ${lng}';},100)`},
-    {icon:'📏',label:'מדוד מרחק מכאן',           action:`closeAllInfoWindows();activateTool('route');addRoutePoint(_ctxLatLng);showToast({icon:'📏',title:'מצב מדידה',sub:'לחץ נקודות נוספות למסלול',type:'info'})`},
     {icon:'📋',label:'העתק קואורדינטות',         action:`closeAllInfoWindows();navigator.clipboard.writeText('${lat}, ${lng}');showToast({icon:'📋',title:'הועתק',sub:'${lat}°צ, ${lng}°מ',type:'success',duration:2000})`},
     {icon:'👁️',label:'Street View',              action:`closeAllInfoWindows();openStreetView(${latLng.lat()},${latLng.lng()})`},
     {icon:'🌍',label:'פתח ב-Google Maps',        action:`closeAllInfoWindows();window.open('https://maps.google.com/?q=${lat},${lng}','_blank')`},
@@ -3254,115 +3251,18 @@ function locateMe(showToastOnSuccess){
 
 // ── DRAWING TOOLS ──
 function activateTool(mode){
-  // Clean any in-progress route state so the tool always starts fresh
-  if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
-  if(typeof _routeDots!=='undefined'){ _routeDots.forEach(m=>{try{m.setMap(null);}catch(_){}}); _routeDots=[]; }
-  if(typeof _routePoints!=='undefined') _routePoints=[];
-  if(typeof _routeMeta!=='undefined') _routeMeta=null;
-
   activeDrawMode=mode;
   drawPoints=[];
-  const labels={point:'📍 לחץ על המפה להנחת סימן',circle:'⭕ לחץ על המפה למרכז המעגל',route:'🛣️ לחץ נקודות מסלול · דאבל־קליק או "סיים" בסוף'};
+  if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
+  const labels={point:'📍 לחץ על המפה להנחת סימן',circle:'⭕ לחץ על המפה למרכז המעגל'};
   showToast({icon:'✏️',title:'כלי: '+(labels[mode]||mode),type:'info',duration:4000});
   map.setOptions({cursor:'crosshair'});
-
-  if(mode === 'route'){
-    if(window._routeDblListener) google.maps.event.removeListener(window._routeDblListener);
-    window._routeDblListener = map.addListener('dblclick', ()=>{
-      if(activeDrawMode === 'route' && _routePoints.length >= 2){ finishRouteDraw(); }
-    });
-    _showRouteCtrlBar();
-  } else {
-    _hideRouteCtrlBar();
-    if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
-  }
 }
 function deactivateTool(){activeDrawMode=null;map.setOptions({cursor:''});}
-
-// ── ROUTE CONTROL BAR — floating top bar while route mode is active ──
-function _showRouteCtrlBar(){
-  let bar = document.getElementById('route-ctrl-bar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'route-ctrl-bar';
-    bar.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(10,15,20,0.96);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;color:#fff;z-index:9999;font-family:var(--font);display:flex;gap:8px;align-items:center;box-shadow:0 4px 18px rgba(0,0,0,0.5);direction:rtl;flex-wrap:wrap;max-width:calc(100vw - 24px)';
-    document.body.appendChild(bar);
-  }
-  bar.innerHTML = '<span style="font-size:13px;font-weight:700">🛣️ מצב מסלול</span>'
-    +'<span id="route-ctrl-pts" style="font-size:11px;color:var(--accent2)">0 נקודות</span>'
-    +'<button id="route-finish-btn" onclick="event.stopPropagation();finishRouteDraw();return false;" style="background:rgba(61,255,82,0.15);border:1px solid var(--accent);color:var(--accent);padding:5px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-family:var(--font);font-size:12px">✅ סיים</button>'
-    +'<button onclick="event.stopPropagation();cancelRouteDraw();return false;" style="background:rgba(255,51,51,0.12);border:1px solid var(--danger);color:var(--danger);padding:5px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-family:var(--font);font-size:12px">✕ בטל</button>';
-  bar.style.display = 'flex';
-}
-function _hideRouteCtrlBar(){
-  const bar = document.getElementById('route-ctrl-bar');
-  if(bar) bar.style.display = 'none';
-}
-// Count points — polyline's path is authoritative since we mutate it
-// on every addRoutePoint. _routePoints is a mirror, window._routePoints
-// is a backup if the closure's _routePoints is somehow empty.
-function _getRoutePointCount(){
-  let n = 0;
-  if(typeof drawPolyline !== 'undefined' && drawPolyline){
-    try{ n = drawPolyline.getPath().getLength(); }catch(_){}
-  }
-  if(n < 2){
-    try{ if(typeof _routePoints !== 'undefined' && _routePoints.length > n) n = _routePoints.length; }catch(_){}
-    try{ if(window._routePoints && window._routePoints.length > n) n = window._routePoints.length; }catch(_){}
-  }
-  return n;
-}
-function _updateRouteCtrlPts(){
-  const n = _getRoutePointCount();
-  const el = document.getElementById('route-ctrl-pts');
-  if(el) el.textContent = n + ' נקודות';
-  // Note: finish button is NEVER disabled anymore — the 'disabled' attribute
-  // was preventing click events from firing on some mobile WebViews even
-  // when state said it should be enabled. finishRouteDraw does the check
-  // internally and toasts if insufficient.
-}
-function finishRouteDraw(){
-  // Try every possible source for the point count — whichever has ≥2 wins.
-  let polyN = 0, pointsN = 0, dotsN = 0;
-  try{ if(drawPolyline && drawPolyline.getPath) polyN = drawPolyline.getPath().getLength(); }catch(_){}
-  try{ if(typeof _routePoints !== 'undefined') pointsN = _routePoints.length; }catch(_){}
-  try{ if(typeof _routeDots !== 'undefined') dotsN = _routeDots.length; }catch(_){}
-  const n = Math.max(polyN, pointsN, dotsN);
-  console.log('[finishRouteDraw] poly=', polyN, 'points=', pointsN, 'dots=', dotsN, '→ n=', n);
-  if(n < 2){
-    showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',sub:'poly='+polyN+' pts='+pointsN+' dots='+dotsN,type:'warn',duration:5000});
-    return;
-  }
-  // If we have dots/points but no polyline (shouldn't normally happen but be
-  // defensive), rebuild the polyline from whichever source has the path data.
-  if(!drawPolyline || !drawPolyline.getPath || drawPolyline.getPath().getLength() < 2){
-    const src = (pointsN >= 2) ? _routePoints : _routeDots.map(m=>m.getPosition());
-    if(drawPolyline) try{ drawPolyline.setMap(null); }catch(_){}
-    drawPolyline = new google.maps.Polyline({
-      map, path: src, strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,
-      strokeWeight:3, strokeOpacity:0.85
-    });
-  }
-  _hideRouteCtrlBar();
-  if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
-  deactivateTool();
-  // Open the metadata popup at the polyline's midpoint
-  if(drawPolyline && drawPolyline.getPath){
-    const path = drawPolyline.getPath();
-    const mid = path.getAt(Math.floor(path.getLength()/2));
-    google.maps.event.trigger(drawPolyline, 'click', {latLng: mid});
-  }
-  showToast({icon:'🛣️',title:'מסלול הושלם',sub:n+' נקודות — הוסף פרטים',type:'success',duration:4000});
-}
-function cancelRouteDraw(){
-  _hideRouteCtrlBar();
-  if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
-  if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
-  if(typeof _routeDots!=='undefined'){ _routeDots.forEach(m=>{try{m.setMap(null);}catch(_){}}); _routeDots=[]; }
-  _routePoints=[]; _routeMeta=null;
-  deactivateTool();
-  showToast({icon:'✕',title:'מסלול בוטל',type:'info',duration:2000});
-}
+// Route drawing removed — the old finishRouteDraw/cancelRouteDraw are
+// handled by the command-route module at line ~12082 onwards. We no
+// longer define them here.
+function cancelRouteDraw(){ /* no-op — drawing tool route was removed */ }
 
 function setDrawColor(col,el){
   activeDrawColor=col;
@@ -3516,97 +3416,19 @@ function addDrawCircle(latLng){
   deactivateTool();
   showToast({icon:'⭕',title:'מעגל נוסף',sub:radius+'מ — לחץ עליו לעריכה או מחיקה',type:'success'});
 }
+// Route drawing removed — the point-counting logic was brittle across
+// browsers/mobile. Legacy globals kept as empty stubs so clearAll and
+// any cached older JS don't ReferenceError.
 let _routePoints=[];
-let _routeDots=[]; // dot markers along the route — tracked so clearAll can remove them
-let _routeMeta=null; // { name, team, color, notes }
-function addRoutePoint(latLng){
-  _routePoints.push(latLng);
-  window._routePoints = _routePoints; // expose for onclick handlers in inline HTML
-  // Keep a single persistent polyline — extending its path rather than
-  // destroying and recreating. This way drawPolyline.getPath() is always
-  // an accurate source of truth for the finish check.
-  if(!drawPolyline){
-    drawPolyline = new google.maps.Polyline({
-      map,
-      path:[latLng],
-      strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,
-      strokeWeight:3,
-      strokeOpacity:0.85
-    });
-  } else {
-    drawPolyline.getPath().push(latLng);
-  }
-  _updateRouteCtrlPts();
-  if(_routePoints.length>=2 && !drawPolyline.__clickWired){
-    drawPolyline.__clickWired = true;
-    const iwId = 'iwrt-'+Date.now();
-    drawPolyline.addListener('click', e=>{
-      closeAllInfoWindows();
-      const meta = _routeMeta || {};
-      const palette = ['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'];
-      const swatches = palette.map(col => `<span class="${iwId}-clr" data-c="${col}" style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${col};cursor:pointer;border:2px solid ${col===(drawPolyline.get('strokeColor')||activeDrawColor)?'#000':'#ccc'};margin:2px"></span>`).join('');
-      const iw=new google.maps.InfoWindow({
-        content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:220px">
-          <div style="font-size:13px;font-weight:800;color:#333;margin-bottom:6px">🛣️ מסלול</div>
-          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">שם המסלול:</label>
-            <input id="${iwId}-name" type="text" value="${(meta.name||'').replace(/"/g,'&quot;')}" placeholder="למשל: סיור לילה 3" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif"/></div>
-          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">צוות / אנשי צוות:</label>
-            <input id="${iwId}-team" type="text" value="${(meta.team||'').replace(/"/g,'&quot;')}" placeholder="כיתה א׳ / ברק + נפתלי" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif"/></div>
-          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">הערות:</label>
-            <textarea id="${iwId}-notes" rows="2" placeholder="מסלול מרדף / פינוי..." style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif;resize:vertical">${(meta.notes||'').replace(/</g,'&lt;')}</textarea></div>
-          <div style="margin-bottom:8px"><label style="font-size:11px;color:#555">צבע:</label><div style="display:flex;flex-wrap:wrap">${swatches}</div></div>
-          <div style="display:flex;gap:6px">
-            <button id="${iwId}-save" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:5px 14px;color:#0a7cb8;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">💾 שמור</button>
-            <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:5px 14px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק מסלול</button>
-          </div>
-        </div>`,
-        position: e.latLng,
-      });
-      iw.open(map);
-      _infoWindows.push(iw);
-      google.maps.event.addListenerOnce(iw,'domready',()=>{
-        let chosenCol = drawPolyline.get('strokeColor') || activeDrawColor;
-        document.querySelectorAll('.'+iwId+'-clr').forEach(el=>{
-          el.addEventListener('click', ()=>{
-            chosenCol = el.dataset.c;
-            document.querySelectorAll('.'+iwId+'-clr').forEach(x=>x.style.border='2px solid #ccc');
-            el.style.border='2px solid #000';
-          });
-        });
-        const delBtn=document.getElementById(iwId+'-del');
-        if(delBtn) delBtn.onclick=()=>{
-          if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
-          _routeDots.forEach(m=>{try{m.setMap(null);}catch(_){}}); _routeDots=[];
-          _routePoints=[]; _routeMeta=null;
-          closeAllInfoWindows();
-          showToast({icon:'🗑️',title:'מסלול נמחק',type:'info',duration:2000});
-        };
-        const saveBtn=document.getElementById(iwId+'-save');
-        if(saveBtn) saveBtn.onclick=()=>{
-          _routeMeta = {
-            name: document.getElementById(iwId+'-name').value.trim(),
-            team: document.getElementById(iwId+'-team').value.trim(),
-            notes: document.getElementById(iwId+'-notes').value.trim(),
-            color: chosenCol
-          };
-          drawPolyline.setOptions({strokeColor: chosenCol});
-          _routeDots.forEach(m=>{ try{ m.setIcon({path:_SVG_CIRCLE,scale:5,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5}); }catch(_){} });
-          closeAllInfoWindows();
-          showToast({icon:'✅',title:'פרטי מסלול נשמרו',sub:_routeMeta.name||'ללא שם',type:'success',duration:2500});
-        };
-      });
-    });
-  }
-  const dotMk = new google.maps.Marker({position:latLng,map,icon:{path:_SVG_CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
-  _routeDots.push(dotMk);
-}
+let _routeDots=[];
+let _routeMeta=null;
+function addRoutePoint(){ /* route tool removed */ }
+function _updateRouteCtrlPts(){ /* no-op */ }
 function startCircleAt(latLng){activateTool('circle');addDrawCircle(latLng);}
 function clearAll(){
   Object.entries(_markers).filter(([k])=>k.startsWith('d_')).forEach(([k,m])=>{m.setMap(null);delete _markers[k];});
   Object.entries(_circles).filter(([k])=>k.startsWith('d_')).forEach(([k,c])=>{c.setMap(null);delete _circles[k];});
   if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
-  _routeDots.forEach(m=>{ try{ m.setMap(null); }catch(_){} }); _routeDots=[];
-  _routePoints=[]; _routeMeta=null;
   _animatedOverlays.forEach(o=>{if(o.setMap)o.setMap(null);});_animatedOverlays=[];
   closeAllInfoWindows();
   showToast({icon:'🗑️',title:'מפה נוקתה',type:'info',duration:2000});
@@ -4269,7 +4091,6 @@ function renderDrawP(c){
   <div class="mp-grid">
     <button class="mp-btn" onclick="activateTool('point')"><span>📍</span><span class="mp-btn-label">סימן</span></button>
     <button class="mp-btn" onclick="activateTool('circle')"><span>⭕</span><span class="mp-btn-label">מעגל</span></button>
-    <button class="mp-btn" onclick="activateTool('route')"><span>🛣️</span><span class="mp-btn-label">מסלול</span></button>
     <button class="mp-btn" onclick="clearAll()"><span>🗑️</span><span class="mp-btn-label">נקה הכל</span></button>
   </div>
 
@@ -8270,7 +8091,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.30 source-code update because the merge in
+    // which survived our v6.8.31 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15893,7 +15714,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.30)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.31)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
