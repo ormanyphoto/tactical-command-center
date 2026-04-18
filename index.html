@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.36 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.37 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.36</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.37</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.36</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.37</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8179,7 +8179,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.36 source-code update because the merge in
+    // which survived our v6.8.37 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12235,7 +12235,6 @@ function quickEmergency(){
   if(!confirm('שלח הודעת חירום מהירה לכל הכוחות עם המיקום הנוכחי?')) return;
   const u = AUTH.getUser();
   if(!u){ showToast({icon:'⚠️',title:'לא מחובר',type:'warn'}); return; }
-  if(!window._db){ showToast({icon:'⚠️',title:'אין חיבור לשרת',type:'warn'}); return; }
 
   // Enable location publishing
   if(window._locPrivacyOn === false){
@@ -12265,19 +12264,46 @@ function quickEmergency(){
       sentAt: Date.now(),
       venues: (lat && lng) ? [{id:'v1', label:'מיקום השולח', address:addr, lat, lng, color:'#ff3333'}] : []
     };
-    // Write notifications for each recipient
+    // REST API writes (same fix as SOS + equipment sync) — the SDK .set()
+    // was silently failing when Firebase anon auth wasn't ready, so
+    // recipients never saw the emergency broadcast.
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
     const writes = recipients.map(rid =>
-      window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload)
-        .catch(()=>_queueOfflineAction('set','tac_notifications/'+rid+'/'+notifId,payload))
+      fetch(DB+'/tac_notifications/'+rid+'/'+notifId+'.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      }).then(r=>{ if(!r.ok) throw new Error(rid+' HTTP '+r.status); })
+        .catch(e => {
+          console.warn('[emerg] write failed for', rid, e.message);
+          if(typeof _queueOfflineAction==='function') _queueOfflineAction('set','tac_notifications/'+rid+'/'+notifId, payload);
+        })
     );
-    // Also save as a notif marker for the map
+    // Map marker via REST
     if(lat && lng){
-      window._db.ref('tac_notif_markers/'+notifId).set({
-        id: notifId, type:'alert', typeLabel:'חירום מהיר',
-        lat, lng, address: addr, senderName: u.name, sentAt: Date.now(),
-        title: payload.title, body: payload.body
-      }).catch(()=>{});
+      fetch(DB+'/tac_notif_markers/'+notifId+'.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          id: notifId, type:'alert', typeLabel:'חירום מהיר',
+          lat, lng, address: addr, senderName: u.name, sentAt: Date.now(),
+          title: payload.title, body: payload.body
+        })
+      }).catch(e => console.warn('[emerg] marker write failed:', e.message));
     }
+    // Also parallel via SDK so realtime listeners get instant child_added
+    try{
+      if(window._db){
+        recipients.forEach(rid => {
+          try{ window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload).catch(()=>{}); }catch(_){}
+        });
+        if(lat && lng){
+          try{ window._db.ref('tac_notif_markers/'+notifId).set({
+            id: notifId, type:'alert', typeLabel:'חירום מהיר',
+            lat, lng, address: addr, senderName: u.name, sentAt: Date.now(),
+            title: payload.title, body: payload.body
+          }).catch(()=>{}); }catch(_){}
+        }
+      }
+    }catch(_){}
     // Push via FCM
     if(typeof PUSH !== 'undefined' && PUSH.sendPush){
       PUSH.sendPush(recipients, payload);
@@ -12285,8 +12311,9 @@ function quickEmergency(){
     Promise.all(writes).then(()=>{
       auditLog('הודעת חירום מהירה','danger',recipients.length+' נמענים • '+addr);
       showToast({icon:'⚡',title:'חירום נשלח ל-'+recipients.length,sub:addr,type:'danger',duration:6000});
-    }).catch(()=>{
-      showToast({icon:'⚠️',title:'שגיאה בשליחה',type:'warn'});
+    }).catch(err=>{
+      console.error('[emerg] batch failed:', err);
+      showToast({icon:'⚠️',title:'שגיאה חלקית בשליחה',sub:(err && err.message)||'',type:'warn',duration:6000});
     });
   };
 
@@ -14150,11 +14177,16 @@ function openMassNotifModal(){
       title, body, senderName:u?u.name:'מערכת', senderId:u?u.id:'',
       sentAt:Date.now()
     };
-    if(window._db){
-      recipients.forEach(rid=>{
-        window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload).catch(()=>{});
-      });
-    }
+    // REST primary (works without SDK auth) + SDK parallel (for instant
+    // realtime listener delivery)
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    recipients.forEach(rid=>{
+      fetch(DB+'/tac_notifications/'+rid+'/'+notifId+'.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      }).catch(e=>console.warn('[broadcast] REST failed for', rid, e.message));
+      try{ if(window._db) window._db.ref('tac_notifications/'+rid+'/'+notifId).set(payload).catch(()=>{}); }catch(_){}
+    });
     if(typeof PUSH!=='undefined' && PUSH.sendPush) PUSH.sendPush(recipients, payload);
     auditLog('שידור המוני: '+title,'warn',recipients.length+' נמענים');
     showToast({icon:'📢',title:'שודר ל-'+recipients.length+' אנשים',type:'success'});
@@ -15821,7 +15853,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.36)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.37)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
