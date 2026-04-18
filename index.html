@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.22 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.23 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.22</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.23</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.22</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.23</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3249,12 +3249,20 @@ function setDrawColor(col,el){
   document.querySelectorAll('#draw-clr .clr-dot').forEach(d=>d.classList.remove('sel'));
   if(el)el.classList.add('sel');
 }
-function _drawDeleteIW(label, onDelete){
+// Build a small popup with a delete button. onDelete is called directly
+// (not serialized) via domready DOM binding, so the closure is preserved.
+function _drawDeleteIW(label, onDelete, extraHtml){
+  const iwId = 'iw-'+Date.now()+'-'+Math.floor(Math.random()*9999);
   const iw = new google.maps.InfoWindow({
-    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
+    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:160px">
       <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">${label}</div>
-      <button onclick="(${onDelete.toString()})()" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק</button>
+      ${extraHtml||''}
+      <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק סימון</button>
     </div>`
+  });
+  google.maps.event.addListener(iw, 'domready', () => {
+    const btn = document.getElementById(iwId + '-del');
+    if(btn) btn.onclick = () => { try{ onDelete(); }catch(e){ console.warn('[iw delete]', e); } closeAllInfoWindows(); };
   });
   return iw;
 }
@@ -3268,66 +3276,132 @@ function addDrawPoint(latLng){
   });
   _markers[key]=mk;
   const iw=_drawDeleteIW('📍 סימן', function(){
-    mk.setMap(null); delete _markers[key]; closeAllInfoWindows();
+    mk.setMap(null); delete _markers[key];
   });
   mk.addListener('click',()=>{closeAllInfoWindows();iw.open(map,mk);_infoWindows.push(iw);});
   deactivateTool();
+  showToast({icon:'📍',title:'סימן נוסף',sub:'לחץ עליו כדי למחוק או לעדכן',type:'info',duration:2500});
 }
 function addDrawCircle(latLng){
+  // Prompt for radius in meters
+  const rStr = prompt('רדיוס מעגל (במטרים):', '200');
+  if(rStr === null){ deactivateTool(); return; }
+  const radius = Math.max(1, parseInt(rStr, 10) || 200);
   const key='d_'+Date.now();
-  const c=new google.maps.Circle({map,center:latLng,radius:200,strokeColor:activeDrawColor,strokeOpacity:0.8,strokeWeight:2,fillColor:activeDrawColor,fillOpacity:0.08});
+  const c=new google.maps.Circle({map,center:latLng,radius,strokeColor:activeDrawColor,strokeOpacity:0.8,strokeWeight:2,fillColor:activeDrawColor,fillOpacity:0.08,editable:true});
   _circles[key]=c;
-  const iw=new google.maps.InfoWindow({
-    content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
-      <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">⭕ מעגל</div>
-      <button id="del-circ-${key}" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק</button>
-    </div>`,
-    position: latLng,
-  });
+  // InfoWindow with radius editor + delete
+  const iwId = 'iwc-'+key;
+  const _makeContent = () => `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:180px">
+    <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">⭕ מעגל · ${Math.round(c.getRadius())}מ</div>
+    <div style="display:flex;gap:4px;margin-bottom:6px;align-items:center">
+      <label style="font-size:11px;color:#555">רדיוס:</label>
+      <input id="${iwId}-r" type="number" min="1" value="${Math.round(c.getRadius())}" style="width:70px;padding:3px 6px;border:1px solid #bbb;border-radius:4px;font-size:11px;font-family:monospace"/>
+      <button id="${iwId}-apply" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:3px 8px;color:#0a7cb8;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:600">עדכן</button>
+    </div>
+    <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק מעגל</button>
+  </div>`;
+  const iw = new google.maps.InfoWindow({content:_makeContent(),position:latLng});
   c.addListener('click', e=>{
     closeAllInfoWindows();
+    iw.setContent(_makeContent());
     iw.setPosition(e.latLng);
     iw.open(map);
     _infoWindows.push(iw);
     google.maps.event.addListenerOnce(iw,'domready',()=>{
-      const btn=document.getElementById('del-circ-'+key);
-      if(btn) btn.onclick=()=>{c.setMap(null);delete _circles[key];closeAllInfoWindows();};
+      const del = document.getElementById(iwId+'-del');
+      const apply = document.getElementById(iwId+'-apply');
+      const rIn = document.getElementById(iwId+'-r');
+      if(del) del.onclick = ()=>{c.setMap(null);delete _circles[key];closeAllInfoWindows();};
+      if(apply && rIn) apply.onclick = ()=>{
+        const nr = Math.max(1, parseInt(rIn.value,10)||c.getRadius());
+        c.setRadius(nr);
+        closeAllInfoWindows();
+        showToast({icon:'⭕',title:'רדיוס עודכן',sub:nr+'מ',type:'success',duration:2000});
+      };
     });
   });
   deactivateTool();
-  showToast({icon:'⭕',title:'מעגל רדיוס נוסף',sub:'200מ — לחץ למחיקה',type:'success'});
+  showToast({icon:'⭕',title:'מעגל נוסף',sub:radius+'מ — לחץ עליו לעריכה או מחיקה',type:'success'});
 }
 let _routePoints=[];
+let _routeDots=[]; // dot markers along the route — tracked so clearAll can remove them
+let _routeMeta=null; // { name, team, color, notes }
 function addRoutePoint(latLng){
   _routePoints.push(latLng);
   if(_routePoints.length>=2){
     if(drawPolyline){drawPolyline.setMap(null);}
-    drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:activeDrawColor,strokeWeight:3,strokeOpacity:0.85});
+    drawPolyline=new google.maps.Polyline({map,path:_routePoints,strokeColor:(_routeMeta&&_routeMeta.color)||activeDrawColor,strokeWeight:3,strokeOpacity:0.85});
+    const iwId = 'iwrt-'+Date.now();
     drawPolyline.addListener('click', e=>{
       closeAllInfoWindows();
+      const meta = _routeMeta || {};
+      const palette = ['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'];
+      const swatches = palette.map(col => `<span class="${iwId}-clr" data-c="${col}" style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${col};cursor:pointer;border:2px solid ${col===(drawPolyline.get('strokeColor')||activeDrawColor)?'#000':'#ccc'};margin:2px"></span>`).join('');
       const iw=new google.maps.InfoWindow({
-        content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px">
-          <div style="font-size:12px;font-weight:700;color:#333;margin-bottom:6px">🛣️ מסלול</div>
-          <button id="del-route-btn" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק מסלול</button>
+        content:`<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:220px">
+          <div style="font-size:13px;font-weight:800;color:#333;margin-bottom:6px">🛣️ מסלול</div>
+          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">שם המסלול:</label>
+            <input id="${iwId}-name" type="text" value="${(meta.name||'').replace(/"/g,'&quot;')}" placeholder="למשל: סיור לילה 3" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif"/></div>
+          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">צוות / אנשי צוות:</label>
+            <input id="${iwId}-team" type="text" value="${(meta.team||'').replace(/"/g,'&quot;')}" placeholder="כיתה א׳ / ברק + נפתלי" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif"/></div>
+          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">הערות:</label>
+            <textarea id="${iwId}-notes" rows="2" placeholder="מסלול מרדף / פינוי..." style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif;resize:vertical">${(meta.notes||'').replace(/</g,'&lt;')}</textarea></div>
+          <div style="margin-bottom:8px"><label style="font-size:11px;color:#555">צבע:</label><div style="display:flex;flex-wrap:wrap">${swatches}</div></div>
+          <div style="display:flex;gap:6px">
+            <button id="${iwId}-save" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:5px 14px;color:#0a7cb8;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">💾 שמור</button>
+            <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:5px 14px;color:#c62828;cursor:pointer;font-size:12px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק מסלול</button>
+          </div>
         </div>`,
         position: e.latLng,
       });
       iw.open(map);
       _infoWindows.push(iw);
       google.maps.event.addListenerOnce(iw,'domready',()=>{
-        const btn=document.getElementById('del-route-btn');
-        if(btn) btn.onclick=()=>{if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}_routePoints=[];closeAllInfoWindows();};
+        let chosenCol = drawPolyline.get('strokeColor') || activeDrawColor;
+        document.querySelectorAll('.'+iwId+'-clr').forEach(el=>{
+          el.addEventListener('click', ()=>{
+            chosenCol = el.dataset.c;
+            document.querySelectorAll('.'+iwId+'-clr').forEach(x=>x.style.border='2px solid #ccc');
+            el.style.border='2px solid #000';
+          });
+        });
+        const delBtn=document.getElementById(iwId+'-del');
+        if(delBtn) delBtn.onclick=()=>{
+          if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
+          _routeDots.forEach(m=>{try{m.setMap(null);}catch(_){}}); _routeDots=[];
+          _routePoints=[]; _routeMeta=null;
+          closeAllInfoWindows();
+          showToast({icon:'🗑️',title:'מסלול נמחק',type:'info',duration:2000});
+        };
+        const saveBtn=document.getElementById(iwId+'-save');
+        if(saveBtn) saveBtn.onclick=()=>{
+          _routeMeta = {
+            name: document.getElementById(iwId+'-name').value.trim(),
+            team: document.getElementById(iwId+'-team').value.trim(),
+            notes: document.getElementById(iwId+'-notes').value.trim(),
+            color: chosenCol
+          };
+          drawPolyline.setOptions({strokeColor: chosenCol});
+          _routeDots.forEach(m=>{ try{ m.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5}); }catch(_){} });
+          closeAllInfoWindows();
+          showToast({icon:'✅',title:'פרטי מסלול נשמרו',sub:_routeMeta.name||'ללא שם',type:'success',duration:2500});
+        };
       });
     });
   }
-  new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
+  const dotMk = new google.maps.Marker({position:latLng,map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:1.5},zIndex:250});
+  _routeDots.push(dotMk);
 }
 function startCircleAt(latLng){activateTool('circle');addDrawCircle(latLng);}
 function clearAll(){
   Object.entries(_markers).filter(([k])=>k.startsWith('d_')).forEach(([k,m])=>{m.setMap(null);delete _markers[k];});
   Object.entries(_circles).filter(([k])=>k.startsWith('d_')).forEach(([k,c])=>{c.setMap(null);delete _circles[k];});
   if(drawPolyline){drawPolyline.setMap(null);drawPolyline=null;}
-  _routePoints=[];_animatedOverlays.forEach(o=>{if(o.setMap)o.setMap(null);});_animatedOverlays=[];
+  _routeDots.forEach(m=>{ try{ m.setMap(null); }catch(_){} }); _routeDots=[];
+  _routePoints=[]; _routeMeta=null;
+  _animatedOverlays.forEach(o=>{if(o.setMap)o.setMap(null);});_animatedOverlays=[];
+  closeAllInfoWindows();
   showToast({icon:'🗑️',title:'מפה נוקתה',type:'info',duration:2000});
 }
 function addGF(pos){
@@ -4001,7 +4075,6 @@ function renderDrawP(c){
     <button class="mp-btn" onclick="clearAdminBoundaries()"><span>✕</span><span class="mp-btn-label">נקה גבולות</span></button>
   </div>
   <button class="btn-pri" onclick="startBoundaryDraw()" style="margin:6px 0 4px">✏️ צייר גבול ידני</button>
-  <button class="btn-sec" onclick="cancelBoundaryDraw()">✕ בטל ציור</button>
   <button class="btn-sec" onclick="clearSavedBoundaries()">🗑️ נקה גבולות ידניים</button>
   <div class="sec-hd" style="margin-top:10px">🎨 צבע ציור</div>
   <div class="clr-row" id="draw-clr">
@@ -7943,7 +8016,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.22 source-code update because the merge in
+    // which survived our v6.8.23 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15496,7 +15569,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.22)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.23)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
