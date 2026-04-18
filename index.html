@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.21 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.22 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.21</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.22</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.21</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.22</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7590,7 +7590,12 @@ function savePermissions(){
 let _boundaryDrawing=false;
 let _boundaryPoints=[];
 let _boundaryPolyline=null;
+let _boundaryDots=[]; // point markers placed during drawing — need to clean up on finish/cancel
 let _savedBoundaries=[];
+function _clearBoundaryDots(){
+  _boundaryDots.forEach(m => { try{ m.setMap(null); }catch(_){} });
+  _boundaryDots = [];
+}
 
 function _updateDrawCtrlPts(){
   const el=document.getElementById('draw-ctrl-pts');
@@ -7624,12 +7629,13 @@ function startBoundaryDraw(){
       strokeOpacity:0.9,
       icons:[{icon:{path:google.maps.SymbolPath.FORWARD_CLOSED_ARROW,scale:3},offset:'100%'}],
     });
-    // Add small dot at each point
-    new google.maps.Marker({
+    // Add small dot at each point — tracked so we can clean up later
+    const _dotMk = new google.maps.Marker({
       position:e.latLng,map:map,
       icon:{path:google.maps.SymbolPath.CIRCLE,scale:4,fillColor:activeDrawColor,fillOpacity:1,strokeColor:'#fff',strokeWeight:1.5},
       zIndex:500,
     });
+    _boundaryDots.push(_dotMk);
     showToast({icon:'📍',title:'נקודה '+_boundaryPoints.length+' נוספה',sub:'לחץ שוב לנקודה נוספת · כפל-לחיצה לסיום',type:'info',duration:1500});
   });
   // Double-click to finish
@@ -7668,6 +7674,7 @@ function _finalizeBoundary(name){
   }catch(e){}
 
   _boundaryPoints=[];
+  _clearBoundaryDots(); // polygon now renders the vertices — dots are redundant
   showToast({icon:'🏛️',title:'גבול נשמר',sub:name+' ('+coords.length+' נקודות)',type:'success'});
 }
 
@@ -7710,9 +7717,19 @@ function finishBoundaryDraw(){
 }
 
 function cancelBoundaryDraw(){
+  // Always clean up state, even if called after drawing mode already ended —
+  // dots may still be on the map from an interrupted draw session.
+  const hadDots = _boundaryDots.length > 0;
+  const wasDrawing = _boundaryDrawing;
   _stopBoundaryDrawMode();
   _boundaryPoints=[];
-  showToast({icon:'✕',title:'ציור בוטל',type:'info',duration:2000});
+  _clearBoundaryDots();
+  if(_boundaryPolyline){ _boundaryPolyline.setMap(null); _boundaryPolyline=null; }
+  if(wasDrawing || hadDots){
+    showToast({icon:'✕',title:'ציור בוטל',type:'info',duration:2000});
+  } else {
+    showToast({icon:'ℹ',title:'אין ציור פעיל',type:'info',duration:1500});
+  }
 }
 
 function loadSavedBoundaries(){
@@ -7740,6 +7757,9 @@ function clearSavedBoundaries(){
   _savedBoundaries.forEach(function(b){if(b.poly)b.poly.setMap(null);});
   _savedBoundaries=[];
   localStorage.removeItem('tac_boundaries');
+  // Also clear any lingering point markers from an interrupted draw session
+  _clearBoundaryDots();
+  if(_boundaryPolyline){ _boundaryPolyline.setMap(null); _boundaryPolyline=null; }
   showToast({icon:'🗑️',title:'גבולות נוקו',type:'info',duration:2000});
 }
 
@@ -7923,7 +7943,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.21 source-code update because the merge in
+    // which survived our v6.8.22 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -11597,18 +11617,13 @@ setTimeout(_fallbackLoadLocations, 3000);
 // ══════════════════════════════════════════════════════════
 let _addressLayer = null;
 let _addressLayerPrevStyles = null; // saved base style so we can restore on toggle-off
-// Style that blanks out Google's base rendering (roads, labels, POIs) so the
-// OSM overlay is the only thing the user sees — otherwise the two maps compete.
+// Hide only Google's POIs so OSM buildings/labels don't compete with
+// Google's. Keep Google's roads+names visible as a reliable base layer —
+// OSM data for Israel is sparse in many areas and the overlay alone leaves
+// the user staring at a near-empty map.
 const _ADDRESS_BASE_STYLE = [
-  { elementType: 'labels',           stylers: [{ visibility: 'off' }] },
-  { elementType: 'geometry.stroke',  stylers: [{ visibility: 'off' }] },
-  { featureType: 'road',             elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road',             elementType: 'geometry', stylers: [{ color: '#e8e8e8' }] },
-  { featureType: 'poi',              stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',          stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative',   elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water',            elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'landscape',        elementType: 'labels', stylers: [{ visibility: 'off' }] }
+  { featureType: 'poi',     stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] }
 ];
 function toggleAddressLayer(){
   if(!window.map || !window._googleReady){
@@ -11647,7 +11662,7 @@ function toggleAddressLayer(){
     minZoom: 10,
     name: 'כתובות ומבנים',
     alt: 'כתובות ומבנים (OSM)',
-    opacity: 1.0,
+    opacity: 0.65,
     getTile: function(coord, zoom, ownerDoc){
       const div = ownerDoc.createElement('div');
       div.style.width = '256px';
@@ -15481,7 +15496,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.21)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.22)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
