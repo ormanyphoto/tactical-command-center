@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.24 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.25 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.24</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.25</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.24</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.25</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3279,24 +3279,39 @@ function _hideRouteCtrlBar(){
   const bar = document.getElementById('route-ctrl-bar');
   if(bar) bar.style.display = 'none';
 }
+// Source of truth = the polyline's path if present, else _routePoints.
+// The polyline is mutated via push() on its path when we draw, so its
+// length is authoritative even if _routePoints gets out of sync.
+function _getRoutePointCount(){
+  let n = 0;
+  try{ n = (typeof _routePoints !== 'undefined') ? _routePoints.length : 0; }catch(_){}
+  if(n < 2 && typeof drawPolyline !== 'undefined' && drawPolyline && drawPolyline.getPath){
+    try{ const pn = drawPolyline.getPath().getLength(); if(pn > n) n = pn; }catch(_){}
+  }
+  return n;
+}
 function _updateRouteCtrlPts(){
+  const n = _getRoutePointCount();
   const el = document.getElementById('route-ctrl-pts');
-  if(el) el.textContent = _routePoints.length + ' נקודות';
+  if(el) el.textContent = n + ' נקודות';
   const btn = document.getElementById('route-finish-btn');
-  if(btn) btn.disabled = _routePoints.length < 2;
+  if(btn) btn.disabled = n < 2;
 }
 function finishRouteDraw(){
-  if(_routePoints.length < 2){ showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',type:'warn'}); return; }
+  const n = _getRoutePointCount();
+  if(n < 2){ showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',type:'warn'}); return; }
   _hideRouteCtrlBar();
   if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
-  const pts = _routePoints.length;
   deactivateTool();
   // Open the metadata popup at the midpoint so the user can add name/team/notes
   if(drawPolyline){
-    const mid = _routePoints[Math.floor(_routePoints.length/2)];
+    const path = drawPolyline.getPath();
+    const mid = (typeof _routePoints !== 'undefined' && _routePoints.length)
+      ? _routePoints[Math.floor(_routePoints.length/2)]
+      : path.getAt(Math.floor(path.getLength()/2));
     google.maps.event.trigger(drawPolyline, 'click', {latLng: mid});
   }
-  showToast({icon:'🛣️',title:'מסלול הושלם',sub:pts+' נקודות — הוסף פרטים',type:'success',duration:4000});
+  showToast({icon:'🛣️',title:'מסלול הושלם',sub:n+' נקודות — הוסף פרטים',type:'success',duration:4000});
 }
 function cancelRouteDraw(){
   _hideRouteCtrlBar();
@@ -3332,19 +3347,91 @@ function _drawDeleteIW(label, onDelete, extraHtml){
 }
 function addDrawPoint(latLng){
   const key='d_'+Date.now();
+  const num = labelNum++;
+  // Per-marker metadata — editable via popup
+  const meta = { name:'סימן '+num, desc:'', color: activeDrawColor, expanded:false };
   const mk=new google.maps.Marker({
-    position:latLng,map,
-    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:activeDrawColor,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
-    label:{text:String(labelNum++),color:'#fff',fontSize:'10px',fontWeight:'bold'},
-    zIndex:300,
+    position:latLng,map,draggable:true,
+    icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:meta.color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2},
+    label:{text:String(num),color:'#fff',fontSize:'10px',fontWeight:'bold'},
+    title:meta.name, zIndex:300,
   });
   _markers[key]=mk;
-  const iw=_drawDeleteIW('📍 סימן', function(){
-    mk.setMap(null); delete _markers[key];
-  });
+  mk.__meta = meta;
+
+  // InfoWindow with a collapsible details panel. "עריכה" reveals inputs;
+  // collapsed view shows just the name + description as a compact tab.
+  const iwId = 'iwpt-'+key;
+  const _buildContent = () => {
+    const m = mk.__meta;
+    const palette = ['#3dff52','#ff3333','#29c5f6','#ffc107','#b06cf0','#ff7a1a','#ff4aaa','#ffffff'];
+    const swatches = palette.map(col => `<span class="${iwId}-clr" data-c="${col}" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${col};cursor:pointer;border:2px solid ${col===m.color?'#000':'#ccc'};margin:2px"></span>`).join('');
+    const editPanel = m.expanded
+      ? `<div style="border-top:1px solid #eee;padding-top:6px;margin-top:6px">
+          <div style="margin-bottom:4px"><label style="font-size:11px;color:#555">שם:</label>
+            <input id="${iwId}-name" type="text" value="${(m.name||'').replace(/"/g,'&quot;')}" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif"/></div>
+          <div style="margin-bottom:4px"><label style="font-size:11px;color:#555">תיאור:</label>
+            <textarea id="${iwId}-desc" rows="2" style="width:100%;padding:4px 6px;border:1px solid #bbb;border-radius:4px;font-size:12px;font-family:Heebo,sans-serif;resize:vertical">${(m.desc||'').replace(/</g,'&lt;')}</textarea></div>
+          <div style="margin-bottom:6px"><label style="font-size:11px;color:#555">צבע:</label><div style="display:flex;flex-wrap:wrap">${swatches}</div></div>
+          <div style="display:flex;gap:6px">
+            <button id="${iwId}-save" style="background:#e3f2fd;border:1px solid #0a7cb8;border-radius:4px;padding:4px 12px;color:#0a7cb8;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">💾 שמור</button>
+            <button id="${iwId}-del" style="background:#fce4ec;border:1px solid #e53935;border-radius:4px;padding:4px 12px;color:#c62828;cursor:pointer;font-size:11px;font-family:Heebo,sans-serif;font-weight:700">🗑️ מחק</button>
+          </div>
+        </div>`
+      : '';
+    return `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:4px 2px;min-width:${m.expanded?'220px':'160px'};max-width:280px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${m.color};border:1px solid #333;flex-shrink:0"></div>
+        <div style="font-size:13px;font-weight:800;color:#333;flex:1;word-break:break-word">${(m.name||'').replace(/</g,'&lt;')||'סימן'}</div>
+        <button id="${iwId}-tgl" style="background:transparent;border:none;color:#666;cursor:pointer;font-size:14px;padding:2px 4px" title="${m.expanded?'סגור':'פתח עריכה'}">${m.expanded?'▲':'▼'}</button>
+      </div>
+      ${m.desc ? `<div style="font-size:11px;color:#555;margin-top:4px;white-space:pre-wrap;word-break:break-word">${m.desc.replace(/</g,'&lt;')}</div>` : ''}
+      ${editPanel}
+    </div>`;
+  };
+  const iw = new google.maps.InfoWindow({content:_buildContent()});
+  const _wireHandlers = () => {
+    const tgl = document.getElementById(iwId+'-tgl');
+    if(tgl) tgl.onclick = () => {
+      mk.__meta.expanded = !mk.__meta.expanded;
+      iw.setContent(_buildContent());
+      google.maps.event.addListenerOnce(iw,'domready',_wireHandlers);
+    };
+    if(!mk.__meta.expanded) return;
+    const del = document.getElementById(iwId+'-del');
+    const save = document.getElementById(iwId+'-save');
+    const nameIn = document.getElementById(iwId+'-name');
+    const descIn = document.getElementById(iwId+'-desc');
+    let chosenCol = mk.__meta.color;
+    document.querySelectorAll('.'+iwId+'-clr').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        chosenCol = el.dataset.c;
+        document.querySelectorAll('.'+iwId+'-clr').forEach(x=>x.style.border='2px solid #ccc');
+        el.style.border='2px solid #000';
+      });
+    });
+    if(del) del.onclick = () => { mk.setMap(null); delete _markers[key]; closeAllInfoWindows(); };
+    if(save) save.onclick = () => {
+      mk.__meta.name = (nameIn.value||'').trim() || ('סימן '+num);
+      mk.__meta.desc = (descIn.value||'').trim();
+      mk.__meta.color = chosenCol;
+      mk.__meta.expanded = false;
+      mk.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:chosenCol,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2});
+      mk.setTitle(mk.__meta.name);
+      iw.setContent(_buildContent());
+      google.maps.event.addListenerOnce(iw,'domready',_wireHandlers);
+      showToast({icon:'✅',title:'סימן עודכן',sub:mk.__meta.name,type:'success',duration:2000});
+    };
+  };
+  google.maps.event.addListener(iw,'domready',_wireHandlers);
   mk.addListener('click',()=>{closeAllInfoWindows();iw.open(map,mk);_infoWindows.push(iw);});
   deactivateTool();
-  showToast({icon:'📍',title:'סימן נוסף',sub:'לחץ עליו כדי למחוק או לעדכן',type:'info',duration:2500});
+  // Auto-open in expanded mode so the user can name it immediately
+  mk.__meta.expanded = true;
+  iw.setContent(_buildContent());
+  iw.open(map, mk);
+  _infoWindows.push(iw);
+  showToast({icon:'📍',title:'סימן נוסף',sub:'תן לו שם ותיאור',type:'info',duration:2500});
 }
 function addDrawCircle(latLng){
   // Prompt for radius in meters
@@ -8081,7 +8168,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.24 source-code update because the merge in
+    // which survived our v6.8.25 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15634,7 +15721,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.24)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.25)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
