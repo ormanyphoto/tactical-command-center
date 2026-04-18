@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.41 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.42 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -738,9 +738,16 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #right-panel{position:fixed;top:54px;right:0;left:auto;bottom:60px;z-index:400;width:320px!important;max-width:90vw;transform:translateX(100%);transition:transform 0.25s ease;border:none;box-shadow:-4px 0 20px rgba(0,0,0,0.4)}
   #right-panel.mobile-open{transform:translateX(0)}
   #right-panel.hidden{transform:translateX(100%)!important}
-  /* Show the hamburger menu button on tablet widths too — iPad portrait is ~820px,
-     neither desktop tabs nor mobile hamburger was showing before */
+  /* Show the hamburger menu button on tablet widths too */
   #mobile-menu-btn{display:flex!important}
+}
+/* iPad (portrait + landscape): give the side panel more breathing room */
+@media (min-width:769px) and (max-width:1366px){
+  #right-panel{width:420px!important;max-width:55vw}
+}
+/* Mobile drawer on tablet: wider too */
+@media (min-width:769px) and (max-width:1366px){
+  #mobile-drawer-panel{width:360px!important}
 }
 @media (max-width:768px){
   #topbar{height:54px;padding:0 10px;gap:6px;overflow:hidden}
@@ -813,7 +820,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.41</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.42</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1216,7 +1223,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.41</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.42</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -2162,7 +2169,9 @@ function onGoogleMapsReady(){
     tilt:0,
     backgroundColor:'#0d1014',  // Dark bg prevents white flash before tiles load
     restriction:{
-      latLngBounds:{north:33.5,south:29.3,west:34.2,east:35.9},
+      // Israel + ~150 km buffer in all directions (1° lat ≈ 111 km, 1° lng ≈ 94 km at 32°N).
+      // Original tight bounds: north 33.5 / south 29.3 / west 34.2 / east 35.9.
+      latLngBounds:{north:34.85, south:27.95, west:32.6, east:37.5},
       strictBounds:true
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
@@ -8196,7 +8205,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.41 source-code update because the merge in
+    // which survived our v6.8.42 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15941,7 +15950,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.41)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.42)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
