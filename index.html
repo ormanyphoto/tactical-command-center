@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.19 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.20 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.19</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.20</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.19</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.20</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7918,7 +7918,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.19 source-code update because the merge in
+    // which survived our v6.8.20 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12352,6 +12352,8 @@ function _renderEquipment(c){
     +'<button class="btn-sec" onclick="pushEquipmentToCloud()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="העלה לענן">⬆ לענן</button>'
     +'<button class="btn-sec" onclick="restoreLastEquipmentSnapshot()" style="width:auto;padding:6px 12px;font-size:12px;margin:0;background:rgba(255,193,7,0.08);border-color:var(--warn)" title="שחזר מגיבוי מקומי">♻ שחזר</button>'
     +'<button class="btn-sec" onclick="manageEqCategoriesModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">⚙ קטגוריות</button>'
+    +'<button class="btn-sec" onclick="exportEquipmentCSV()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="ייצוא ציוד ל־CSV">⬆ ייצוא CSV</button>'
+    +'<button class="btn-sec" onclick="importEquipmentCSV()" style="width:auto;padding:6px 12px;font-size:12px;margin:0" title="ייבוא ציוד מ־CSV">⬇ ייבוא CSV</button>'
     +'<button class="btn-sec" onclick="addEquipmentModal()" style="width:auto;padding:6px 12px;font-size:12px;margin:0">+ פריט חדש</button></div>'
     +'</div>'
     // Stats cards — count UNITS not types
@@ -12786,6 +12788,92 @@ function delEquipment(id){
   EQUIPMENT_ITEMS = EQUIPMENT_ITEMS.filter(e=>e.id!==id);
   _saveEquipment();
   boEquipment(document.getElementById('bo-inner'));
+}
+
+// ── CSV: export warehouse inventory ──
+function exportEquipmentCSV(){
+  const headers = ['שם פריט','קטגוריה','סוג','מספר סריאלי','כמות','הערות'];
+  const rows = EQUIPMENT_ITEMS.map(it => [
+    it.name || '',
+    it.category || '',
+    it.bulk ? 'מלאי' : 'סריאלי',
+    it.bulk ? '' : (it.serial || ''),
+    it.bulk ? (it.quantity || 0) : 1,
+    it.notes || ''
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'equipment_export_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast({icon:'⬆️',title:'CSV יוצא',sub:EQUIPMENT_ITEMS.length+' פריטים',type:'success',duration:3000});
+}
+
+// ── CSV: import warehouse inventory ──
+function importEquipmentCSV(){
+  document.getElementById('modal-ttl').innerHTML='⬇ ייבוא ציוד מ־CSV';
+  document.getElementById('modal-body').innerHTML=`
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      הקובץ צריך לכלול את העמודות: <b>שם פריט, קטגוריה, סוג, מספר סריאלי, כמות, הערות</b><br>
+      עמודה "סוג" יכולה להיות: <code>מלאי</code> (bulk) או <code>סריאלי</code>.<br>
+      הפריטים המיובאים מתווספים לפריטים הקיימים — הרשימה לא נמחקת.
+    </p>
+    <div class="csv-drop">
+      📁 גרור קובץ CSV לכאן או לחץ לבחירה
+      <input type="file" accept=".csv,text/csv" onchange="handleEquipmentCSVImport(event)">
+    </div>
+    <div id="eq-csv-preview" style="margin-top:8px;font-size:12px;color:var(--accent2)"></div>`;
+  modalCB = null;
+  document.getElementById('modal-wrap').style.display='flex';
+}
+
+function handleEquipmentCSVImport(event){
+  const file = event.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    let imported = 0;
+    lines.slice(1).forEach((line, i) => {
+      // Simple CSV parse — supports quoted values with commas inside
+      const cols = [];
+      let cur = '', inQ = false;
+      for(let j=0; j<line.length; j++){
+        const c = line[j];
+        if(c === '"'){
+          if(inQ && line[j+1] === '"'){ cur += '"'; j++; } else inQ = !inQ;
+        } else if(c === ',' && !inQ){ cols.push(cur); cur = ''; }
+        else cur += c;
+      }
+      cols.push(cur);
+      const clean = cols.map(c => c.replace(/^"|"$/g,'').trim());
+      const name = clean[0]; if(!name) return;
+      const cat = clean[1] || 'אחר';
+      const typ = (clean[2] || '').toLowerCase();
+      const isBulk = typ.includes('מלאי') || typ.includes('bulk');
+      const serial = clean[3] || '';
+      const qty = Math.max(1, parseInt(clean[4]) || 1);
+      const notes = clean[5] || '';
+      const base = {
+        id: 'eq_'+Date.now()+'_'+String(i)+Math.random().toString(36).slice(2,4),
+        name, category: cat, notes
+      };
+      if(isBulk) EQUIPMENT_ITEMS.push(Object.assign(base, {bulk:true, quantity:qty, assignments:[]}));
+      else EQUIPMENT_ITEMS.push(Object.assign(base, {serial, holder:'', holderId:'', holderName:'', takenAt:null}));
+      imported++;
+    });
+    const prev = document.getElementById('eq-csv-preview');
+    if(prev) prev.textContent = `✓ יובאו ${imported} פריטים`;
+    _saveEquipment();
+    auditLog('ייבוא CSV: '+imported+' פריטי ציוד','info','');
+    setTimeout(() => {
+      closeModal();
+      const inner = document.getElementById('bo-inner');
+      if(inner) boEquipment(inner);
+      showToast({icon:'⬇️',title:`יובאו ${imported} פריטים`,type:'success',duration:3000});
+    }, 700);
+  };
+  reader.readAsText(file, 'UTF-8');
 }
 
 // Edit an existing warehouse item — reuses the same form as addEquipmentModal
@@ -15388,7 +15476,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.19)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.20)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
