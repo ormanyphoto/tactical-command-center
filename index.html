@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.34 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.35 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.34</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.35</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.34</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.35</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3820,23 +3820,40 @@ function _doSendSOS(){
   const f=document.getElementById('sos-flash');if(f){f.style.display='block';setTimeout(()=>f.style.display='none',5000);}
   showToast({icon:'🆘',title:'אות מצוקה שודר!',sub:'כל הכוחות קיבלו את הקריאה',type:'danger',duration:8000});
 
+  const _afterWrite = () => {
+    // FCM push to all other personnel so closed-app devices are woken up
+    if(typeof PUSH!=='undefined' && PUSH.hasSA && PUSH.hasSA()){
+      const others = PERSONNEL.map(p=>p.id).filter(id=>id!==rec.personId);
+      if(others.length){
+        PUSH.sendPush(others, {
+          type:'sos', typeLabel:'מצוקה', id:'sos_'+rec.uid,
+          title:'🆘 אות מצוקה — '+rec.name,
+          body: (rec.lat&&rec.lng) ? '📍 '+rec.lat.toFixed(5)+', '+rec.lng.toFixed(5) : 'מיקום לא זמין',
+          senderName:rec.name, sentAt:rec.ts,
+          lat:rec.lat||null, lng:rec.lng||null
+        });
+      }
+    }
+  };
   const _write=(lat,lng,acc)=>{
     if(lat) rec.lat=lat; if(lng) rec.lng=lng; if(acc) rec.acc=acc;
-    if(db) db.ref('tac_sos/'+rec.uid).set(rec).then(()=>{
-      // FCM push to all other personnel so closed-app devices are woken up
-      if(typeof PUSH!=='undefined' && PUSH.hasSA()){
-        const others = PERSONNEL.map(p=>p.id).filter(id=>id!==rec.personId);
-        if(others.length){
-          PUSH.sendPush(others, {
-            type:'sos', typeLabel:'מצוקה', id:'sos_'+rec.uid,
-            title:'🆘 אות מצוקה — '+rec.name,
-            body: (rec.lat&&rec.lng) ? '📍 '+rec.lat.toFixed(5)+', '+rec.lng.toFixed(5) : 'מיקום לא זמין',
-            senderName:rec.name, sentAt:rec.ts,
-            lat:rec.lat||null, lng:rec.lng||null
-          });
-        }
-      }
-    }).catch(()=>{});
+    // Use REST API (same fix as equipment sync) so writes don't silently
+    // fail when Firebase SDK auth isn't ready. Open rules allow this.
+    fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_sos/'+rec.uid+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(rec)
+    })
+    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(() => { console.log('[SOS] broadcast sent:', rec.uid); _afterWrite(); })
+    .catch(e => {
+      console.error('[SOS] REST write failed:', e.message);
+      showToast({icon:'⚠️',title:'שידור מצוקה נכשל',sub:e.message||'',type:'warn',duration:8000});
+      // Fallback: also try SDK in case REST was blocked by network
+      try{ if(db) db.ref('tac_sos/'+rec.uid).set(rec).then(_afterWrite).catch(()=>{}); }catch(_){}
+    });
+    // Also write via SDK in parallel so the realtime listener on other
+    // clients gets the change instantly (SDK uses WebSocket push).
+    try{ if(db) db.ref('tac_sos/'+rec.uid).set(rec).catch(()=>{}); }catch(_){}
   };
 
   if(navigator.geolocation){
@@ -3854,21 +3871,52 @@ function _doSendSOS(){
 
 function listenForSOS(){
   const db=window._db;
-  if(!db||_sosListener) return;
+  if(_sosListener) return;
   _sosListener=true;
-  const myUid=(typeof SYNC!=='undefined')?SYNC.myUid:localStorage.getItem('tac_uid');
+  const _myUid = () => (typeof SYNC!=='undefined') ? SYNC.myUid : localStorage.getItem('tac_uid');
 
-  db.ref('tac_sos').on('child_added',snap=>{
-    const sos=snap.val();
-    if(!sos||!sos.active) return;
-    _showSOSAlert(sos, sos.uid===myUid);
-  });
-  db.ref('tac_sos').on('child_changed',snap=>{
-    const sos=snap.val();
-    if(!sos||!sos.active) _clearSOSUI();
-    else _showSOSAlert(sos, sos.uid===((typeof SYNC!=='undefined')?SYNC.myUid:localStorage.getItem('tac_uid')));
-  });
-  db.ref('tac_sos').on('child_removed',()=>_clearSOSUI());
+  // Primary: SDK realtime listener (fires instantly via WebSocket).
+  if(db){
+    try{
+      db.ref('tac_sos').on('child_added',snap=>{
+        const sos=snap.val();
+        if(!sos||!sos.active) return;
+        console.log('[SOS] received via SDK:', sos.uid, sos.name);
+        _showSOSAlert(sos, sos.uid===_myUid());
+      });
+      db.ref('tac_sos').on('child_changed',snap=>{
+        const sos=snap.val();
+        if(!sos||!sos.active) _clearSOSUI();
+        else _showSOSAlert(sos, sos.uid===_myUid());
+      });
+      db.ref('tac_sos').on('child_removed',()=>_clearSOSUI());
+    }catch(e){ console.warn('[SOS] SDK listener failed:', e.message); }
+  }
+
+  // Fallback: REST polling every 15s. If the SDK WebSocket isn't working
+  // (same reason equipment writes used to silently fail), this still
+  // catches SOS broadcasts from other devices. Duplicates via SDK are
+  // deduped by checking _sosSeen timestamps.
+  window._sosSeen = window._sosSeen || {};
+  const _pollSOS = () => {
+    fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_sos.json?_='+Date.now(), {cache:'no-store'})
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if(!data) return;
+      const myUid = _myUid();
+      Object.entries(data).forEach(([uid, sos]) => {
+        if(!sos || !sos.active) return;
+        const key = uid + '_' + (sos.ts||0);
+        if(window._sosSeen[key]) return;
+        window._sosSeen[key] = 1;
+        console.log('[SOS] received via REST poll:', uid, sos.name);
+        _showSOSAlert(sos, uid===myUid);
+      });
+    })
+    .catch(e => console.warn('[SOS] REST poll failed:', e.message));
+  };
+  _pollSOS();
+  setInterval(_pollSOS, 15000);
 }
 
 function _showSOSAlert(sos, isOwn){
@@ -8122,7 +8170,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.34 source-code update because the merge in
+    // which survived our v6.8.35 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15764,7 +15812,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.34)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.35)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
