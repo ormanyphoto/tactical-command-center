@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.26 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.27 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.26</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.27</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.26</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.27</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8232,7 +8232,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.26 source-code update because the merge in
+    // which survived our v6.8.27 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15232,7 +15232,9 @@ const SYNC = (() => {
     function _buildSVG(photoDataUrl){
       const nw = Math.min(W, Math.max(48, displayName.length*6+14));
       const nx = cx - nw/2;
-      let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">';
+      // Include xmlns:xlink so older WebViews that only recognise xlink:href
+      // still load the embedded photo.
+      let svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'">';
       // Name label pill
       svg += '<rect x="'+nx+'" y="2" width="'+nw+'" height="17" rx="5" fill="'+labelBg+'"/>';
       svg += '<text x="'+cx+'" y="13" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial,Heebo,sans-serif" fill="'+labelColor+'">'+displayName.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</text>';
@@ -15247,7 +15249,8 @@ const SYNC = (() => {
       // Clip for photo/initials
       svg += '<defs><clipPath id="cp"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'"/></clipPath></defs>';
       if(photoDataUrl){
-        svg += '<image href="'+photoDataUrl+'" x="'+(cx-rInner)+'" y="'+(bubCy-rInner)+'" width="'+(rInner*2)+'" height="'+(rInner*2)+'" clip-path="url(#cp)" preserveAspectRatio="xMidYMid slice"/>';
+        // Use both href and xlink:href for max compatibility (SVG2 + older)
+        svg += '<image href="'+photoDataUrl+'" xlink:href="'+photoDataUrl+'" x="'+(cx-rInner)+'" y="'+(bubCy-rInner)+'" width="'+(rInner*2)+'" height="'+(rInner*2)+'" clip-path="url(#cp)" preserveAspectRatio="xMidYMid slice"/>';
       } else {
         svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/>';
         svg += '<text x="'+cx+'" y="'+(bubCy+4)+'" text-anchor="middle" font-size="'+(initials.length>2?9:13)+'" font-weight="900" font-family="Arial,Heebo,sans-serif" fill="#fff">'+initials+'</text>';
@@ -15256,25 +15259,30 @@ const SYNC = (() => {
       svg += '</svg>';
       return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
     }
+    // Always downscale the photo through a canvas to rInner*2 (34x34).
+    // Previously we embedded raw data: URLs directly — if the photo was
+    // high-res (500KB+ base64), mobile WebViews silently failed to render
+    // the enclosing SVG, showing the broken-image placeholder.
+    function _downscaleAndBuild(src){
+      const img = new Image();
+      if(!src.startsWith('data:')) img.crossOrigin = 'anonymous';
+      img.onload = ()=>{
+        try {
+          const cvs = document.createElement('canvas');
+          cvs.width = rInner*2; cvs.height = rInner*2;
+          const g = cvs.getContext('2d');
+          g.drawImage(img, 0, 0, rInner*2, rInner*2);
+          const small = cvs.toDataURL('image/jpeg', 0.7);
+          // Sanity check: toDataURL can return 'data:,' on tainted canvas
+          if(small && small.length > 30) cb(_buildSVG(small), W, H);
+          else cb(_buildSVG(null), W, H);
+        } catch(_){ cb(_buildSVG(null), W, H); }
+      };
+      img.onerror = ()=>cb(_buildSVG(null), W, H);
+      img.src = src;
+    }
     if(photoUrl && photoUrl.length > 10){
-      // Convert photo to base64 data URL for embedding in SVG
-      if(photoUrl.startsWith('data:')){
-        cb(_buildSVG(photoUrl), W, H);
-      } else {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = ()=>{
-          try {
-            const cvs = document.createElement('canvas');
-            cvs.width = rInner*2; cvs.height = rInner*2;
-            const g = cvs.getContext('2d');
-            g.drawImage(img, 0, 0, rInner*2, rInner*2);
-            cb(_buildSVG(cvs.toDataURL('image/jpeg',0.7)), W, H);
-          } catch(_){ cb(_buildSVG(null), W, H); }
-        };
-        img.onerror = ()=>cb(_buildSVG(null), W, H);
-        img.src = photoUrl;
-      }
+      _downscaleAndBuild(photoUrl);
     } else {
       cb(_buildSVG(null), W, H);
     }
@@ -15834,7 +15842,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.26)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.27)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
