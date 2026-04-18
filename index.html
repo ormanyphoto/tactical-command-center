@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.39 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.40 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.39</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.40</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.39</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.40</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8193,7 +8193,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.39 source-code update because the merge in
+    // which survived our v6.8.40 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -9830,12 +9830,22 @@ let _notifPollTimer = null;
 let _notifHeartbeatTimer = null;
 let _notifLastPollAt = 0;
 let _notifLastNewAt  = 0;
+// Returns true if a notification is high-priority enough to pop up on
+// desktop (not just mobile). Emergency / alert / SOS / rescue types
+// should interrupt desktop commanders; routine messages should not.
+function _isUrgentNotif(notif){
+  if(!notif) return false;
+  const t = (notif.type||'').toLowerCase();
+  if(t === 'alert' || t === 'sos' || t === 'rescue' || t === 'urgent') return true;
+  const lbl = (notif.typeLabel||'').toString();
+  if(lbl.includes('חירום') || lbl.includes('מצוקה') || lbl.includes('SOS')) return true;
+  const title = (notif.title||'').toString();
+  if(title.includes('🆘') || title.includes('⚡') || title.includes('🚨')) return true;
+  return false;
+}
 function listenForIncomingNotifications(){
-  // Only show notification popups on mobile/tablet (desktop users should NOT see popups)
-  if(!_isMobileDevice()){
-    console.log('[NOTIF] Skipping popup listener on desktop');
-    return;
-  }
+  // Mobile gets all notifications; desktop only gets urgent ones.
+  const isMob = _isMobileDevice();
   const myPersonId = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
   if(!myPersonId){
     // Not logged in yet — retry
@@ -9863,18 +9873,16 @@ function listenForIncomingNotifications(){
     try {
       const ref = db.ref('tac_notifications/'+myPersonId).orderByChild('sentAt').startAt(listenFrom);
       ref.on('child_added', snap=>{
-        if(!_isMobileDevice()) return;
         const notif = snap.val();
         if(!notif) return;
+        // On desktop, only show urgent/emergency notifs. On mobile, show all.
+        if(!isMob && !_isUrgentNotif(notif)) return;
         const notifId = snap.key;
         const ls = Number(localStorage.getItem('tac_notif_lastSeen_'+myPersonId) || 0);
         if(notif.sentAt && notif.sentAt <= ls) return;
         if(_shownNotifIds.has(notifId)) return;
-        console.log('[NOTIF sdk] new', notifId, notif.title);
+        console.log('[NOTIF sdk] new', notifId, notif.title, isMob?'(mobile)':'(desktop-urgent)');
         _notifLastNewAt = Date.now();
-        // CRITICAL: ensure notif.id is set to the Firebase key so that
-        // respondToNotif writes the approval to the correct path
-        // (tac_notif_responses/{notifId}) that commanders are listening to.
         notif.id = notif.id || notifId;
         _showIncomingNotif(notif, snap.ref);
       });
@@ -9888,7 +9896,7 @@ function listenForIncomingNotifications(){
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   const REST_BASE = 'https://tactical-command-center-default-rtdb.firebaseio.com';
   const _poll = async () => {
-    if(!_isMobileDevice()) return;
+    // Poll runs on both desktop and mobile; desktop only acts on urgent notifs.
     const pid = (typeof AUTH!=='undefined' && AUTH.getUser()) ? AUTH.getUser().id : null;
     if(!pid) return;
     _notifLastPollAt = Date.now();
@@ -9918,10 +9926,10 @@ function listenForIncomingNotifications(){
         if(_shownNotifIds.has(nid)) return;
         if(notif.sentAt && notif.sentAt < cutoff) return;
         if(notif.sentAt && notif.sentAt <= ls) return;
-        console.log('[NOTIF poll] new', nid, notif.title);
+        // On desktop, only pop urgent/emergency. On mobile, pop everything.
+        if(!isMob && !_isUrgentNotif(notif)) return;
+        console.log('[NOTIF poll] new', nid, notif.title, isMob?'(mobile)':'(desktop-urgent)');
         _notifLastNewAt = Date.now();
-        // CRITICAL: ensure notif.id equals the Firebase key so respondToNotif
-        // writes the approval to the path commanders are listening to.
         notif.id = notif.id || nid;
         const fbRef = window._db ? window._db.ref('tac_notifications/'+pid+'/'+nid) : null;
         _showIncomingNotif(notif, fbRef);
@@ -15930,7 +15938,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.39)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.40)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
