@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.27 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.28 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -810,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.27</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.28</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1213,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.27</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.28</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3283,14 +3283,17 @@ function _hideRouteCtrlBar(){
   const bar = document.getElementById('route-ctrl-bar');
   if(bar) bar.style.display = 'none';
 }
-// Source of truth = the polyline's path if present, else _routePoints.
-// The polyline is mutated via push() on its path when we draw, so its
-// length is authoritative even if _routePoints gets out of sync.
+// Count points — polyline's path is authoritative since we mutate it
+// on every addRoutePoint. _routePoints is a mirror, window._routePoints
+// is a backup if the closure's _routePoints is somehow empty.
 function _getRoutePointCount(){
   let n = 0;
-  try{ n = (typeof _routePoints !== 'undefined') ? _routePoints.length : 0; }catch(_){}
-  if(n < 2 && typeof drawPolyline !== 'undefined' && drawPolyline && drawPolyline.getPath){
-    try{ const pn = drawPolyline.getPath().getLength(); if(pn > n) n = pn; }catch(_){}
+  if(typeof drawPolyline !== 'undefined' && drawPolyline){
+    try{ n = drawPolyline.getPath().getLength(); }catch(_){}
+  }
+  if(n < 2){
+    try{ if(typeof _routePoints !== 'undefined' && _routePoints.length > n) n = _routePoints.length; }catch(_){}
+    try{ if(window._routePoints && window._routePoints.length > n) n = window._routePoints.length; }catch(_){}
   }
   return n;
 }
@@ -3303,16 +3306,18 @@ function _updateRouteCtrlPts(){
 }
 function finishRouteDraw(){
   const n = _getRoutePointCount();
-  if(n < 2){ showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',type:'warn'}); return; }
+  const polyN = (typeof drawPolyline !== 'undefined' && drawPolyline) ? (drawPolyline.getPath ? drawPolyline.getPath().getLength() : 0) : 0;
+  console.log('[finishRouteDraw] n=', n, 'polyN=', polyN, '_routePoints.length=', (typeof _routePoints !== 'undefined') ? _routePoints.length : 'undef');
+  if(n < 2){
+    showToast({icon:'⚠️',title:'צריך לפחות 2 נקודות',sub:'n='+n+' poly='+polyN,type:'warn',duration:4000});
+    return;
+  }
   _hideRouteCtrlBar();
   if(window._routeDblListener){ google.maps.event.removeListener(window._routeDblListener); window._routeDblListener=null; }
   deactivateTool();
-  // Open the metadata popup at the midpoint so the user can add name/team/notes
-  if(drawPolyline){
+  if(drawPolyline && drawPolyline.getPath){
     const path = drawPolyline.getPath();
-    const mid = (typeof _routePoints !== 'undefined' && _routePoints.length)
-      ? _routePoints[Math.floor(_routePoints.length/2)]
-      : path.getAt(Math.floor(path.getLength()/2));
+    const mid = path.getAt(Math.floor(path.getLength()/2));
     google.maps.event.trigger(drawPolyline, 'click', {latLng: mid});
   }
   showToast({icon:'🛣️',title:'מסלול הושלם',sub:n+' נקודות — הוסף פרטים',type:'success',duration:4000});
@@ -3484,6 +3489,7 @@ let _routeDots=[]; // dot markers along the route — tracked so clearAll can re
 let _routeMeta=null; // { name, team, color, notes }
 function addRoutePoint(latLng){
   _routePoints.push(latLng);
+  window._routePoints = _routePoints; // expose for onclick handlers in inline HTML
   // Keep a single persistent polyline — extending its path rather than
   // destroying and recreating. This way drawPolyline.getPath() is always
   // an accurate source of truth for the finish check.
@@ -8232,7 +8238,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.27 source-code update because the merge in
+    // which survived our v6.8.28 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15257,7 +15263,16 @@ const SYNC = (() => {
       }
       if(isMe) svg += '<text x="'+cx+'" y="30" text-anchor="middle" font-size="8">👑</text>';
       svg += '</svg>';
-      return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+      // Base64 encode instead of URL-encode — some mobile WebViews silently
+      // fail to render URL-encoded SVG data URLs (especially with Hebrew
+      // characters or embedded data: URLs in <image>), showing the browser's
+      // broken-image placeholder. btoa needs latin1, so we round-trip
+      // through encodeURIComponent+unescape to preserve UTF-8.
+      try {
+        return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+      } catch(_) {
+        return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+      }
     }
     // Always downscale the photo through a canvas to rInner*2 (34x34).
     // Previously we embedded raw data: URLs directly — if the photo was
@@ -15842,7 +15857,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.27)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.28)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
