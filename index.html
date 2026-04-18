@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.16 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.17 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -804,7 +804,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.16</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.17</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1207,7 +1207,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.16</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.17</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7912,7 +7912,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.16 source-code update because the merge in
+    // which survived our v6.8.17 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12467,24 +12467,71 @@ function _renderEquipment(c){
     if(!catOrder.length){
       html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין פריטים — הוסף ציוד למחסן</div>';
     } else {
+      const isMob = (typeof _isMobileDevice==='function' ? _isMobileDevice() : window.innerWidth<=1024);
       catOrder.forEach(cat=>{
         const list = byCat[cat];
-        // Category summary: sum of units
         const catStats = list.reduce((acc,it)=>{ const s=_eqStock(it); acc.total+=s.total; acc.available+=s.available; return acc; }, {total:0, available:0});
         html += '<div style="margin-bottom:16px">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px 10px;background:var(--panel3);border-radius:6px;border-right:3px solid var(--accent)">'
           +'<span style="font-size:13px;font-weight:800;color:var(--texthi)">'+escHtml(cat)+'</span>'
           +'<span style="font-size:11px;color:var(--text3)">('+list.length+' סוגים · '+catStats.available+'/'+catStats.total+' זמינים)</span>'
-          +'</div>'
-          +'<div style="overflow-x:auto"><table class="bo-table eq-warehouse-table" style="font-size:12px;table-layout:fixed;width:100%"><colgroup><col style="width:auto"/><col style="width:90px"/><col style="width:130px"/><col style="width:90px"/><col style="width:130px"/></colgroup><thead><tr><th>פריט</th><th>סוג</th><th>סריאלי / כמות</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>';
+          +'</div>';
+
+        if(isMob){
+          // ── MOBILE: card layout ──
+          list.forEach(it=>{
+            const s = _eqStock(it);
+            if(it.bulk){
+              const statusColor = s.available===0?'var(--danger)':(s.available<s.total*0.2?'var(--warn)':'var(--accent)');
+              const statusText = s.available===0?'אזל':(s.available<s.total?'חלקי':'זמין');
+              html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+                +'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">'
+                  +'<div style="flex:1;min-width:0">'
+                    +'<div style="font-size:13px;font-weight:700;color:var(--texthi);word-break:break-word">'+escHtml(it.name||'')+'</div>'
+                    +'<div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+                      +'<span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">📦 מלאי</span>'
+                      +'<span style="font-family:monospace;font-size:12px"><strong style="color:'+statusColor+'">'+s.available+'</strong>/'+s.total+'</span>'
+                      +'<span style="color:'+statusColor+';font-weight:700;font-size:11px">'+statusText+'</span>'
+                    +'</div>'
+                  +'</div>'
+                +'</div>'
+                +'<div class="eq-actions" style="width:100%;justify-content:flex-end">'
+                  +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+                  +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
+                  +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
+                +'</div>'
+              +'</div>';
+            } else {
+              const holderName = it.holderName || it.holder || '';
+              const statusHtml = holderName ? '<span style="color:var(--warn);font-weight:700">חתום</span>' : '<span style="color:var(--accent);font-weight:700">זמין</span>';
+              html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+                +'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">'
+                  +'<div style="flex:1;min-width:0">'
+                    +'<div style="font-size:13px;font-weight:700;color:var(--texthi);word-break:break-word">'+escHtml(it.name||'')+'</div>'
+                    +'<div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+                      +'<span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">🏷️ סריאלי</span>'
+                      +'<span style="font-family:monospace;font-size:11px;color:var(--text2)">'+escHtml(it.serial||'—')+'</span>'
+                      +'<span style="font-size:11px">'+statusHtml+'</span>'
+                    +'</div>'
+                  +'</div>'
+                +'</div>'
+                +'<div class="eq-actions" style="width:100%;justify-content:flex-end">'
+                  +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="'+(holderName?'החזר/שנה':'החתמת ציוד לאיש צוות')+'">⇄</button>'
+                  +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
+                  +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
+                +'</div>'
+              +'</div>';
+            }
+          });
+          html += '</div>';
+          return;
+        }
+
+        // ── DESKTOP: table layout with fixed column widths ──
+        html += '<div style="overflow-x:auto"><table class="bo-table eq-warehouse-table" style="font-size:12px;table-layout:fixed;width:100%"><colgroup><col style="width:auto"/><col style="width:90px"/><col style="width:130px"/><col style="width:90px"/><col style="width:130px"/></colgroup><thead><tr><th>פריט</th><th>סוג</th><th>סריאלי / כמות</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>';
         list.forEach(it=>{
           const s = _eqStock(it);
           if(it.bulk){
-            // Bulk item — show quantity status
-            const assignedList = (it.assignments||[]).map(a=>{
-              const p = PERSONNEL.find(px=>px.id===a.personId);
-              return (p?p.name:a.personId)+' ('+a.qty+')';
-            }).join(', ');
             const statusColor = s.available===0?'var(--danger)':(s.available<s.total*0.2?'var(--warn)':'var(--accent)');
             html += '<tr>'
               +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
@@ -15269,7 +15316,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.16)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.17)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
