@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.18 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.19 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -372,6 +372,12 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 /* Equipment actions column: uniform button size + small gap between buttons */
 .eq-actions{display:inline-flex;gap:6px;align-items:center}
 .eq-actions .act-btn{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+/* Drag-and-drop visual feedback for equipment rows/cards */
+.eq-drag-row{cursor:grab}
+.eq-drag-row:active{cursor:grabbing}
+.eq-drag-row.dragging{opacity:0.4}
+.eq-drag-row.drag-over{outline:2px dashed var(--accent);outline-offset:-2px}
+tr.eq-drag-row.drag-over td{background:rgba(34,197,94,0.08)}
 .msn-card{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-bottom:6px;cursor:pointer;transition:all 0.12s;border-right:3px solid var(--border2)}
 .msn-card:hover{border-color:var(--border3);background:var(--panel3)}
 .msn-card.u-urgent{border-right-color:var(--danger)}
@@ -804,7 +810,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.18</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.19</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1207,7 +1213,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.18</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.19</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -7912,7 +7918,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.18 source-code update because the merge in
+    // which survived our v6.8.19 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -12484,7 +12490,7 @@ function _renderEquipment(c){
             if(it.bulk){
               const statusColor = s.available===0?'var(--danger)':(s.available<s.total*0.2?'var(--warn)':'var(--accent)');
               const statusText = s.available===0?'אזל':(s.available<s.total?'חלקי':'זמין');
-              html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+              html += '<div class="eq-drag-row" draggable="true" data-item-id="'+it.id+'" ondragstart="eqDragStart(event)" ondragover="eqDragOver(event)" ondrop="eqDrop(event,this.dataset.itemId)" ondragend="eqDragEnd(event)" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
                 +'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">'
                   +'<div style="flex:1;min-width:0">'
                     +'<div style="font-size:13px;font-weight:700;color:var(--texthi);word-break:break-word">'+escHtml(it.name||'')+'</div>'
@@ -12504,7 +12510,7 @@ function _renderEquipment(c){
             } else {
               const holderName = it.holderName || it.holder || '';
               const statusHtml = holderName ? '<span style="color:var(--warn);font-weight:700">חתום</span>' : '<span style="color:var(--accent);font-weight:700">זמין</span>';
-              html += '<div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
+              html += '<div class="eq-drag-row" draggable="true" data-item-id="'+it.id+'" ondragstart="eqDragStart(event)" ondragover="eqDragOver(event)" ondrop="eqDrop(event,this.dataset.itemId)" ondragend="eqDragEnd(event)" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px">'
                 +'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">'
                   +'<div style="flex:1;min-width:0">'
                     +'<div style="font-size:13px;font-weight:700;color:var(--texthi);word-break:break-word">'+escHtml(it.name||'')+'</div>'
@@ -12535,7 +12541,7 @@ function _renderEquipment(c){
           const s = _eqStock(it);
           if(it.bulk){
             const statusColor = s.available===0?'var(--danger)':(s.available<s.total*0.2?'var(--warn)':'var(--accent)');
-            html += '<tr>'
+            html += '<tr class="eq-drag-row" draggable="true" data-item-id="'+it.id+'" ondragstart="eqDragStart(event)" ondragover="eqDragOver(event)" ondrop="eqDrop(event,this.dataset.itemId)" ondragend="eqDragEnd(event)">'
               +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
               +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">📦 מלאי</span></td>'
               +'<td style="font-family:monospace"><strong style="color:'+statusColor+'">'+s.available+'</strong>/'+s.total+'</td>'
@@ -12551,7 +12557,7 @@ function _renderEquipment(c){
           } else {
             const holderName = it.holderName || it.holder || '';
             const status = holderName ? '<span style="color:var(--warn)">חתום</span>' : '<span style="color:var(--accent)">זמין</span>';
-            html += '<tr>'
+            html += '<tr class="eq-drag-row" draggable="true" data-item-id="'+it.id+'" ondragstart="eqDragStart(event)" ondragover="eqDragOver(event)" ondrop="eqDrop(event,this.dataset.itemId)" ondragend="eqDragEnd(event)">'
               +'<td style="font-weight:600">'+escHtml(it.name||'')+'</td>'
               +'<td><span style="background:var(--panel3);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">🏷️ סריאלי</span></td>'
               +'<td style="font-family:monospace;font-size:11px">'+escHtml(it.serial||'—')+'</td>'
@@ -12689,6 +12695,43 @@ function moveEqCategory(idx,dir){
   EQUIPMENT_CATEGORIES[j] = t;
   _saveEqCategories();
   _renderCatsList();
+}
+// Drag-and-drop reorder for equipment items. Drops allowed only within
+// the same category; cross-category drops are rejected with a toast.
+let _eqDragId = null;
+function eqDragStart(e){
+  _eqDragId = e.currentTarget.dataset.itemId;
+  e.currentTarget.classList.add('dragging');
+  try{ e.dataTransfer.effectAllowed = 'move'; }catch(_){}
+}
+function eqDragOver(e){
+  e.preventDefault();
+  document.querySelectorAll('.eq-drag-row').forEach(r=>r.classList.remove('drag-over'));
+  e.currentTarget.classList.add('drag-over');
+}
+function eqDrop(e, targetId){
+  e.preventDefault();
+  document.querySelectorAll('.eq-drag-row').forEach(r=>r.classList.remove('drag-over','dragging'));
+  const srcId = _eqDragId; _eqDragId = null;
+  if(!srcId || srcId === targetId) return;
+  const si = EQUIPMENT_ITEMS.findIndex(x=>x.id===srcId);
+  const ti = EQUIPMENT_ITEMS.findIndex(x=>x.id===targetId);
+  if(si<0 || ti<0) return;
+  const sCat = EQUIPMENT_ITEMS[si].category || 'ללא קטגוריה';
+  const tCat = EQUIPMENT_ITEMS[ti].category || 'ללא קטגוריה';
+  if(sCat !== tCat){
+    showToast({icon:'⚠️',title:'ניתן לסדר רק באותה קטגוריה',type:'warn',duration:3000});
+    return;
+  }
+  const [moved] = EQUIPMENT_ITEMS.splice(si, 1);
+  const newTi = EQUIPMENT_ITEMS.findIndex(x=>x.id===targetId);
+  EQUIPMENT_ITEMS.splice(newTi, 0, moved);
+  _saveEquipment();
+  boEquipment(document.getElementById('bo-inner'));
+}
+function eqDragEnd(e){
+  document.querySelectorAll('.eq-drag-row').forEach(r=>r.classList.remove('dragging','drag-over'));
+  _eqDragId = null;
 }
 // Reorder a warehouse item within its category. Finds the adjacent item
 // in the same category in EQUIPMENT_ITEMS and swaps positions.
@@ -15345,7 +15388,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.18)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.19)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
