@@ -1340,8 +1340,8 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
     </div>
     <div id="fm-status-row">
       <button class="fm-status-btn sel" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="FIELD.setStatus('active',this)">✅ זמין</button>
-      <button class="fm-status-btn" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="FIELD.setStatus('standby',this)">⏸ כוננות</button>
-      <button class="fm-status-btn" data-s="busy" style="--sc:#ff7a1a;--scr:255,122,26" onclick="FIELD.setStatus('busy',this)">🔄 לא זמין</button>
+      <button class="fm-status-btn" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="FIELD.setStatus('standby',this)">⏳ כוננות</button>
+      <button class="fm-status-btn" data-s="busy" style="--sc:#ff3333;--scr:255,51,51" onclick="FIELD.setStatus('busy',this)">❌ לא זמין</button>
     </div>
     <button onclick="FIELD.switchToCommand()" style="background:none;border:1px solid #1a2838;border-radius:8px;padding:6px;font-size:11px;color:#344858;cursor:pointer;font-family:Heebo,sans-serif;width:100%">⬡ עבור למצב פיקוד</button>
   </div>
@@ -9521,15 +9521,17 @@ function _applyLocPrivacyUI(){
   const btn = document.getElementById('loc-privacy-btn');
   const lbl = document.getElementById('lp-label-main');
   const sub = document.getElementById('lp-label-sub');
-  if(!btn) return;
-  if(window._locPrivacyOn){
-    btn.className = 'loc-priv-on';
-    if(lbl) lbl.textContent = 'מיקום פעיל';
-    if(sub) sub.textContent = 'גלוי לצוות';
-  } else {
-    btn.className = 'loc-priv-off';
-    if(lbl) lbl.textContent = 'מיקום כבוי';
-    if(sub) sub.textContent = 'פרטיות — לא גלוי';
+  const on = !!window._locPrivacyOn;
+  if(btn){
+    if(on){
+      btn.className = 'loc-priv-on';
+      if(lbl) lbl.textContent = 'מיקום פעיל';
+      if(sub) sub.textContent = 'גלוי לצוות';
+    } else {
+      btn.className = 'loc-priv-off';
+      if(lbl) lbl.textContent = 'מיקום כבוי';
+      if(sub) sub.textContent = 'פרטיות — לא גלוי';
+    }
   }
 }
 // Apply saved state on load (called after map init)
@@ -16385,34 +16387,33 @@ const FIELD = (() => {
   }
 
   function _initMap(){
-    if(_fmap) return;
-    // Google Maps may not be ready yet when the user enters field mode —
-    // previously we bailed silently and never retried, so the user saw a
-    // black map forever. Retry every 400ms until the SDK loads (capped at
-    // 60s to avoid a runaway loop on a broken network).
-    if(!window._googleReady){
+    // Field mode reuses the COMMAND map instance (window.map / #gmap).
+    // A separate _fmap meant every Map & Tools button (GPS toggle, base
+    // map switch, layers, GovMap, drawing, etc.) operated on a map the
+    // field user couldn't see — buttons appeared inert. By mounting the
+    // single shared #gmap node inside #fm-map-wrap the field user gets
+    // the full tactical map with every feature intact.
+    if(!window._googleReady || !window.map){
       if(!_initMap._tries) _initMap._tries = 0;
       if(_initMap._tries++ > 150) return;
       setTimeout(_initMap, 400);
       return;
     }
-    const el = document.getElementById('fm-gmap');
-    if(!el) return;
-    const isDay = document.body.classList.contains('day');
-    _fmap = new google.maps.Map(el, {
-      zoom:16, center:{lat:32.0667,lng:34.7818},
-      mapTypeId:'roadmap', disableDefaultUI:true,
-      gestureHandling:'greedy', clickableIcons:false,
-      styles: isDay ? (window._dayStyle||[]) : (window._nightStyle||[])
-    });
-    // React to day/night toggle so the field map restyles without a
-    // full reload (the main map already listens for setTheme — this
-    // mirrors the behavior for field mode).
-    window.addEventListener('tcc-theme-change', (e) => {
-      if(!_fmap) return;
-      const day = e && e.detail === 'day';
-      _fmap.setOptions({ styles: day ? (window._dayStyle||[]) : (window._nightStyle||[]) });
-    });
+    const gmap = document.getElementById('gmap');
+    const wrap = document.getElementById('fm-map-wrap');
+    const placeholder = document.getElementById('fm-gmap');
+    if(gmap && wrap && gmap.parentElement !== wrap){
+      if(placeholder) placeholder.style.display = 'none';
+      wrap.insertBefore(gmap, wrap.firstChild);
+      // Also drag the location-privacy toggle along with the map so it
+      // renders on the field map exactly like it does in command mode.
+      const priv = document.getElementById('loc-privacy-btn');
+      if(priv) wrap.appendChild(priv);
+      setTimeout(() => {
+        try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
+      }, 60);
+    }
+    _fmap = window.map;
   }
 
   function toggleGPS(){
@@ -16449,16 +16450,12 @@ const FIELD = (() => {
       if(navigator.getBattery) navigator.getBattery().then(b=>{
         if(el('fm-bat')) el('fm-bat').textContent=Math.round(b.level*100)+'%';
       });
-      // Update field map marker
-      const color=method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107';
-      if(_fmap){
-        _fmap.setCenter(ll);
-        const icon={path:_SVG_CIRCLE,scale:10,fillColor:color,fillOpacity:0.9,strokeColor:'#fff',strokeWeight:2};
-        if(!_fMarker){_fMarker=new google.maps.Marker({position:ll,map:_fmap,icon,zIndex:500});}
-        else{_fMarker.setPosition(ll);_fMarker.setIcon(icon);}
-      }
-      // SYNC.startPublishing has its own watch that pushes to Firebase —
-      // we don't need to call it here. Only update local UI.
+      // SYNC.startPublishing already renders the operator's avatar
+      // bubble on the shared map — we don't paint a duplicate dot here.
+      // Just follow the user by centering the shared map.
+      if(window.map) window.map.setCenter(ll);
+      window._lastLat = ll.lat;
+      window._lastLng = ll.lng;
     }
     // Use global cascade: GPS → WiFi → IP for FIELD UI updates only
     _startWatch(_onPos);
@@ -16487,30 +16484,42 @@ const FIELD = (() => {
   }
 
   function navigate(){
-    if(!_fMarker){ showToast({icon:'⚠️',title:'הפעל GPS תחילה',type:'warn'}); return; }
-    const pos=_fMarker.getPosition();
+    const lat = window._lastLat, lng = window._lastLng;
+    if(lat == null || lng == null){
+      showToast({icon:'⚠️',title:'הפעל GPS תחילה',type:'warn'});
+      return;
+    }
     // Find nearest active mission
     const msn=MISSIONS.filter(m=>m.status==='active'&&m.lat)[0];
     if(msn){
-      const url='https://www.google.com/maps/dir/?api=1&origin='+pos.lat()+','+pos.lng()+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving';
-      window.open(url,'_blank');
+      window.open('https://www.google.com/maps/dir/?api=1&origin='+lat+','+lng+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving','_blank');
     } else {
-      // Just open current location in maps
-      window.open('https://maps.google.com/?q='+pos.lat()+','+pos.lng(),'_blank');
+      window.open('https://maps.google.com/?q='+lat+','+lng,'_blank');
     }
   }
 
   function sos(){
     SYNC.updateStatus('urgent');
     triggerSOS();
-    if(_fMarker && _db){
-      const pos=_fMarker.getPosition();
-      showToast({icon:'🆘',title:'SOS נשלח!',sub:'מיקומך שודר לפיקוד',type:'warn',duration:8000});
+    showToast({icon:'🆘',title:'SOS נשלח!',sub:'מיקומך שודר לפיקוד',type:'warn',duration:8000});
+  }
+
+  function _restoreMapToCommand(){
+    const gmap = document.getElementById('gmap');
+    const priv = document.getElementById('loc-privacy-btn');
+    const mapWrap = document.getElementById('map-wrap');
+    if(gmap && mapWrap && gmap.parentElement !== mapWrap){
+      mapWrap.insertBefore(gmap, mapWrap.firstChild);
+      if(priv) mapWrap.appendChild(priv);
+      setTimeout(() => {
+        try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
+      }, 60);
     }
   }
 
   function switchToCommand(){
     localStorage.setItem('tac_mode','command');
+    _restoreMapToCommand();
     document.getElementById('field-mode').classList.remove('active');
     document.body.classList.remove('fm-active');
     showToast({icon:'⬡',title:'מצב פיקוד פעיל',type:'info'});
