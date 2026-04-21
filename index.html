@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.47 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.48 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -32,7 +32,7 @@
 <style>
 /* Tactical Command Center — Created by: Or Many | 050-3404444 */
 :root{--r:6px;--font:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Hebrew',Arial,sans-serif;--font2:'Assistant',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Hebrew',Arial,sans-serif;--trans:0.25s ease}
-body.night{--bg:#07090a;--panel:#0d1014;--panel2:#121620;--panel3:#18202e;--panel4:#1e2838;--accent:#3dff52;--accent2:#a8e800;--warn:#ffc107;--danger:#ff3333;--blue:#29c5f6;--purple:#b06cf0;--orange:#ff7a1a;--teal:#00e8b8;--pink:#ff4aaa;--text:#9ab8c8;--text2:#5a7a90;--text3:#344858;--texthi:#d8eef8;--border:#1a2838;--border2:#243448;--border3:#2e4460;--glow:rgba(61,255,82,0.12);--glow2:rgba(61,255,82,0.06);--popup-bg:rgba(8,12,18,0.97)}
+body.night{--bg:#07090a;--panel:#0d1014;--panel2:#121620;--panel3:#18202e;--panel4:#1e2838;--accent:#3dff52;--accent2:#a8e800;--warn:#ffc107;--danger:#ff3333;--blue:#29c5f6;--purple:#b06cf0;--orange:#ff7a1a;--teal:#00e8b8;--pink:#ff4aaa;--text:#c2d6e2;--text2:#9cb3c4;--text3:#7290a4;--texthi:#e8f4fa;--border:#1a2838;--border2:#243448;--border3:#2e4460;--glow:rgba(61,255,82,0.12);--glow2:rgba(61,255,82,0.06);--popup-bg:rgba(8,12,18,0.97)}
 body.day{--bg:#f0f4f8;--panel:#ffffff;--panel2:#f4f8fc;--panel3:#eaf0f8;--panel4:#e0eaf4;--accent:#1a8c2e;--accent2:#4a9e00;--warn:#d47800;--danger:#cc1111;--blue:#0a7cb8;--purple:#6040b8;--orange:#b84800;--teal:#008870;--pink:#c8006a;--text:#2a3e54;--text2:#4a6070;--text3:#7a94a8;--texthi:#0a1e30;--border:#c8dcea;--border2:#b0c8da;--border3:#88a8c0;--glow:rgba(26,140,46,0.08);--glow2:rgba(26,140,46,0.04);--popup-bg:rgba(255,255,255,0.98)}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--text);direction:rtl;transition:background var(--trans),color var(--trans)}
@@ -858,7 +858,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.47</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.48</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1261,7 +1261,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.47</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.48</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -8243,7 +8243,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.47 source-code update because the merge in
+    // which survived our v6.8.48 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -15988,7 +15988,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.47)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.48)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
