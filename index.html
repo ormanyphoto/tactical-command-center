@@ -3575,49 +3575,74 @@ function loadAdminBoundary(type){
 }
 
 // ── DIRECTIONS / NAVIGATION ──
+// Resolve a navigation input field to a Directions-API origin/destination.
+// When the field has data-lat/data-lng attributes (set by the destination
+// picker, navFromMyLocation, or a places-autocomplete selection) we pass
+// the raw LatLng — Google routes exactly to that point, no geocoding
+// ambiguity. For free-typed text we fall back to the string, appending
+// "ישראל" only when the text isn't already a "lat,lng" pair (appending
+// to "32.09,34.78" used to break the geocoder).
+function _navResolve(el){
+  if(!el) return null;
+  const lat = parseFloat(el.dataset.lat);
+  const lng = parseFloat(el.dataset.lng);
+  if(!Number.isNaN(lat) && !Number.isNaN(lng)) return {lat, lng};
+  const raw = (el.value || '').trim();
+  if(!raw) return null;
+  const coordMatch = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(coordMatch) return {lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2])};
+  return raw + (raw.includes('ישראל') ? '' : ' ישראל');
+}
 async function calcNavRoute(){
-  const from=document.getElementById('nav-from')?.value;
-  const to=document.getElementById('nav-to')?.value;
-  const mode=document.getElementById('nav-mode')?.value||'DRIVING';
-  if(!from||!to){showToast({icon:'⚠️',title:'יש להזין מוצא ויעד',type:'warn'});return;}
-  if(!_dirService){_dirService=new google.maps.DirectionsService();_dirRenderer=new google.maps.DirectionsRenderer({map,polylineOptions:{strokeColor:'#3dff52',strokeWeight:4}});}
+  const fromEl = document.getElementById('nav-from');
+  const toEl   = document.getElementById('nav-to');
+  const mode   = document.getElementById('nav-mode')?.value || 'DRIVING';
+  const origin      = _navResolve(fromEl);
+  const destination = _navResolve(toEl);
+  if(!origin || !destination){ showToast({icon:'⚠️',title:'יש להזין מוצא ויעד',type:'warn'}); return; }
+  if(!_dirService){ _dirService = new google.maps.DirectionsService(); _dirRenderer = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:'#3dff52', strokeWeight:4}}); }
   showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
   _dirService.route({
-    origin:from+' ישראל',destination:to+' ישראל',
-    travelMode:google.maps.TravelMode[mode],language:'he',region:'IL',
-  },(result,status)=>{
-    if(status==='OK'){
+    origin, destination,
+    travelMode: google.maps.TravelMode[mode], language:'he', region:'IL',
+  }, (result, status) => {
+    if(status === 'OK'){
       _dirRenderer.setDirections(result);
-      const leg=result.routes[0].legs[0];
-      showToast({icon:'🛣️',title:'מסלול חושב',sub:`${leg.distance.text} · ${leg.duration.text}`,type:'success',duration:6000});
+      const leg = result.routes[0].legs[0];
+      showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
     } else {
-      showToast({icon:'❌',title:'שגיאת ניווט',sub:status,type:'danger'});
+      showToast({icon:'❌', title:'שגיאת ניווט', sub:status, type:'danger'});
     }
   });
 }
 // Destination picker in renderNavigationP — fill #nav-to from a mission
-// or an active emergency-notification destination/venue. Also triggers
-// the autocomplete input event so Google's bound Places Autocomplete
-// doesn't try to validate the typed value.
+// or an active emergency-notification destination/venue. Stamps the
+// exact lat/lng on the input so calcNavRoute routes to the stored
+// point instead of geocoding the display string (addresses like "רח׳
+// רוטשילד 1" or duplicated venue names routinely snapped to the wrong
+// building without this).
 function navPickDestination(v){
   if(!v) return;
   const dest = document.getElementById('nav-to');
   if(!dest) return;
-  let addr = '';
+  let addr = '', lat = null, lng = null;
   if(v.startsWith('msn:')){
     const m = MISSIONS.find(x => x.id === v.slice(4));
-    if(m) addr = m.location || (m.lat+','+m.lng);
+    if(m){ addr = m.location || (m.lat+','+m.lng); lat = m.lat; lng = m.lng; }
   } else if(v === 'notif:dest'){
     const d = window._activeNotifDest;
-    if(d) addr = d.address || (d.lat+','+d.lng);
+    if(d){ addr = d.address || (d.lat+','+d.lng); lat = d.lat; lng = d.lng; }
   } else if(v.startsWith('notif:v')){
     const idx = parseInt(v.slice(7), 10);
     const ven = (window._activeNotifVenues || [])[idx];
-    if(ven) addr = ven.address || ven.name || (ven.lat+','+ven.lng);
+    if(ven){ addr = ven.address || ven.name || (ven.lat+','+ven.lng); lat = ven.lat; lng = ven.lng; }
   }
   if(!addr) return;
   dest.value = addr;
-  dest.dispatchEvent(new Event('input'));
+  if(lat != null && lng != null){
+    dest.dataset.lat = String(lat);
+    dest.dataset.lng = String(lng);
+  }
   // Auto-fill origin with current location if empty — saves a tap.
   const from = document.getElementById('nav-from');
   if(from && !from.value) navFromMyLocation();
@@ -3626,7 +3651,12 @@ async function navFromMyLocation(){
   if(!navigator.geolocation)return;
   navigator.geolocation.getCurrentPosition(pos=>{
     const inp=document.getElementById('nav-from');
-    if(inp)inp.value=pos.coords.latitude.toFixed(5)+','+pos.coords.longitude.toFixed(5);
+    if(inp){
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      inp.value = lat.toFixed(5)+','+lng.toFixed(5);
+      inp.dataset.lat = String(lat);
+      inp.dataset.lng = String(lng);
+    }
     showToast({icon:'📍',title:'מיקום נמצא',type:'success',duration:2000});
   });
 }
@@ -4933,17 +4963,37 @@ function renderNavigationP(c){
   </div>
   <div class="sec-hd">ניווט למשימה</div>
   ${missions.map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
-  // Attach Places Autocomplete to nav inputs
-  if(window._googleReady&&google.maps.places){
-    ['nav-from','nav-to'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(!el||el._ac)return;
-      const ac=new google.maps.places.Autocomplete(el,{
+  // Attach Places Autocomplete to nav inputs.
+  // place_changed stamps the picked location's lat/lng onto the input
+  // as data-lat/data-lng so calcNavRoute routes to that exact point
+  // instead of re-geocoding the display string. Manual typing clears
+  // the stamp so the user can replace an autocomplete pick with a
+  // free-text address.
+  if(window._googleReady && google.maps.places){
+    ['nav-from','nav-to'].forEach(id => {
+      const el = document.getElementById(id);
+      if(!el || el._ac) return;
+      const ac = new google.maps.places.Autocomplete(el, {
         componentRestrictions:{country:'il'},
         fields:['geometry','formatted_address'],
         language:'he',
       });
-      el._ac=ac;
+      ac.addListener('place_changed', () => {
+        const p = ac.getPlace();
+        if(p && p.geometry && p.geometry.location){
+          el.dataset.lat = String(p.geometry.location.lat());
+          el.dataset.lng = String(p.geometry.location.lng());
+          if(p.formatted_address) el.value = p.formatted_address;
+        }
+      });
+      el.addEventListener('input', () => {
+        // Manual edit invalidates any stamped coords — next calc will
+        // re-geocode the current string (or let the user pick a new
+        // suggestion from autocomplete).
+        delete el.dataset.lat;
+        delete el.dataset.lng;
+      });
+      el._ac = ac;
     });
   }
 }
