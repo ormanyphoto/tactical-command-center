@@ -9441,6 +9441,13 @@ function pickPersonPhoto(id){
           renderPersonnelP(document.getElementById('rp-body'));
           savePersonnelToStorage();
           if(typeof SYNC!=='undefined') SYNC.savePhoto(id, compressed);
+          // Refresh the live avatar bubble on the map for this person
+          // immediately. Without this the uploader had to wait for the
+          // next Firebase photo-subscription round-trip before seeing
+          // the new photo in their own marker.
+          if(typeof SYNC!=='undefined' && typeof SYNC.rerenderMarkers==='function'){
+            SYNC.rerenderMarkers();
+          }
         });
       }
     };
@@ -15721,16 +15728,19 @@ const SYNC = (() => {
     try{ _db.ref('tac_photos/' + personId).set(dataUrl); }catch(e){}
   }
 
-  // ── Photos: load all photos from Firebase and apply to PERSONNEL ─────────
+  // ── Photos: subscribe to Firebase photos and apply live to PERSONNEL ─────
+  // Uses .on('value') (not once) so that when a team member uploads a new
+  // photo on one device, every other device and live avatar bubble updates
+  // in real time instead of only at the next page reload.
   function loadPhotos(){
     if(!_db) return;
-    _db.ref('tac_photos').once('value', snap=>{
+    _db.ref('tac_photos').on('value', snap=>{
       const data = snap.val();
       if(!data) return;
       let changed=false;
       Object.entries(data).forEach(([pid, url])=>{
         const p = PERSONNEL.find(x=>x.id===pid);
-        if(p && url){ p.photo = url; changed=true; }
+        if(p && url && p.photo !== url){ p.photo = url; changed=true; }
       });
       if(!changed) return;
       // Persist to localStorage so photos survive page reload without waiting for Firebase
@@ -15741,8 +15751,8 @@ const SYNC = (() => {
       // Re-render all live markers so photos appear in bubbles.
       // Retry multiple times: on slow-loading mobile the map may not be
       // ready at 300ms, so we keep trying until window._googleReady is true.
-      [300, 1500, 3500, 7000].forEach(ms => setTimeout(rerenderMarkers, ms));
-    });
+      [0, 300, 1500, 3500].forEach(ms => setTimeout(rerenderMarkers, ms));
+    }, err => console.warn('[SYNC] tac_photos subscription failed:', err));
   }
 
   // ── Personnel: load all team member info (name, role, contact, skills,
