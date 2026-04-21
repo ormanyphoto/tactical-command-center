@@ -3593,6 +3593,32 @@ function _navResolve(el){
   if(coordMatch) return {lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2])};
   return raw + (raw.includes('ישראל') ? '' : ' ישראל');
 }
+// Hold our own A/B markers so we can clean them up between renders.
+let _navStartMarker = null, _navEndMarker = null;
+function _navClearMarkers(){
+  if(_navStartMarker){ _navStartMarker.setMap(null); _navStartMarker = null; }
+  if(_navEndMarker){   _navEndMarker.setMap(null);   _navEndMarker = null; }
+}
+function _navLabelMarker(pos, letter, fill){
+  // SVG letter pin — no external image fetch, so WebView can't produce a
+  // broken-image placeholder (the reason default A/B markers looked
+  // torn on Android WebView).
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">'
+    + '<path d="M18 1C9 1 2 8 2 17c0 11 16 27 16 27s16-16 16-27C34 8 27 1 18 1z" fill="'+fill+'" stroke="#0d1014" stroke-width="1.5"/>'
+    + '<circle cx="18" cy="17" r="9" fill="#fff"/>'
+    + '<text x="18" y="21" text-anchor="middle" font-family="Arial,Heebo,sans-serif" font-size="13" font-weight="900" fill="'+fill+'">'+letter+'</text>'
+    + '</svg>';
+  return new google.maps.Marker({
+    position: pos,
+    map: window.map,
+    icon: {
+      url: 'data:image/svg+xml;base64,' + btoa(svg),
+      scaledSize: new google.maps.Size(36, 46),
+      anchor: new google.maps.Point(18, 44),
+    },
+    zIndex: 900,
+  });
+}
 async function calcNavRoute(){
   const fromEl = document.getElementById('nav-from');
   const toEl   = document.getElementById('nav-to');
@@ -3600,20 +3626,69 @@ async function calcNavRoute(){
   const origin      = _navResolve(fromEl);
   const destination = _navResolve(toEl);
   if(!origin || !destination){ showToast({icon:'⚠️',title:'יש להזין מוצא ויעד',type:'warn'}); return; }
-  if(!_dirService){ _dirService = new google.maps.DirectionsService(); _dirRenderer = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:'#3dff52', strokeWeight:4}}); }
+  if(!_dirService){
+    _dirService = new google.maps.DirectionsService();
+    _dirRenderer = new google.maps.DirectionsRenderer({
+      map: window.map,
+      polylineOptions: {strokeColor:'#3dff52', strokeWeight:4},
+      // Google's default A/B markers fetch PNGs that fail on some mobile
+      // WebViews → broken-image glyph on the map. We draw our own below.
+      suppressMarkers: true,
+    });
+  }
   showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
   _dirService.route({
     origin, destination,
     travelMode: google.maps.TravelMode[mode], language:'he', region:'IL',
   }, (result, status) => {
-    if(status === 'OK'){
-      _dirRenderer.setDirections(result);
-      const leg = result.routes[0].legs[0];
-      showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
-    } else {
+    if(status !== 'OK'){
       showToast({icon:'❌', title:'שגיאת ניווט', sub:status, type:'danger'});
+      return;
     }
+    _dirRenderer.setDirections(result);
+    const leg = result.routes[0].legs[0];
+    // Draw clean A/B markers on the real start/end positions
+    _navClearMarkers();
+    _navStartMarker = _navLabelMarker(leg.start_location, 'A', '#3dff52');
+    _navEndMarker   = _navLabelMarker(leg.end_location,   'B', '#ff3333');
+    // Cache origin/destination for the Waze / Google Maps launchers
+    window._navLastRoute = {
+      origin: {lat: leg.start_location.lat(), lng: leg.start_location.lng()},
+      destination: {lat: leg.end_location.lat(), lng: leg.end_location.lng()},
+      mode,
+    };
+    _renderNavLaunchers(leg);
+    showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
   });
+}
+// Render a "launch in Waze / Google Maps" row inside the nav panel so the
+// operator can hand off the route to a real turn-by-turn navigator with
+// one tap.
+function _renderNavLaunchers(leg){
+  const body = document.getElementById('rp-body');
+  if(!body) return;
+  let box = document.getElementById('nav-launch-box');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'nav-launch-box';
+    box.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px';
+    const calcBtn = body.querySelector('button.btn-pri');
+    if(calcBtn && calcBtn.parentElement) calcBtn.parentElement.insertAdjacentElement('afterend', box);
+    else body.prepend(box);
+  }
+  const r = window._navLastRoute;
+  const ll = (p) => p.lat + ',' + p.lng;
+  const wazeHref = 'https://waze.com/ul?ll=' + ll(r.destination) + '&navigate=yes';
+  const travel = (r.mode || 'DRIVING').toLowerCase();
+  const gmapsHref = 'https://www.google.com/maps/dir/?api=1'
+    + '&origin=' + ll(r.origin)
+    + '&destination=' + ll(r.destination)
+    + '&travelmode=' + travel;
+  box.innerHTML =
+    '<a class="btn-sec" style="margin:0;text-align:center;text-decoration:none;display:block;padding:8px 6px;font-size:12px;font-weight:800" '
+      + 'href="' + wazeHref + '" target="_blank" rel="noopener">🚗 פתח ב-Waze</a>'
+    + '<a class="btn-sec" style="margin:0;text-align:center;text-decoration:none;display:block;padding:8px 6px;font-size:12px;font-weight:800" '
+      + 'href="' + gmapsHref + '" target="_blank" rel="noopener">🗺️ פתח ב-Google Maps</a>';
 }
 // Destination picker in renderNavigationP — fill #nav-to from a mission
 // or an active emergency-notification destination/venue. Stamps the
