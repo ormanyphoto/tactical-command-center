@@ -4916,9 +4916,9 @@ function renderNavigationP(c){
   }
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
   <div class="form-g addr-wrap"><label>נקודת מוצא</label>
-    <div class="addr-row" style="display:flex;gap:6px;align-items:stretch">
-      <input type="text" id="nav-from" placeholder="כתובת התחלה..." style="flex:1"/>
-      <button type="button" class="btn-sec" style="margin:0;padding:0 10px;font-size:12px;white-space:nowrap" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי">📍 מיקומי</button>
+    <div class="addr-row" style="display:flex;gap:4px;align-items:stretch">
+      <input type="text" id="nav-from" placeholder="כתובת התחלה..." style="flex:1;min-width:0"/>
+      <button type="button" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי" aria-label="מיקום נוכחי" style="flex:0 0 auto;width:36px;margin:0;padding:0;border:1px solid var(--border2);border-radius:var(--r);background:var(--panel2);color:var(--accent);font-size:16px;cursor:pointer">📍</button>
     </div>
   </div>
   <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
