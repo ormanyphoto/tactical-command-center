@@ -14657,6 +14657,13 @@ function closeMobileMenu(){
 }
 function mobileGoView(v){
   closeMobileMenu();
+  // Toggle behavior: tapping the currently-active tab (other than map)
+  // returns to the map. Gives one-handed users a quick way to dismiss a
+  // panel without hunting for the close-X. Tapping מפה while already on
+  // map is a no-op (avoids a pointless re-render).
+  if(v === currentView && v !== 'map'){
+    v = 'map';
+  }
   goView(v); // goView handles mobile-open/close
   // update bottom nav active state
   document.querySelectorAll('.bn-item[data-v]').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
