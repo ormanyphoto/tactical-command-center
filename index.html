@@ -711,8 +711,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #operator-bar #op-loc-btn.off{color:#ff7a1a}
 #op-status-popover{display:none;position:fixed;bottom:116px;right:10px;z-index:600;background:var(--panel);border:1px solid var(--border2);border-radius:10px;padding:6px;flex-direction:column;gap:4px;box-shadow:0 6px 24px rgba(0,0,0,0.4);direction:rtl}
 #op-status-popover.open{display:flex}
-.op-status-opt{background:var(--panel2,#1a2028);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;font-family:var(--font);font-size:12px;font-weight:700;color:var(--texthi);cursor:pointer;text-align:right}
-.op-status-opt:hover,.op-status-opt.sel{border-color:var(--sc);color:var(--sc);background:rgba(var(--scr),0.12)}
+.op-status-opt{background:var(--panel2,#1a2028);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;font-family:var(--font);font-size:13px;font-weight:800;color:var(--texthi);cursor:pointer;text-align:right}
+/* Hover: subtle tint — indicates interactivity without hurting contrast */
+.op-status-opt:hover{border-color:var(--sc);background:rgba(var(--scr),0.18)}
+/* Selected: solid-fill pill with white text, readable in both themes.
+   The old style (bright --sc text on a 12% --scr background) washed out
+   on day mode (white panel) and neon-blurred on night mode. */
+.op-status-opt.sel{background:var(--sc);border-color:var(--sc);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.25)}
 /* Live marker pulse */
 @keyframes lmpulse{0%{r:11;opacity:0.9}70%{r:18;opacity:0}100%{r:18;opacity:0}}
 .live-marker-ring{animation:lmpulse 2s infinite}
@@ -5170,8 +5175,27 @@ function saveMission(){
 // Build the 5-status KPI bar HTML for the כוחות panel
 function _buildUnitsKPI(){
   const entries = Object.values(_approvalsData || {});
-  const avail = PERSONNEL.filter(p => p.available).length;
-  const unavail = PERSONNEL.filter(p => !p.available).length;
+  // Availability accounts for the live operator-bar status so a user who
+  // sets themselves to "לא זמין" or "כוננות" counts toward the right KPI
+  // bucket, not the stale PERSONNEL.available flag. Approvals (בדרך / הגיע)
+  // are handled separately below.
+  const liveLocs = window._liveLocs || {};
+  const isAppr = (pid) => {
+    const a = (_approvalsData||{})[pid];
+    return a && (a.arrived || a.departed || a.approved);
+  };
+  const avail = PERSONNEL.filter(p => {
+    if(isAppr(p.id)) return false;
+    const ls = liveLocs[p.id] && liveLocs[p.id].status;
+    if(ls === 'busy' || ls === 'standby') return false;
+    return p.available;
+  }).length;
+  const unavail = PERSONNEL.filter(p => {
+    if(isAppr(p.id)) return false;
+    const ls = liveLocs[p.id] && liveLocs[p.id].status;
+    if(ls === 'busy') return true;
+    return !p.available && !(ls === 'standby');
+  }).length;
   // Count by status: manual arrival flag OR GPS proximity
   let arrived = 0, enroute = 0, approved = 0;
   const dest = window._activeNotifDest;
@@ -5275,8 +5299,16 @@ function _personStatus(p){
     return {key:'enroute',lbl:'🚗 בדרך',badge:'b-deployed',order:1};
   }
   if(app && app.approved) return {key:'approved',lbl:'⏳ מאשר',badge:'b-onduty',order:2};
+  // Live availability from the operator-bar status popover (tac_locs.status
+  // published by SYNC.updateStatus). When a team member sets themselves to
+  // "לא זמין" / "כוננות", the כוחות list should reflect that immediately —
+  // not keep showing them as "זמין" based on the static PERSONNEL.available.
+  const liveLoc = (window._liveLocs || {})[p.id];
+  const liveStatus = liveLoc && liveLoc.status;
+  if(liveStatus === 'busy')    return {key:'busy',   lbl:'❌ לא זמין', badge:'b-unavail', order:5};
+  if(liveStatus === 'standby') return {key:'standby',lbl:'⏳ כוננות',  badge:'b-onduty',  order:4};
   if(p.available) return {key:'available',lbl:'זמין',badge:'b-active',order:3};
-  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',order:4};
+  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',order:6};
 }
 function _renderUnitsListOnly(el){
   if(!el) return;
@@ -12011,11 +12043,15 @@ async function _fallbackLoadLocations(){
     window._liveLocs = {};
     Object.entries(data).forEach(([uid,d])=>{
       const key = d.personId || uid;
-      window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
+      window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name, status:d.status};
     });
     if(window.map && window._googleReady && typeof SYNC!=='undefined' && SYNC.rerenderMarkers){
       SYNC.rerenderMarkers();
     }
+    // Refresh כוחות list if open so status changes published by other
+    // operators show without waiting for a panel switch.
+    const listEl = document.getElementById('units-plist');
+    if(listEl && typeof _renderUnitsListOnly === 'function') _renderUnitsListOnly(listEl);
   }catch(e){ console.warn('[FALLBACK]',e.message); }
 }
 // Run fallback every 5s regardless of SYNC state — fast response to toggle changes
@@ -15362,8 +15398,12 @@ const SYNC = (() => {
       window._liveLocs = {};
       Object.entries(data).forEach(([uid,d])=>{
         const key = d.personId || uid;
-        window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name};
+        window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name, status:d.status};
       });
+      // Refresh כוחות list if open so status changes published by other
+      // operators show without waiting for a panel switch.
+      const _listEl = document.getElementById('units-plist');
+      if(_listEl && typeof _renderUnitsListOnly === 'function') _renderUnitsListOnly(_listEl);
       function _renderAll(){
         Object.entries(data).forEach(([uid,d])=>{
           if(!d) return;
@@ -16266,6 +16306,21 @@ function operatorSetStatus(s){
   _applyOperatorStatusUI();
   document.getElementById('op-status-popover')?.classList.remove('open');
   if(typeof SYNC !== 'undefined' && SYNC.updateStatus) SYNC.updateStatus(s);
+  // Optimistically update this user's entry in the local _liveLocs cache
+  // so the כוחות list re-renders the new status immediately instead of
+  // waiting for the Firebase round-trip to write tac_locs and the SDK
+  // listener to read it back.
+  const u = (typeof AUTH !== 'undefined') ? AUTH.getUser() : null;
+  if(u && u.id){
+    window._liveLocs = window._liveLocs || {};
+    window._liveLocs[u.id] = { ...(window._liveLocs[u.id] || {}), status: s };
+  }
+  // Refresh the כוחות list if currently rendered
+  const listEl = document.getElementById('units-plist');
+  if(listEl && typeof _renderUnitsListOnly === 'function') _renderUnitsListOnly(listEl);
+  // Refresh KPI counters too (זמינים / לא זמינים / etc.)
+  const kpi = document.getElementById('units-kpi');
+  if(kpi && typeof _buildUnitsKPI === 'function') kpi.innerHTML = _buildUnitsKPI();
   const meta = STATUS_META[s] || STATUS_META.active;
   showToast({icon: meta.icon, title:'סטטוס עודכן: '+meta.label, type:'info', duration:2000});
 }
