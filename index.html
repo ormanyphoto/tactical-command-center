@@ -708,7 +708,17 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #field-mode{position:fixed;inset:0;z-index:9000;background:#07090a;display:none;flex-direction:column;font-family:'Heebo',sans-serif;direction:rtl}
 #field-mode.active{display:flex}
 #fm-topbar{height:56px;background:rgba(13,16,20,0.98);border-bottom:1px solid #1a2838;display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;position:relative}
-#fm-logo{font-weight:900;font-size:13px;color:#3dff52;letter-spacing:0.04em}
+#fm-logo{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#fm-logo-hex{font-size:28px;font-weight:900;line-height:1;color:var(--accent);display:flex;align-items:center}
+#fm-logo-text{display:flex;flex-direction:column;gap:1px;line-height:1}
+#fm-logo-title{font-size:16px;font-weight:900;color:var(--accent);font-family:var(--font2);letter-spacing:0.04em;line-height:1}
+#fm-logo-sub{font-size:10px;font-weight:400;color:var(--text3);letter-spacing:0.02em;line-height:1}
+#fm-theme-btn{background:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;font-size:14px;color:rgba(255,255,255,0.85);cursor:pointer;line-height:1;flex-shrink:0}
+#fm-theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+body.day #fm-topbar{background:#fff;border-bottom-color:#d4dde6}
+body.day #fm-name-badge{background:#f1f5f9;border-color:#cbd5e1;color:#1f2937}
+body.day #fm-logout-btn{color:rgba(30,41,59,0.65);border-color:rgba(30,41,59,0.2)}
+body.day #fm-theme-btn{color:rgba(30,41,59,0.85);border-color:rgba(30,41,59,0.2)}
 #fm-name-badge{background:#1a2838;border:1px solid #2e4460;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#d8eef8;display:flex;align-items:center;gap:6px}
 #fm-name-badge .fm-dot{width:8px;height:8px;border-radius:50%;background:#3dff52;animation:fmpulse 2s infinite}
 @keyframes fmpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
@@ -1275,9 +1285,16 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.55</div>
+    <div id="fm-logo">
+      <span id="fm-logo-hex">⬡</span>
+      <div id="fm-logo-text">
+        <span id="fm-logo-title">מערכת מבצעים</span>
+        <span id="fm-logo-sub">שדה</span>
+      </div>
+    </div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
+    <button id="fm-theme-btn" onclick="setTheme(document.body.classList.contains('night')?'day':'night')" title="יום/לילה">🌙</button>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
     <button id="fm-logout-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
   </div>
@@ -3690,6 +3707,10 @@ function setTheme(m){
   if(dd){dd.classList.toggle('active',m==='day');dd.style.cssText='';}
   localStorage.setItem('tac-v5-theme',m);
   const mobT=document.getElementById('mob-theme-toggle');if(mobT)mobT.textContent=m==='night'?'🌙':'☀️';
+  const fmT=document.getElementById('fm-theme-btn');if(fmT)fmT.textContent=m==='night'?'🌙':'☀️';
+  // Broadcast so the field map (and future consumers) can restyle without
+  // having to hook into setTheme directly.
+  try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
     const _ph=window._poiHide||[
       {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
@@ -16353,12 +16374,33 @@ const FIELD = (() => {
   }
 
   function _initMap(){
-    if(_fmap || !window._googleReady) return;
-    _fmap = new google.maps.Map(document.getElementById('fm-gmap'),{
+    if(_fmap) return;
+    // Google Maps may not be ready yet when the user enters field mode —
+    // previously we bailed silently and never retried, so the user saw a
+    // black map forever. Retry every 400ms until the SDK loads (capped at
+    // 60s to avoid a runaway loop on a broken network).
+    if(!window._googleReady){
+      if(!_initMap._tries) _initMap._tries = 0;
+      if(_initMap._tries++ > 150) return;
+      setTimeout(_initMap, 400);
+      return;
+    }
+    const el = document.getElementById('fm-gmap');
+    if(!el) return;
+    const isDay = document.body.classList.contains('day');
+    _fmap = new google.maps.Map(el, {
       zoom:16, center:{lat:32.0667,lng:34.7818},
       mapTypeId:'roadmap', disableDefaultUI:true,
       gestureHandling:'greedy', clickableIcons:false,
-      styles: window._nightStyle||[]
+      styles: isDay ? (window._dayStyle||[]) : (window._nightStyle||[])
+    });
+    // React to day/night toggle so the field map restyles without a
+    // full reload (the main map already listens for setTheme — this
+    // mirrors the behavior for field mode).
+    window.addEventListener('tcc-theme-change', (e) => {
+      if(!_fmap) return;
+      const day = e && e.detail === 'day';
+      _fmap.setOptions({ styles: day ? (window._dayStyle||[]) : (window._nightStyle||[]) });
     });
   }
 
