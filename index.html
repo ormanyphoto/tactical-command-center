@@ -15723,9 +15723,41 @@ const SYNC = (() => {
   };
 
   // ── Photos: save a single photo to Firebase ──────────────────────────────
+  // Dual-write: SDK .set() for instant push to connected listeners, plus a
+  // REST PUT as a belt-and-suspenders fallback. Either path alone has
+  // failure modes in the field:
+  //   - SDK can silently fail if anon auth isn't ready yet, or if the
+  //     WebSocket is wedged (the user uploaded a photo and it looked like
+  //     it saved locally but never propagated).
+  //   - REST can fail on bad network but works when the WebSocket is down.
+  // With both, whichever succeeds first wins; the write is idempotent.
+  // Also retries once on REST failure so a flaky connection doesn't eat
+  // the upload. The caller (pickPersonPhoto) has already persisted to
+  // localStorage so the uploader's own device is always fine.
   function savePhoto(personId, dataUrl){
-    if(!_db || !personId) return;
-    try{ _db.ref('tac_photos/' + personId).set(dataUrl); }catch(e){}
+    if(!personId || !dataUrl) return;
+    if(_db){
+      try{
+        _db.ref('tac_photos/' + personId).set(dataUrl)
+          .then(()=>console.log('[SYNC] photo saved via SDK:', personId))
+          .catch(e=>console.warn('[SYNC] photo SDK save failed:', personId, e.code||e));
+      }catch(e){ console.warn('[SYNC] photo SDK threw:', e); }
+    }
+    // REST PUT — works even without SDK auth / WebSocket
+    const url = 'https://tactical-command-center-default-rtdb.firebaseio.com/tac_photos/' + encodeURIComponent(personId) + '.json';
+    const body = JSON.stringify(dataUrl);
+    const attempt = (retriesLeft) => {
+      fetch(url, { method:'PUT', headers:{'Content-Type':'application/json'}, body })
+        .then(r=>{
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          console.log('[SYNC] photo saved via REST:', personId);
+        })
+        .catch(e=>{
+          console.warn('[SYNC] photo REST save failed:', personId, e.message, 'retries left:', retriesLeft);
+          if(retriesLeft > 0) setTimeout(()=>attempt(retriesLeft-1), 2000);
+        });
+    };
+    attempt(2);
   }
 
   // ── Photos: subscribe to Firebase photos and apply live to PERSONNEL ─────
