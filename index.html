@@ -3961,6 +3961,80 @@ function _gpsErr(err, ctx){
 
 // ── HELPERS ──
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// ══════════════════════════════════════════════════════════
+// RTDB REST auth interceptor
+// ══════════════════════════════════════════════════════════
+// Roughly 20 spots in this file fetch() Firebase RTDB via the REST
+// endpoint (…firebaseio.com/…json). Before the rules were locked down
+// those requests worked unauthenticated. Now rules require
+// `auth != null`, so every raw fetch was silently returning 401/403
+// and live tracking + photo sync + SOS REST polls all broke.
+//
+// Rather than rewrite every call site, we intercept window.fetch once:
+// if the request targets our RTDB host AND no ?auth= is already on the
+// URL, we append the current Firebase Auth ID token. Token is cached in
+// memory for 50 minutes (tokens live ~60); on 401 we force-refresh and
+// retry once. Non-RTDB fetches pass through untouched.
+(function(){
+  const RTDB_HOST = 'tactical-command-center-default-rtdb.firebaseio.com';
+  let _tokCache = { token:null, fetchedAt:0 };
+  // Resolves once Firebase Auth has a currentUser. Polls every 200ms
+  // for up to ~10 seconds — any REST fetch that fires during the initial
+  // boot window waits briefly instead of shipping an unauthed request
+  // that would get 401.
+  function _waitForAuthUser(){
+    return new Promise(resolve => {
+      if(typeof firebase === 'undefined' || !firebase.auth){ resolve(null); return; }
+      let tries = 0;
+      (function poll(){
+        const u = firebase.auth().currentUser;
+        if(u) return resolve(u);
+        if(tries++ > 50) return resolve(null);
+        setTimeout(poll, 200);
+      })();
+    });
+  }
+  async function _getIdToken(forceRefresh){
+    try {
+      if(typeof firebase === 'undefined' || !firebase.auth) return null;
+      const now = Date.now();
+      if(!forceRefresh && _tokCache.token && (now - _tokCache.fetchedAt) < 50*60*1000){
+        return _tokCache.token;
+      }
+      let u = firebase.auth().currentUser;
+      if(!u) u = await _waitForAuthUser();
+      if(!u) return null;
+      const t = await u.getIdToken(!!forceRefresh);
+      _tokCache = { token:t, fetchedAt: now };
+      return t;
+    } catch(_){ return null; }
+  }
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = async function(input, init){
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if(url.indexOf(RTDB_HOST) === -1 || url.indexOf('auth=') !== -1){
+        return _origFetch(input, init);
+      }
+      const tok = await _getIdToken(false);
+      if(!tok) return _origFetch(input, init); // pre-auth path — let it fail naturally
+      const sep = url.indexOf('?') === -1 ? '?' : '&';
+      const authedUrl = url + sep + 'auth=' + encodeURIComponent(tok);
+      let resp = await _origFetch(authedUrl, init);
+      if(resp.status === 401 || resp.status === 403){
+        // Token may have expired — force refresh and retry once.
+        const tok2 = await _getIdToken(true);
+        if(tok2 && tok2 !== tok){
+          const authedUrl2 = url + sep + 'auth=' + encodeURIComponent(tok2);
+          resp = await _origFetch(authedUrl2, init);
+        }
+      }
+      return resp;
+    } catch(e){
+      return _origFetch(input, init);
+    }
+  };
+})();
 // Validate + escape a user-sourced photo URL before interpolating it
 // into `<img src="…">`. Photos arrive from Firebase (tac_photos) which
 // any teammate can write. Allowed: https:, data:image/*, blob:. Anything
@@ -15128,17 +15202,32 @@ const SYNC = (() => {
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
       window._db = _db;
-      // Start all read subscriptions immediately (DB allows public reads)
-      _connected=true; _setSyncDot('on');
-      _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
-      _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
-      _subscribeHidden();
-      _subscribeLogistics();
-      _hideBanner(); loadPhotos(); loadPersonnelFromFirebase(); _autoStartPublishing();
-      // Auth for writes (location publishing, etc.)
+      _setSyncDot('warn'); // stays warn until auth completes and subs attach
+      // Start subscriptions ONLY after anonymous auth resolves. The DB
+      // rules used to allow public reads — not anymore. Starting
+      // listeners before auth would hit PERMISSION_DENIED, and Firebase
+      // doesn't always auto-retry them after auth finishes. Sequence is
+      // strict: auth → subscribe → publish.
+      const _startSubs = () => {
+        _connected=true; _setSyncDot('on');
+        _subscribeLocations(); _subscribeMissions(); _subscribeIncidents();
+        _subscribeGeofences(); _subscribeTeams(); _subscribeAlertSound();
+        _subscribeHidden();
+        _subscribeLogistics();
+        _hideBanner(); loadPhotos(); loadPersonnelFromFirebase(); _autoStartPublishing();
+      };
       firebase.auth().signInAnonymously()
-        .then(()=>{ console.log('[SYNC] auth OK'); })
-        .catch(e=>{ console.warn('[SYNC] auth:', e.code||e); _setSyncDot('warn'); });
+        .then(()=>{
+          console.log('[SYNC] auth OK');
+          _startSubs();
+        })
+        .catch(e=>{
+          console.warn('[SYNC] auth failed:', e.code||e);
+          _setSyncDot('off');
+          // As a last-ditch measure try to start subs anyway — if the
+          // user had a previous session they might still be authenticated.
+          _startSubs();
+        });
       // connection state — WebSocket indicator only, don't block operations
       _db.ref('.info/connected').on('value', s=>{
         const ws = s.val();
