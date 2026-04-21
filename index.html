@@ -15782,30 +15782,53 @@ const SYNC = (() => {
   }
 
   // ── Photos: subscribe to Firebase photos and apply live to PERSONNEL ─────
-  // Uses .on('value') (not once) so that when a team member uploads a new
-  // photo on one device, every other device and live avatar bubble updates
-  // in real time instead of only at the next page reload.
+  // Uses BOTH the real-time SDK listener and a 10s REST poll. The listener
+  // gives instant updates when the WebSocket is healthy; the poll guarantees
+  // eventual consistency on mobile WebViews where the WebSocket sometimes
+  // wedges silently (no error, no events — just nothing). Without the poll,
+  // a photo uploaded on one device could stay invisible on another device
+  // forever even though Firebase had it.
+  let _photoPollTimer = null;
+  function _applyPhotosSnapshot(data){
+    if(!data) return;
+    let changed=false;
+    const pendingMap = (window._pendingPhotos = window._pendingPhotos || {});
+    Object.entries(data).forEach(([pid, url])=>{
+      const p = PERSONNEL.find(x=>x.id===pid);
+      if(p && url && p.photo !== url){ p.photo = url; changed=true; }
+      // Stash for personnel that hasn't loaded yet — apply when they arrive.
+      if(!p && url) pendingMap[pid] = url;
+    });
+    if(!changed) return;
+    // Persist to localStorage so photos survive page reload without waiting for Firebase
+    if(typeof savePersonnelToStorage==='function') savePersonnelToStorage();
+    // Re-render personnel panel if open
+    const rpBody = document.getElementById('rp-body');
+    if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
+    // Re-render all live markers so photos appear in bubbles.
+    [0, 300, 1500, 3500].forEach(ms => setTimeout(rerenderMarkers, ms));
+  }
   function loadPhotos(){
-    if(!_db) return;
-    _db.ref('tac_photos').on('value', snap=>{
-      const data = snap.val();
-      if(!data) return;
-      let changed=false;
-      Object.entries(data).forEach(([pid, url])=>{
-        const p = PERSONNEL.find(x=>x.id===pid);
-        if(p && url && p.photo !== url){ p.photo = url; changed=true; }
-      });
-      if(!changed) return;
-      // Persist to localStorage so photos survive page reload without waiting for Firebase
-      if(typeof savePersonnelToStorage==='function') savePersonnelToStorage();
-      // Re-render personnel panel if open
-      const rpBody = document.getElementById('rp-body');
-      if(rpBody && rpBody.innerHTML) renderPersonnelP(rpBody);
-      // Re-render all live markers so photos appear in bubbles.
-      // Retry multiple times: on slow-loading mobile the map may not be
-      // ready at 300ms, so we keep trying until window._googleReady is true.
-      [0, 300, 1500, 3500].forEach(ms => setTimeout(rerenderMarkers, ms));
-    }, err => console.warn('[SYNC] tac_photos subscription failed:', err));
+    // 1. Real-time SDK subscription (primary path)
+    if(_db){
+      try {
+        _db.ref('tac_photos').on('value', snap=>{
+          _applyPhotosSnapshot(snap.val());
+        }, err => console.warn('[SYNC] tac_photos subscription failed:', err));
+      } catch(e){ console.warn('[SYNC] tac_photos .on threw:', e); }
+    }
+    // 2. REST poll fallback — every 10s. Cheap (photos snapshot is small
+    //    once compressed) and guarantees we catch updates when the
+    //    WebSocket is wedged. Stopped/restarted on re-init.
+    if(_photoPollTimer) clearInterval(_photoPollTimer);
+    const pollOnce = () => {
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_photos.json?_='+Date.now(), {cache:'no-store'})
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if(data) _applyPhotosSnapshot(data); })
+        .catch(()=>{});
+    };
+    pollOnce();
+    _photoPollTimer = setInterval(pollOnce, 10000);
   }
 
   // ── Personnel: load all team member info (name, role, contact, skills,
@@ -15837,6 +15860,13 @@ const SYNC = (() => {
           PERSONNEL.push(Object.assign({photo:'', loginPassword:''}, sp));
           changed = true;
         }
+      });
+      // Apply any photos that arrived before their personnel record —
+      // _applyPhotosSnapshot stashes orphan photos in window._pendingPhotos.
+      const pending = window._pendingPhotos || {};
+      Object.entries(pending).forEach(([pid, url])=>{
+        const p = PERSONNEL.find(x => x.id === pid);
+        if(p && url && p.photo !== url){ p.photo = url; changed = true; delete pending[pid]; }
       });
       if(!changed) return;
       try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
