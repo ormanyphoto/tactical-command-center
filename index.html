@@ -547,6 +547,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .pers-avail{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;border:1px solid}
 .avail-yes{background:rgba(61,255,82,0.1);color:var(--accent);border-color:rgba(61,255,82,0.3)}
 .avail-no{background:rgba(255,51,51,0.08);color:var(--danger);border-color:rgba(255,51,51,0.25)}
+.avail-standby{background:rgba(240,176,0,0.12);color:#f0b000;border-color:rgba(240,176,0,0.35)}
 .pers-dial{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--blue);text-decoration:none;font-weight:600;padding:2px 8px;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);transition:all 0.12s;margin-top:3px}
 .pers-expand{display:none}
 .pers-detail{display:none}
@@ -5625,7 +5626,20 @@ function renderUnitsP(c){
   html += '<div id="units-sc-wrap" style="margin-bottom:14px">' + (typeof renderStatusCheckConfig==='function' ? renderStatusCheckConfig() : '') + '</div>';
 
   // ── Search bar ──
-  html += '<input type="text" id="units-search" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;_renderUnitsListOnly(document.getElementById(\'units-plist\'))" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:10px;box-sizing:border-box"/>';
+  html += '<input type="text" id="units-search" placeholder="🔍 חיפוש לפי שם, תפקיד, יחידה..." value="' + escHtml(window._unitsFlt || '') + '" oninput="window._unitsFlt=this.value;_renderUnitsListOnly(document.getElementById(\'units-plist\'))" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel2);color:var(--text);font-family:var(--font);font-size:12px;margin-bottom:8px;box-sizing:border-box"/>';
+  // ── Status filter chips ──
+  const sf = window._unitsStatusFlt || 'all';
+  const chip = (key, label, color) =>
+    '<button onclick="window._unitsStatusFlt=\''+key+'\';_renderUnitsListOnly(document.getElementById(\'units-plist\'));document.querySelectorAll(\'.units-sflt-chip\').forEach(b=>b.classList.toggle(\'on\',b.dataset.k===\''+key+'\'))" '
+    + 'class="units-sflt-chip'+(sf===key?' on':'')+'" data-k="'+key+'" '
+    + 'style="flex:1;padding:5px 6px;border-radius:8px;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;'
+    + 'border:1px solid '+color+'55;background:'+(sf===key?color+'22':'transparent')+';color:'+(sf===key?color:'var(--text3)')+'">'+label+'</button>';
+  html += '<div style="display:flex;gap:4px;margin-bottom:10px">'
+    + chip('all',     'הכל',      'var(--text3)')
+    + chip('available','זמין',    '#3dff52')
+    + chip('standby', '⏳ כוננות', '#f0b000')
+    + chip('busy',    '❌ לא זמין','#ff3333')
+    + '</div>';
 
   // ── Personnel list container ──
   html += '<div id="units-plist"></div>';
@@ -5669,10 +5683,16 @@ function _personStatus(p){
   // "standby" is grouped with "available" in sort order so the operator
   // doesn't see their own row vanish to the bottom of the list when they
   // go on standby — the visual badge + color still distinguish them.
-  if(liveStatus === 'busy')    return {key:'busy',   lbl:'❌ לא זמין', badge:'b-unavail', order:5};
+  // All plain availability states (זמין / כוננות / לא זמין) share the
+  // same sort priority so tapping a status from the operator-bar never
+  // reshuffles the list — the row stays where the admin-defined order
+  // placed it. Badge + row color still surface the state visually.
+  // Only event-driven states (arrived / enroute / approved) override
+  // that, because those genuinely matter for "who's responding now".
+  if(liveStatus === 'busy')    return {key:'busy',   lbl:'❌ לא זמין', badge:'b-unavail', order:3};
   if(liveStatus === 'standby') return {key:'standby',lbl:'⏳ כוננות',  badge:'b-onduty',  order:3};
   if(p.available)              return {key:'available',lbl:'זמין',    badge:'b-active',  order:3};
-  return {key:'unavailable',   lbl:'לא זמין',  badge:'b-unavail', order:6};
+  return {key:'unavailable',   lbl:'לא זמין',  badge:'b-unavail', order:3};
 }
 function _renderUnitsListOnly(el){
   if(!el) return;
@@ -5684,7 +5704,16 @@ function _renderUnitsListOnly(el){
     if(sa.order !== sb.order) return sa.order - sb.order;
     return (a.order||0) - (b.order||0);
   });
+  const sf = window._unitsStatusFlt || 'all';
   const filtered = sorted.filter(p => {
+    if(sf !== 'all'){
+      const st = _personStatus(p);
+      // "available" chip includes everything green-ish (event states count too)
+      if(sf === 'available' && !(st.key === 'available' || st.key === 'arrived'
+          || st.key === 'enroute' || st.key === 'approved')) return false;
+      if(sf === 'standby' && st.key !== 'standby') return false;
+      if(sf === 'busy' && !(st.key === 'busy' || st.key === 'unavailable')) return false;
+    }
     if (!flt) return true;
     return (p.name || '').toLowerCase().includes(flt)
         || (p.role || '').toLowerCase().includes(flt)
@@ -8984,6 +9013,8 @@ function renderPersonnelP(c){
     // operator-bar popover their card updates here too.
     const st = (typeof _personStatus === 'function') ? _personStatus(p) : null;
     const availOn = !st || st.key === 'available' || st.key === 'arrived' || st.key === 'enroute' || st.key === 'approved';
+    const isStandby = st && st.key === 'standby';
+    const availClass = isStandby ? 'avail-standby' : (availOn ? 'avail-yes' : 'avail-no');
     const availLabel = st ? st.lbl.replace(/^[^\u0590-\u05FF\w]+\s*/, '') : (p.available?'זמין':'לא זמין');
     return `
     <div class="pers-card ${_selectedPersonnel.has(p.id)?'selected':''}" draggable="true" data-pid="${p.id}">
@@ -8995,7 +9026,7 @@ function renderPersonnelP(c){
       <div class="pers-info" style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
           <div class="pers-name">${p.name}</div>
-          <span class="pers-avail-inline ${availOn?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')" title="לחץ להחלפת זמינות ידנית">${availLabel}</span>
+          <span class="pers-avail-inline ${availClass}" onclick="togglePersonAvail('${p.id}')" title="לחץ להחלפת זמינות ידנית">${availLabel}</span>
         </div>
         <div class="pers-sub">
           ${p.role?`<span style="color:var(--accent2);font-weight:700">${p.role}</span>`:''}
