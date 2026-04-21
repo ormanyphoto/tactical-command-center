@@ -3617,21 +3617,42 @@ function _navClearMarkers(){
   if(_navEndMarker){   _navEndMarker.setMap(null);   _navEndMarker = null; }
 }
 function _navLabelMarker(pos, letter, fill){
-  // SVG letter pin — no external image fetch, so WebView can't produce a
-  // broken-image placeholder (the reason default A/B markers looked
-  // torn on Android WebView).
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">'
-    + '<path d="M18 1C9 1 2 8 2 17c0 11 16 27 16 27s16-16 16-27C34 8 27 1 18 1z" fill="'+fill+'" stroke="#0d1014" stroke-width="1.5"/>'
-    + '<circle cx="18" cy="17" r="9" fill="#fff"/>'
-    + '<text x="18" y="21" text-anchor="middle" font-family="Arial,Heebo,sans-serif" font-size="13" font-weight="900" fill="'+fill+'">'+letter+'</text>'
-    + '</svg>';
+  // Canvas-drawn pin rasterized straight to PNG. We tried an SVG
+  // data-URL first, but on Android WebView with Google Maps'
+  // optimized marker canvas the SVG sometimes failed to decode and
+  // the user got a broken-image glyph. PNG bitmaps are decoded
+  // reliably everywhere — this is the same workaround we use for
+  // avatar bubbles.
+  const W = 72, H = 92; // @2x for crisp rendering
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  const g = cvs.getContext('2d');
+  // Teardrop pin outline
+  const cx = W/2, cyTop = H*0.37;
+  g.beginPath();
+  g.moveTo(cx, H-4);
+  g.bezierCurveTo(cx*1.95, H*0.55, W-4, H*0.30, W-4, H*0.30);
+  g.arc(cx, cyTop, W*0.46, 0, Math.PI, true);
+  g.bezierCurveTo(4, H*0.30, cx*0.05, H*0.55, cx, H-4);
+  g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.strokeStyle = '#0d1014'; g.lineWidth = 3; g.stroke();
+  // Inner white circle
+  g.beginPath();
+  g.arc(cx, cyTop, W*0.28, 0, Math.PI*2);
+  g.fillStyle = '#fff'; g.fill();
+  // Letter
+  g.fillStyle = fill;
+  g.font = '900 '+Math.round(W*0.42)+'px Arial, Heebo, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(letter, cx, cyTop+1);
   return new google.maps.Marker({
     position: pos,
     map: window.map,
     icon: {
-      url: 'data:image/svg+xml;base64,' + btoa(svg),
-      scaledSize: new google.maps.Size(36, 46),
-      anchor: new google.maps.Point(18, 44),
+      url: cvs.toDataURL('image/png'),
+      scaledSize: new google.maps.Size(W/2, H/2),
+      anchor: new google.maps.Point(W/4, H/2 - 2),
     },
     zIndex: 900,
   });
@@ -3764,17 +3785,39 @@ function navPickDestination(v){
   _saveNavPanelState();
 }
 async function navFromMyLocation(){
-  if(!navigator.geolocation)return;
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const inp=document.getElementById('nav-from');
-    if(inp){
-      const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      inp.value = lat.toFixed(5)+','+lng.toFixed(5);
-      inp.dataset.lat = String(lat);
-      inp.dataset.lng = String(lng);
-    }
-    showToast({icon:'📍',title:'מיקום נמצא',type:'success',duration:2000});
-  });
+  const inp = document.getElementById('nav-from');
+  if(!inp) return;
+  const apply = (lat, lng, sub) => {
+    inp.value = lat.toFixed(5)+','+lng.toFixed(5);
+    inp.dataset.lat = String(lat);
+    inp.dataset.lng = String(lng);
+    if(typeof _saveNavPanelState === 'function') _saveNavPanelState();
+    showToast({icon:'📍', title:'מיקום מילואה', sub: sub || '', type:'success', duration:2000});
+  };
+  // Prefer the cached last-known position — works when GPS is off /
+  // denied / slow to acquire, and avoids blocking the user on a
+  // permission prompt they've already answered.
+  if(window._lastLat != null && window._lastLng != null){
+    apply(window._lastLat, window._lastLng, 'מיקום אחרון ידוע');
+    return;
+  }
+  if(!navigator.geolocation){
+    showToast({icon:'⚠️', title:'אין מיקום זמין', sub:'הזן כתובת ידנית', type:'warn'});
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => apply(pos.coords.latitude, pos.coords.longitude, 'מ-GPS'),
+    () => showToast({icon:'⚠️', title:'GPS לא זמין', sub:'הזן כתובת ידנית', type:'warn'}),
+    { enableHighAccuracy:false, timeout:4000, maximumAge:600000 }
+  );
+}
+function navClearRoute(){
+  try { _dirRenderer && _dirRenderer.setDirections({routes:[]}); } catch(_){}
+  _navClearMarkers();
+  window._navLastRoute = null;
+  const box = document.getElementById('nav-launch-box');
+  if(box) box.remove();
+  showToast({icon:'🧹', title:'מסלול נוקה', type:'info', duration:2000});
 }
 async function navToMission(msnId){
   const m = MISSIONS.find(x => x.id === msnId);
@@ -4345,6 +4388,13 @@ function closeModal(){document.getElementById('modal-wrap').style.display='none'
 const PANEL_TITLES={draw:'מפה וכלים',dashboard:'לוח בקרה',missions:'יומן משימות',units:'כוח אדם',comms:'תקשורת',analytics:'אנליטיקה',incidents:'יומן אירועים',ai:'עוזר AI',teams:'ניהול צוותים',personnel:'אנשי צוות',navigation:'ניווט Google',alerts:'התראות',geofence:'גיאופנסים',layers:'שכבות ומבנים'};
 function _syncTitle(key){currentPanel=key;const t=document.getElementById('rp-title-txt');if(t&&PANEL_TITLES[key])t.textContent=PANEL_TITLES[key];}
 function goPanel(name){
+  // If we're leaving the navigation panel, snapshot the form state so the
+  // next render can restore it — the rp-body innerHTML is about to be
+  // overwritten by the new panel.
+  if(currentPanel === 'navigation' && name !== 'navigation'
+     && typeof _saveNavPanelState === 'function'){
+    _saveNavPanelState();
+  }
   currentPanel=name;
   const t=document.getElementById('rp-title-txt');if(t)t.textContent=PANEL_TITLES[name]||name;
   const rp=document.getElementById('right-panel');if(rp)rp.classList.remove('hidden');
@@ -5117,8 +5167,9 @@ function renderNavigationP(c){
     </select>
   </div>
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
-  <div style="margin-bottom:10px">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
     <button class="btn-pri" style="width:100%" onclick="calcNavRoute()">🧭 חשב מסלול</button>
+    <button class="btn-sec" style="margin:0" onclick="navClearRoute()" title="הסרת המסלול הנוכחי מהמפה">🧹 נקה</button>
   </div>
   <div class="sec-hd">ניווט למשימה</div>
   ${missions.map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
