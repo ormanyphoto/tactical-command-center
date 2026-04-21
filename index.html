@@ -735,11 +735,22 @@ body.day #fm-theme-btn{color:rgba(30,41,59,0.85);border-color:rgba(30,41,59,0.2)
 #fm-gps-toggle.on{border-color:#3dff52;background:rgba(61,255,82,0.08);color:#3dff52}
 #fm-gps-toggle .fm-gps-icon{font-size:20px}
 #fm-nav-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#29c5f6;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-#fm-status-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#fm-status-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .fm-status-btn{height:38px;border-radius:8px;border:1px solid #1a2838;background:#0d1014;color:#5a7a90;font-size:11px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;transition:all 0.15s}
 .fm-status-btn.sel{border-color:var(--sc);background:rgba(var(--scr),0.12);color:var(--sc)}
 #fm-mission-bar{background:#121620;border:1px solid #1a2838;border-radius:10px;padding:10px 12px;font-size:12px;color:#5a7a90;display:none}
 #fm-mission-bar.has-mission{display:block;border-color:#29c5f6;color:#d8eef8}
+/* Day-mode variants for the field bottom bar — without these the panel
+   stayed dark while the rest of the UI flipped to light mode. */
+body.day #fm-bottom{background:#f7f9fc;border-top-color:#d4dde6}
+body.day #fm-gps-toggle{background:#ffffff;border-color:#cbd5e1;color:#475569}
+body.day #fm-gps-toggle.on{background:rgba(34,197,94,0.10);border-color:#22c55e;color:#15803d}
+body.day #fm-nav-btn{background:#ffffff;border-color:#cbd5e1;color:#1d4ed8}
+body.day .fm-status-btn{background:#ffffff;border-color:#cbd5e1;color:#475569}
+body.day .fm-status-btn.sel{color:var(--sc);background:rgba(var(--scr),0.15);border-color:var(--sc)}
+body.day #fm-mission-bar{background:#ffffff;border-color:#cbd5e1;color:#475569}
+body.day #fm-mission-bar.has-mission{border-color:#1d4ed8;color:#1e293b}
+body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e1;color:#475569}
 #fm-mission-title{font-weight:800;font-size:13px;color:#29c5f6;margin-bottom:2px}
 /* Live marker pulse */
 @keyframes lmpulse{0%{r:11;opacity:0.9}70%{r:18;opacity:0}100%{r:18;opacity:0}}
@@ -1322,10 +1333,9 @@ body.day #fm-theme-btn{color:rgba(30,41,59,0.85);border-color:rgba(30,41,59,0.2)
       <button id="fm-nav-btn" title="נווט" onclick="FIELD.navigate()">🧭</button>
     </div>
     <div id="fm-status-row">
-      <button class="fm-status-btn sel" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="FIELD.setStatus('active',this)">✅ פעיל</button>
+      <button class="fm-status-btn sel" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="FIELD.setStatus('active',this)">✅ זמין</button>
       <button class="fm-status-btn" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="FIELD.setStatus('standby',this)">⏸ כוננות</button>
-      <button class="fm-status-btn" data-s="busy" style="--sc:#ff7a1a;--scr:255,122,26" onclick="FIELD.setStatus('busy',this)">🔄 עסוק</button>
-      <button class="fm-status-btn" data-s="urgent" style="--sc:#ff3333;--scr:255,51,51" onclick="FIELD.setStatus('urgent',this)">🚨 דחוף</button>
+      <button class="fm-status-btn" data-s="busy" style="--sc:#ff7a1a;--scr:255,122,26" onclick="FIELD.setStatus('busy',this)">🔄 לא זמין</button>
     </div>
     <button onclick="FIELD.switchToCommand()" style="background:none;border:1px solid #1a2838;border-radius:8px;padding:6px;font-size:11px;color:#344858;cursor:pointer;font-family:Heebo,sans-serif;width:100%">⬡ עבור למצב פיקוד</button>
   </div>
@@ -2304,13 +2314,12 @@ function onGoogleMapsReady(){
   // (full styles applied below after dayStyle/poiHide are defined)
   window._nightStyle=nightStyle;
 
-  // Apply final map styles (day/night) — always hide POI & transit icons
-  const _poiHide=[
-    {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-    {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
-    {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
-    {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
-  ];
+  // Points of interest (hotels, businesses, stations, transit) are left
+  // visible in all themes — operators asked for them so they can orient
+  // by landmark. This array stays as a placeholder so the dayStyle /
+  // setTheme spreads below don't need restructuring; add hiders here in
+  // the future if any specific POI type becomes too noisy.
+  const _poiHide=[];
   const dayStyle=[
     {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
     {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
@@ -3712,12 +3721,8 @@ function setTheme(m){
   // having to hook into setTheme directly.
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
-    const _ph=window._poiHide||[
-      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
-      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
-      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
-    ];
+    // POIs/transit are intentionally visible — see _poiHide comment at init.
+    const _ph=window._poiHide||[];
     map.setOptions({styles:m==='night'?[...(window._nightStyle||[]),..._ph]:[
       {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
       {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
