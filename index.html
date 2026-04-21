@@ -3190,34 +3190,13 @@ function _applyPos(pos, method){
   set('gw-lng', ll.lng.toFixed(5)+'°');
   set('gw-acc', acc+'מ ('+_methodHe(method)+')');
 
-  // Decide if we NEED the plain green dot:
-  // - Privacy OFF → always show (user chose private mode, no avatar bubble exists)
-  // - Privacy ON  → only hide if the avatar bubble is actually rendered, else
-  //   the user sees nothing at all. Common races where this happens:
-  //     • Firebase not yet connected when watchPosition fires → publish skipped
-  //     • User stationary (no further CoreLocation updates to retry with)
-  //     • startPublishing hasn't run yet (pre-auth)
-  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-  const myPersonId = u ? u.id : null;
-  const liveMarkers = (typeof _liveMarkers !== 'undefined') ? _liveMarkers : {};
-  const _myUidLocal = (typeof _myUid !== 'undefined') ? _myUid : null;
-  const hasAvatarBubble = !!(
-    (myPersonId && liveMarkers[myPersonId]) ||
-    (_myUidLocal && liveMarkers[_myUidLocal])
-  );
-
-  if(window._locPrivacyOn && hasAvatarBubble){
-    // Avatar bubble is on the map — hide the plain dot to avoid overlap.
-    if(gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
-    return;
-  }
-  // Either privacy is OFF, or the avatar bubble hasn't rendered yet — show
-  // the plain dot so the user always sees themselves on the map.
-  const icon={path:_SVG_CIRCLE,scale:9,
-    fillColor:method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107',
-    fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2};
-  if(!gpsMarker){gpsMarker=new google.maps.Marker({position:ll,map,icon,title:'מיקומי',zIndex:500});}
-  else{gpsMarker.setPosition(ll);gpsMarker.setIcon(icon);}
+  // Green dot intentionally removed — the avatar bubble (_updateLiveMarker)
+  // is the single source of truth for the operator's position on the map.
+  // The plain dot was a fallback for the case where the avatar never
+  // rendered; now that rasterization guarantees the bubble always lands,
+  // the dot is redundant and just clutters the map. Guard against a
+  // previous session's dot still being on the map.
+  if(gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
 }
 
 // In native apps (iOS/Android) Core Location / FusedLocationProvider pushes
@@ -15104,12 +15083,23 @@ const SYNC = (() => {
       return;
     }
     _autoStartTries = 0;
-    // Only clear the LOCAL cache of hidden state on auto-start. Do NOT
-    // write Firebase here — writing on every boot creates races with the
-    // foreground service's Firebase connection and causes the "visible
-    // mode" UI to flicker on/off. The hidden flag should only be changed
-    // by explicit user action (toggleLocPrivacy → enablePublishing).
-    if(u) _hiddenPersons[u.id] = false;
+    // Reconcile the cross-device hidden flag on boot. The user's LOCAL
+    // state is "visible" (we reached this branch because _locPrivacyOn
+    // is not false), so the Firebase flag must also be false — otherwise
+    // _subscribeHidden's listener will shortly repopulate
+    // _hiddenPersons[u.id] = true from a stale previous-session write,
+    // and startPublishing's watchPosition callback will bail silently,
+    // leaving the avatar unpainted until the user toggles off→on. Writing
+    // false once per boot is idempotent; it does NOT cause the flicker
+    // the original comment warned about (that was a different bug where
+    // this ran on every tick).
+    if(u){
+      _hiddenPersons[u.id] = false;
+      if(_db){
+        try{ _db.ref('tac_loc_hidden/'+u.id).set(false).catch(()=>{}); }
+        catch(_){}
+      }
+    }
     const profile = { name: u.name, role: u.role||'לוחם', status: 'active' };
     startPublishing(profile);
     if(typeof _applyLocPrivacyUI==='function') _applyLocPrivacyUI();
