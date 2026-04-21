@@ -2281,7 +2281,7 @@ function onGoogleMapsReady(){
   //   • Error events from <img> don't bubble, so capture:true on the
   //     widest container gives us the best chance to catch them before
   //     they paint.
-  ['gmap','map-wrap','fm-map-wrap'].forEach(id => {
+  ['gmap','map-wrap'].forEach(id => {
     const el = document.getElementById(id);
     if(!el || el.__brokenImgGuard) return;
     el.__brokenImgGuard = true;
@@ -3896,7 +3896,6 @@ function setTheme(m){
   if(dd){dd.classList.toggle('active',m==='day');dd.style.cssText='';}
   localStorage.setItem('tac-v5-theme',m);
   const mobT=document.getElementById('mob-theme-toggle');if(mobT)mobT.textContent=m==='night'?'🌙':'☀️';
-  const fmT=document.getElementById('fm-theme-btn');if(fmT)fmT.textContent=m==='night'?'🌙':'☀️';
   // Broadcast so the field map (and future consumers) can restyle without
   // having to hook into setTheme directly.
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
@@ -5807,7 +5806,6 @@ function _ensureApprovalsLoaded(){
           if(currentPanel==='units') renderUnitsP(c);
           else renderPersonnelP(c);
         }
-        if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
       }
     }).catch(()=>{ window._ensureApprovalsInFlight = false; });
 }
@@ -5948,8 +5946,7 @@ function toggleGF(i){
   showToast({icon:'⬡',title:`${GFS[i].name} ${GFS[i].active?'הופעל':'כובה'}`,type:'info'});
 }
 function saveGFsToCloud(notify){
-  // Save to localStorage
-  try{ localStorage.setItem('tac_v5_state', JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()})); }catch(e){}
+  _saveV5State();
   const db = window._db;
   if(!db){
     if(notify) showToast({icon:'⚠️',title:'לא מחובר',sub:'שמירה מקומית בלבד',type:'warn'});
@@ -6343,6 +6340,18 @@ function closeBO(){
 }
 
 const V5_KEY='tac_v5_state';
+// Single source of truth for the big local-backup blob. Previously two
+// sites (saveGFsToCloud and saveToCloud) duplicated the same JSON.stringify
+// call, so every full-state save ran twice — cheap per call, but with a
+// 1000-person roster the serialized blob approaches localStorage's 5 MB
+// quota and double-writing doubled the CPU + chance of a quota exception.
+function _saveV5State(){
+  try {
+    localStorage.setItem(V5_KEY, JSON.stringify({
+      MISSIONS, UNITS, PERSONNEL, TEAMS, GFS, labelNum, ts: Date.now()
+    }));
+  } catch(e){ /* quota exceeded — safe to ignore; Firebase is the real store */ }
+}
 
 function boTab(tab){
   document.querySelectorAll('.bo-tab').forEach(t=>{
@@ -8232,7 +8241,7 @@ function adminCancelAllSOS(){
 
 function saveToCloud(){
   savePersonnelToStorage();
-  try{localStorage.setItem('tac_v5_state',JSON.stringify({MISSIONS,UNITS,PERSONNEL,TEAMS,GFS,labelNum,ts:Date.now()}));}catch(e){}
+  _saveV5State();
   // Write missions to Firebase so all field devices see them instantly
   if(window._db && typeof MISSIONS!=='undefined'){
     window._db.ref('tac_missions').set(MISSIONS.length ? MISSIONS : null).catch(()=>{});
@@ -11220,7 +11229,6 @@ function markArrived(){
     if(currentPanel==='units') renderUnitsP(c);
     else renderPersonnelP(c);
   }
-  if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
 
   localStorage.removeItem('tac_pending_arrival');
   _hideArrivalBanner();
@@ -11300,8 +11308,7 @@ function _subscribeActiveNotif(){
       // Already attached — but still re-render in case venues just arrived
       const c = document.getElementById('rp-body');
       if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
-      if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-      return;
+          return;
     }
     _currentActiveNotifId = v.notifId;
     console.log('[ACTIVE-NOTIF] attaching approvals listener for', v.notifId);
@@ -11369,47 +11376,9 @@ setInterval(async ()=>{
         if(currentPanel==='units') renderUnitsP(c);
         else renderPersonnelP(c);
       }
-      if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-    }
+        }
   } catch(_){}
 }, 5000);
-// Populate the field-mode compact approvals bar. Safe to call any time —
-// it just no-ops if the field mode isn't visible or there are no approvals.
-function _refreshFieldApprovalsBar(){
-  const bar = document.getElementById('fm-approvals-bar');
-  if(!bar) return;
-  const entries = Object.values(_approvalsData || {});
-  if(!entries.length){ bar.style.display = 'none'; return; }
-  const venues = window._activeNotifVenues || [];
-  const dest = window._activeNotifDest;
-  const hasDest = dest && dest.lat && dest.lng;
-  const eLat = (hasDest ? dest.lat : null) || (venues[0] && venues[0].lat) || null;
-  const eLng = (hasDest ? dest.lng : null) || (venues[0] && venues[0].lng) || null;
-  const header = '<div style="font-size:10px;font-weight:800;color:#22c55e;letter-spacing:0.04em;margin-bottom:4px;display:flex;align-items:center;gap:6px">'
-    +'<span style="width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 4px #22c55e"></span>'
-    +'מאשרים ומגיעים (' + entries.length + ')'
-    +'</div>';
-  const rows = entries.map(e => {
-    const eta = (eLat && eLng && typeof _calcETAString === 'function') ? _calcETAString(e.personId, eLat, eLng) : null;
-    let statusHtml;
-    if(e.departed && eta){
-      statusHtml = '<span style="font-size:10px;font-weight:700;color:#a8e800;background:rgba(168,232,0,0.1);border:1px solid rgba(168,232,0,0.25);border-radius:4px;padding:1px 5px;white-space:nowrap">⏱ '+eta+'</span>';
-    } else if(e.departed){
-      statusHtml = '<span style="font-size:9px;color:#a8e800;font-weight:700">🚗 בדרך</span>';
-    } else {
-      statusHtml = '<span style="font-size:9px;color:#f0b000;font-weight:700">⏳ ממתין ליציאה</span>';
-    }
-    const dotColor = e.departed ? '#3dff52' : '#f0b000';
-    return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:#c9d8e4">'
-      +'<span style="width:5px;height:5px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></span>'
-      +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>'+escHtml(e.name||'')+'</b><span style="color:#6a8aa5"> · '+escHtml(e.role||'')+'</span></span>'
-      +statusHtml
-      +'</div>';
-  }).join('');
-  bar.innerHTML = header + rows;
-  bar.style.display = 'block';
-}
-
 function _listenApprovals(notifId){
   const db = window._db;
   if(!db) return;
@@ -11430,8 +11399,6 @@ function _listenApprovals(notifId){
     // Refresh the main command panel if open
     const c = document.getElementById('rp-body');
     if(c && (currentPanel==='units'||currentPanel==='personnel')) goPanel(currentPanel);
-    // Update the field-mode approvals bar (for חפ״ק etc.)
-    _refreshFieldApprovalsBar();
   });
   _approvalsListener = ()=>ref.off('value', handler);
 
@@ -11448,8 +11415,7 @@ function _listenApprovals(notifId){
       if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); el.replaceWith(tmp.firstChild); }
     }
     // Refresh the field-mode bar so live ETAs update as responders get closer.
-    if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-  }, 20000);
+    }, 20000);
 }
 
 // ── ETA helpers ──
@@ -11500,7 +11466,6 @@ function _calcETAString(personId, destLat, destLng){
           const el = c.querySelector('.approvals-section');
           if(el){ const tmp=document.createElement('div'); tmp.innerHTML=renderApprovalsSection(); if(tmp.firstChild) el.replaceWith(tmp.firstChild); }
         }
-        if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
       }
     });
   }
@@ -12140,7 +12105,6 @@ function adminMarkArrived(personId){
     if(currentPanel==='units') renderUnitsP(c);
     else renderPersonnelP(c);
   }
-  if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
   // Write via SDK + REST
   if(window._db){
     window._db.ref(path).update({arrived:true, arrivedAt:now}).catch(()=>{});
@@ -12164,7 +12128,6 @@ function removeApproval(personId){
     if(currentPanel==='units') renderUnitsP(c);
     else renderPersonnelP(c);
   }
-  if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
   showToast({icon:'🗑️', title:'אישור הוסר', type:'info'});
 
   // Delete via BOTH SDK and REST — the SDK sometimes fails silently
