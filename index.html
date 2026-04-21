@@ -3196,8 +3196,8 @@ function _plotUnitMarker(id,name,lat,lng,color,initials,photo,role,rank,team,sta
   // Info window with photo
   const statusLbl={deployed:'פרוס','on-duty':'בתפקיד','off-duty':'חופשי',unavailable:'לא זמין'};
   const avHtml=hasPhoto
-    ?`<img src="${photo}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ${color}"/>`
-    :`<div style="width:44px;height:44px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff">${initials}</div>`;
+    ?`<img src="${safePhotoSrc(photo)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid ${color}"/>`
+    :`<div style="width:44px;height:44px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff">${escHtml(initials)}</div>`;
   const iw=new google.maps.InfoWindow({
     content:`<div style="font-family:Heebo,sans-serif;direction:rtl;min-width:210px;padding:4px">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
