@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.52 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.53 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -873,7 +873,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.52</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.53</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1276,7 +1276,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.52</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.53</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3188,13 +3188,30 @@ function _applyPos(pos, method){
   set('gw-lat', ll.lat.toFixed(5)+'°');
   set('gw-lng', ll.lng.toFixed(5)+'°');
   set('gw-acc', acc+'מ ('+_methodHe(method)+')');
-  // When location-sharing is ON the avatar bubble already shows the user's position —
-  // hide the plain green dot so they don't overlap.
-  if(window._locPrivacyOn){
+
+  // Decide if we NEED the plain green dot:
+  // - Privacy OFF → always show (user chose private mode, no avatar bubble exists)
+  // - Privacy ON  → only hide if the avatar bubble is actually rendered, else
+  //   the user sees nothing at all. Common races where this happens:
+  //     • Firebase not yet connected when watchPosition fires → publish skipped
+  //     • User stationary (no further CoreLocation updates to retry with)
+  //     • startPublishing hasn't run yet (pre-auth)
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  const myPersonId = u ? u.id : null;
+  const liveMarkers = (typeof _liveMarkers !== 'undefined') ? _liveMarkers : {};
+  const _myUidLocal = (typeof _myUid !== 'undefined') ? _myUid : null;
+  const hasAvatarBubble = !!(
+    (myPersonId && liveMarkers[myPersonId]) ||
+    (_myUidLocal && liveMarkers[_myUidLocal])
+  );
+
+  if(window._locPrivacyOn && hasAvatarBubble){
+    // Avatar bubble is on the map — hide the plain dot to avoid overlap.
     if(gpsMarker){ gpsMarker.setMap(null); gpsMarker=null; }
     return;
   }
-  // Privacy OFF — show the simple dot (user sees own position privately)
+  // Either privacy is OFF, or the avatar bubble hasn't rendered yet — show
+  // the plain dot so the user always sees themselves on the map.
   const icon={path:_SVG_CIRCLE,scale:9,
     fillColor:method==='GPS'?'#3dff52':method==='WiFi'?'#29c5f6':'#ffc107',
     fillOpacity:0.85,strokeColor:'#fff',strokeWeight:2};
@@ -8297,7 +8314,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.52 source-code update because the merge in
+    // which survived our v6.8.53 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -14749,7 +14766,8 @@ const SYNC = (() => {
         // Always cache last known position for SOS fallback
         window._lastLat = pos.coords.latitude;
         window._lastLng = pos.coords.longitude;
-        if(!_db||window._locPrivacyOn===false) return;
+        // If user has explicitly turned privacy OFF, don't publish or render.
+        if(window._locPrivacyOn===false) return;
         const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
         // Respect the cross-device hidden flag — if any device has toggled off,
         // every device stops publishing for this user until toggled on again.
@@ -14766,7 +14784,17 @@ const SYNC = (() => {
           spd: Math.round((pos.coords.speed||0)*3.6),
           ts: Date.now(), uid: _myUid
         };
-        _db.ref('tac_locs/'+_myUid).set(d);
+        // Publish to Firebase when connected — but don't BLOCK the local marker
+        // render on it. Before the fix, if _db wasn't ready when the first fix
+        // arrived (common on iOS after login), we'd bail out completely and
+        // the user saw no marker until they moved 5+ m (distanceFilter). Now
+        // we always render the avatar bubble locally; Firebase sync happens
+        // opportunistically.
+        if(_db){
+          try{ _db.ref('tac_locs/'+_myUid).set(d); }catch(e){ console.warn('[SYNC] publish failed', e); }
+        } else {
+          console.warn('[SYNC] _db not ready yet — rendering local marker only');
+        }
         // NOTE: We do NOT use onDisconnect().remove() here — "visible mode"
         // means the LAST known location stays on the map even when the user
         // closes the app or loses network. The entry is only removed when:
@@ -16042,7 +16070,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.52)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.53)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">
