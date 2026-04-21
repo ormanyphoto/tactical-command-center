@@ -3617,55 +3617,35 @@ function _navClearMarkers(){
   if(_navEndMarker){   _navEndMarker.setMap(null);   _navEndMarker = null; }
 }
 function _navLabelMarker(pos, letter, fill){
-  // Same pattern as _buildMarkerIcon for avatar bubbles: build a
-  // simple SVG, load it into an <img>, rasterize to PNG via canvas,
-  // hand the PNG data-URL to Google Maps. Every step has been
-  // battle-tested on Android WebView and WKWebView; drawing shapes
-  // directly on canvas was producing broken-image glyphs despite
-  // the PNG output, likely due to a malformed bezier path making
-  // Maps' optimized marker layer reject the bitmap.
-  const W = 72, H = 92;
-  const cx = W / 2, cyTop = H * 0.36, r = W * 0.44;
-  const svg =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'
-    + '<path d="M '+cx+' '+(H-4)
-      + ' C '+(W-6)+' '+(H*0.70)+', '+(W-2)+' '+(H*0.42)+', '+(cx+r)+' '+cyTop
-      + ' A '+r+' '+r+' 0 1 0 '+(cx-r)+' '+cyTop
-      + ' C 2 '+(H*0.42)+', 6 '+(H*0.70)+', '+cx+' '+(H-4)
-      + ' Z" fill="'+fill+'" stroke="#0d1014" stroke-width="3"/>'
-    + '<circle cx="'+cx+'" cy="'+cyTop+'" r="'+(W*0.28)+'" fill="#ffffff"/>'
-    + '<text x="'+cx+'" y="'+(cyTop + W*0.14)+'" text-anchor="middle" '
-      + 'font-family="Arial,Heebo,sans-serif" font-size="'+Math.round(W*0.40)+'" '
-      + 'font-weight="900" fill="'+fill+'">'+letter+'</text>'
-    + '</svg>';
-  const svgUrl = 'data:image/svg+xml;base64,' + btoa(svg);
-  // Placeholder marker — we'll replace its icon once the PNG is ready.
-  const marker = new google.maps.Marker({ position: pos, map: window.map, zIndex: 900 });
-  const probe = new Image();
-  let done = false;
-  const emit = (url) => {
-    if(done) return; done = true;
-    marker.setIcon({
-      url,
-      scaledSize: new google.maps.Size(W / 2, H / 2),
-      anchor: new google.maps.Point(W / 4, H / 2 - 2),
-    });
-  };
-  probe.onload = () => {
-    try {
-      const cvs = document.createElement('canvas');
-      cvs.width = W; cvs.height = H;
-      const g = cvs.getContext('2d');
-      g.clearRect(0, 0, W, H);
-      g.drawImage(probe, 0, 0, W, H);
-      emit(cvs.toDataURL('image/png'));
-    } catch(_){ emit(svgUrl); }
-  };
-  probe.onerror = () => emit(svgUrl);
-  // Watchdog so a stuck decode never leaves the marker iconless.
-  setTimeout(() => emit(svgUrl), 1500);
-  probe.src = svgUrl;
-  return marker;
+  // Vector marker via google.maps.Symbol — rendered by Maps as native
+  // SVG on the overlay layer, no image tag, no bitmap decode, no
+  // WebView quirks to work around. Previous bitmap-based attempts
+  // (SVG data-URL, canvas→PNG, SVG→Image→canvas→PNG) all produced
+  // intermittent broken-image glyphs on Android WebView. A Symbol
+  // can never be "broken" because there's nothing to fetch or decode.
+  // SVG path is a teardrop pin anchored so its tip sits on `pos`.
+  return new google.maps.Marker({
+    position: pos,
+    map: window.map,
+    zIndex: 900,
+    icon: {
+      path: 'M 0,0 C -6,-10 -14,-18 -14,-26 C -14,-34 -7,-40 0,-40 C 7,-40 14,-34 14,-26 C 14,-18 6,-10 0,0 Z',
+      fillColor: fill,
+      fillOpacity: 1,
+      strokeColor: '#0d1014',
+      strokeWeight: 2,
+      scale: 1.1,
+      anchor: new google.maps.Point(0, 0),
+      labelOrigin: new google.maps.Point(0, -28),
+    },
+    label: {
+      text: letter,
+      color: '#ffffff',
+      fontWeight: '900',
+      fontSize: '14px',
+      fontFamily: 'Arial, Heebo, sans-serif',
+    },
+  });
 }
 async function calcNavRoute(){
   const fromEl = document.getElementById('nav-from');
