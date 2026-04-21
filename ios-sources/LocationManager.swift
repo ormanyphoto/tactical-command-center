@@ -13,7 +13,13 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         super.init()
         clm.delegate = self
         clm.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-        clm.distanceFilter = 5  // meters
+        // Deliver every fix Core Location produces. distanceFilter=5m
+        // caused the map marker to feel stuck: when the operator was
+        // stationary or moving slowly (walking indoors), no delegate
+        // callbacks fired, so the web app never re-published. Using
+        // kCLDistanceFilterNone makes "live" actually live — the filter
+        // in didUpdateLocations (accuracy/age) is what guards quality.
+        clm.distanceFilter = kCLDistanceFilterNone
         clm.pausesLocationUpdatesAutomatically = false
 
         // Background location updates require UIBackgroundModes → "location"

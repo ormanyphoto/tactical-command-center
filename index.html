@@ -3220,6 +3220,27 @@ function _applyPos(pos, method){
   else{gpsMarker.setPosition(ll);gpsMarker.setIcon(icon);}
 }
 
+// In native apps (iOS/Android) Core Location / FusedLocationProvider pushes
+// fixes through the `tcc-native-loc` custom event continuously. The SYNC
+// watchPosition watcher already consumes those for the avatar bubble, but
+// the plain green `gpsMarker` was only refreshed when the GPS widget was
+// toggled on via _startWatch — so its position went stale within seconds.
+// Mirror every native fix into _applyPos so the dot stays live too.
+if(!window._tccNativeLocDotBound){
+  window._tccNativeLocDotBound = true;
+  window.addEventListener('tcc-native-loc', (e)=>{
+    const p = e && e.detail; if(!p) return;
+    try {
+      _applyPos({coords:{
+        latitude:p.lat, longitude:p.lng,
+        accuracy:(p.acc>0?p.acc:10),
+        speed:(p.spd>=0?p.spd:0),
+        heading:(p.hdg>=0?p.hdg:0)
+      }}, 'GPS');
+    } catch(_){}
+  });
+}
+
 function _ipLocate(onSuccess, onFail){
   // In Android native APK we have REAL GPS and IP would report the cellular
   // carrier's datacenter (often OUTSIDE Israel) — skip there.
@@ -15489,20 +15510,30 @@ const SYNC = (() => {
     // render as a broken-image placeholder.
     function _verifyAndEmit(url, fallbackLevel){
       const probe = new Image();
-      probe.onload  = () => cb(url, W, H);
-      probe.onerror = () => {
+      // Watchdog: WKWebView (iOS) and some Android WebViews occasionally fail
+      // to fire either onload or onerror for base64-encoded SVG data URLs that
+      // embed <image href="data:…">. When that happens the callback never
+      // runs and the marker never lands on the map (the observed symptom:
+      // iOS shows only the plain green dot, no avatar bubble). Force a
+      // fallback after 1.5 s so `cb` is guaranteed to fire.
+      let _done = false;
+      const _finish = (emitUrl) => { if(_done) return; _done = true; cb(emitUrl, W, H); };
+      const _fallback = () => {
+        if(_done) return;
         if(fallbackLevel === 0){
-          // Photo SVG failed — try initials-only SVG
           _verifyAndEmit(_buildSVG(null), 1);
-        } else if(fallbackLevel === 1){
-          // Initials SVG also failed — try minimal SVG (circle only)
+          _done = true; // this call's job is done; inner call handles cb
+        } else {
           const minSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/></svg>';
           let minUrl;
           try{ minUrl = 'data:image/svg+xml;base64,'+btoa(minSvg); }
           catch(_){ minUrl = 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(minSvg); }
-          cb(minUrl, W, H); // last resort, emit without further validation
+          _finish(minUrl);
         }
       };
+      probe.onload  = () => _finish(url);
+      probe.onerror = _fallback;
+      setTimeout(_fallback, 1500);
       probe.src = url;
     }
     // Always downscale the photo through canvas to rInner*2 (34x34) before

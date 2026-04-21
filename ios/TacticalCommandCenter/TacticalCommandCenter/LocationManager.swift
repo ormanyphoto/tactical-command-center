@@ -13,7 +13,13 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
         super.init()
         clm.delegate = self
         clm.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-        clm.distanceFilter = 5  // meters
+        // Deliver every fix Core Location produces. distanceFilter=5m
+        // caused the map marker to feel stuck: when the operator was
+        // stationary or moving slowly (walking indoors), no delegate
+        // callbacks fired, so the web app never re-published. Using
+        // kCLDistanceFilterNone makes "live" actually live — the filter
+        // in didUpdateLocations (accuracy/age) is what guards quality.
+        clm.distanceFilter = kCLDistanceFilterNone
         clm.pausesLocationUpdatesAutomatically = false
 
         // Background location updates require UIBackgroundModes → "location"
@@ -69,6 +75,28 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
+
+        // ── Reject only catastrophically bad fixes ────────────────────────────
+        // iOS delivers a cached-coarse first fix instantly (can be 10+ km off)
+        // before real GPS locks. Publishing that would teleport the operator.
+        // But being too strict (e.g. 100m) rejects legitimate indoor first
+        // fixes where iOS takes 20–30s to drop below 100m. So we only reject
+        // clearly-invalid (<0) or absurdly coarse (>500m, which is cellular
+        // fallback, not usable on an operational map) fixes.
+        if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 500 {
+            NSLog("[Loc] reject acc=\(loc.horizontalAccuracy)m (out of range)")
+            return
+        }
+        // Stale filter: reject fixes older than 30s (covers the "WKWebView
+        // returns cached fix from a previous session" case without rejecting
+        // legitimate slightly-stale fixes on slow devices).
+        let age = -loc.timestamp.timeIntervalSinceNow
+        if age > 30 {
+            NSLog("[Loc] reject stale fix age=\(age)s")
+            return
+        }
+        NSLog("[Loc] fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s")
+
         let spd = max(0, loc.speed) // clamp negatives (means "unknown")
         let hdg = max(0, loc.course)
         onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)
