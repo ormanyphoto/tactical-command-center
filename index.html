@@ -16711,7 +16711,14 @@ const PUSH = (() => {
 // legacy `FIELD` name is kept as an alias so any third-party call
 // sites or debug consoles still work.
 // ══════════════════════════════════════════════════════════
-let _operatorStatus = 'active';
+// Persist the operator's availability so iOS / mobile doesn't lose it
+// when the WebView is re-hydrated (app switched to background, cold
+// restart, pull-to-refresh). Without this the bar snapped back to
+// "זמין" every time, making it look like status never updated.
+let _operatorStatus = (function(){
+  try { return localStorage.getItem('tac_operator_status') || 'active'; }
+  catch(_){ return 'active'; }
+})();
 const STATUS_META = {
   active:  {icon:'✅', label:'זמין',    sc:'#3dff52', scr:'61,255,82'},
   standby: {icon:'⏳', label:'כוננות',  sc:'#ffc107', scr:'255,193,7'},
@@ -16728,7 +16735,9 @@ function _applyOperatorStatusUI(){
   });
 }
 function operatorSetStatus(s){
+  // Persist first so a fast-follow reload still sees the new status.
   _operatorStatus = s;
+  try { localStorage.setItem('tac_operator_status', s); } catch(_){}
   _applyOperatorStatusUI();
   document.getElementById('op-status-popover')?.classList.remove('open');
   if(typeof SYNC !== 'undefined' && SYNC.updateStatus) SYNC.updateStatus(s);
@@ -16758,14 +16767,29 @@ function operatorSetStatus(s){
 function toggleStatusPopover(){
   document.getElementById('op-status-popover')?.classList.toggle('open');
 }
-// Close the popover when tapping outside it
-document.addEventListener('click', (e) => {
+// Close the popover when tapping outside it. Uses pointerdown so it
+// fires before click and doesn't race with iOS WKWebView's 300ms click
+// delay — on older iOS builds a stock click-listener here intercepted
+// the option-button tap, leaving status unchanged.
+document.addEventListener('pointerdown', (e) => {
   const pop = document.getElementById('op-status-popover');
   const btn = document.getElementById('op-status-btn');
   if(!pop || !pop.classList.contains('open')) return;
   if(pop.contains(e.target) || (btn && btn.contains(e.target))) return;
   pop.classList.remove('open');
 });
+// Belt-and-suspenders for iOS: if an option's onclick fails to fire
+// (gesture swallowed, focus/blur issue), pick up the touch directly.
+document.addEventListener('touchend', (e) => {
+  const t = e.target && e.target.closest && e.target.closest('.op-status-opt');
+  if(!t) return;
+  const s = t.dataset.s;
+  if(s && typeof operatorSetStatus === 'function'){
+    operatorSetStatus(s);
+    // Prevent the follow-up synthetic click from firing the onclick again.
+    e.preventDefault();
+  }
+}, { passive: false });
 function operatorNavigate(){
   // Open the in-app Google-navigation panel (same as the main nav tab)
   // instead of dumping the user into external Google Maps with their
@@ -16787,7 +16811,25 @@ function _applyOperatorLocUI(){
 }
 // Legacy alias — a few call sites still reference FIELD.*
 const FIELD = {
-  boot(){ _applyOperatorStatusUI(); _applyOperatorLocUI(); },
+  boot(){
+    _applyOperatorStatusUI();
+    _applyOperatorLocUI();
+    // Replay the persisted status to Firebase so other devices see
+    // the operator's chosen availability after an app restart.
+    // SYNC.updateStatus is safe to call before/after SYNC.startPublishing;
+    // both write to tac_locs/{uid}/status.
+    if(_operatorStatus && _operatorStatus !== 'active'
+       && typeof SYNC !== 'undefined' && SYNC.updateStatus){
+      try { SYNC.updateStatus(_operatorStatus); } catch(_){}
+    }
+    // Make sure _liveLocs reflects the persisted status immediately
+    // so the list rows render correctly on first paint.
+    const u = (typeof AUTH !== 'undefined') ? AUTH.getUser() : null;
+    if(u && u.id){
+      window._liveLocs = window._liveLocs || {};
+      window._liveLocs[u.id] = { ...(window._liveLocs[u.id] || {}), status: _operatorStatus };
+    }
+  },
   setStatus: operatorSetStatus,
   navigate:  operatorNavigate,
   sos(){ if(typeof SYNC!=='undefined') SYNC.updateStatus('urgent'); if(typeof triggerSOS==='function') triggerSOS(); },
