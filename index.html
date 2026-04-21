@@ -15460,12 +15460,20 @@ const SYNC = (() => {
     const labelBg = isDayMode ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.90)';
     const labelColor = isDayMode ? '#111' : '#22c55e';
     const displayName = (fullName||initials).slice(0,18);
-    function _buildSVG(photoDataUrl){
+    function _buildSVG(){
+      // NOTE: This SVG intentionally does NOT embed the profile photo.
+      // Embedding a base64 JPEG inside <image href="data:…"> inside an
+      // SVG inside a data: URL forced the WebView through three nested
+      // decoders — on mobile Chromium builds and WKWebView the combined
+      // load time often exceeded our watchdog, so we fell back to the
+      // initials placeholder and the photo never appeared on the map
+      // (which is exactly what team members reported — "the new photo
+      // isn't refreshing"). Now the SVG is tiny and loads instantly;
+      // the photo is composited on top in _rasterize via canvas.drawImage,
+      // which has no WebView quirks to work around.
       const nw = Math.min(W, Math.max(48, displayName.length*6+14));
       const nx = cx - nw/2;
-      // Include xmlns:xlink so older WebViews that only recognise xlink:href
-      // still load the embedded photo.
-      let svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'">';
+      let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">';
       // Name label pill
       svg += '<rect x="'+nx+'" y="2" width="'+nw+'" height="17" rx="5" fill="'+labelBg+'"/>';
       svg += '<text x="'+cx+'" y="13" text-anchor="middle" font-size="10" font-weight="700" font-family="Arial,Heebo,sans-serif" fill="'+labelColor+'">'+displayName.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</text>';
@@ -15477,15 +15485,10 @@ const SYNC = (() => {
       svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/>';
       // Pointer triangle
       svg += '<polygon points="'+(cx-7)+','+(bubCy+rOuter)+' '+cx+','+(H-5)+' '+(cx+7)+','+(bubCy+rOuter)+'" fill="'+ringColor+'"/>';
-      // Clip for photo/initials
-      svg += '<defs><clipPath id="cp"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'"/></clipPath></defs>';
-      if(photoDataUrl){
-        // Use both href and xlink:href for max compatibility (SVG2 + older)
-        svg += '<image href="'+photoDataUrl+'" xlink:href="'+photoDataUrl+'" x="'+(cx-rInner)+'" y="'+(bubCy-rInner)+'" width="'+(rInner*2)+'" height="'+(rInner*2)+'" clip-path="url(#cp)" preserveAspectRatio="xMidYMid slice"/>';
-      } else {
-        svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/>';
-        svg += '<text x="'+cx+'" y="'+(bubCy+4)+'" text-anchor="middle" font-size="'+(initials.length>2?9:13)+'" font-weight="900" font-family="Arial,Heebo,sans-serif" fill="#fff">'+initials+'</text>';
-      }
+      // Placeholder disk + initials — visible until the photo bitmap is
+      // drawn over it (and remains visible if no photo is available).
+      svg += '<circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/>';
+      svg += '<text x="'+cx+'" y="'+(bubCy+4)+'" text-anchor="middle" font-size="'+(initials.length>2?9:13)+'" font-weight="900" font-family="Arial,Heebo,sans-serif" fill="#fff">'+initials+'</text>';
       if(isMe) svg += '<text x="'+cx+'" y="30" text-anchor="middle" font-size="8">👑</text>';
       svg += '</svg>';
       // Base64 encode instead of URL-encode — some mobile WebViews silently
@@ -15513,7 +15516,7 @@ const SYNC = (() => {
     // fails to load (onerror or 1.5s watchdog), fall back to initials-only
     // SVG → PNG. If that also fails, emit a last-resort minimal PNG
     // (solid-fill circle) so the marker always lands on the map.
-    function _rasterize(svgUrl, onPng, onFail){
+    function _rasterize(svgUrl, photoImg, onPng, onFail){
       const img = new Image();
       let done = false;
       const finish = () => {
@@ -15524,22 +15527,40 @@ const SYNC = (() => {
           const g = cvs.getContext('2d');
           g.clearRect(0, 0, W, H);
           g.drawImage(img, 0, 0, W, H);
+          // Composite the profile photo on top of the placeholder disk.
+          // Clipping via a circular path gives a round avatar that exactly
+          // replaces the bgColor circle we drew in the SVG.
+          if(photoImg){
+            g.save();
+            g.beginPath();
+            g.arc(cx, bubCy, rInner, 0, Math.PI*2);
+            g.closePath();
+            g.clip();
+            g.drawImage(photoImg, cx-rInner, bubCy-rInner, rInner*2, rInner*2);
+            g.restore();
+          }
           onPng(cvs.toDataURL('image/png'));
         } catch(_){ onFail(); }
       };
       const fail = () => { if(done) return; done = true; onFail(); };
       img.onload = finish;
       img.onerror = fail;
-      setTimeout(fail, 1500);
+      // Watchdog raised from 1.5s → 5s. The old budget was too tight for
+      // large base64 JPEGs embedded in the SVG on mobile, causing the
+      // photo to silently drop to the initials fallback. With the photo
+      // now composited outside the SVG the SVG itself is tiny and should
+      // never hit this timeout, but we keep it as a safety net.
+      setTimeout(fail, 5000);
       img.src = svgUrl;
     }
-    function _verifyAndEmit(url, fallbackLevel){
-      _rasterize(url,
+    function _verifyAndEmit(url, photoImg, fallbackLevel){
+      _rasterize(url, photoImg,
         (pngUrl) => cb(pngUrl, W, H),
         () => {
           if(fallbackLevel === 0){
-            // Photo-embedded SVG failed to rasterize → try initials-only SVG
-            _verifyAndEmit(_buildSVG(null), 1);
+            // SVG failed to rasterize → try again without the photo
+            // overlay (canvas-only path, pure geometry).
+            _verifyAndEmit(_buildSVG(), null, 1);
           } else if(fallbackLevel === 1){
             // Initials SVG also failed → build a minimal circle PNG directly
             // via canvas (no SVG at all, so no WebView SVG quirks possible).
@@ -15573,29 +15594,29 @@ const SYNC = (() => {
         }
       );
     }
-    // Always downscale the photo through canvas to rInner*2 (34x34) before
-    // embedding so the encoded SVG stays small.
-    function _downscaleAndBuild(src){
+    // Load the photo into an Image() so _rasterize can composite it onto
+    // the canvas directly — no more embedding inside the SVG. We skip
+    // the canvas pre-downscale because drawImage already handles the
+    // scaling to rInner*2 at composite time.
+    function _loadPhotoAndBuild(src){
       const img = new Image();
       if(!src.startsWith('data:')) img.crossOrigin = 'anonymous';
-      img.onload = ()=>{
-        try {
-          const cvs = document.createElement('canvas');
-          cvs.width = rInner*2; cvs.height = rInner*2;
-          const g = cvs.getContext('2d');
-          g.drawImage(img, 0, 0, rInner*2, rInner*2);
-          const small = cvs.toDataURL('image/jpeg', 0.7);
-          if(small && small.length > 30) _verifyAndEmit(_buildSVG(small), 0);
-          else _verifyAndEmit(_buildSVG(null), 1);
-        } catch(_){ _verifyAndEmit(_buildSVG(null), 1); }
+      let settled = false;
+      const onReady = (photo) => {
+        if(settled) return; settled = true;
+        _verifyAndEmit(_buildSVG(), photo, 0);
       };
-      img.onerror = ()=>_verifyAndEmit(_buildSVG(null), 1);
+      img.onload  = () => onReady(img);
+      img.onerror = () => onReady(null); // no photo → initials fallback visible
+      // Safety net: if the image never fires an event, don't block the
+      // marker forever — emit without a photo after 5s.
+      setTimeout(() => onReady(null), 5000);
       img.src = src;
     }
     if(photoUrl && photoUrl.length > 10){
-      _downscaleAndBuild(photoUrl);
+      _loadPhotoAndBuild(photoUrl);
     } else {
-      _verifyAndEmit(_buildSVG(null), 1);
+      _verifyAndEmit(_buildSVG(), null, 0);
     }
   }
 
