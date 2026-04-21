@@ -213,6 +213,14 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 .mp-btn > span:first-child{font-size:18px;line-height:1;flex-shrink:0}
 .mp-btn:hover{border-color:var(--border3);color:var(--texthi);background:var(--panel3)}
 .mp-btn.mp-active{border-color:var(--accent);background:var(--glow);color:var(--accent)}
+/* GPS focus icon — crosshair/reticle that inherits theme color via currentColor.
+   Day mode uses the inherited dark text color; night uses light accent text.
+   On hover/active the button's color transitions kick in automatically. */
+.mp-btn .gps-ico{width:18px;height:18px;flex-shrink:0;display:block;color:var(--accent2);transition:color 0.12s,transform 0.12s,filter 0.12s}
+.mp-btn:hover .gps-ico{color:var(--accent);filter:drop-shadow(0 0 4px var(--glow));transform:scale(1.06)}
+.mp-btn.mp-gps-focus:active .gps-ico{transform:scale(0.92)}
+body.day .mp-btn .gps-ico{color:var(--accent)}
+body.day .mp-btn:hover .gps-ico{color:var(--accent2);filter:drop-shadow(0 0 3px rgba(26,140,46,0.25))}
 .mp-btn-label{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:right}
 .mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
 
@@ -1042,7 +1050,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button id="mob-bio-clear" onclick="BIOMETRIC.clear();closeMobileMenu()">מחק</button>
       </div>
       <nav id="mobile-drawer-nav">
-        <div class="mob-nav-item active" onclick="mobileGoView('map')"><span class="mob-icon">🗺️</span>מפה</div>
+        <div class="mob-nav-item active" onclick="mobileGoView('map')"><span class="mob-icon">🗺️</span>חזרה למפה</div>
         <div class="mob-nav-item" onclick="mobileGoView('missions')"><span class="mob-icon">📋</span>משימות</div>
         <div class="mob-nav-item" onclick="mobileGoView('units')"><span class="mob-icon">👥</span>כוחות</div>
         <div class="mob-nav-item" onclick="mobileGoView('comms')"><span class="mob-icon">📡</span>תקשורת</div>
@@ -1064,7 +1072,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   <!-- BOTTOM NAV (tablet + mobile) -->
   <div id="bottom-nav">
     <button class="bn-item active" data-v="map" onclick="mobileGoView('map')"><span class="bn-icon">🗺️</span>מפה</button>
-    <button class="bn-item" data-v="personnel" onclick="mobileGoView('personnel')"><span class="bn-icon">👤</span>אנשי צוות</button>
+    <button class="bn-item" data-v="units" onclick="mobileGoView('units')"><span class="bn-icon">👥</span>כוחות</button>
     <button class="bn-item" data-v="missions" onclick="mobileGoView('missions')"><span class="bn-icon">📋</span>משימות</button>
     <button class="bn-item" data-v="comms" onclick="mobileGoView('comms')"><span class="bn-icon">📡</span>תקשורת</button>
     <button class="bn-item bn-emergency" id="bn-emergency-btn" onclick="openNotifModal()" style="display:none"><span class="bn-icon">📢</span>חירום</button>
@@ -1134,7 +1142,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       <!-- MAP TOOLS SIDEBAR -->
       <div id="map-overlay-btns">
         <div class="mp-group-label">מיקום</div>
-        <button class="mp-btn" onclick="locateMe()" title="מיקומי">📍</button>
+        <button class="mp-btn mp-gps-focus" onclick="locateMe()" title="מיקומי"><svg class="gps-ico" viewBox="0 0 297 297" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M148.5,0C66.653,0,0.067,66.616,0.067,148.499C0.067,230.383,66.653,297,148.5,297s148.433-66.617,148.433-148.501C296.933,66.616,230.347,0,148.5,0z M158.597,276.411v-61.274c0-5.575-4.521-10.097-10.097-10.097s-10.097,4.521-10.097,10.097v61.274c-62.68-4.908-112.845-55.102-117.747-117.814h61.207c5.575,0,10.097-4.521,10.097-10.097s-4.522-10.097-10.097-10.097H20.656C25.558,75.69,75.723,25.497,138.403,20.589v61.274c0,5.575,4.521,10.097,10.097,10.097s10.097-4.521,10.097-10.097V20.589c62.681,4.908,112.846,55.102,117.747,117.814h-61.207c-5.575,0-10.097,4.521-10.097,10.097s4.521,10.097,10.097,10.097h61.207C271.441,221.31,221.276,271.503,158.597,276.411z"/><circle cx="148.5" cy="148.5" r="14" fill="currentColor"/></svg></button>
         <button class="mp-btn" onclick="toggleGPS()" id="gps-btn" title="GPS מעקב רציף">🛰️</button>
         <div class="mp-divider"></div>
         <div class="mp-group-label">תצוגה</div>
