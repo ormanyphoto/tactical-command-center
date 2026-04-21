@@ -735,6 +735,11 @@ body.day #fm-theme-btn{color:rgba(30,41,59,0.85);border-color:rgba(30,41,59,0.2)
 #fm-gps-toggle.on{border-color:#3dff52;background:rgba(61,255,82,0.08);color:#3dff52}
 #fm-gps-toggle .fm-gps-icon{font-size:20px}
 #fm-nav-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#29c5f6;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#fm-tools-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#3dff52;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+body.day #fm-tools-btn{background:#ffffff;border-color:#cbd5e1;color:#15803d}
+/* The Map & Tools panel lives outside #field-mode (which is z-index 9000).
+   When the field user opens it we need the panel above the field overlay. */
+body.fm-active #right-panel.mobile-open{z-index:9100!important}
 #fm-status-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .fm-status-btn{height:38px;border-radius:8px;border:1px solid #1a2838;background:#0d1014;color:#5a7a90;font-size:11px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;transition:all 0.15s}
 .fm-status-btn.sel{border-color:var(--sc);background:rgba(var(--scr),0.12);color:var(--sc)}
@@ -1330,6 +1335,7 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
         <span class="fm-gps-icon">📡</span>
         <span id="fm-gps-label">שתף מיקום</span>
       </button>
+      <button id="fm-tools-btn" title="מפה וכלים" onclick="FIELD.openTools()">🗺️</button>
       <button id="fm-nav-btn" title="נווט" onclick="FIELD.navigate()">🧭</button>
     </div>
     <div id="fm-status-row">
@@ -16524,7 +16530,21 @@ const FIELD = (() => {
     }
   }
 
-  return { boot, enterFieldMode, toggleGPS, setStatus, navigate, sos, switchToCommand };
+  function openTools(){
+    // Reuse the existing command Map & Tools panel (#right-panel) rather
+    // than duplicating all the buttons inside the field overlay. A CSS
+    // rule (body.fm-active #right-panel.mobile-open) lifts its z-index
+    // above #field-mode so the slide-in appears on top of the field map.
+    if(typeof goPanel !== 'function') return;
+    goPanel('draw');
+    const rp = document.getElementById('right-panel');
+    if(rp){
+      rp.classList.remove('hidden');
+      rp.classList.add('mobile-open');
+    }
+  }
+
+  return { boot, enterFieldMode, toggleGPS, setStatus, navigate, sos, switchToCommand, openTools };
 })();
 
 // ══════════════════════════════════════════════════════════
