@@ -3595,6 +3595,23 @@ function _navResolve(el){
 }
 // Hold our own A/B markers so we can clean them up between renders.
 let _navStartMarker = null, _navEndMarker = null;
+// Single init for the DirectionsService + Renderer so every entry point
+// (calcNavRoute, navToMission, …) uses the same renderer with
+// suppressMarkers:true — keeps the broken default A/B PNGs off the map.
+function _ensureDirServices(){
+  if(!_dirService) _dirService = new google.maps.DirectionsService();
+  if(!_dirRenderer){
+    _dirRenderer = new google.maps.DirectionsRenderer({
+      map: window.map,
+      polylineOptions: {strokeColor:'#3dff52', strokeWeight:4},
+      suppressMarkers: true,
+    });
+  } else {
+    // Upgrade a pre-existing renderer if it was created earlier without
+    // the suppressMarkers flag (e.g. an old navToMission call).
+    try { _dirRenderer.setOptions({suppressMarkers: true}); } catch(_){}
+  }
+}
 function _navClearMarkers(){
   if(_navStartMarker){ _navStartMarker.setMap(null); _navStartMarker = null; }
   if(_navEndMarker){   _navEndMarker.setMap(null);   _navEndMarker = null; }
@@ -3626,16 +3643,7 @@ async function calcNavRoute(){
   const origin      = _navResolve(fromEl);
   const destination = _navResolve(toEl);
   if(!origin || !destination){ showToast({icon:'⚠️',title:'יש להזין מוצא ויעד',type:'warn'}); return; }
-  if(!_dirService){
-    _dirService = new google.maps.DirectionsService();
-    _dirRenderer = new google.maps.DirectionsRenderer({
-      map: window.map,
-      polylineOptions: {strokeColor:'#3dff52', strokeWeight:4},
-      // Google's default A/B markers fetch PNGs that fail on some mobile
-      // WebViews → broken-image glyph on the map. We draw our own below.
-      suppressMarkers: true,
-    });
-  }
+  _ensureDirServices();
   showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
   _dirService.route({
     origin, destination,
@@ -3658,15 +3666,16 @@ async function calcNavRoute(){
       mode,
     };
     _renderNavLaunchers(leg);
+    _saveNavPanelState();
     showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
   });
 }
 // Render a "launch in Waze / Google Maps" row inside the nav panel so the
 // operator can hand off the route to a real turn-by-turn navigator with
 // one tap.
-function _renderNavLaunchers(leg){
+function _renderNavLaunchers(){
   const body = document.getElementById('rp-body');
-  if(!body) return;
+  if(!body || !window._navLastRoute) return;
   let box = document.getElementById('nav-launch-box');
   if(!box){
     box = document.createElement('div');
@@ -3689,6 +3698,37 @@ function _renderNavLaunchers(leg){
       + 'href="' + wazeHref + '" target="_blank" rel="noopener">🚗 פתח ב-Waze</a>'
     + '<a class="btn-sec" style="margin:0;text-align:center;text-decoration:none;display:block;padding:8px 6px;font-size:12px;font-weight:800" '
       + 'href="' + gmapsHref + '" target="_blank" rel="noopener">🗺️ פתח ב-Google Maps</a>';
+}
+// Build the "יעד מרשימה" <option>s from live missions + active emergency
+// notification. Extracted so renderNavigationP can rebuild it on panel
+// refresh without clobbering the rest of the form.
+function _buildNavPickerOpts(){
+  const missions = MISSIONS.filter(m => (m.status==='active' || m.status==='urgent') && m.lat && m.lng);
+  const notifDest = window._activeNotifDest;
+  const notifVenues = (window._activeNotifVenues || []).filter(v => v && v.lat && v.lng);
+  let opts = '<option value="">— בחר יעד מהמערכת —</option>';
+  if(missions.length){
+    opts += '<optgroup label="📋 משימות פעילות">';
+    missions.forEach(m => {
+      const label = (m.id + ': ' + (m.title||'משימה')).replace(/"/g,'&quot;');
+      const addr = m.location || (m.lat.toFixed(5)+', '+m.lng.toFixed(5));
+      opts += `<option value="msn:${m.id}">${label} — ${addr}</option>`;
+    });
+    opts += '</optgroup>';
+  }
+  if(notifDest || notifVenues.length){
+    opts += '<optgroup label="📢 הודעת חירום פעילה">';
+    if(notifDest && notifDest.lat && notifDest.lng){
+      const addr = (notifDest.address || (notifDest.lat.toFixed(5)+', '+notifDest.lng.toFixed(5))).replace(/"/g,'&quot;');
+      opts += `<option value="notif:dest">${addr} (יעד ראשי)</option>`;
+    }
+    notifVenues.forEach((v, i) => {
+      const addr = (v.address || v.name || (v.lat.toFixed(5)+', '+v.lng.toFixed(5))).replace(/"/g,'&quot;');
+      opts += `<option value="notif:v${i}">${addr}</option>`;
+    });
+    opts += '</optgroup>';
+  }
+  return opts;
 }
 // Destination picker in renderNavigationP — fill #nav-to from a mission
 // or an active emergency-notification destination/venue. Stamps the
@@ -3721,6 +3761,7 @@ function navPickDestination(v){
   // Auto-fill origin with current location if empty — saves a tap.
   const from = document.getElementById('nav-from');
   if(from && !from.value) navFromMyLocation();
+  _saveNavPanelState();
 }
 async function navFromMyLocation(){
   if(!navigator.geolocation)return;
@@ -3736,21 +3777,30 @@ async function navFromMyLocation(){
   });
 }
 async function navToMission(msnId){
-  const m=MISSIONS.find(x=>x.id===msnId);if(!m)return;
-  if(!_dirService){_dirService=new google.maps.DirectionsService();_dirRenderer=new google.maps.DirectionsRenderer({map,polylineOptions:{strokeColor:'#3dff52',strokeWeight:4}});}
-  navigator.geolocation.getCurrentPosition(pos=>{
+  const m = MISSIONS.find(x => x.id === msnId);
+  if(!m) return;
+  _ensureDirServices();
+  navigator.geolocation.getCurrentPosition(pos => {
     _dirService.route({
-      origin:{lat:pos.coords.latitude,lng:pos.coords.longitude},
-      destination:{lat:m.lat,lng:m.lng},
-      travelMode:google.maps.TravelMode.DRIVING,language:'he',region:'IL',
-    },(result,status)=>{
-      if(status==='OK'){
-        _dirRenderer.setDirections(result);
-        const leg=result.routes[0].legs[0];
-        showToast({icon:'🧭',title:`מנווט אל ${msnId}`,sub:`${leg.distance.text} · ${leg.duration.text}`,type:'success',duration:6000});
-      }
+      origin:      {lat: pos.coords.latitude, lng: pos.coords.longitude},
+      destination: {lat: m.lat, lng: m.lng},
+      travelMode: google.maps.TravelMode.DRIVING, language:'he', region:'IL',
+    }, (result, status) => {
+      if(status !== 'OK') return;
+      _dirRenderer.setDirections(result);
+      const leg = result.routes[0].legs[0];
+      _navClearMarkers();
+      _navStartMarker = _navLabelMarker(leg.start_location, 'A', '#3dff52');
+      _navEndMarker   = _navLabelMarker(leg.end_location,   'B', '#ff3333');
+      window._navLastRoute = {
+        origin:      {lat: leg.start_location.lat(), lng: leg.start_location.lng()},
+        destination: {lat: leg.end_location.lat(),   lng: leg.end_location.lng()},
+        mode: 'DRIVING',
+      };
+      _renderNavLaunchers(leg);
+      showToast({icon:'🧭', title:`מנווט אל ${msnId}`, sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
     });
-  },()=>showToast({icon:'⚠️',title:'לא ניתן לקבל מיקום',type:'warn'}));
+  }, () => showToast({icon:'⚠️', title:'לא ניתן לקבל מיקום', type:'warn'}));
 }
 
 // ── TOAST ──
@@ -4988,37 +5038,71 @@ async function sendAiMsg(){
 }
 
 // ── NAVIGATION PANEL ──
+// Snapshot of the navigation form — survives panel switches so the
+// operator can open Waze/Google Maps, come back, and still see their
+// inputs + calculated route launchers. Captured on every blur/change
+// via _saveNavPanelState() and replayed in renderNavigationP.
+window._navPanelState = window._navPanelState || null;
+function _saveNavPanelState(){
+  const from = document.getElementById('nav-from');
+  const to   = document.getElementById('nav-to');
+  const mode = document.getElementById('nav-mode');
+  const sel  = document.getElementById('nav-picker');
+  if(!from || !to) return;
+  window._navPanelState = {
+    fromVal: from.value,
+    fromLat: from.dataset.lat || '',
+    fromLng: from.dataset.lng || '',
+    toVal:   to.value,
+    toLat:   to.dataset.lat || '',
+    toLng:   to.dataset.lng || '',
+    mode:    mode ? mode.value : 'DRIVING',
+    picker:  sel ? sel.value : '',
+  };
+}
+function _restoreNavPanelState(){
+  const s = window._navPanelState;
+  if(!s) return;
+  const from = document.getElementById('nav-from');
+  const to   = document.getElementById('nav-to');
+  const mode = document.getElementById('nav-mode');
+  const sel  = document.getElementById('nav-picker');
+  if(from){
+    from.value = s.fromVal || '';
+    if(s.fromLat) from.dataset.lat = s.fromLat;
+    if(s.fromLng) from.dataset.lng = s.fromLng;
+  }
+  if(to){
+    to.value = s.toVal || '';
+    if(s.toLat) to.dataset.lat = s.toLat;
+    if(s.toLng) to.dataset.lng = s.toLng;
+  }
+  if(mode && s.mode) mode.value = s.mode;
+  if(sel && s.picker) sel.value = s.picker;
+}
 function renderNavigationP(c){
-  if(!c)c=document.getElementById('rp-body');
+  if(!c) c = document.getElementById('rp-body');
+  // If the nav panel is already rendered, keep it — the user's typed
+  // addresses, picker selection, stamped data-lat/data-lng, and any
+  // calculated route's launcher buttons are all still live. Re-running
+  // the whole template would wipe them when the user re-opens the panel
+  // after coming back from Waze / Google Maps.
+  if(c.querySelector('#nav-from') && c.querySelector('#nav-to')){
+    // Refresh only the destination-picker options so newly created
+    // missions / emergency notifications show up without clobbering
+    // the form state.
+    const sel = c.querySelector('#nav-picker');
+    if(sel) sel.innerHTML = _buildNavPickerOpts();
+    // If a route was calculated earlier, keep the launcher row visible.
+    if(window._navLastRoute) _renderNavLaunchers();
+    return;
+  }
   // Build the destination picker: active missions + current emergency
   // notification destination/venues. Keeping the free-text input as well
   // so the user still has the typed-address path when the destination
   // hasn't been created as a mission/notif yet.
   const missions = MISSIONS.filter(m => (m.status==='active' || m.status==='urgent') && m.lat && m.lng);
-  const notifDest = window._activeNotifDest;
-  const notifVenues = (window._activeNotifVenues || []).filter(v => v && v.lat && v.lng);
-  let pickerOpts = '<option value="">— בחר יעד מהמערכת —</option>';
-  if(missions.length){
-    pickerOpts += '<optgroup label="📋 משימות פעילות">';
-    missions.forEach(m => {
-      const label = (m.id + ': ' + (m.title||'משימה')).replace(/"/g,'&quot;');
-      const addr = m.location || (m.lat.toFixed(5)+', '+m.lng.toFixed(5));
-      pickerOpts += `<option value="msn:${m.id}">${label} — ${addr}</option>`;
-    });
-    pickerOpts += '</optgroup>';
-  }
-  if(notifDest || notifVenues.length){
-    pickerOpts += '<optgroup label="📢 הודעת חירום פעילה">';
-    if(notifDest && notifDest.lat && notifDest.lng){
-      const addr = (notifDest.address || (notifDest.lat.toFixed(5)+', '+notifDest.lng.toFixed(5))).replace(/"/g,'&quot;');
-      pickerOpts += `<option value="notif:dest">${addr} (יעד ראשי)</option>`;
-    }
-    notifVenues.forEach((v, i) => {
-      const addr = (v.address || v.name || (v.lat.toFixed(5)+', '+v.lng.toFixed(5))).replace(/"/g,'&quot;');
-      pickerOpts += `<option value="notif:v${i}">${addr}</option>`;
-    });
-    pickerOpts += '</optgroup>';
-  }
+  const pickerOpts = _buildNavPickerOpts();
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
   <div class="form-g addr-wrap"><label>נקודת מוצא</label>
     <div class="addr-row" style="display:flex;gap:4px;align-items:stretch">
@@ -5071,6 +5155,22 @@ function renderNavigationP(c){
       el._ac = ac;
     });
   }
+  // Restore any previously-entered form state (user navigated away and
+  // came back). Restoration must run after Places Autocomplete is bound,
+  // because setting input.value programmatically shouldn't re-trigger
+  // geocoding — autocomplete only reacts to user input events.
+  _restoreNavPanelState();
+  // Re-attach the launcher row if a route was calculated earlier.
+  if(window._navLastRoute) _renderNavLaunchers();
+  // Persist state whenever the user changes any form field so the
+  // snapshot is fresh the next time the panel renders.
+  ['nav-from','nav-to','nav-mode','nav-picker'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el || el._navSaveBound) return;
+    el.addEventListener('change', _saveNavPanelState);
+    el.addEventListener('input',  _saveNavPanelState);
+    el._navSaveBound = true;
+  });
 }
 
 // ── DASHBOARD ──
