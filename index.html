@@ -15502,39 +15502,79 @@ const SYNC = (() => {
         return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
       }
     }
-    // Pre-validate the final SVG data URL before handing it to Google Maps.
-    // Builds an Image(), sets src = svg_url. If it loads → use it. If it
-    // fails → fall back to an initials-only SVG (no embedded photo) and
-    // validate THAT too. If even that fails → hand Maps a tiny inline
-    // colored circle. This guarantees Maps never gets a URL that would
-    // render as a broken-image placeholder.
-    function _verifyAndEmit(url, fallbackLevel){
-      const probe = new Image();
-      // Watchdog: WKWebView (iOS) and some Android WebViews occasionally fail
-      // to fire either onload or onerror for base64-encoded SVG data URLs that
-      // embed <image href="data:…">. When that happens the callback never
-      // runs and the marker never lands on the map (the observed symptom:
-      // iOS shows only the plain green dot, no avatar bubble). Force a
-      // fallback after 1.5 s so `cb` is guaranteed to fire.
-      let _done = false;
-      const _finish = (emitUrl) => { if(_done) return; _done = true; cb(emitUrl, W, H); };
-      const _fallback = () => {
-        if(_done) return;
-        if(fallbackLevel === 0){
-          _verifyAndEmit(_buildSVG(null), 1);
-          _done = true; // this call's job is done; inner call handles cb
-        } else {
-          const minSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/></svg>';
-          let minUrl;
-          try{ minUrl = 'data:image/svg+xml;base64,'+btoa(minSvg); }
-          catch(_){ minUrl = 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(minSvg); }
-          _finish(minUrl);
-        }
+    // Rasterize the SVG to a PNG data URL before handing it to Google Maps.
+    // Why: google.maps.Marker with `optimized:true` draws each icon onto a
+    // shared <canvas> layer. WKWebView (iOS) and some older Android
+    // WebViews fail to decode base64-encoded SVGs that embed <image
+    // href="data:…"> inside that canvas path — the user sees only the
+    // plain green dot (iOS) or a system broken-image glyph (Android),
+    // even though the same SVG renders fine in a standalone <img>. By
+    // rasterizing to PNG first, Maps receives a plain bitmap that every
+    // WebView decodes reliably.
+    //
+    // The chain: photo-embedded SVG → draw to canvas → PNG. If the SVG
+    // fails to load (onerror or 1.5s watchdog), fall back to initials-only
+    // SVG → PNG. If that also fails, emit a last-resort minimal PNG
+    // (solid-fill circle) so the marker always lands on the map.
+    function _rasterize(svgUrl, onPng, onFail){
+      const img = new Image();
+      let done = false;
+      const finish = () => {
+        if(done) return; done = true;
+        try {
+          const cvs = document.createElement('canvas');
+          cvs.width = W; cvs.height = H;
+          const g = cvs.getContext('2d');
+          g.clearRect(0, 0, W, H);
+          g.drawImage(img, 0, 0, W, H);
+          onPng(cvs.toDataURL('image/png'));
+        } catch(_){ onFail(); }
       };
-      probe.onload  = () => _finish(url);
-      probe.onerror = _fallback;
-      setTimeout(_fallback, 1500);
-      probe.src = url;
+      const fail = () => { if(done) return; done = true; onFail(); };
+      img.onload = finish;
+      img.onerror = fail;
+      setTimeout(fail, 1500);
+      img.src = svgUrl;
+    }
+    function _verifyAndEmit(url, fallbackLevel){
+      _rasterize(url,
+        (pngUrl) => cb(pngUrl, W, H),
+        () => {
+          if(fallbackLevel === 0){
+            // Photo-embedded SVG failed to rasterize → try initials-only SVG
+            _verifyAndEmit(_buildSVG(null), 1);
+          } else if(fallbackLevel === 1){
+            // Initials SVG also failed → build a minimal circle PNG directly
+            // via canvas (no SVG at all, so no WebView SVG quirks possible).
+            try {
+              const cvs = document.createElement('canvas');
+              cvs.width = W; cvs.height = H;
+              const g = cvs.getContext('2d');
+              g.clearRect(0, 0, W, H);
+              g.fillStyle = ringColor;
+              g.beginPath(); g.arc(cx, bubCy, rOuter, 0, Math.PI*2); g.fill();
+              g.fillStyle = bgColor;
+              g.beginPath(); g.arc(cx, bubCy, rInner, 0, Math.PI*2); g.fill();
+              if(initials){
+                g.fillStyle = '#fff';
+                g.font = '900 '+(initials.length>2?14:20)+'px Arial, Heebo, sans-serif';
+                g.textAlign = 'center'; g.textBaseline = 'middle';
+                g.fillText(initials, cx, bubCy);
+              }
+              cb(cvs.toDataURL('image/png'), W, H);
+            } catch(_){
+              // Truly catastrophic (canvas unavailable) — fall back to a
+              // raw SVG data URL as a last resort; Maps may still reject it
+              // but we've exhausted deterministic options.
+              const minSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'"><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rOuter+'" fill="'+ringColor+'"/><circle cx="'+cx+'" cy="'+bubCy+'" r="'+rInner+'" fill="'+bgColor+'"/></svg>';
+              let minUrl;
+              try{ minUrl = 'data:image/svg+xml;base64,'+btoa(minSvg); }
+              catch(__){ minUrl = 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(minSvg); }
+              cb(minUrl, W, H);
+            }
+          }
+        }
+      );
     }
     // Always downscale the photo through canvas to rInner*2 (34x34) before
     // embedding so the encoded SVG stays small.
