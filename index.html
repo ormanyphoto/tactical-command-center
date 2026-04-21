@@ -8966,7 +8966,15 @@ function renderPersonnelP(c){
   </div>
   <!-- LIST -->
   <div id="personnel-list">
-  ${filtered.map(p=>`
+  ${filtered.map(p=>{
+    // Show the live operator status (זמין / כוננות / לא זמין / בדרך /
+    // הגיע / מאשר) instead of the static p.available flag, so when a
+    // teammate sets themselves to "כוננות" or "לא זמין" from the
+    // operator-bar popover their card updates here too.
+    const st = (typeof _personStatus === 'function') ? _personStatus(p) : null;
+    const availOn = !st || st.key === 'available' || st.key === 'arrived' || st.key === 'enroute' || st.key === 'approved';
+    const availLabel = st ? st.lbl.replace(/^[^\u0590-\u05FF\w]+\s*/, '') : (p.available?'זמין':'לא זמין');
+    return `
     <div class="pers-card ${_selectedPersonnel.has(p.id)?'selected':''}" draggable="true" data-pid="${p.id}">
       <input type="checkbox" class="pers-check" ${_selectedPersonnel.has(p.id)?'checked':''} onchange="togglePersonSelect('${p.id}',this.checked)" onclick="event.stopPropagation()"/>
       <span class="drag-handle" style="font-size:12px;color:var(--text3)">⠿</span>
@@ -8976,7 +8984,7 @@ function renderPersonnelP(c){
       <div class="pers-info" style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
           <div class="pers-name">${p.name}</div>
-          <span class="pers-avail-inline ${p.available?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')">${p.available?'זמין':'לא זמין'}</span>
+          <span class="pers-avail-inline ${availOn?'avail-yes':'avail-no'}" onclick="togglePersonAvail('${p.id}')" title="לחץ להחלפת זמינות ידנית">${availLabel}</span>
         </div>
         <div class="pers-sub">
           ${p.role?`<span style="color:var(--accent2);font-weight:700">${p.role}</span>`:''}
@@ -8992,7 +9000,8 @@ function renderPersonnelP(c){
           <button class="pqa-btn pqa-assign" onclick="persnAssignMission('${p.id}')" title="שבץ משימה">📋 שבץ</button>
         </div>
       </div>
-    </div>`).join('')}
+    </div>`;
+  }).join('')}
   ${filtered.length===0?'<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">לא נמצאו אנשי צוות</div>':''}
   </div>`;
   requestAnimationFrame(initPersonnelDrag);
@@ -15772,10 +15781,13 @@ const SYNC = (() => {
         const key = d.personId || uid;
         window._liveLocs[key] = {lat:d.lat, lng:d.lng, spd:d.spd||0, ts:d.ts, name:d.name, status:d.status};
       });
-      // Refresh כוחות list if open so status changes published by other
-      // operators show without waiting for a panel switch.
+      // Refresh כוחות / אנשי צוות lists if open so status changes
+      // published by other operators show without waiting for a panel
+      // switch.
       const _listEl = document.getElementById('units-plist');
       if(_listEl && typeof _renderUnitsListOnly === 'function') _renderUnitsListOnly(_listEl);
+      const _persEl = document.getElementById('personnel-list');
+      if(_persEl && typeof renderPersonnelP === 'function') renderPersonnelP(document.getElementById('rp-body'));
       function _renderAll(){
         Object.entries(data).forEach(([uid,d])=>{
           if(!d) return;
@@ -16693,6 +16705,11 @@ function operatorSetStatus(s){
   // Refresh KPI counters too (זמינים / לא זמינים / etc.)
   const kpi = document.getElementById('units-kpi');
   if(kpi && typeof _buildUnitsKPI === 'function') kpi.innerHTML = _buildUnitsKPI();
+  // Refresh the personnel (אנשי צוות) panel if open
+  const persList = document.getElementById('personnel-list');
+  if(persList && typeof renderPersonnelP === 'function'){
+    renderPersonnelP(document.getElementById('rp-body'));
+  }
   const meta = STATUS_META[s] || STATUS_META.active;
   showToast({icon: meta.icon, title:'סטטוס עודכן: '+meta.label, type:'info', duration:2000});
 }
