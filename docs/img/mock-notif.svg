@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 780" font-family="Heebo, Arial, sans-serif" direction="rtl">
+  <!-- modal -->
+  <rect width="520" height="780" rx="16" fill="#0d1014" stroke="#243448"/>
+  <!-- header -->
+  <rect x="0" y="0" width="520" height="58" rx="16" fill="#121620"/>
+  <rect x="0" y="44" width="520" height="14" fill="#121620"/>
+  <line x1="0" y1="58" x2="520" y2="58" stroke="#243448"/>
+  <text x="500" y="36" text-anchor="end" font-size="16" font-weight="800" fill="#d8eef8">שליחת התראה חדשה</text>
+  <text x="22" y="36" font-size="18" fill="#5a7a90">✕</text>
+
+  <!-- body -->
+  <g transform="translate(22,78)">
+    <text x="476" y="18" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">רמת דחיפות</text>
+    <!-- type buttons -->
+    <rect y="30" width="150" height="42" rx="8" fill="rgba(41,197,246,0.1)" stroke="#29c5f6" stroke-width="1.5"/>
+    <text x="75" y="57" text-anchor="middle" font-size="13" font-weight="700" fill="#29c5f6">ℹ️ מידע</text>
+    <rect x="163" y="30" width="150" height="42" rx="8" fill="rgba(255,193,7,0.1)" stroke="#ffc107" stroke-width="1.5"/>
+    <text x="238" y="57" text-anchor="middle" font-size="13" font-weight="700" fill="#ffc107">⚠ אזהרה</text>
+    <rect x="326" y="30" width="150" height="42" rx="8" fill="rgba(255,51,51,0.15)" stroke="#ff3333" stroke-width="2"/>
+    <text x="401" y="57" text-anchor="middle" font-size="13" font-weight="700" fill="#ff3333">🚨 קריטי</text>
+
+    <!-- title -->
+    <text x="476" y="108" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">כותרת ההודעה</text>
+    <rect y="120" width="476" height="38" rx="6" fill="#121620" stroke="#243448"/>
+    <text x="466" y="144" text-anchor="end" font-size="13" fill="#d8eef8">חשד לחדירת כלי טיס בלתי מאויש</text>
+
+    <!-- body -->
+    <text x="476" y="180" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">גוף ההודעה</text>
+    <rect y="192" width="476" height="100" rx="6" fill="#121620" stroke="#243448"/>
+    <text x="466" y="218" text-anchor="end" font-size="12" fill="#d8eef8">דיווח על כטב״מ מעל אזור צפוני.</text>
+    <text x="466" y="236" text-anchor="end" font-size="12" fill="#d8eef8">כל הכוחות מתבקשים להיערך</text>
+    <text x="466" y="254" text-anchor="end" font-size="12" fill="#d8eef8">ולדווח מיידית על חיזוי בשטח.</text>
+
+    <!-- target -->
+    <text x="476" y="320" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">יעד שידור</text>
+    <g>
+      <rect y="332" width="90" height="30" rx="15" fill="rgba(61,255,82,0.1)" stroke="#3dff52"/>
+      <text x="45" y="352" text-anchor="middle" font-size="11" font-weight="700" fill="#3dff52">כל ישראל</text>
+      <rect x="100" y="332" width="80" height="30" rx="15" fill="#121620" stroke="#243448"/>
+      <text x="140" y="352" text-anchor="middle" font-size="11" font-weight="700" fill="#5a7a90">תפקיד</text>
+      <rect x="190" y="332" width="80" height="30" rx="15" fill="#121620" stroke="#243448"/>
+      <text x="230" y="352" text-anchor="middle" font-size="11" font-weight="700" fill="#5a7a90">צוות</text>
+      <rect x="280" y="332" width="100" height="30" rx="15" fill="#121620" stroke="#243448"/>
+      <text x="330" y="352" text-anchor="middle" font-size="11" font-weight="700" fill="#5a7a90">גיאופנס</text>
+    </g>
+
+    <!-- recipients list -->
+    <text x="476" y="388" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">נמענים (184 נבחרו)</text>
+    <rect y="400" width="476" height="180" rx="6" fill="#121620" stroke="#243448"/>
+    <g transform="translate(10,410)">
+      <rect width="456" height="32" rx="4" fill="#18202e"/>
+      <rect x="436" y="8" width="16" height="16" rx="3" fill="#3dff52"/>
+      <text x="448" y="20" text-anchor="middle" font-size="11" font-weight="900" fill="#07090a">✓</text>
+      <text x="420" y="22" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">צוות אלפא · 12 לוחמים</text>
+      <text x="230" y="22" text-anchor="end" font-size="10" fill="#344858">מפקד: רס״ן דוד מ.</text>
+    </g>
+    <g transform="translate(10,448)">
+      <rect width="456" height="32" rx="4" fill="#18202e"/>
+      <rect x="436" y="8" width="16" height="16" rx="3" fill="#3dff52"/>
+      <text x="448" y="20" text-anchor="middle" font-size="11" font-weight="900" fill="#07090a">✓</text>
+      <text x="420" y="22" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">צוות ברוש · 8 לוחמים</text>
+    </g>
+    <g transform="translate(10,486)">
+      <rect width="456" height="32" rx="4" fill="#18202e"/>
+      <rect x="436" y="8" width="16" height="16" rx="3" fill="#121620" stroke="#344858"/>
+      <text x="420" y="22" text-anchor="end" font-size="12" font-weight="700" fill="#9ab8c8">צוות גמל · 10 לוחמים</text>
+    </g>
+    <g transform="translate(10,524)">
+      <rect width="456" height="32" rx="4" fill="#18202e"/>
+      <rect x="436" y="8" width="16" height="16" rx="3" fill="#3dff52"/>
+      <text x="448" y="20" text-anchor="middle" font-size="11" font-weight="900" fill="#07090a">✓</text>
+      <text x="420" y="22" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">פיקוד מחוזי · 14 מפקדים</text>
+    </g>
+
+    <!-- send -->
+    <rect y="610" width="476" height="52" rx="6" fill="#3dff52"/>
+    <text x="238" y="642" text-anchor="middle" font-size="16" font-weight="900" fill="#07090a">שלח התראה · 184 נמענים</text>
+
+    <text x="238" y="686" text-anchor="middle" font-size="10" fill="#344858">מסירה מיידית · אישור קריאה נרשם באופן אוטומטי</text>
+  </g>
+</svg>

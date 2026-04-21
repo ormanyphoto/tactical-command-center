@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1300" font-family="Heebo, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="sosbg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#1a0606"/>
+      <stop offset="1" stop-color="#0a0d11"/>
+    </linearGradient>
+    <radialGradient id="pulse" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff3333" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ff3333" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- phone frame -->
+  <rect x="30" y="30" width="690" height="1240" rx="70" fill="#000" stroke="#243448" stroke-width="3"/>
+  <rect x="50" y="50" width="650" height="1200" rx="56" fill="url(#sosbg)"/>
+  <!-- notch -->
+  <rect x="300" y="50" width="150" height="28" rx="14" fill="#000"/>
+  <!-- status bar -->
+  <text x="100" y="100" font-size="16" font-weight="700" fill="#fff">14:27</text>
+  <text x="650" y="100" text-anchor="end" font-size="14" fill="#fff">◉◉◉ 5G · ██</text>
+
+  <!-- Alert backdrop blur suggestion -->
+  <rect x="50" y="130" width="650" height="1120" rx="40" fill="#000" opacity="0.55"/>
+
+  <!-- header strip -->
+  <text x="660" y="180" text-anchor="end" font-size="12" font-weight="800" fill="#ff3333" letter-spacing="4">◉ התראה קריטית · CRITICAL</text>
+  <text x="660" y="202" text-anchor="end" font-size="10" fill="#5a7a90" letter-spacing="2">14:27:42 · לפני 3 שניות</text>
+
+  <!-- pulsing icon -->
+  <circle cx="375" cy="400" r="180" fill="url(#pulse)"/>
+  <circle cx="375" cy="400" r="120" fill="none" stroke="#ff3333" stroke-width="3" opacity="0.5"/>
+  <circle cx="375" cy="400" r="90" fill="rgba(255,51,51,0.25)" stroke="#ff3333" stroke-width="2.5"/>
+  <text x="375" y="418" text-anchor="middle" font-size="64">🚨</text>
+
+  <!-- title -->
+  <text x="375" y="640" text-anchor="middle" font-size="32" font-weight="900" fill="#fff">SOS מלוחם בשטח</text>
+  <text x="375" y="680" text-anchor="middle" font-size="18" font-weight="700" fill="#ff7070">רס״ן דוד מ. · צוות אלפא</text>
+
+  <!-- location card -->
+  <g transform="translate(90,720)">
+    <rect width="570" height="80" rx="10" fill="rgba(255,51,51,0.08)" stroke="#ff3333" stroke-width="1.5"/>
+    <text x="550" y="32" text-anchor="end" font-size="12" font-weight="700" fill="#ff3333" letter-spacing="2">◉ מיקום חי</text>
+    <text x="550" y="58" text-anchor="end" font-size="15" font-weight="800" fill="#fff">רחוב דיזנגוף 186, תל־אביב</text>
+    <text x="550" y="74" text-anchor="end" font-size="11" fill="#9ab8c8">32.0852° N · 34.7818° E · דיוק 8 מ׳</text>
+  </g>
+
+  <!-- Message -->
+  <g transform="translate(90,830)">
+    <text x="550" y="20" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">הודעה מהשטח</text>
+    <rect width="570" height="70" rx="10" fill="#121620" stroke="#243448"/>
+    <text x="550" y="46" text-anchor="end" font-size="14" fill="#d8eef8">"חדירת חשודים למתחם דרומי, זקוק לתגבור"</text>
+  </g>
+
+  <!-- Action buttons -->
+  <g font-weight="800" font-size="16">
+    <g transform="translate(90,940)">
+      <rect width="570" height="64" rx="10" fill="#3dff52"/>
+      <text x="285" y="42" text-anchor="middle" fill="#07090a">✓ הגעתי</text>
+    </g>
+    <g transform="translate(90,1018)">
+      <rect width="275" height="64" rx="10" fill="#121620" stroke="#29c5f6" stroke-width="2"/>
+      <text x="137" y="42" text-anchor="middle" fill="#29c5f6">🚗 יצאתי לדרך</text>
+    </g>
+    <g transform="translate(385,1018)">
+      <rect width="275" height="64" rx="10" fill="#121620" stroke="#ffc107" stroke-width="2"/>
+      <text x="137" y="42" text-anchor="middle" fill="#ffc107">👁 אושר</text>
+    </g>
+  </g>
+
+  <!-- footer -->
+  <text x="375" y="1140" text-anchor="middle" font-size="11" fill="#5a7a90" letter-spacing="2">◉ כל תגובה נרשמת בביקורת הפעילות</text>
+  <text x="375" y="1160" text-anchor="middle" font-size="10" fill="#344858">12 מפקדים נוספים קיבלו את ההתראה</text>
+
+  <!-- home indicator -->
+  <rect x="300" y="1210" width="150" height="5" rx="3" fill="#fff" opacity="0.3"/>
+</svg>

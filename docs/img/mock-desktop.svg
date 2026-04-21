@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" font-family="Heebo, Assistant, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0d11"/><stop offset="1" stop-color="#07090a"/>
+    </linearGradient>
+    <linearGradient id="mapg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#142232"/>
+      <stop offset="0.5" stop-color="#0d1a28"/>
+      <stop offset="1" stop-color="#0a1420"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3dff52" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#3dff52" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+
+  <rect width="1440" height="900" fill="url(#bg)"/>
+
+  <!-- topbar -->
+  <rect x="0" y="0" width="1440" height="62" fill="#0d1014"/>
+  <line x1="0" y1="62" x2="1440" y2="62" stroke="#243448"/>
+  <!-- logo wrap (right side in RTL) -->
+  <line x1="1080" y1="10" x2="1080" y2="52" stroke="#243448"/>
+  <text x="1420" y="36" text-anchor="end" font-size="20" font-weight="900" fill="#3dff52" letter-spacing="1">⬡ מערכת מבצעים</text>
+  <text x="1420" y="52" text-anchor="end" font-size="11" fill="#344858" font-weight="400">כוננות מחוזית ת"א · v6.8.44</text>
+  <!-- clock center -->
+  <text x="540" y="34" font-size="26" font-weight="800" fill="#a8e800" font-family="Assistant">14:27:08</text>
+  <text x="540" y="50" font-size="11" font-weight="600" fill="#5a7a90">יום ראשון · 19 אפריל 2026</text>
+  <!-- day/night pill -->
+  <rect x="260" y="16" width="110" height="30" rx="6" fill="#121620" stroke="#243448"/>
+  <rect x="265" y="19" width="50" height="24" rx="4" fill="#060d1a" stroke="#3c5aa0"/>
+  <text x="290" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">🌙 לילה</text>
+  <text x="340" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#586878">☀ יום</text>
+  <!-- admin button -->
+  <rect x="50" y="16" width="90" height="30" rx="6" fill="#121620" stroke="#3dff52"/>
+  <text x="95" y="36" text-anchor="middle" font-size="12" font-weight="700" fill="#3dff52">⚙ ניהול</text>
+  <!-- bell -->
+  <rect x="150" y="16" width="40" height="30" rx="6" fill="#121620" stroke="#243448"/>
+  <text x="170" y="36" text-anchor="middle" font-size="14">🔔</text>
+  <circle cx="182" cy="22" r="5" fill="#ff3333"/>
+
+  <!-- sidebar (right, 360) -->
+  <rect x="1080" y="62" width="360" height="838" fill="#0d1014"/>
+  <line x1="1080" y1="62" x2="1080" y2="900" stroke="#243448"/>
+  <!-- tab pills -->
+  <g>
+    <rect x="1092" y="80" width="92" height="30" rx="6" fill="#3dff52"/>
+    <text x="1138" y="100" text-anchor="middle" font-weight="800" font-size="12" fill="#07090a">🗺️ מפה</text>
+    <rect x="1194" y="80" width="90" height="30" rx="6" fill="#121620" stroke="#243448"/>
+    <text x="1239" y="100" text-anchor="middle" font-weight="700" font-size="12" fill="#5a7a90">📋 משימות</text>
+    <rect x="1294" y="80" width="80" height="30" rx="6" fill="#121620" stroke="#243448"/>
+    <text x="1334" y="100" text-anchor="middle" font-weight="700" font-size="12" fill="#5a7a90">👥 כוחות</text>
+  </g>
+
+  <!-- active missions list -->
+  <text x="1420" y="140" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ משימות פעילות · 4</text>
+
+  <g transform="translate(1100,155)">
+    <rect width="324" height="78" rx="6" fill="#121620" stroke="#243448"/>
+    <rect x="0" y="0" width="3" height="78" fill="#ff3333"/>
+    <text x="310" y="22" text-anchor="end" font-weight="800" font-size="13" fill="#d8eef8">אבטחת אירוע · דיזנגוף סנטר</text>
+    <text x="310" y="40" text-anchor="end" font-size="11" fill="#9ab8c8">צוות אלפא · 4 לוחמים שובצו</text>
+    <rect x="230" y="52" width="74" height="18" rx="9" fill="rgba(255,51,51,0.1)" stroke="#ff3333"/>
+    <text x="267" y="65" text-anchor="middle" font-size="10" font-weight="700" fill="#ff3333">דחוף</text>
+    <text x="220" y="65" text-anchor="end" font-size="10" fill="#5a7a90">14:08 · לפני 19 דקות</text>
+  </g>
+
+  <g transform="translate(1100,240)">
+    <rect width="324" height="78" rx="6" fill="#121620" stroke="#243448"/>
+    <rect x="0" y="0" width="3" height="78" fill="#ffc107"/>
+    <text x="310" y="22" text-anchor="end" font-weight="800" font-size="13" fill="#d8eef8">מחסום רשת · צומת עלומים</text>
+    <text x="310" y="40" text-anchor="end" font-size="11" fill="#9ab8c8">צוות ברוש · 3 כלי רכב</text>
+    <rect x="240" y="52" width="64" height="18" rx="9" fill="rgba(255,193,7,0.1)" stroke="#ffc107"/>
+    <text x="272" y="65" text-anchor="middle" font-size="10" font-weight="700" fill="#ffc107">גבוה</text>
+    <text x="230" y="65" text-anchor="end" font-size="10" fill="#5a7a90">13:42</text>
+  </g>
+
+  <g transform="translate(1100,325)">
+    <rect width="324" height="78" rx="6" fill="#121620" stroke="#243448"/>
+    <rect x="0" y="0" width="3" height="78" fill="#29c5f6"/>
+    <text x="310" y="22" text-anchor="end" font-weight="800" font-size="13" fill="#d8eef8">סיור שגרה · רובע 4</text>
+    <text x="310" y="40" text-anchor="end" font-size="11" fill="#9ab8c8">צוות גמל · 2 סיירים</text>
+    <rect x="237" y="52" width="67" height="18" rx="9" fill="rgba(41,197,246,0.1)" stroke="#29c5f6"/>
+    <text x="270" y="65" text-anchor="middle" font-size="10" font-weight="700" fill="#29c5f6">בינוני</text>
+  </g>
+
+  <!-- mini SOS button -->
+  <g transform="translate(1100,780)">
+    <rect width="324" height="100" rx="8" fill="#1a0808" stroke="#ff3333"/>
+    <circle cx="56" cy="50" r="30" fill="#ff3333"/>
+    <text x="56" y="56" text-anchor="middle" font-size="16" font-weight="900" fill="#fff">SOS</text>
+    <text x="300" y="42" text-anchor="end" font-size="13" font-weight="800" fill="#fff">מצב חירום מהיר</text>
+    <text x="300" y="60" text-anchor="end" font-size="10" fill="#ff7070">לחץ והחזק 2 שניות</text>
+    <text x="300" y="78" text-anchor="end" font-size="10" fill="#5a7a90">משדר מיקום + זהות לכל מפקד</text>
+  </g>
+
+  <!-- map area -->
+  <rect x="0" y="62" width="1080" height="838" fill="url(#mapg)"/>
+  <!-- grid lines -->
+  <g stroke="#1a2838" stroke-width="0.5" opacity="0.5">
+    <line x1="0" y1="200" x2="1080" y2="200"/>
+    <line x1="0" y1="400" x2="1080" y2="400"/>
+    <line x1="0" y1="600" x2="1080" y2="600"/>
+    <line x1="200" y1="62" x2="200" y2="900"/>
+    <line x1="400" y1="62" x2="400" y2="900"/>
+    <line x1="600" y1="62" x2="600" y2="900"/>
+    <line x1="800" y1="62" x2="800" y2="900"/>
+  </g>
+  <!-- streets -->
+  <path d="M 0 340 Q 300 320 540 360 T 1080 400" stroke="#243448" stroke-width="2" fill="none"/>
+  <path d="M 0 540 Q 200 500 420 540 T 1080 560" stroke="#243448" stroke-width="2" fill="none"/>
+  <path d="M 320 62 Q 340 200 360 400 T 380 900" stroke="#243448" stroke-width="2" fill="none"/>
+  <path d="M 720 62 Q 740 300 720 500 T 700 900" stroke="#243448" stroke-width="2" fill="none"/>
+
+  <!-- geofence polygon -->
+  <path d="M 220 200 L 500 180 L 560 380 L 400 460 L 180 400 Z" fill="rgba(41,197,246,0.08)" stroke="#29c5f6" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="360" y="310" text-anchor="middle" font-size="11" font-weight="700" fill="#29c5f6" opacity="0.8">⬡ אזור סיור רובע 4</text>
+
+  <!-- heatmap blobs -->
+  <circle cx="780" cy="520" r="90" fill="url(#glow)"/>
+  <circle cx="780" cy="520" r="60" fill="rgba(255,51,51,0.25)" filter="url(#blur)"/>
+
+  <!-- force markers -->
+  <g>
+    <circle cx="340" cy="280" r="14" fill="#3dff52" opacity="0.3"/>
+    <circle cx="340" cy="280" r="8" fill="#3dff52"/>
+    <text x="340" y="284" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">א1</text>
+
+    <circle cx="450" cy="350" r="14" fill="#3dff52" opacity="0.3"/>
+    <circle cx="450" cy="350" r="8" fill="#3dff52"/>
+    <text x="450" y="354" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">א2</text>
+
+    <circle cx="600" cy="420" r="14" fill="#29c5f6" opacity="0.3"/>
+    <circle cx="600" cy="420" r="8" fill="#29c5f6"/>
+    <text x="600" y="424" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">ב1</text>
+
+    <circle cx="780" cy="520" r="14" fill="#ff3333" opacity="0.4"/>
+    <circle cx="780" cy="520" r="8" fill="#ff3333"/>
+    <text x="780" y="524" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">!</text>
+
+    <circle cx="240" cy="600" r="14" fill="#ffc107" opacity="0.3"/>
+    <circle cx="240" cy="600" r="8" fill="#ffc107"/>
+    <text x="240" y="604" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">ג1</text>
+
+    <circle cx="890" cy="300" r="14" fill="#3dff52" opacity="0.3"/>
+    <circle cx="890" cy="300" r="8" fill="#3dff52"/>
+    <text x="890" y="304" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">ד1</text>
+  </g>
+
+  <!-- map layer selector (bottom-left in RTL = bottom-right visually would be kept but design uses right)-->
+  <g transform="translate(24,740)">
+    <rect width="200" height="140" rx="8" fill="#0d1014" stroke="#243448"/>
+    <text x="190" y="24" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="1">שכבות מפה</text>
+    <g font-size="11" font-weight="700">
+      <rect x="8" y="34" width="184" height="24" rx="4" fill="#3dff52"/>
+      <text x="184" y="50" text-anchor="end" fill="#07090a">✓ היברידי</text>
+      <rect x="8" y="62" width="184" height="24" rx="4" fill="#121620" stroke="#243448"/>
+      <text x="184" y="78" text-anchor="end" fill="#9ab8c8">לוויין</text>
+      <rect x="8" y="90" width="184" height="24" rx="4" fill="#121620" stroke="#243448"/>
+      <text x="184" y="106" text-anchor="end" fill="#9ab8c8">טופוגרפי</text>
+    </g>
+  </g>
+
+  <!-- map HUD top-left (mini) -->
+  <g transform="translate(24,80)">
+    <rect width="260" height="70" rx="8" fill="#0d1014" stroke="#243448"/>
+    <text x="248" y="22" text-anchor="end" font-size="10" fill="#344858" letter-spacing="2">◉ מפת שליטה · LIVE</text>
+    <text x="248" y="44" text-anchor="end" font-size="20" font-weight="900" fill="#3dff52">12</text>
+    <text x="218" y="44" text-anchor="end" font-size="11" fill="#9ab8c8">כוחות פעילים</text>
+    <text x="120" y="44" text-anchor="end" font-size="20" font-weight="900" fill="#ffc107">3</text>
+    <text x="90" y="44" text-anchor="end" font-size="11" fill="#9ab8c8">אירועים פתוחים</text>
+    <text x="248" y="60" text-anchor="end" font-size="9" fill="#5a7a90">עדכון אחרון: עכשיו</text>
+  </g>
+</svg>

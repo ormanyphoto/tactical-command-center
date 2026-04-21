@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>מערכת מבצעים — מדריך משתמש מאויר</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body class="rtl">
+
+<!-- שער -->
+<section class="page cover">
+  <div class="hud-strip">
+    <span><span class="dot"></span>מערכת מקוונת · TCC-UG-HE-v2</span>
+    <span class="classif">// מסמך תפעולי מאויר</span>
+    <span>סיווג: גלוי</span>
+  </div>
+  <div class="cover-logo">⬡ TACTICAL COMMAND CENTER</div>
+  <span class="cover-badge">◉ מדריך שטח וניהול · מהדורה מאוירת</span>
+  <h1 style="font-size:64px">מדריך משתמש<br>מערכת מבצעים</h1>
+  <p class="cover-sub">הוראות הפעלה מלאות למפקדים ולמשתמשי שטח — מלוות בצילומי מסך חיים ותרשימי זרימה</p>
+
+  <div class="hero-img" style="margin:30px auto 20px; max-width:700px">
+    <img src="img/hero.svg" alt="Tactical Command Center visual">
+  </div>
+
+  <div class="cover-meta">
+    <div class="m"><div class="l">גרסה</div><div class="v">v6.8.44</div></div>
+    <div class="m"><div class="l">פלטפורמות</div><div class="v">ווב · iOS · אנדרואיד</div></div>
+    <div class="m"><div class="l">שפה</div><div class="v">עברית · RTL</div></div>
+  </div>
+  <div class="cover-foot">OR MANY · +972-50-340-4444 · כל הזכויות שמורות</div>
+</section>
+
+<!-- תוכן עניינים -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>מפתח סעיפים</span>
+    <span class="classif">// ניווט המסמך</span>
+    <span>02 / 16</span>
+  </div>
+  <h1 style="font-size:36px">תוכן עניינים</h1>
+  <div class="toc">
+    <div class="row"><span class="n">01</span><span class="t">סקירה והיכרות עם המערכת</span><span class="p">עמ׳ 03</span></div>
+    <div class="row"><span class="n">02</span><span class="t">ארכיטקטורה — הזרימה מהשטח לחמ״ל</span><span class="p">עמ׳ 04</span></div>
+    <div class="row"><span class="n">03</span><span class="t">התקנה בכל פלטפורמה — מדריך מאויר</span><span class="p">עמ׳ 05</span></div>
+    <div class="row"><span class="n">04</span><span class="t">מסך החמ״ל — המפה המבצעית</span><span class="p">עמ׳ 06</span></div>
+    <div class="row"><span class="n">05</span><span class="t">ניהול משימות — משתמש שטח</span><span class="p">עמ׳ 07</span></div>
+    <div class="row"><span class="n">06</span><span class="t">תפריט נייד וניווט</span><span class="p">עמ׳ 08</span></div>
+    <div class="row"><span class="n">07</span><span class="t">פאנל ניהול — סקירה כללית</span><span class="p">עמ׳ 09</span></div>
+    <div class="row"><span class="n">08</span><span class="t">הרשאות · תפקידים · משמרות</span><span class="p">עמ׳ 10</span></div>
+    <div class="row"><span class="n">09</span><span class="t">שליחת התראות והתרעות פוש</span><span class="p">עמ׳ 11</span></div>
+    <div class="row"><span class="n">10</span><span class="t">חירום · SOS · תגובה ארצית</span><span class="p">עמ׳ 12</span></div>
+    <div class="row"><span class="n">11</span><span class="t">מחסן ציוד · גיאופנסים · ביקורת</span><span class="p">עמ׳ 13</span></div>
+    <div class="row"><span class="n">12</span><span class="t">פתרון תקלות · תמיכה · גרסאות</span><span class="p">עמ׳ 14</span></div>
+  </div>
+
+  <div class="note">
+    <strong>ממה מורכב המסמך.</strong> כל סעיף מלווה באיור או צילום מסך אמיתי של המערכת. הצלמיות והמסכים תואמים למה שתראו בפועל בכל פלטפורמה. השתמשו במסמך כהדרכה לצד המסך.
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 02</span></div>
+</section>
+
+<!-- 01 סקירה -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>סקירה</span>
+    <span class="classif">// סעיף 01</span>
+    <span>03 / 16</span>
+  </div>
+  <h1 style="font-size:32px">01 — היכרות עם המערכת</h1>
+
+  <p><strong>מערכת מבצעים</strong> היא פלטפורמת ניהול מבצעית מאוחדת בזמן אמת — מפה, משימות, כוחות, תקשורת ופיקוד במקום אחד. המערכת פועלת בו־זמנית בדסקטופ, טלפון וטאבלט, ומיועדת לכוחות חירום, אבטחה ומענה שטח.</p>
+
+  <div class="grid3">
+    <div class="stat"><div class="big">3</div><div class="lbl">פלטפורמות</div></div>
+    <div class="stat"><div class="big blue">19</div><div class="lbl">מודולי ניהול</div></div>
+    <div class="stat"><div class="big purple">&lt;1ש׳</div><div class="lbl">סנכרון בין מכשירים</div></div>
+  </div>
+
+  <div class="section-sep"><span class="lbl">יכולות ליבה</span></div>
+
+  <div class="icon-grid">
+    <div class="ib"><span class="em">🗺️</span>מפה חיה</div>
+    <div class="ib"><span class="em">📋</span>משימות</div>
+    <div class="ib"><span class="em">👥</span>כוחות</div>
+    <div class="ib"><span class="em">📡</span>תקשורת</div>
+    <div class="ib"><span class="em">🗂️</span>אירועים</div>
+    <div class="ib"><span class="em">🏢</span>צוותים</div>
+    <div class="ib"><span class="em">👤</span>אנשי צוות</div>
+    <div class="ib"><span class="em">🧭</span>ניווט</div>
+    <div class="ib"><span class="em">🎒</span>מחסן ציוד</div>
+    <div class="ib"><span class="em">⬡</span>גיאופנסים</div>
+    <div class="ib"><span class="em">🔐</span>הרשאות</div>
+    <div class="ib"><span class="em">📜</span>ביקורת</div>
+    <div class="ib"><span class="em">🚗</span>לוחיות</div>
+    <div class="ib"><span class="em">🕐</span>משמרות</div>
+    <div class="ib"><span class="em">🔑</span>סיסמאות</div>
+    <div class="ib"><span class="em">📝</span>תבניות</div>
+    <div class="ib"><span class="em">📊</span>סטטיסטיקה</div>
+    <div class="ib"><span class="em">📋</span>הדרכות</div>
+  </div>
+
+  <div class="chips">
+    <span class="chip"><span class="d"></span>ריל־טיים</span>
+    <span class="chip blue"><span class="d"></span>ענן Firebase</span>
+    <span class="chip warn"><span class="d"></span>פוש APNs/FCM</span>
+    <span class="chip purple"><span class="d"></span>ריבוי־מכשירים</span>
+    <span class="chip danger"><span class="d"></span>SOS מובנה</span>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 03</span></div>
+</section>
+
+<!-- 02 ארכיטקטורה -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ארכיטקטורה</span>
+    <span class="classif">// סעיף 02</span>
+    <span>04 / 16</span>
+  </div>
+  <h1 style="font-size:32px">02 — ארכיטקטורה וזרימת נתונים</h1>
+  <p>כל הפלטפורמות נשענות על מקור נתונים יחיד — Firebase Realtime Database. שינויים מסתנכרנים בפחות משנייה בין דסקטופ, iOS ואנדרואיד. התראות דחיפה עוברות דרך APNs (iOS) ו־FCM (אנדרואיד).</p>
+
+  <div class="screen">
+    <img src="img/dataflow.svg" alt="זרימת נתונים">
+    <div class="cap"><span class="t">DATAFLOW</span><span>ONE SOURCE OF TRUTH · ENCRYPTED IN TRANSIT</span></div>
+  </div>
+
+  <h3>שלוש פלטפורמות · מקור אחד</h3>
+  <div class="grid3">
+    <div class="pbig">
+      <span class="em">🖥️</span>
+      <div class="ti">ווב · PWA</div>
+      <div class="sub">חמ״ל פיקודי · שולחני</div>
+      <ul class="check">
+        <li>פאנל ניהול מלא (19 מודולים)</li>
+        <li>תמיכה בריבוי־צגים</li>
+        <li>התקנה מיידית בדפדפן</li>
+      </ul>
+    </div>
+    <div class="pbig">
+      <span class="em">📱</span>
+      <div class="ti">iOS · נייטיב</div>
+      <div class="sub">מפעיל שטח · iPhone/iPad</div>
+      <ul class="check">
+        <li>APNs תמיד פעיל</li>
+        <li>מיקום ברקע + Haptics</li>
+        <li>סרגל רחב ב־iPad</li>
+      </ul>
+    </div>
+    <div class="pbig">
+      <span class="em">🤖</span>
+      <div class="ti">אנדרואיד · נייטיב</div>
+      <div class="sub">מפעיל שטח · Play/APK</div>
+      <ul class="check">
+        <li>FCM עם Doze bypass</li>
+        <li>שירות רקע קבוע</li>
+        <li>התאמה למכשירי שטח</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 04</span></div>
+</section>
+
+<!-- 03 התקנה -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>התקנה והתחברות</span>
+    <span class="classif">// סעיף 03</span>
+    <span>05 / 16</span>
+  </div>
+  <h1 style="font-size:32px">03 — התקנה בכל פלטפורמה</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>מסך כניסה מאובטח</h3>
+      <p>בהפעלה ראשונה מוצג מסך הכניסה. הכניסו את כתובת המייל והסיסמה שקיבלתם מהמפקד. לחיצה על <strong>"כניסה למערכת"</strong> מאמתת מול Firebase, רושמת את המכשיר ומציגה את תצוגת המפה.</p>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>מייל:</strong> כפי שהוגדר בפאנל הניהול (לשונית "סיסמאות").</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>סיסמה:</strong> ראשונית — ניתן לאלץ שינוי בכניסה ראשונה.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>טוקן פוש:</strong> נרשם אוטומטית בעת הכניסה.</span></div>
+    </div>
+    <div class="device">
+      <div class="screen phone">
+        <svg viewBox="0 0 280 520" xmlns="http://www.w3.org/2000/svg" font-family="Heebo">
+          <rect width="280" height="520" rx="34" fill="#07090a"/>
+          <rect x="95" y="8" width="90" height="18" rx="9" fill="#000"/>
+          <rect x="30" y="110" width="220" height="300" rx="14" fill="#0d1014" stroke="#243448"/>
+          <text x="140" y="168" text-anchor="middle" font-size="18" font-weight="900" fill="#3dff52">⬡ מערכת מבצעים</text>
+          <text x="140" y="192" text-anchor="middle" font-size="10" fill="#5a7a90" font-weight="700">כוננות מחוזית ת"א · v6.8.44</text>
+          <text x="230" y="228" text-anchor="end" font-size="9" fill="#5a7a90" font-weight="700">אימייל</text>
+          <rect x="50" y="236" width="180" height="30" rx="4" fill="#121620" stroke="#243448"/>
+          <text x="60" y="256" font-size="10" fill="#344858">your@email.com</text>
+          <text x="230" y="284" text-anchor="end" font-size="9" fill="#5a7a90" font-weight="700">סיסמה</text>
+          <rect x="50" y="292" width="180" height="30" rx="4" fill="#121620" stroke="#243448"/>
+          <text x="60" y="312" font-size="12" fill="#344858">••••••••</text>
+          <rect x="50" y="348" width="180" height="36" rx="4" fill="#3dff52"/>
+          <text x="140" y="370" text-anchor="middle" font-size="13" font-weight="900" fill="#07090a">🔓 כניסה למערכת</text>
+        </svg>
+        <div class="cap"><span class="t">LOGIN · iOS</span><span>v6.8.44</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="card">
+      <h4>🌐 ווב · PWA</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>כתובת האפליקציה בדפדפן.</li>
+        <li>"הוסף למסך הבית".</li>
+        <li>אישור התראות + מיקום.</li>
+      </ol>
+    </div>
+    <div class="card blue">
+      <h4>📱 iOS</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>App Store / TestFlight.</li>
+        <li>אשרו מיקום "תמיד".</li>
+        <li>אשרו פוש APNs.</li>
+      </ol>
+    </div>
+    <div class="card purple">
+      <h4>🤖 אנדרואיד</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>Google Play / APK.</li>
+        <li>בטלו אופטימיזציית סוללה.</li>
+        <li>אשרו התראות.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 05</span></div>
+</section>
+
+<!-- 04 מפה -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>המפה המבצעית</span>
+    <span class="classif">// סעיף 04</span>
+    <span>06 / 16</span>
+  </div>
+  <h1 style="font-size:32px">04 — מסך החמ״ל · המפה המבצעית</h1>
+
+  <div class="screen">
+    <img src="img/mock-desktop.svg" alt="מסך חמ״ל דסקטופ">
+    <div class="cap"><span class="t">DESKTOP · COMMAND VIEW</span><span>MAP + FORCES + SIDEBAR</span></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>מה רואים על המפה</h4>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>סמני כוחות</strong> — ירוק=זמין · כחול=בטיפול · צהוב=באירוע · אדום=SOS.</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>גיאופנסים</strong> — פוליגונים כחולים עם קו מקווקו. חצייה יוצרת התראה אוטומטית.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>מפת חום</strong> — ענן אדום מרמז על ריכוז אירועים אחרונים.</span></div>
+    </div>
+    <div class="card blue">
+      <h4>בקרות המפה</h4>
+      <ul class="check">
+        <li><strong>שכבות:</strong> היברידי · לוויין · טופוגרפי · רחובות</li>
+        <li><strong>הטיה 45°</strong> לתצוגה תלת־ממדית</li>
+        <li><strong>כלי ציור גבולות</strong> לגיאופנס מהיר</li>
+        <li><strong>מיקוד על כוח</strong> בלחיצה ארוכה</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>פאנל צד ימין — אירועים ומשימות</h3>
+  <p>כרטיסי המשימות מתעדכנים בזמן אמת. פס צבע בצד הכרטיס מסמן את דחיפות המשימה: אדום=דחוף · צהוב=גבוה · כחול=בינוני · ירוק=שגרה.</p>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 06</span></div>
+</section>
+
+<!-- 05 משימות -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ניהול משימות</span>
+    <span class="classif">// סעיף 05</span>
+    <span>07 / 16</span>
+  </div>
+  <h1 style="font-size:32px">05 — ניהול משימה (משתמש שטח)</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>מסך משימה פעילה</h3>
+      <p>לאחר שיבוץ למשימה מופיעה הודעת פוש. פתיחת המשימה מציגה כרטיס מלא: כתובת, מפה מיניאטורית עם ניווט, כוחות משובצים וארבעה כפתורי סטטוס עיקריים.</p>
+
+      <h4 style="margin-top:14px">שלבי פעולה בשטח</h4>
+      <div class="annot"><span class="num">1</span><span class="bd">התראה נכנסת — פותחים את הכרטיס.</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd">מקישים <strong>"יצאתי לדרך"</strong> — המיקום מתחיל להיות משודר.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd">בהגעה: <strong>"הגעתי"</strong> — החמ״ל רואה שאתם בזירה.</span></div>
+      <div class="annot"><span class="num">4</span><span class="bd">במהלך: <strong>"בטיפול"</strong> — צלמו, צרפו הערות.</span></div>
+      <div class="annot"><span class="num">5</span><span class="bd">בסיום: <strong>"סגור משימה"</strong> עם סיכום.</span></div>
+    </div>
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-mission.svg" alt="מסך משימה">
+        <div class="cap"><span class="t">MOBILE · MISSION DETAIL</span><span>iOS / ANDROID</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>מדיה וציר זמן.</strong> כל תמונה, הקלטה או הערה שצרפתם מסתנכרנת באופן מיידי לציר הזמן של המשימה בחמ״ל — המפקדים רואים את ההתקדמות בלייב.
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 07</span></div>
+</section>
+
+<!-- 06 תפריט נייד -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ניווט ותפריט נייד</span>
+    <span class="classif">// סעיף 06</span>
+    <span>07 / 16</span>
+  </div>
+  <h1 style="font-size:32px">06 — תפריט נייד וניווט ראשי</h1>
+
+  <div class="walk reverse">
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-mobile-nav.svg" alt="תפריט נייד">
+        <div class="cap"><span class="t">MOBILE DRAWER</span><span>HAMBURGER MENU</span></div>
+      </div>
+    </div>
+    <div class="text">
+      <h3>שמונה תצוגות ראשיות</h3>
+      <p>לחיצה על <strong>☰ (המבורגר)</strong> פותחת את תפריט הצד עם שמונה תצוגות, ובתחתית המסך שלושה קיצורי דרך קבועים + כפתור <strong>SOS</strong> גדול תמיד־זמין.</p>
+
+      <div class="chips" style="margin-top:16px">
+        <span class="chip"><span class="d"></span>🗺️ מפה</span>
+        <span class="chip"><span class="d"></span>📋 משימות</span>
+        <span class="chip"><span class="d"></span>👥 כוחות</span>
+        <span class="chip blue"><span class="d"></span>📡 תקשורת</span>
+        <span class="chip warn"><span class="d"></span>🗂️ יומן</span>
+        <span class="chip purple"><span class="d"></span>🏢 צוותים</span>
+        <span class="chip"><span class="d"></span>👤 אנשים</span>
+        <span class="chip blue"><span class="d"></span>🧭 ניווט</span>
+      </div>
+
+      <div class="note">
+        <strong>למנהלים בלבד:</strong> בתחתית התפריט יופיע פריט נוסף — <strong>⚙ ניהול מערכת</strong> — שפותח את הפאנל המנהלי (סעיף 07).
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 08</span></div>
+</section>
+
+<!-- 07 פאנל ניהול -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>פאנל ניהול · חלק א׳</span>
+    <span class="classif">// סעיף 07</span>
+    <span>09 / 16</span>
+  </div>
+  <h1 style="font-size:32px">07 — פאנל ניהול</h1>
+
+  <div class="screen">
+    <img src="img/mock-admin.svg" alt="פאנל ניהול">
+    <div class="cap"><span class="t">BACKOFFICE · OVERVIEW</span><span>19 MODULES · LIVE ANALYTICS</span></div>
+  </div>
+
+  <p>פאנל הניהול נפתח בלחיצה על <strong>⚙ ניהול</strong> בסרגל העליון. 19 מודולים מכסים את כל מחזור הפיקוד — מכוח אדם ועד ביקורת. לשונית "סקירה ואנליטיקה" היא דף הבית.</p>
+
+  <div class="mod-grid">
+    <div class="mod accent"><span class="em">📊</span><div class="nm">סקירה</div><div class="sub">DASHBOARD</div></div>
+    <div class="mod blue"><span class="em">📋</span><div class="nm">משימות</div><div class="sub">MISSIONS</div></div>
+    <div class="mod"><span class="em">👥</span><div class="nm">כוח אדם</div><div class="sub">UNITS</div></div>
+    <div class="mod purple"><span class="em">👤</span><div class="nm">אנשי צוות</div><div class="sub">PERSONNEL</div></div>
+    <div class="mod"><span class="em">🏢</span><div class="nm">צוותים</div><div class="sub">TEAMS</div></div>
+    <div class="mod warn"><span class="em">⬡</span><div class="nm">גיאופנסים</div><div class="sub">GEOFENCES</div></div>
+    <div class="mod"><span class="em">🗂️</span><div class="nm">אירועים</div><div class="sub">INCIDENTS</div></div>
+    <div class="mod blue"><span class="em">🕐</span><div class="nm">משמרות</div><div class="sub">SHIFTS</div></div>
+    <div class="mod danger"><span class="em">🔐</span><div class="nm">הרשאות</div><div class="sub">PERMISSIONS</div></div>
+    <div class="mod"><span class="em">🔑</span><div class="nm">סיסמאות</div><div class="sub">CREDENTIALS</div></div>
+    <div class="mod"><span class="em">🚗</span><div class="nm">רכבים</div><div class="sub">VEHICLES</div></div>
+    <div class="mod"><span class="em">🎒</span><div class="nm">מחסן</div><div class="sub">WAREHOUSE</div></div>
+    <div class="mod purple"><span class="em">📝</span><div class="nm">תבניות</div><div class="sub">TEMPLATES</div></div>
+    <div class="mod"><span class="em">💬</span><div class="nm">צ׳אט</div><div class="sub">CHAT</div></div>
+    <div class="mod warn"><span class="em">🔐</span><div class="nm">סשנים</div><div class="sub">SESSIONS</div></div>
+    <div class="mod blue"><span class="em">🚗</span><div class="nm">לוחיות</div><div class="sub">PLATES</div></div>
+    <div class="mod"><span class="em">📜</span><div class="nm">ביקורת</div><div class="sub">AUDIT</div></div>
+    <div class="mod"><span class="em">📊</span><div class="nm">סטטיסטיקה</div><div class="sub">STATS</div></div>
+    <div class="mod purple"><span class="em">📋</span><div class="nm">הדרכות</div><div class="sub">TRAINING</div></div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 09</span></div>
+</section>
+
+<!-- 08 הרשאות -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>הרשאות, תפקידים ומשמרות</span>
+    <span class="classif">// סעיף 08</span>
+    <span>10 / 16</span>
+  </div>
+  <h1 style="font-size:32px">08 — תפקידים · הרשאות · משמרות</h1>
+
+  <h3>היררכיית תפקידים (14 תפקידים מוגדרים)</h3>
+  <div class="grid3">
+    <div class="card"><h4>פיקוד בכיר</h4><ul><li>מפקד יחידה</li><li>סגן מפקד יחידה</li><li>מפקד חפ״ק מחוזי</li></ul></div>
+    <div class="card blue"><h4>פיקוד צוות</h4><ul><li>מפקד פלגה / סגן</li><li>מפקד צוות / סגן</li><li>מפקד חפ״ק / סגן</li></ul></div>
+    <div class="card purple"><h4>לוחמים וחפ״ק</h4><ul><li>לוחם</li><li>איש חפ״ק</li><li>חפ״ק</li><li>מפעיל / צופה רחפן</li></ul></div>
+  </div>
+
+  <div class="note warn"><strong>עקרון ההרשאה המינימלית.</strong> תפקיד חדש מקבל צפייה בלבד. העניקו הרשאות עריכה במכוון, במודל "צריך לדעת · צריך לבצע".</div>
+
+  <h3>משמרות מוגדרות מראש</h3>
+  <div class="chips">
+    <span class="chip"><span class="d"></span>כוננות שגרה</span>
+    <span class="chip warn"><span class="d"></span>כוננות מוגברת</span>
+    <span class="chip danger"><span class="d"></span>כוננות חירום</span>
+    <span class="chip blue"><span class="d"></span>כוננות חגים</span>
+    <span class="chip purple"><span class="d"></span>אביר לילה ב׳</span>
+    <span class="chip purple"><span class="d"></span>אביר לילה ג׳</span>
+  </div>
+  <p>המערכת מזהה שיבוצים חופפים ומסמנת אותם באזהרה. בהפעלת "כוננות חירום" כל הכוחות מוזמנים לפעילות מיידית — הודעת פוש קריטית נשלחת לכולם.</p>
+
+  <h3>הוספת איש צוות חדש</h3>
+  <ol class="steps">
+    <li>לשונית <strong>אנשי צוות</strong> → <strong>+ הוספת אדם</strong>.</li>
+    <li>מילוי שם, טלפון, דרגה, תפקיד וצוות.</li>
+    <li>בחירת כישורים והסמכות (רחפן, אופנוע, סיירת וכו׳).</li>
+    <li>שמירה → SMS קליטה עם פרטי התחברות נשלח אוטומטית.</li>
+  </ol>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 10</span></div>
+</section>
+
+<!-- 09 התראות -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>מרכז התראות</span>
+    <span class="classif">// סעיף 09</span>
+    <span>11 / 16</span>
+  </div>
+  <h1 style="font-size:32px">09 — שליחת התראות פוש</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>מסך יצירת התראה</h3>
+      <p>לחיצה על צלמית ה<strong>🔔 פעמון</strong> בסרגל העליון פותחת את מרכז ההתראות. בחרו:</p>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>רמת דחיפות:</strong> מידע (כחול) · אזהרה (צהוב) · קריטי (אדום).</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>כותרת + גוף:</strong> טקסט חופשי, 1–160 תווים לגוף.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>יעד:</strong> כל ישראל · תפקיד · צוות · גיאופנס.</span></div>
+      <div class="annot"><span class="num">4</span><span class="bd"><strong>נמענים:</strong> בחירה פרטנית מתוך הרשימה.</span></div>
+      <div class="annot"><span class="num">5</span><span class="bd"><strong>שליחה</strong> — מסירה מיידית, אישור קריאה אוטומטי.</span></div>
+
+      <div class="note danger">
+        <strong>קריטי — בזהירות.</strong> התראה קריטית פועמת במסך מלא בכל מכשיר עם צליל, גם כאשר המסך נעול. שמורה לאירועי חיים ומוות.
+      </div>
+    </div>
+    <div class="device">
+      <div class="screen small">
+        <img src="img/mock-notif.svg" alt="מסך שליחת התראה">
+        <div class="cap"><span class="t">BROADCAST</span><span>COMPOSE ALERT</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 11</span></div>
+</section>
+
+<!-- 10 SOS -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>חירום · SOS</span>
+    <span class="classif">// סעיף 10</span>
+    <span>12 / 16</span>
+  </div>
+  <h1 style="font-size:32px">10 — חירום · SOS</h1>
+
+  <div class="walk reverse">
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-sos.svg" alt="מסך SOS">
+        <div class="cap"><span class="t">SOS CRITICAL ALERT</span><span>FULL-SCREEN RECEIVE</span></div>
+      </div>
+    </div>
+    <div class="text">
+      <h3>מה קורה בלחיצה על SOS?</h3>
+      <ol class="steps">
+        <li>לחצו והחזיקו את כפתור ה־SOS (אדום, בתחתית המסך) למשך 2 שניות.</li>
+        <li>טבעת אישור מסתובבת — השחרור שולח את ההתראה.</li>
+        <li>המיקום החי, הזהות, התפקיד והצוות נשלחים לכל המפקדים.</li>
+        <li>המקבלים רואים את המסך המלא המוצג מימין עם שלוש אפשרויות תגובה.</li>
+      </ol>
+
+      <h3 style="margin-top:14px">אפשרויות תגובה</h3>
+      <div class="chips">
+        <span class="chip"><span class="d"></span>✓ הגעתי</span>
+        <span class="chip blue"><span class="d"></span>🚗 יצאתי לדרך</span>
+        <span class="chip warn"><span class="d"></span>👁 אושר</span>
+      </div>
+
+      <div class="note warn"><strong>אימון מול אמת.</strong> לבדיקות — השתמשו במצב האימון. אין לבחון בפעולה חיה; כל התראה נרשמת בלוגי הביקורת.</div>
+    </div>
+  </div>
+
+  <h3>מצב חירום מהיר</h3>
+  <p>גרסה מקוצרת של SOS — בוחרים סוג אירוע (חדירת מחבלים, ירי תמ״ס/כטב״מ, נפגעים) ולחיצה אחת שולחת התראה בשם הסוג.</p>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 12</span></div>
+</section>
+
+<!-- 11 מחסן -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ציוד · גיאופנסים · ביקורת</span>
+    <span class="classif">// סעיף 11</span>
+    <span>13 / 16</span>
+  </div>
+  <h1 style="font-size:32px">11 — מחסן ציוד · גיאופנסים · ביקורת</h1>
+
+  <h3>🎒 מחסן ציוד</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4>ניהול פריטים</h4>
+      <ol class="steps">
+        <li><strong>ייבוא CSV</strong> לפריסה ראשונית של מלאי קיים.</li>
+        <li>הוספה ידנית עם ברקוד/SKU ודגם מותאם.</li>
+        <li><strong>החתמה</strong> לאיש צוות → ציוד נרשם אצלו.</li>
+        <li><strong>החזרה</strong> למחסן בסוף משמרת.</li>
+        <li><strong>ייצוא CSV</strong> למבדקי רכש וביקורת.</li>
+      </ol>
+    </div>
+    <div class="card blue">
+      <h4>סטטוס פריט</h4>
+      <div class="chips">
+        <span class="chip"><span class="d"></span>זמין</span>
+        <span class="chip blue"><span class="d"></span>מוחתם</span>
+        <span class="chip warn"><span class="d"></span>בתחזוקה</span>
+        <span class="chip danger"><span class="d"></span>חסר / אבוד</span>
+      </div>
+      <p style="font-size:12.5px">לכל פריט היסטוריה מלאה — מי החתים, מתי, איפה, ומתי הוחזר. בלחיצה על פריט רואים את כל השרשרת.</p>
+    </div>
+  </div>
+
+  <h3>⬡ גיאופנסים</h3>
+  <p>ציירו פוליגון על המפה ישירות עם "כלי ציור גבולות". שמרו עם שם, צבע והאם חצייתו יוצרת התראה. שימושים נפוצים:</p>
+  <div class="chips">
+    <span class="chip"><span class="d"></span>אזור סיור</span>
+    <span class="chip warn"><span class="d"></span>אזור סגר</span>
+    <span class="chip danger"><span class="d"></span>אזור איסור כניסה</span>
+    <span class="chip blue"><span class="d"></span>אתר אבטחה</span>
+    <span class="chip purple"><span class="d"></span>גבול אירוע</span>
+  </div>
+
+  <h3>📜 ביקורת ולוחיות</h3>
+  <p>כל פעולה מורשית נרשמת באופן חסין־שינוי — עריכת משימה, מתן הרשאה, סיום סשן, חיפוש לוחית. לשונית <strong>לוחיות</strong> חובה לעמידה ברגולציה: כל חיפוש מראה את זהות המפעיל, חותמת זמן, הסיבה והתוצאה.</p>
+
+  <div class="note"><strong>ייצוא לרגולטור.</strong> בלחיצה אחת ניתן לייצא את יומן הביקורת לקובץ CSV חתום־זמן לצרכי רגולציה או תחקיר.</div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 13</span></div>
+</section>
+
+<!-- 12 פתרון תקלות -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>תמיכה ופתרון תקלות</span>
+    <span class="classif">// סעיף 12</span>
+    <span>14 / 16</span>
+  </div>
+  <h1 style="font-size:32px">12 — פתרון תקלות ותמיכה</h1>
+
+  <table class="tbl">
+    <thead><tr><th>תסמין</th><th>סיבה סבירה</th><th>פתרון</th></tr></thead>
+    <tbody>
+      <tr><td>אין התראות פוש</td><td>הרשאה נדחתה · טוקן פג</td><td>הגדרות → התראות → אשר. "רענן פוש" בתקשורת.</td></tr>
+      <tr><td>המפה ריקה</td><td>חיבור חלש</td><td>החליפו ל"רחובות" (שכבה קלה). אריחים שמורים עדיין עובדים.</td></tr>
+      <tr><td>מיקום תקוע</td><td>מיקום ברקע כבוי</td><td>iOS: "אפשר תמיד". אנדרואיד: כבו אופטימיזציית סוללה ל־TCC.</td></tr>
+      <tr><td>לא ניתן להתחבר</td><td>חשבון חסום · סיסמה סובבה</td><td>פנו למנהל → לשונית "סיסמאות" לאיפוס.</td></tr>
+      <tr><td>SOS מוסתר</td><td>מסך לא־נכון</td><td>חיזרו ל"מפה" — SOS תמיד מוצג שם.</td></tr>
+      <tr><td>קריסה בהפעלה (iOS)</td><td>קונפליקט הרשאות רקע</td><td>תוקן ב־v6.8.42+. עדכנו ל־v6.8.44.</td></tr>
+      <tr><td>שתי ישויות באותו שם</td><td>שיבוץ כפול במשמרות</td><td>פאנל → "משמרות" → המערכת מסמנת חפיפה באדום.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card">
+      <h4>תמיכה ראשית</h4>
+      <p><strong>Or Many</strong> — מפתח המערכת<br>
+      📞 <span class="kbd" style="direction:ltr; display:inline-block">+972-50-340-4444</span><br>
+      זמין להטמעה, הדרכה ותמיכה ארגונית.</p>
+    </div>
+    <div class="card blue">
+      <h4>גרסאות</h4>
+      <p>הגרסה הנוכחית: <strong>v6.8.44</strong> · מוצגת תמיד בסרגל העליון.</p>
+      <p style="font-size:12px">ווב — עדכון אוטומטי · iOS — App Store/TestFlight · אנדרואיד — Play Store/MDM.</p>
+    </div>
+  </div>
+
+  <div class="foot"><span>מדריך מאויר · TCC HE v2</span><span>עמוד 14</span></div>
+</section>
+
+<!-- גב המסמך -->
+<section class="page cover">
+  <div class="hud-strip">
+    <span><span class="dot"></span>סוף המסמך</span>
+    <span class="classif">// SIGN-OFF</span>
+    <span>16 / 16</span>
+  </div>
+  <div class="cover-logo" style="margin-top:60px">⬡ מערכת מבצעים</div>
+  <h1 style="font-size:52px; margin-top:10px">מוכנים למבצע.</h1>
+  <p class="cover-sub">כל מכשיר · כל תפקיד · תמונת פיקוד אחת.</p>
+
+  <div class="hero-img" style="max-width:540px; margin:30px auto">
+    <img src="img/hero.svg" alt="">
+  </div>
+
+  <div class="cover-meta">
+    <div class="m"><div class="l">בילד</div><div class="v">v6.8.44</div></div>
+    <div class="m"><div class="l">תאריך</div><div class="v">19.04.2026</div></div>
+    <div class="m"><div class="l">קשר</div><div class="v">050-340-4444</div></div>
+  </div>
+  <div class="cover-foot">OR MANY · מערכת מבצעים · כל הזכויות שמורות</div>
+</section>
+
+</body>
+</html>

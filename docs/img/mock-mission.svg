@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1050" font-family="Heebo, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="msbg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0d11"/><stop offset="1" stop-color="#07090a"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="30" y="30" width="690" height="990" rx="70" fill="#000" stroke="#243448" stroke-width="3"/>
+  <rect x="50" y="50" width="650" height="950" rx="56" fill="url(#msbg)"/>
+  <rect x="300" y="50" width="150" height="28" rx="14" fill="#000"/>
+
+  <text x="100" y="100" font-size="16" font-weight="700" fill="#fff">14:27</text>
+  <text x="650" y="100" text-anchor="end" font-size="14" fill="#fff">◉◉◉ · ██</text>
+
+  <!-- header -->
+  <rect x="50" y="118" width="650" height="60" fill="#0d1014"/>
+  <line x1="50" y1="178" x2="700" y2="178" stroke="#243448"/>
+  <text x="85" y="156" font-size="18" fill="#3dff52">←</text>
+  <text x="375" y="156" text-anchor="middle" font-size="16" font-weight="800" fill="#d8eef8">פרטי משימה · #0247</text>
+
+  <!-- mission title card -->
+  <g transform="translate(70,200)">
+    <rect width="610" height="130" rx="10" fill="#121620" stroke="#243448"/>
+    <rect width="4" height="130" fill="#ff3333"/>
+    <text x="596" y="36" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ משימה דחופה · MISSION #0247</text>
+    <text x="596" y="70" text-anchor="end" font-size="22" font-weight="900" fill="#d8eef8">אבטחת אירוע</text>
+    <text x="596" y="94" text-anchor="end" font-size="14" fill="#9ab8c8">דיזנגוף סנטר · קומת קרקע</text>
+    <rect x="480" y="104" width="110" height="20" rx="10" fill="rgba(255,51,51,0.12)" stroke="#ff3333" stroke-width="1"/>
+    <text x="535" y="118" text-anchor="middle" font-size="10" font-weight="800" fill="#ff3333">◉ דחיפות: דחוף</text>
+  </g>
+
+  <!-- map snippet -->
+  <g transform="translate(70,350)">
+    <rect width="610" height="180" rx="10" fill="#0d1a28" stroke="#243448"/>
+    <path d="M 0 90 Q 150 70 300 100 T 610 110" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <path d="M 200 0 Q 220 90 240 180" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <path d="M 400 0 Q 410 90 420 180" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <!-- pin -->
+    <g transform="translate(305,90)">
+      <circle r="20" fill="#ff3333" opacity="0.25"/>
+      <circle r="12" fill="#ff3333"/>
+      <text y="4" text-anchor="middle" font-size="13" font-weight="900" fill="#fff">!</text>
+    </g>
+    <!-- route dashed -->
+    <path d="M 80 170 Q 180 140 305 90" stroke="#3dff52" stroke-width="2" stroke-dasharray="5,3" fill="none"/>
+    <circle cx="80" cy="170" r="6" fill="#3dff52"/>
+    <!-- overlay -->
+    <text x="14" y="22" font-size="10" font-weight="700" fill="#9ab8c8">◉ 0.8 ק״מ · 3 דק׳</text>
+  </g>
+
+  <!-- forces assigned -->
+  <g transform="translate(70,552)">
+    <text x="610" y="18" text-anchor="end" font-size="12" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ כוחות משובצים · 4</text>
+    <g transform="translate(0,30)">
+      <rect width="290" height="60" rx="8" fill="#121620" stroke="#243448"/>
+      <circle cx="30" cy="30" r="18" fill="#3dff52"/>
+      <text x="30" y="35" text-anchor="middle" font-size="12" font-weight="900" fill="#07090a">דמ</text>
+      <text x="276" y="26" text-anchor="end" font-size="13" font-weight="800" fill="#d8eef8">רס״ן דוד מ.</text>
+      <text x="276" y="44" text-anchor="end" font-size="10" fill="#9ab8c8">מפקד צוות · אלפא · הגעתי</text>
+    </g>
+    <g transform="translate(310,30)">
+      <rect width="290" height="60" rx="8" fill="#121620" stroke="#243448"/>
+      <circle cx="30" cy="30" r="18" fill="#29c5f6"/>
+      <text x="30" y="35" text-anchor="middle" font-size="12" font-weight="900" fill="#07090a">יכ</text>
+      <text x="276" y="26" text-anchor="end" font-size="13" font-weight="800" fill="#d8eef8">סרן יובל כ.</text>
+      <text x="276" y="44" text-anchor="end" font-size="10" fill="#9ab8c8">לוחם · יצא לדרך</text>
+    </g>
+    <g transform="translate(0,100)">
+      <rect width="290" height="60" rx="8" fill="#121620" stroke="#243448"/>
+      <circle cx="30" cy="30" r="18" fill="#b06cf0"/>
+      <text x="30" y="35" text-anchor="middle" font-size="12" font-weight="900" fill="#07090a">רש</text>
+      <text x="276" y="26" text-anchor="end" font-size="13" font-weight="800" fill="#d8eef8">סג״מ רועי ש.</text>
+      <text x="276" y="44" text-anchor="end" font-size="10" fill="#9ab8c8">איש חפ״ק · הגעתי</text>
+    </g>
+    <g transform="translate(310,100)">
+      <rect width="290" height="60" rx="8" fill="#121620" stroke="#243448"/>
+      <circle cx="30" cy="30" r="18" fill="#ffc107"/>
+      <text x="30" y="35" text-anchor="middle" font-size="12" font-weight="900" fill="#07090a">אל</text>
+      <text x="276" y="26" text-anchor="end" font-size="13" font-weight="800" fill="#d8eef8">סמל אלון ל.</text>
+      <text x="276" y="44" text-anchor="end" font-size="10" fill="#9ab8c8">מפעיל רחפן · מוכן</text>
+    </g>
+  </g>
+
+  <!-- status action bar -->
+  <g transform="translate(70,740)">
+    <text x="610" y="18" text-anchor="end" font-size="12" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ עדכון סטטוס שלי</text>
+    <g transform="translate(0,30)" font-weight="700">
+      <rect width="142" height="52" rx="8" fill="#121620" stroke="#243448" stroke-width="1"/>
+      <text x="71" y="32" text-anchor="middle" font-size="11" fill="#9ab8c8">🚗 יצאתי</text>
+      <text x="71" y="46" text-anchor="middle" font-size="9" fill="#5a7a90">לדרך</text>
+
+      <rect x="156" width="142" height="52" rx="8" fill="rgba(61,255,82,0.1)" stroke="#3dff52" stroke-width="2"/>
+      <text x="227" y="32" text-anchor="middle" font-size="11" fill="#3dff52">✓ הגעתי</text>
+      <text x="227" y="46" text-anchor="middle" font-size="9" fill="#3dff52">פעיל</text>
+
+      <rect x="312" width="142" height="52" rx="8" fill="#121620" stroke="#243448" stroke-width="1"/>
+      <text x="383" y="32" text-anchor="middle" font-size="11" fill="#9ab8c8">📸 בטיפול</text>
+      <text x="383" y="46" text-anchor="middle" font-size="9" fill="#5a7a90">תיעוד</text>
+
+      <rect x="468" width="142" height="52" rx="8" fill="#121620" stroke="#243448" stroke-width="1"/>
+      <text x="539" y="32" text-anchor="middle" font-size="11" fill="#9ab8c8">✕ סגור</text>
+      <text x="539" y="46" text-anchor="middle" font-size="9" fill="#5a7a90">משימה</text>
+    </g>
+  </g>
+
+  <!-- bottom nav -->
+  <g transform="translate(50,922)">
+    <rect width="650" height="78" fill="#0d1014"/>
+    <line x1="0" y1="0" x2="650" y2="0" stroke="#243448"/>
+    <g font-size="10" fill="#5a7a90" font-weight="700" text-anchor="middle">
+      <text x="90" y="38" font-size="22">🗺️</text><text x="90" y="62">מפה</text>
+      <text x="240" y="38" font-size="22" fill="#3dff52">📋</text><text x="240" y="62" fill="#3dff52">משימות</text>
+      <circle cx="390" cy="40" r="28" fill="#ff3333"/>
+      <text x="390" y="45" font-weight="900" fill="#fff" font-size="13">SOS</text>
+      <text x="540" y="38" font-size="22">📡</text><text x="540" y="62">תקשורת</text>
+    </g>
+  </g>
+
+  <rect x="300" y="1010" width="150" height="5" rx="3" fill="#fff" opacity="0.3"/>
+</svg>

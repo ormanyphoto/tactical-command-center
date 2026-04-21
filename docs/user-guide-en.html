@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tactical Command Center — Illustrated User Guide</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<!-- COVER -->
+<section class="page cover">
+  <div class="hud-strip">
+    <span><span class="dot"></span>SYSTEM ONLINE · TCC-UG-EN-v2</span>
+    <span class="classif">// ILLUSTRATED OPERATIONAL MANUAL</span>
+    <span>CLEARANCE: UNRESTRICTED</span>
+  </div>
+  <div class="cover-logo">⬡ TACTICAL COMMAND CENTER</div>
+  <span class="cover-badge">◉ FIELD OPERATIONS MANUAL · ILLUSTRATED EDITION</span>
+  <h1 style="font-size:64px">User Guide</h1>
+  <p class="cover-sub">Complete operational instructions for administrators and field users — with live screens and dataflow diagrams</p>
+
+  <div class="hero-img" style="margin:30px auto 20px; max-width:700px">
+    <img src="img/hero.svg" alt="Tactical Command Center hero">
+  </div>
+
+  <div class="cover-meta">
+    <div class="m"><div class="l">Version</div><div class="v">v6.8.44</div></div>
+    <div class="m"><div class="l">Platforms</div><div class="v">Web · iOS · Android</div></div>
+    <div class="m"><div class="l">Language</div><div class="v">English</div></div>
+  </div>
+  <div class="cover-foot">OR MANY · +972-50-340-4444 · © ALL RIGHTS RESERVED</div>
+</section>
+
+<!-- TOC -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>SECTION INDEX</span>
+    <span class="classif">// NAVIGATION</span>
+    <span>02 / 16</span>
+  </div>
+  <h1 style="font-size:36px">Contents</h1>
+  <div class="toc">
+    <div class="row"><span class="n">01</span><span class="t">System Introduction</span><span class="p">P. 03</span></div>
+    <div class="row"><span class="n">02</span><span class="t">Architecture — Field to Command</span><span class="p">P. 04</span></div>
+    <div class="row"><span class="n">03</span><span class="t">Installation on Every Platform</span><span class="p">P. 05</span></div>
+    <div class="row"><span class="n">04</span><span class="t">Command View — The Tactical Map</span><span class="p">P. 06</span></div>
+    <div class="row"><span class="n">05</span><span class="t">Mission Workflow — Field User</span><span class="p">P. 07</span></div>
+    <div class="row"><span class="n">06</span><span class="t">Mobile Drawer &amp; Navigation</span><span class="p">P. 08</span></div>
+    <div class="row"><span class="n">07</span><span class="t">Backoffice — Admin Overview</span><span class="p">P. 09</span></div>
+    <div class="row"><span class="n">08</span><span class="t">Roles · Permissions · Shifts</span><span class="p">P. 10</span></div>
+    <div class="row"><span class="n">09</span><span class="t">Broadcast Alerts &amp; Push</span><span class="p">P. 11</span></div>
+    <div class="row"><span class="n">10</span><span class="t">Emergency · SOS Protocol</span><span class="p">P. 12</span></div>
+    <div class="row"><span class="n">11</span><span class="t">Equipment · Geofences · Audit</span><span class="p">P. 13</span></div>
+    <div class="row"><span class="n">12</span><span class="t">Troubleshooting &amp; Support</span><span class="p">P. 14</span></div>
+  </div>
+
+  <div class="note">
+    <strong>What's in this document.</strong> Every section is paired with a true-to-scale screen mockup or dataflow illustration. Icons match the live app. Use this guide next to your device.
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 02</span></div>
+</section>
+
+<!-- 01 -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>OVERVIEW</span>
+    <span class="classif">// SECTION 01</span>
+    <span>03 / 16</span>
+  </div>
+  <h1 style="font-size:32px">01 — System Introduction</h1>
+
+  <p><strong>Tactical Command Center</strong> (TCC) is a unified real-time operations platform — map, missions, forces, comms and admin, in one interface across desktop, phone and tablet. Built for emergency response, security and field-command teams.</p>
+
+  <div class="grid3">
+    <div class="stat"><div class="big">3</div><div class="lbl">Platforms</div></div>
+    <div class="stat"><div class="big blue">19</div><div class="lbl">Admin Modules</div></div>
+    <div class="stat"><div class="big purple">&lt;1s</div><div class="lbl">Cross-device sync</div></div>
+  </div>
+
+  <div class="section-sep"><span class="lbl">CORE CAPABILITIES</span></div>
+
+  <div class="icon-grid">
+    <div class="ib"><span class="em">🗺️</span>Live Map</div>
+    <div class="ib"><span class="em">📋</span>Missions</div>
+    <div class="ib"><span class="em">👥</span>Forces</div>
+    <div class="ib"><span class="em">📡</span>Comms</div>
+    <div class="ib"><span class="em">🗂️</span>Incidents</div>
+    <div class="ib"><span class="em">🏢</span>Teams</div>
+    <div class="ib"><span class="em">👤</span>Personnel</div>
+    <div class="ib"><span class="em">🧭</span>Navigation</div>
+    <div class="ib"><span class="em">🎒</span>Warehouse</div>
+    <div class="ib"><span class="em">⬡</span>Geofences</div>
+    <div class="ib"><span class="em">🔐</span>Permissions</div>
+    <div class="ib"><span class="em">📜</span>Audit</div>
+    <div class="ib"><span class="em">🚗</span>Plates</div>
+    <div class="ib"><span class="em">🕐</span>Shifts</div>
+    <div class="ib"><span class="em">🔑</span>Credentials</div>
+    <div class="ib"><span class="em">📝</span>Templates</div>
+    <div class="ib"><span class="em">📊</span>Analytics</div>
+    <div class="ib"><span class="em">📋</span>Training</div>
+  </div>
+
+  <div class="chips">
+    <span class="chip"><span class="d"></span>Realtime</span>
+    <span class="chip blue"><span class="d"></span>Firebase backed</span>
+    <span class="chip warn"><span class="d"></span>APNs / FCM push</span>
+    <span class="chip purple"><span class="d"></span>Cross-device</span>
+    <span class="chip danger"><span class="d"></span>Built-in SOS</span>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 03</span></div>
+</section>
+
+<!-- 02 Architecture -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ARCHITECTURE</span>
+    <span class="classif">// SECTION 02</span>
+    <span>04 / 16</span>
+  </div>
+  <h1 style="font-size:32px">02 — Architecture &amp; Data Flow</h1>
+  <p>Every platform shares a single source of truth — Firebase Realtime Database. Changes sync in under a second across desktop, iOS and Android. Push alerts flow through APNs (iOS) and FCM (Android).</p>
+
+  <div class="screen">
+    <img src="img/dataflow.svg" alt="Data flow">
+    <div class="cap"><span class="t">DATAFLOW</span><span>ONE SOURCE OF TRUTH · ENCRYPTED IN TRANSIT</span></div>
+  </div>
+
+  <h3>Three Platforms · One Codebase</h3>
+  <div class="grid3">
+    <div class="pbig">
+      <span class="em">🖥️</span>
+      <div class="ti">Web · PWA</div>
+      <div class="sub">Command Console · Desktop</div>
+      <ul class="check">
+        <li>Full 19-module backoffice</li>
+        <li>Multi-monitor friendly</li>
+        <li>Instant browser deploy</li>
+      </ul>
+    </div>
+    <div class="pbig">
+      <span class="em">📱</span>
+      <div class="ti">iOS · Native</div>
+      <div class="sub">Field Operator · iPhone/iPad</div>
+      <ul class="check">
+        <li>Always-on APNs</li>
+        <li>Background location + Haptics</li>
+        <li>Wide sidebar on iPad</li>
+      </ul>
+    </div>
+    <div class="pbig">
+      <span class="em">🤖</span>
+      <div class="ti">Android · Native</div>
+      <div class="sub">Field Operator · Play/APK</div>
+      <ul class="check">
+        <li>FCM with Doze bypass</li>
+        <li>Persistent background service</li>
+        <li>Rugged-device friendly</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 04</span></div>
+</section>
+
+<!-- 03 Install -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>INSTALLATION</span>
+    <span class="classif">// SECTION 03</span>
+    <span>05 / 16</span>
+  </div>
+  <h1 style="font-size:32px">03 — Installing on Every Platform</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>Secure Login Screen</h3>
+      <p>On first launch the login screen appears. Enter the email and password provided by your commander. Tapping <strong>"Sign in"</strong> authenticates with Firebase, registers the device, and reveals the main map view.</p>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>Email:</strong> as defined in Backoffice → Credentials.</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>Password:</strong> initial — force-rotate on first use if needed.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>Push token:</strong> registered automatically at sign-in.</span></div>
+    </div>
+    <div class="device">
+      <div class="screen phone">
+        <svg viewBox="0 0 280 520" xmlns="http://www.w3.org/2000/svg" font-family="Heebo">
+          <rect width="280" height="520" rx="34" fill="#07090a"/>
+          <rect x="95" y="8" width="90" height="18" rx="9" fill="#000"/>
+          <rect x="30" y="110" width="220" height="300" rx="14" fill="#0d1014" stroke="#243448"/>
+          <text x="140" y="168" text-anchor="middle" font-size="18" font-weight="900" fill="#3dff52">⬡ TACTICAL COMMAND</text>
+          <text x="140" y="192" text-anchor="middle" font-size="10" fill="#5a7a90" font-weight="700">DISTRICT READINESS · v6.8.44</text>
+          <text x="50" y="228" font-size="9" fill="#5a7a90" font-weight="700">EMAIL</text>
+          <rect x="50" y="236" width="180" height="30" rx="4" fill="#121620" stroke="#243448"/>
+          <text x="60" y="256" font-size="10" fill="#344858">your@email.com</text>
+          <text x="50" y="284" font-size="9" fill="#5a7a90" font-weight="700">PASSWORD</text>
+          <rect x="50" y="292" width="180" height="30" rx="4" fill="#121620" stroke="#243448"/>
+          <text x="60" y="312" font-size="12" fill="#344858">••••••••</text>
+          <rect x="50" y="348" width="180" height="36" rx="4" fill="#3dff52"/>
+          <text x="140" y="370" text-anchor="middle" font-size="13" font-weight="900" fill="#07090a">🔓 SIGN IN</text>
+        </svg>
+        <div class="cap"><span class="t">LOGIN · iOS</span><span>v6.8.44</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="card">
+      <h4>🌐 Web · PWA</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>Open the URL in a browser.</li>
+        <li>"Add to Home Screen".</li>
+        <li>Allow notifications + location.</li>
+      </ol>
+    </div>
+    <div class="card blue">
+      <h4>📱 iOS</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>App Store / TestFlight.</li>
+        <li>Allow Location "Always".</li>
+        <li>Accept APNs push.</li>
+      </ol>
+    </div>
+    <div class="card purple">
+      <h4>🤖 Android</h4>
+      <ol class="steps" style="margin:4px 0">
+        <li>Google Play / APK.</li>
+        <li>Disable battery optimization.</li>
+        <li>Allow notifications.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 05</span></div>
+</section>
+
+<!-- 04 Map -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>TACTICAL MAP</span>
+    <span class="classif">// SECTION 04</span>
+    <span>06 / 16</span>
+  </div>
+  <h1 style="font-size:32px">04 — The Command View · Tactical Map</h1>
+
+  <div class="screen">
+    <img src="img/mock-desktop.svg" alt="Desktop command view">
+    <div class="cap"><span class="t">DESKTOP · COMMAND VIEW</span><span>MAP + FORCES + SIDEBAR</span></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>What you see on the map</h4>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>Force markers</strong> — green=available · blue=on mission · yellow=incident · red=SOS.</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>Geofences</strong> — dashed blue polygons. Crossings trigger auto-alerts.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>Heatmap</strong> — red cloud shows recent incident density.</span></div>
+    </div>
+    <div class="card blue">
+      <h4>Map controls</h4>
+      <ul class="check">
+        <li><strong>Layers:</strong> Hybrid · Satellite · Topographic · Streets</li>
+        <li><strong>45° tilt</strong> for 3D urban perspective</li>
+        <li><strong>Boundary draw tool</strong> for quick geofencing</li>
+        <li><strong>Long-press force</strong> to center on it</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Right sidebar — Active missions &amp; incidents</h3>
+  <p>Mission cards update in real time. A colored stripe on the card edge encodes urgency: red=critical · yellow=high · blue=medium · green=routine.</p>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 06</span></div>
+</section>
+
+<!-- 05 Mission -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>MISSION WORKFLOW</span>
+    <span class="classif">// SECTION 05</span>
+    <span>07 / 16</span>
+  </div>
+  <h1 style="font-size:32px">05 — Mission Workflow (Field User)</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>Active mission screen</h3>
+      <p>When assigned to a mission you receive a push alert. Opening it shows a full card: address, mini-map with route, assigned forces and four main status buttons.</p>
+
+      <h4 style="margin-top:14px">Field steps</h4>
+      <div class="annot"><span class="num">1</span><span class="bd">Incoming alert — open the card.</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd">Tap <strong>"En route"</strong> — location starts broadcasting.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd">On arrival: <strong>"Arrived"</strong> — command sees you on scene.</span></div>
+      <div class="annot"><span class="num">4</span><span class="bd">During: <strong>"In progress"</strong> — attach photos, voice, notes.</span></div>
+      <div class="annot"><span class="num">5</span><span class="bd">At end: <strong>"Close mission"</strong> with a summary.</span></div>
+    </div>
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-mission.svg" alt="Mission screen">
+        <div class="cap"><span class="t">MOBILE · MISSION DETAIL</span><span>iOS / ANDROID</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Media &amp; timeline.</strong> Every photo, voice memo or note you attach syncs immediately to the mission timeline in the command console — commanders see progress live.
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 07</span></div>
+</section>
+
+<!-- 06 Mobile nav -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>MOBILE NAVIGATION</span>
+    <span class="classif">// SECTION 06</span>
+    <span>08 / 16</span>
+  </div>
+  <h1 style="font-size:32px">06 — Mobile Drawer &amp; Navigation</h1>
+
+  <div class="walk reverse">
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-mobile-nav.svg" alt="Mobile drawer">
+        <div class="cap"><span class="t">MOBILE DRAWER</span><span>HAMBURGER MENU</span></div>
+      </div>
+    </div>
+    <div class="text">
+      <h3>Eight main views</h3>
+      <p>Tapping <strong>☰ (hamburger)</strong> opens the side drawer with eight views. At the bottom: three persistent shortcuts and a large, always-visible <strong>SOS</strong> button.</p>
+
+      <div class="chips" style="margin-top:16px">
+        <span class="chip"><span class="d"></span>🗺️ Map</span>
+        <span class="chip"><span class="d"></span>📋 Missions</span>
+        <span class="chip"><span class="d"></span>👥 Forces</span>
+        <span class="chip blue"><span class="d"></span>📡 Comms</span>
+        <span class="chip warn"><span class="d"></span>🗂️ Log</span>
+        <span class="chip purple"><span class="d"></span>🏢 Teams</span>
+        <span class="chip"><span class="d"></span>👤 People</span>
+        <span class="chip blue"><span class="d"></span>🧭 Nav</span>
+      </div>
+
+      <div class="note">
+        <strong>Admins only:</strong> a final item appears at the bottom — <strong>⚙ Admin</strong> — opening the Backoffice panel (Section 07).
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 08</span></div>
+</section>
+
+<!-- 07 Admin -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>BACKOFFICE · OVERVIEW</span>
+    <span class="classif">// SECTION 07</span>
+    <span>09 / 16</span>
+  </div>
+  <h1 style="font-size:32px">07 — Backoffice · Admin Overview</h1>
+
+  <div class="screen">
+    <img src="img/mock-admin.svg" alt="Admin backoffice">
+    <div class="cap"><span class="t">BACKOFFICE · OVERVIEW</span><span>19 MODULES · LIVE ANALYTICS</span></div>
+  </div>
+
+  <p>Admins enter the <strong>Backoffice</strong> via the <strong>⚙ Manage</strong> button in the topbar. 19 modules cover the full command lifecycle — from personnel to audit. "Overview &amp; Analytics" is the landing tab.</p>
+
+  <div class="mod-grid">
+    <div class="mod accent"><span class="em">📊</span><div class="nm">Overview</div><div class="sub">DASHBOARD</div></div>
+    <div class="mod blue"><span class="em">📋</span><div class="nm">Missions</div><div class="sub">MISSIONS</div></div>
+    <div class="mod"><span class="em">👥</span><div class="nm">Manpower</div><div class="sub">UNITS</div></div>
+    <div class="mod purple"><span class="em">👤</span><div class="nm">Personnel</div><div class="sub">PERSONNEL</div></div>
+    <div class="mod"><span class="em">🏢</span><div class="nm">Teams</div><div class="sub">TEAMS</div></div>
+    <div class="mod warn"><span class="em">⬡</span><div class="nm">Geofences</div><div class="sub">GEOFENCES</div></div>
+    <div class="mod"><span class="em">🗂️</span><div class="nm">Incidents</div><div class="sub">INCIDENTS</div></div>
+    <div class="mod blue"><span class="em">🕐</span><div class="nm">Shifts</div><div class="sub">SHIFTS</div></div>
+    <div class="mod danger"><span class="em">🔐</span><div class="nm">Permissions</div><div class="sub">PERMISSIONS</div></div>
+    <div class="mod"><span class="em">🔑</span><div class="nm">Credentials</div><div class="sub">CREDENTIALS</div></div>
+    <div class="mod"><span class="em">🚗</span><div class="nm">Vehicles</div><div class="sub">VEHICLES</div></div>
+    <div class="mod"><span class="em">🎒</span><div class="nm">Warehouse</div><div class="sub">WAREHOUSE</div></div>
+    <div class="mod purple"><span class="em">📝</span><div class="nm">Templates</div><div class="sub">TEMPLATES</div></div>
+    <div class="mod"><span class="em">💬</span><div class="nm">Chat</div><div class="sub">CHAT</div></div>
+    <div class="mod warn"><span class="em">🔐</span><div class="nm">Sessions</div><div class="sub">SESSIONS</div></div>
+    <div class="mod blue"><span class="em">🚗</span><div class="nm">Plates</div><div class="sub">PLATES</div></div>
+    <div class="mod"><span class="em">📜</span><div class="nm">Audit</div><div class="sub">AUDIT</div></div>
+    <div class="mod"><span class="em">📊</span><div class="nm">Stats</div><div class="sub">STATS</div></div>
+    <div class="mod purple"><span class="em">📋</span><div class="nm">Training</div><div class="sub">TRAINING</div></div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 09</span></div>
+</section>
+
+<!-- 08 Roles -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>ROLES · PERMISSIONS · SHIFTS</span>
+    <span class="classif">// SECTION 08</span>
+    <span>10 / 16</span>
+  </div>
+  <h1 style="font-size:32px">08 — Roles · Permissions · Shifts</h1>
+
+  <h3>Role hierarchy (14 predefined roles)</h3>
+  <div class="grid3">
+    <div class="card"><h4>Senior Command</h4><ul><li>Unit Commander</li><li>Deputy Unit Commander</li><li>District HQ Commander</li></ul></div>
+    <div class="card blue"><h4>Team Command</h4><ul><li>Platoon Commander / Deputy</li><li>Team Commander / Deputy</li><li>HQ Team / Deputy</li></ul></div>
+    <div class="card purple"><h4>Operators</h4><ul><li>Fighter</li><li>HQ Team Member</li><li>HQ Staff</li><li>Drone Operator / Observer</li></ul></div>
+  </div>
+
+  <div class="note warn"><strong>Least-privilege principle.</strong> New roles receive view-only by default. Grant edit rights intentionally on a "need-to-act" basis.</div>
+
+  <h3>Predefined shifts</h3>
+  <div class="chips">
+    <span class="chip"><span class="d"></span>Routine Alert</span>
+    <span class="chip warn"><span class="d"></span>Heightened Alert</span>
+    <span class="chip danger"><span class="d"></span>Emergency Alert</span>
+    <span class="chip blue"><span class="d"></span>Holiday Alert</span>
+    <span class="chip purple"><span class="d"></span>Night Knight B</span>
+    <span class="chip purple"><span class="d"></span>Night Knight C</span>
+  </div>
+  <p>The system flags overlapping assignments in red. Activating "Emergency Alert" mobilizes every operator — a critical push notification is dispatched to everyone.</p>
+
+  <h3>Adding a new operator</h3>
+  <ol class="steps">
+    <li><strong>Personnel</strong> tab → <strong>+ Add Person</strong>.</li>
+    <li>Fill name, phone, rank, role and team.</li>
+    <li>Select skills and certifications (drone, motorcycle, recon, etc.).</li>
+    <li>Save → an onboarding SMS with credentials is sent automatically.</li>
+  </ol>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 10</span></div>
+</section>
+
+<!-- 09 Notifications -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>BROADCAST ALERTS</span>
+    <span class="classif">// SECTION 09</span>
+    <span>11 / 16</span>
+  </div>
+  <h1 style="font-size:32px">09 — Broadcast Alerts &amp; Push</h1>
+
+  <div class="walk">
+    <div class="text">
+      <h3>Compose alert screen</h3>
+      <p>Tap the <strong>🔔 bell</strong> in the topbar to open the alert composer. Select:</p>
+      <div class="annot"><span class="num">1</span><span class="bd"><strong>Urgency:</strong> Info (blue) · Warning (yellow) · Critical (red).</span></div>
+      <div class="annot"><span class="num">2</span><span class="bd"><strong>Title + body:</strong> free text, body 1–160 characters.</span></div>
+      <div class="annot"><span class="num">3</span><span class="bd"><strong>Target:</strong> All · Role · Team · Geofence.</span></div>
+      <div class="annot"><span class="num">4</span><span class="bd"><strong>Recipients:</strong> fine-grained selection.</span></div>
+      <div class="annot"><span class="num">5</span><span class="bd"><strong>Send</strong> — instant delivery, auto read-receipts.</span></div>
+
+      <div class="note danger">
+        <strong>Critical — use sparingly.</strong> A Critical alert takes over every device with sound and animation, even if locked. Reserved for genuinely life-safety events.
+      </div>
+    </div>
+    <div class="device">
+      <div class="screen small">
+        <img src="img/mock-notif.svg" alt="Alert composer">
+        <div class="cap"><span class="t">BROADCAST</span><span>COMPOSE ALERT</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 11</span></div>
+</section>
+
+<!-- 10 SOS -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>EMERGENCY · SOS</span>
+    <span class="classif">// SECTION 10</span>
+    <span>12 / 16</span>
+  </div>
+  <h1 style="font-size:32px">10 — Emergency · SOS Protocol</h1>
+
+  <div class="walk reverse">
+    <div class="device">
+      <div class="screen phone">
+        <img src="img/mock-sos.svg" alt="SOS screen">
+        <div class="cap"><span class="t">SOS CRITICAL ALERT</span><span>FULL-SCREEN RECEIVE</span></div>
+      </div>
+    </div>
+    <div class="text">
+      <h3>What happens on SOS?</h3>
+      <ol class="steps">
+        <li>Press and hold the red <strong>SOS</strong> button (bottom of screen) for 2 seconds.</li>
+        <li>A confirmation ring rotates — release to send.</li>
+        <li>Live location, identity, role and team are broadcast to every commander.</li>
+        <li>Recipients see the full-screen alert (shown right) with three response options.</li>
+      </ol>
+
+      <h3 style="margin-top:14px">Response options</h3>
+      <div class="chips">
+        <span class="chip"><span class="d"></span>✓ Arrived</span>
+        <span class="chip blue"><span class="d"></span>🚗 On my way</span>
+        <span class="chip warn"><span class="d"></span>👁 Acknowledged</span>
+      </div>
+
+      <div class="note warn"><strong>Training vs. live.</strong> For drills — use Training mode. Never test on a live system; every alert is audit-logged.</div>
+    </div>
+  </div>
+
+  <h3>Quick Emergency Mode</h3>
+  <p>A short-form SOS — pick event type (terrorist intrusion, mortar/drone fire, casualties) and one tap broadcasts with the type pre-filled.</p>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 12</span></div>
+</section>
+
+<!-- 11 Warehouse -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>EQUIPMENT · GEOFENCE · AUDIT</span>
+    <span class="classif">// SECTION 11</span>
+    <span>13 / 16</span>
+  </div>
+  <h1 style="font-size:32px">11 — Equipment · Geofences · Audit</h1>
+
+  <h3>🎒 Equipment Warehouse</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4>Item management</h4>
+      <ol class="steps">
+        <li><strong>Import CSV</strong> for initial inventory rollout.</li>
+        <li>Manual add with barcode/SKU and custom model.</li>
+        <li><strong>Check-out</strong> to operator → recorded under their profile.</li>
+        <li><strong>Return</strong> to warehouse at shift end.</li>
+        <li><strong>Export CSV</strong> for procurement &amp; audit.</li>
+      </ol>
+    </div>
+    <div class="card blue">
+      <h4>Item status</h4>
+      <div class="chips">
+        <span class="chip"><span class="d"></span>Available</span>
+        <span class="chip blue"><span class="d"></span>Checked-out</span>
+        <span class="chip warn"><span class="d"></span>In maintenance</span>
+        <span class="chip danger"><span class="d"></span>Missing / Lost</span>
+      </div>
+      <p style="font-size:12.5px">Every item has a full chain — who took it, when, where, and when returned. Click an item to see the timeline.</p>
+    </div>
+  </div>
+
+  <h3>⬡ Geofences</h3>
+  <p>Draw a polygon directly on the map using "Boundary draw tool". Save with a name, color and whether crossing it triggers an alert. Common uses:</p>
+  <div class="chips">
+    <span class="chip"><span class="d"></span>Patrol zone</span>
+    <span class="chip warn"><span class="d"></span>Cordon</span>
+    <span class="chip danger"><span class="d"></span>Restricted area</span>
+    <span class="chip blue"><span class="d"></span>Protected site</span>
+    <span class="chip purple"><span class="d"></span>Event perimeter</span>
+  </div>
+
+  <h3>📜 Audit &amp; Plate searches</h3>
+  <p>Every privileged action is immutably logged — mission edits, permission grants, session closures, plate searches. The <strong>Plates</strong> tab is compliance-grade: each search shows operator identity, timestamp, reason and result.</p>
+
+  <div class="note"><strong>Regulator export.</strong> One click exports the audit log to a time-signed CSV for regulator or investigation purposes.</div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 13</span></div>
+</section>
+
+<!-- 12 Support -->
+<section class="page">
+  <div class="hud-strip">
+    <span><span class="dot"></span>SUPPORT &amp; TROUBLESHOOTING</span>
+    <span class="classif">// SECTION 12</span>
+    <span>14 / 16</span>
+  </div>
+  <h1 style="font-size:32px">12 — Troubleshooting &amp; Support</h1>
+
+  <table class="tbl">
+    <thead><tr><th>Symptom</th><th>Likely cause</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>No push notifications</td><td>Permission denied · expired token</td><td>Settings → Notifications → allow. "Refresh push" in Comms.</td></tr>
+      <tr><td>Blank map</td><td>Weak signal</td><td>Switch to Streets layer (lightest). Cached tiles still work.</td></tr>
+      <tr><td>Stuck location</td><td>Background location off</td><td>iOS: "Always Allow". Android: disable battery optimization for TCC.</td></tr>
+      <tr><td>Cannot sign in</td><td>Account disabled · password rotated</td><td>Contact admin → Credentials tab to reset.</td></tr>
+      <tr><td>Hidden SOS</td><td>Wrong screen</td><td>Return to Map — SOS is always visible there.</td></tr>
+      <tr><td>iOS launch crash</td><td>Background-mode conflict</td><td>Fixed in v6.8.42+. Update to v6.8.44.</td></tr>
+      <tr><td>Two entities same name</td><td>Duplicate shift assignment</td><td>Backoffice → "Shifts" flags overlaps in red.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grid2" style="margin-top:16px">
+    <div class="card">
+      <h4>Primary Support</h4>
+      <p><strong>Or Many</strong> — System Creator<br>
+      📞 <span class="kbd">+972-50-340-4444</span><br>
+      Available for onboarding, training and enterprise support.</p>
+    </div>
+    <div class="card blue">
+      <h4>Versioning</h4>
+      <p>Current version: <strong>v6.8.44</strong> — always shown in the topbar.</p>
+      <p style="font-size:12px">Web — auto-update · iOS — App Store/TestFlight · Android — Play Store/MDM.</p>
+    </div>
+  </div>
+
+  <div class="foot"><span>ILLUSTRATED MANUAL · TCC EN v2</span><span>PAGE 14</span></div>
+</section>
+
+<!-- Back cover -->
+<section class="page cover">
+  <div class="hud-strip">
+    <span><span class="dot"></span>END OF DOCUMENT</span>
+    <span class="classif">// SIGN-OFF</span>
+    <span>16 / 16</span>
+  </div>
+  <div class="cover-logo" style="margin-top:60px">⬡ TACTICAL COMMAND CENTER</div>
+  <h1 style="font-size:52px; margin-top:10px">Mission Ready.</h1>
+  <p class="cover-sub">Every device · every role · one command picture.</p>
+
+  <div class="hero-img" style="max-width:540px; margin:30px auto">
+    <img src="img/hero.svg" alt="">
+  </div>
+
+  <div class="cover-meta">
+    <div class="m"><div class="l">Build</div><div class="v">v6.8.44</div></div>
+    <div class="m"><div class="l">Doc Rev</div><div class="v">2026-04-19</div></div>
+    <div class="m"><div class="l">Contact</div><div class="v">+972-50-340-4444</div></div>
+  </div>
+  <div class="cover-foot">OR MANY · TACTICAL COMMAND CENTER · © ALL RIGHTS RESERVED</div>
+</section>
+
+</body>
+</html>

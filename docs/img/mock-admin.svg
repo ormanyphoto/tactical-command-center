@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" font-family="Heebo, Assistant, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="bg2" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0d11"/><stop offset="1" stop-color="#07090a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg2)"/>
+
+  <!-- topbar -->
+  <rect width="1440" height="62" fill="#0d1014"/>
+  <line x1="0" y1="62" x2="1440" y2="62" stroke="#243448"/>
+  <text x="1420" y="36" text-anchor="end" font-size="20" font-weight="900" fill="#3dff52">⬡ מערכת מבצעים</text>
+  <text x="1420" y="52" text-anchor="end" font-size="11" fill="#344858">פאנל ניהול · v6.8.44</text>
+
+  <!-- Modal overlay hint -->
+  <rect x="0" y="62" width="1440" height="838" fill="#000" opacity="0.4"/>
+
+  <!-- BO modal -->
+  <rect x="40" y="90" width="1360" height="790" rx="12" fill="#0d1014" stroke="#243448" stroke-width="1"/>
+  <!-- header -->
+  <rect x="40" y="90" width="1360" height="56" rx="12" fill="#121620"/>
+  <rect x="40" y="134" width="1360" height="12" fill="#121620"/>
+  <line x1="40" y1="146" x2="1400" y2="146" stroke="#243448"/>
+  <text x="1380" y="124" text-anchor="end" font-size="18" font-weight="800" fill="#d8eef8">פאנל ניהול מערכת</text>
+  <text x="1380" y="140" text-anchor="end" font-size="11" fill="#5a7a90">שליטה מלאה · 19 מודולים</text>
+  <text x="72" y="124" font-size="20" fill="#5a7a90">✕</text>
+
+  <!-- Tabs -->
+  <g font-family="Heebo" font-size="12" font-weight="700">
+    <!-- tab pills row 1 -->
+    <g transform="translate(60,166)">
+      <rect width="140" height="32" rx="8" fill="#3dff52"/>
+      <text x="128" y="21" text-anchor="end" fill="#07090a">📊 סקירה ואנליטיקה</text>
+      <rect x="148" width="86" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="220" y="21" text-anchor="end" fill="#9ab8c8">📋 משימות</text>
+      <rect x="242" width="90" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="320" y="21" text-anchor="end" fill="#9ab8c8">👥 כוח אדם</text>
+      <rect x="340" width="100" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="426" y="21" text-anchor="end" fill="#9ab8c8">👤 אנשי צוות</text>
+      <rect x="448" width="80" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="516" y="21" text-anchor="end" fill="#9ab8c8">🏢 צוותים</text>
+      <rect x="536" width="100" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="622" y="21" text-anchor="end" fill="#9ab8c8">⬡ גיאופנסים</text>
+      <rect x="644" width="90" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="720" y="21" text-anchor="end" fill="#9ab8c8">🗂️ אירועים</text>
+      <rect x="742" width="86" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="816" y="21" text-anchor="end" fill="#9ab8c8">🕐 משמרות</text>
+      <rect x="836" width="90" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="912" y="21" text-anchor="end" fill="#9ab8c8">🔐 הרשאות</text>
+      <rect x="934" width="92" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="1012" y="21" text-anchor="end" fill="#9ab8c8">🔑 סיסמאות</text>
+      <rect x="1034" width="80" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="1102" y="21" text-anchor="end" fill="#9ab8c8">🚗 רכבים</text>
+      <rect x="1122" width="100" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="1208" y="21" text-anchor="end" fill="#9ab8c8">🎒 מחסן ציוד</text>
+      <rect x="1230" width="90" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="1306" y="21" text-anchor="end" fill="#9ab8c8">📝 תבניות</text>
+    </g>
+    <g transform="translate(60,206)">
+      <rect width="100" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="86" y="21" text-anchor="end" fill="#9ab8c8">💬 צ'אט צוות</text>
+      <rect x="108" width="84" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="180" y="21" text-anchor="end" fill="#9ab8c8">🔐 סשנים</text>
+      <rect x="200" width="84" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="272" y="21" text-anchor="end" fill="#9ab8c8">🚗 לוחיות</text>
+      <rect x="292" width="84" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="362" y="21" text-anchor="end" fill="#9ab8c8">📜 ביקורת</text>
+      <rect x="384" width="100" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="468" y="21" text-anchor="end" fill="#9ab8c8">📊 סטטיסטיקה</text>
+      <rect x="492" width="140" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="620" y="21" text-anchor="end" fill="#9ab8c8">📋 הדרכות ואימונים</text>
+      <rect x="640" width="82" height="32" rx="8" fill="#121620" stroke="#243448"/>
+      <text x="710" y="21" text-anchor="end" fill="#9ab8c8">⚙ הגדרות</text>
+    </g>
+  </g>
+
+  <!-- Overview content: stat cards -->
+  <g transform="translate(60,260)" font-family="Heebo">
+    <!-- cards -->
+    <g>
+      <rect width="320" height="120" rx="8" fill="#121620" stroke="#243448"/>
+      <rect x="0" width="4" height="120" fill="#3dff52"/>
+      <text x="300" y="28" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ משימות פעילות</text>
+      <text x="300" y="78" text-anchor="end" font-size="54" font-weight="900" fill="#3dff52">27</text>
+      <text x="300" y="104" text-anchor="end" font-size="11" fill="#9ab8c8">↑ 18% לעומת אתמול</text>
+    </g>
+    <g transform="translate(335,0)">
+      <rect width="320" height="120" rx="8" fill="#121620" stroke="#243448"/>
+      <rect x="0" width="4" height="120" fill="#29c5f6"/>
+      <text x="300" y="28" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ כוחות במשמרת</text>
+      <text x="300" y="78" text-anchor="end" font-size="54" font-weight="900" fill="#29c5f6">142</text>
+      <text x="300" y="104" text-anchor="end" font-size="11" fill="#9ab8c8">מתוך 186 · 76% זמינות</text>
+    </g>
+    <g transform="translate(670,0)">
+      <rect width="320" height="120" rx="8" fill="#121620" stroke="#243448"/>
+      <rect x="0" width="4" height="120" fill="#ffc107"/>
+      <text x="300" y="28" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ זמן סגירה ממוצע</text>
+      <text x="300" y="78" text-anchor="end" font-size="54" font-weight="900" fill="#ffc107">18:42</text>
+      <text x="300" y="104" text-anchor="end" font-size="11" fill="#9ab8c8">דקות · השתפר ב-22%</text>
+    </g>
+    <g transform="translate(1005,0)">
+      <rect width="320" height="120" rx="8" fill="#121620" stroke="#243448"/>
+      <rect x="0" width="4" height="120" fill="#b06cf0"/>
+      <text x="300" y="28" text-anchor="end" font-size="11" font-weight="700" fill="#5a7a90" letter-spacing="2">◉ אירועים השבוע</text>
+      <text x="300" y="78" text-anchor="end" font-size="54" font-weight="900" fill="#b06cf0">184</text>
+      <text x="300" y="104" text-anchor="end" font-size="11" fill="#9ab8c8">89% סגורים · 100% מתועדים</text>
+    </g>
+  </g>
+
+  <!-- Chart area -->
+  <g transform="translate(60,400)" font-family="Heebo">
+    <rect width="860" height="440" rx="8" fill="#121620" stroke="#243448"/>
+    <text x="840" y="30" text-anchor="end" font-size="14" font-weight="800" fill="#d8eef8">אירועים לפי יום · 7 ימים אחרונים</text>
+    <!-- grid -->
+    <g stroke="#1a2838" stroke-width="0.5">
+      <line x1="40" y1="60" x2="840" y2="60"/>
+      <line x1="40" y1="140" x2="840" y2="140"/>
+      <line x1="40" y1="220" x2="840" y2="220"/>
+      <line x1="40" y1="300" x2="840" y2="300"/>
+      <line x1="40" y1="380" x2="840" y2="380"/>
+    </g>
+    <!-- bars -->
+    <g>
+      <rect x="80" y="200" width="60" height="180" fill="#3dff52" opacity="0.3"/>
+      <rect x="80" y="240" width="60" height="140" fill="#3dff52"/>
+      <rect x="190" y="140" width="60" height="240" fill="#3dff52" opacity="0.3"/>
+      <rect x="190" y="200" width="60" height="180" fill="#3dff52"/>
+      <rect x="300" y="170" width="60" height="210" fill="#3dff52" opacity="0.3"/>
+      <rect x="300" y="230" width="60" height="150" fill="#3dff52"/>
+      <rect x="410" y="100" width="60" height="280" fill="#ff3333" opacity="0.3"/>
+      <rect x="410" y="160" width="60" height="220" fill="#ff3333"/>
+      <rect x="520" y="130" width="60" height="250" fill="#3dff52" opacity="0.3"/>
+      <rect x="520" y="190" width="60" height="190" fill="#3dff52"/>
+      <rect x="630" y="180" width="60" height="200" fill="#3dff52" opacity="0.3"/>
+      <rect x="630" y="240" width="60" height="140" fill="#3dff52"/>
+      <rect x="740" y="220" width="60" height="160" fill="#3dff52" opacity="0.3"/>
+      <rect x="740" y="260" width="60" height="120" fill="#3dff52"/>
+    </g>
+    <g font-size="10" fill="#5a7a90" text-anchor="middle">
+      <text x="110" y="400">א׳</text><text x="220" y="400">ב׳</text><text x="330" y="400">ג׳</text>
+      <text x="440" y="400">ד׳</text><text x="550" y="400">ה׳</text><text x="660" y="400">ו׳</text><text x="770" y="400">ש׳</text>
+    </g>
+    <g font-size="10" fill="#5a7a90" text-anchor="end">
+      <text x="32" y="64">40</text><text x="32" y="144">30</text><text x="32" y="224">20</text><text x="32" y="304">10</text><text x="32" y="384">0</text>
+    </g>
+  </g>
+
+  <!-- Side panel: recent activity -->
+  <g transform="translate(940,400)" font-family="Heebo">
+    <rect width="385" height="440" rx="8" fill="#121620" stroke="#243448"/>
+    <text x="365" y="30" text-anchor="end" font-size="14" font-weight="800" fill="#d8eef8">פעילות אחרונה</text>
+
+    <g transform="translate(16,56)">
+      <g>
+        <circle cx="346" cy="8" r="5" fill="#3dff52"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">משימה נסגרה · אבטחת אירוע</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">מפקד חפ״ק · לפני 3 דקות</text>
+      </g>
+      <g transform="translate(0,52)">
+        <circle cx="346" cy="8" r="5" fill="#ffc107"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">אירוע חדש דווח · חשוד</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">סייר ב-4 · לפני 7 דקות</text>
+      </g>
+      <g transform="translate(0,104)">
+        <circle cx="346" cy="8" r="5" fill="#29c5f6"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">4 לוחמים הוחתמו על ציוד</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">מחסן ראשי · לפני 12 דקות</text>
+      </g>
+      <g transform="translate(0,156)">
+        <circle cx="346" cy="8" r="5" fill="#b06cf0"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">חיפוש לוחית · 1234567</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">מפקד פלגה · לפני 18 דקות</text>
+      </g>
+      <g transform="translate(0,208)">
+        <circle cx="346" cy="8" r="5" fill="#3dff52"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">התראה שודרה · 42 נמענים</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">חמ״ל · לפני 24 דקות</text>
+      </g>
+      <g transform="translate(0,260)">
+        <circle cx="346" cy="8" r="5" fill="#ff7a1a"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">משמרת חדשה נפתחה · ערב</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">כוננות מוגברת · 16:00</text>
+      </g>
+      <g transform="translate(0,312)">
+        <circle cx="346" cy="8" r="5" fill="#00e8b8"/>
+        <text x="336" y="13" text-anchor="end" font-size="12" font-weight="700" fill="#d8eef8">גיאופנס חדש · רובע 6</text>
+        <text x="336" y="28" text-anchor="end" font-size="10" fill="#5a7a90">סגן מפקד · לפני 41 דקות</text>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" font-family="Heebo, Arial, sans-serif">
+  <defs>
+    <radialGradient id="heroglow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#3dff52" stop-opacity="0.35"/>
+      <stop offset="0.6" stop-color="#3dff52" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#3dff52" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="grid" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3dff52" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#3dff52" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#3dff52" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="700" fill="#07090a"/>
+
+  <!-- perspective grid floor -->
+  <g stroke="url(#grid)" stroke-width="0.7" opacity="0.7">
+    <!-- horizontal -->
+    <line x1="0" y1="450" x2="1200" y2="450"/>
+    <line x1="0" y1="490" x2="1200" y2="490"/>
+    <line x1="0" y1="540" x2="1200" y2="540"/>
+    <line x1="0" y1="600" x2="1200" y2="600"/>
+    <line x1="0" y1="670" x2="1200" y2="670"/>
+  </g>
+  <g stroke="#3dff52" stroke-width="0.5" opacity="0.35">
+    <!-- vanishing lines -->
+    <line x1="600" y1="420" x2="-200" y2="700"/>
+    <line x1="600" y1="420" x2="1400" y2="700"/>
+    <line x1="600" y1="420" x2="100" y2="700"/>
+    <line x1="600" y1="420" x2="1100" y2="700"/>
+    <line x1="600" y1="420" x2="400" y2="700"/>
+    <line x1="600" y1="420" x2="800" y2="700"/>
+  </g>
+
+  <!-- glow -->
+  <ellipse cx="600" cy="420" rx="600" ry="250" fill="url(#heroglow)"/>
+
+  <!-- central hexagon logo -->
+  <g transform="translate(600,330)">
+    <!-- outer ring -->
+    <circle r="200" fill="none" stroke="#3dff52" stroke-width="1" opacity="0.15"/>
+    <circle r="170" fill="none" stroke="#3dff52" stroke-width="1" opacity="0.25"/>
+    <circle r="140" fill="none" stroke="#3dff52" stroke-width="1" opacity="0.4"/>
+    <!-- tick marks -->
+    <g stroke="#3dff52" stroke-width="1.5" opacity="0.8">
+      <line x1="0" y1="-200" x2="0" y2="-185"/>
+      <line x1="0" y1="200" x2="0" y2="185"/>
+      <line x1="-200" y1="0" x2="-185" y2="0"/>
+      <line x1="200" y1="0" x2="185" y2="0"/>
+      <line x1="-141" y1="-141" x2="-131" y2="-131"/>
+      <line x1="141" y1="141" x2="131" y2="131"/>
+      <line x1="141" y1="-141" x2="131" y2="-131"/>
+      <line x1="-141" y1="141" x2="-131" y2="131"/>
+    </g>
+    <!-- hex -->
+    <polygon points="0,-110 95,-55 95,55 0,110 -95,55 -95,-55"
+             fill="rgba(61,255,82,0.08)" stroke="#3dff52" stroke-width="2.5"/>
+    <polygon points="0,-80 69,-40 69,40 0,80 -69,40 -69,-40"
+             fill="none" stroke="#3dff52" stroke-width="1" opacity="0.5"/>
+    <polygon points="0,-50 43,-25 43,25 0,50 -43,25 -43,-25"
+             fill="#3dff52" opacity="0.9"/>
+    <!-- pulse dots around hex -->
+    <circle cx="0" cy="-110" r="5" fill="#3dff52"/>
+    <circle cx="95" cy="-55" r="5" fill="#3dff52"/>
+    <circle cx="95" cy="55" r="5" fill="#3dff52"/>
+    <circle cx="0" cy="110" r="5" fill="#3dff52"/>
+    <circle cx="-95" cy="55" r="5" fill="#3dff52"/>
+    <circle cx="-95" cy="-55" r="5" fill="#3dff52"/>
+  </g>
+
+  <!-- Floating command data cards -->
+  <g font-family="Heebo" opacity="0.95">
+    <g transform="translate(80,180)">
+      <rect width="220" height="88" rx="8" fill="#0d1014" stroke="#243448"/>
+      <rect width="3" height="88" fill="#3dff52"/>
+      <text x="200" y="24" text-anchor="end" font-size="10" font-weight="700" fill="#5a7a90" letter-spacing="2">FORCE 01 · ALPHA</text>
+      <text x="200" y="52" text-anchor="end" font-size="16" font-weight="800" fill="#d8eef8">זמין · במשימה</text>
+      <text x="200" y="72" text-anchor="end" font-size="10" fill="#9ab8c8">32.0852°N · 34.7818°E</text>
+    </g>
+    <g transform="translate(900,140)">
+      <rect width="220" height="88" rx="8" fill="#0d1014" stroke="#243448"/>
+      <rect width="3" height="88" fill="#29c5f6"/>
+      <text x="200" y="24" text-anchor="end" font-size="10" font-weight="700" fill="#5a7a90" letter-spacing="2">MISSION 024</text>
+      <text x="200" y="52" text-anchor="end" font-size="16" font-weight="800" fill="#d8eef8">אבטחת אירוע</text>
+      <text x="200" y="72" text-anchor="end" font-size="10" fill="#9ab8c8">4 כוחות · בטיפול</text>
+    </g>
+    <g transform="translate(130,480)">
+      <rect width="220" height="88" rx="8" fill="#0d1014" stroke="#243448"/>
+      <rect width="3" height="88" fill="#ffc107"/>
+      <text x="200" y="24" text-anchor="end" font-size="10" font-weight="700" fill="#5a7a90" letter-spacing="2">WARN · GEOFENCE</text>
+      <text x="200" y="52" text-anchor="end" font-size="16" font-weight="800" fill="#d8eef8">חצייה מזוהה</text>
+      <text x="200" y="72" text-anchor="end" font-size="10" fill="#9ab8c8">רובע 4 · אוט׳</text>
+    </g>
+    <g transform="translate(860,520)">
+      <rect width="220" height="88" rx="8" fill="#0d1014" stroke="#243448"/>
+      <rect width="3" height="88" fill="#ff3333"/>
+      <text x="200" y="24" text-anchor="end" font-size="10" font-weight="700" fill="#5a7a90" letter-spacing="2">SOS · CRITICAL</text>
+      <text x="200" y="52" text-anchor="end" font-size="16" font-weight="800" fill="#d8eef8">בטיפול</text>
+      <text x="200" y="72" text-anchor="end" font-size="10" fill="#9ab8c8">12 תגובות נרשמו</text>
+    </g>
+  </g>
+
+  <!-- Connecting lines to hex -->
+  <g stroke="#3dff52" stroke-width="0.8" opacity="0.4" fill="none">
+    <line x1="300" y1="224" x2="505" y2="270"/>
+    <line x1="900" y1="184" x2="700" y2="260"/>
+    <line x1="350" y1="524" x2="520" y2="400"/>
+    <line x1="860" y1="564" x2="690" y2="400"/>
+  </g>
+
+  <!-- corner markers -->
+  <g stroke="#3dff52" stroke-width="2" fill="none">
+    <path d="M 20 20 L 20 50 M 20 20 L 50 20"/>
+    <path d="M 1180 20 L 1180 50 M 1180 20 L 1150 20"/>
+    <path d="M 20 680 L 20 650 M 20 680 L 50 680"/>
+    <path d="M 1180 680 L 1180 650 M 1180 680 L 1150 680"/>
+  </g>
+
+  <!-- crosshair -->
+  <g transform="translate(600,330)" stroke="#3dff52" stroke-width="1" opacity="0.8">
+    <circle r="3" fill="#3dff52"/>
+    <line x1="-30" y1="0" x2="-15" y2="0"/>
+    <line x1="30" y1="0" x2="15" y2="0"/>
+    <line x1="0" y1="-30" x2="0" y2="-15"/>
+    <line x1="0" y1="30" x2="0" y2="15"/>
+  </g>
+</svg>

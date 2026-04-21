@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 1300" font-family="Heebo, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="mobg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0d11"/>
+      <stop offset="1" stop-color="#07090a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- phone frame -->
+  <rect x="30" y="30" width="690" height="1240" rx="70" fill="#000" stroke="#243448" stroke-width="3"/>
+  <rect x="50" y="50" width="650" height="1200" rx="56" fill="url(#mobg)"/>
+  <rect x="300" y="50" width="150" height="28" rx="14" fill="#000"/>
+
+  <!-- status bar -->
+  <text x="100" y="100" font-size="16" font-weight="700" fill="#fff">14:27</text>
+  <text x="650" y="100" text-anchor="end" font-size="14" fill="#fff">◉◉◉ · ██</text>
+
+  <!-- topbar -->
+  <rect x="50" y="118" width="650" height="62" fill="#0d1014"/>
+  <line x1="50" y1="180" x2="700" y2="180" stroke="#243448"/>
+  <text x="680" y="155" text-anchor="end" font-size="17" font-weight="900" fill="#3dff52">⬡ מבצעים</text>
+  <!-- hamburger -->
+  <g transform="translate(80,136)">
+    <rect width="36" height="32" rx="5" fill="#121620" stroke="#243448"/>
+    <line x1="10" y1="10" x2="26" y2="10" stroke="#3dff52" stroke-width="2.5"/>
+    <line x1="10" y1="16" x2="26" y2="16" stroke="#3dff52" stroke-width="2.5"/>
+    <line x1="10" y1="22" x2="26" y2="22" stroke="#3dff52" stroke-width="2.5"/>
+  </g>
+
+  <!-- drawer -->
+  <rect x="400" y="180" width="300" height="1070" fill="#0d1014" stroke="#243448"/>
+
+  <!-- drawer header -->
+  <g transform="translate(400,180)">
+    <rect width="300" height="80" fill="#121620"/>
+    <line x1="0" y1="80" x2="300" y2="80" stroke="#243448"/>
+    <circle cx="244" cy="40" r="20" fill="#3dff52"/>
+    <text x="244" y="46" text-anchor="middle" font-size="14" font-weight="900" fill="#07090a">דמ</text>
+    <text x="212" y="36" text-anchor="end" font-size="13" font-weight="800" fill="#d8eef8">דוד מ.</text>
+    <text x="212" y="54" text-anchor="end" font-size="10" fill="#5a7a90">מפקד צוות · אלפא</text>
+  </g>
+
+  <!-- drawer items -->
+  <g font-size="15" font-weight="700">
+    <g transform="translate(400,268)">
+      <rect width="300" height="54" fill="#121620"/>
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#3dff52">🗺️  מפה</text>
+      <rect x="0" y="0" width="3" height="54" fill="#3dff52"/>
+    </g>
+    <g transform="translate(400,322)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">📋  משימות</text>
+      <rect x="220" y="18" width="20" height="20" rx="10" fill="#ff3333"/>
+      <text x="230" y="32" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">3</text>
+    </g>
+    <g transform="translate(400,376)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">👥  כוחות</text>
+    </g>
+    <g transform="translate(400,430)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">📡  תקשורת</text>
+    </g>
+    <g transform="translate(400,484)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">🗂️  יומן אירועים</text>
+    </g>
+    <g transform="translate(400,538)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">🏢  צוותים</text>
+    </g>
+    <g transform="translate(400,592)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">👤  אנשי צוות</text>
+    </g>
+    <g transform="translate(400,646)">
+      <line x1="0" y1="54" x2="300" y2="54" stroke="#1a2838"/>
+      <text x="260" y="34" text-anchor="end" fill="#9ab8c8">🧭  ניווט</text>
+    </g>
+    <g transform="translate(400,708)">
+      <line x1="0" y1="0" x2="300" y2="0" stroke="#243448" stroke-width="2"/>
+      <text x="260" y="34" text-anchor="end" fill="#3dff52" font-weight="800">⚙  ניהול מערכת</text>
+    </g>
+  </g>
+
+  <!-- Map in background (dimmed) -->
+  <g opacity="0.4">
+    <rect x="50" y="180" width="350" height="1070" fill="#0d1a28"/>
+    <path d="M 50 550 Q 180 500 280 560 T 400 600" stroke="#243448" stroke-width="2" fill="none"/>
+    <path d="M 220 180 Q 240 400 260 700 T 280 1250" stroke="#243448" stroke-width="2" fill="none"/>
+    <circle cx="180" cy="450" r="8" fill="#3dff52"/>
+    <circle cx="280" cy="620" r="8" fill="#29c5f6"/>
+    <circle cx="140" cy="780" r="8" fill="#ffc107"/>
+  </g>
+
+  <!-- Bottom nav -->
+  <g>
+    <rect x="50" y="1170" width="650" height="78" fill="#0d1014"/>
+    <line x1="50" y1="1170" x2="700" y2="1170" stroke="#243448"/>
+    <g font-size="10" fill="#5a7a90" font-weight="700" text-anchor="middle">
+      <text x="140" y="1208" font-size="22">🗺️</text><text x="140" y="1232">מפה</text>
+      <text x="290" y="1208" font-size="22">📋</text><text x="290" y="1232">משימות</text>
+      <circle cx="440" cy="1208" r="28" fill="#ff3333"/>
+      <text x="440" y="1215" font-weight="900" fill="#fff" font-size="13">SOS</text>
+      <text x="590" y="1208" font-size="22">📡</text><text x="590" y="1232">תקשורת</text>
+    </g>
+  </g>
+
+  <!-- home indicator -->
+  <rect x="300" y="1265" width="150" height="5" rx="3" fill="#fff" opacity="0.3"/>
+</svg>

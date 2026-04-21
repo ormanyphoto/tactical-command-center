@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" font-family="Heebo, Arial, sans-serif" direction="rtl">
+  <defs>
+    <linearGradient id="dg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0d1a28"/><stop offset="1" stop-color="#07090a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="680" fill="#07090a"/>
+
+  <!-- DESKTOP in center -->
+  <g transform="translate(300,70)">
+    <!-- monitor frame -->
+    <rect x="0" y="0" width="600" height="380" rx="14" fill="#1a1d22" stroke="#2e4460" stroke-width="2"/>
+    <rect x="10" y="10" width="580" height="360" rx="6" fill="url(#dg)"/>
+    <!-- topbar -->
+    <rect x="10" y="10" width="580" height="34" fill="#0d1014"/>
+    <text x="580" y="30" text-anchor="end" font-size="12" font-weight="900" fill="#3dff52">⬡ מערכת מבצעים</text>
+    <text x="300" y="30" text-anchor="middle" font-size="12" font-weight="800" fill="#a8e800">14:27:08</text>
+    <!-- sidebar -->
+    <rect x="440" y="44" width="150" height="326" fill="#0d1014"/>
+    <line x1="440" y1="44" x2="440" y2="370" stroke="#243448"/>
+    <rect x="450" y="54" width="40" height="18" rx="4" fill="#3dff52"/>
+    <text x="470" y="67" text-anchor="middle" font-size="9" font-weight="800" fill="#07090a">מפה</text>
+    <rect x="494" y="54" width="46" height="18" rx="4" fill="#121620" stroke="#243448"/>
+    <text x="517" y="67" text-anchor="middle" font-size="9" fill="#9ab8c8">משימות</text>
+    <!-- mini cards in sidebar -->
+    <rect x="450" y="84" width="132" height="40" rx="4" fill="#121620" stroke="#243448"/>
+    <rect x="450" y="84" width="2" height="40" fill="#ff3333"/>
+    <text x="578" y="100" text-anchor="end" font-size="10" font-weight="800" fill="#d8eef8">אבטחת אירוע</text>
+    <text x="578" y="116" text-anchor="end" font-size="8" fill="#9ab8c8">צוות אלפא · דחוף</text>
+    <rect x="450" y="130" width="132" height="40" rx="4" fill="#121620" stroke="#243448"/>
+    <rect x="450" y="130" width="2" height="40" fill="#ffc107"/>
+    <text x="578" y="146" text-anchor="end" font-size="10" font-weight="800" fill="#d8eef8">מחסום רשת</text>
+    <text x="578" y="162" text-anchor="end" font-size="8" fill="#9ab8c8">צוות ברוש</text>
+
+    <!-- map area streets -->
+    <path d="M 10 160 Q 100 150 200 170 T 430 200" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <path d="M 10 260 Q 130 250 220 270 T 430 280" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <path d="M 150 44 Q 160 200 170 370" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <path d="M 300 44 Q 310 200 320 370" stroke="#243448" stroke-width="1.5" fill="none"/>
+    <!-- geofence -->
+    <path d="M 80 120 L 200 110 L 240 230 L 130 270 L 60 200 Z" fill="rgba(41,197,246,0.08)" stroke="#29c5f6" stroke-width="0.8" stroke-dasharray="3,2"/>
+    <!-- markers -->
+    <circle cx="140" cy="180" r="6" fill="#3dff52"/>
+    <circle cx="250" cy="240" r="6" fill="#29c5f6"/>
+    <circle cx="320" cy="150" r="6" fill="#3dff52"/>
+    <circle cx="380" cy="300" r="6" fill="#ff3333"/>
+
+    <!-- SOS -->
+    <rect x="450" y="328" width="132" height="36" rx="6" fill="#1a0808" stroke="#ff3333" stroke-width="1"/>
+    <circle cx="470" cy="346" r="12" fill="#ff3333"/>
+    <text x="470" y="350" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">SOS</text>
+    <text x="575" y="352" text-anchor="end" font-size="10" font-weight="800" fill="#fff">חירום</text>
+
+    <!-- stand -->
+    <rect x="280" y="380" width="40" height="20" fill="#1a1d22"/>
+    <rect x="220" y="400" width="160" height="10" rx="4" fill="#2e4460"/>
+    <text x="300" y="442" text-anchor="middle" font-size="12" font-weight="800" fill="#3dff52" letter-spacing="2">◉ ווב · חמ״ל</text>
+    <text x="300" y="460" text-anchor="middle" font-size="10" fill="#5a7a90">מיועד לשולחן פיקוד · PWA</text>
+  </g>
+
+  <!-- TABLET left -->
+  <g transform="translate(50,160)">
+    <rect width="220" height="290" rx="16" fill="#000" stroke="#243448" stroke-width="1.5"/>
+    <rect x="10" y="10" width="200" height="270" rx="8" fill="url(#dg)"/>
+    <!-- tablet topbar -->
+    <rect x="10" y="10" width="200" height="22" fill="#0d1014"/>
+    <text x="200" y="26" text-anchor="end" font-size="9" font-weight="900" fill="#3dff52">⬡ מבצעים</text>
+    <!-- sidebar wide iPad style -->
+    <rect x="140" y="32" width="70" height="248" fill="#0d1014"/>
+    <rect x="145" y="40" width="60" height="16" rx="3" fill="#3dff52"/>
+    <text x="175" y="51" text-anchor="middle" font-size="8" font-weight="800" fill="#07090a">מפה</text>
+    <rect x="145" y="62" width="60" height="16" rx="3" fill="#121620" stroke="#243448"/>
+    <text x="175" y="73" text-anchor="middle" font-size="7" fill="#9ab8c8">משימות</text>
+    <rect x="145" y="84" width="60" height="30" rx="3" fill="#121620" stroke="#243448"/>
+    <rect x="145" y="84" width="2" height="30" fill="#ff3333"/>
+    <text x="200" y="96" text-anchor="end" font-size="7" font-weight="800" fill="#d8eef8">אבטחה</text>
+    <text x="200" y="108" text-anchor="end" font-size="6" fill="#9ab8c8">דחוף</text>
+    <!-- map area -->
+    <path d="M 10 160 Q 60 140 100 160 T 140 180" stroke="#243448" stroke-width="1" fill="none"/>
+    <circle cx="60" cy="140" r="4" fill="#3dff52"/>
+    <circle cx="100" cy="200" r="4" fill="#29c5f6"/>
+    <circle cx="40" cy="220" r="4" fill="#ffc107"/>
+    <!-- home -->
+    <circle cx="110" cy="290" r="0" fill="none"/>
+    <text x="110" y="330" text-anchor="middle" font-size="12" font-weight="800" fill="#29c5f6" letter-spacing="2">◉ iPad</text>
+    <text x="110" y="348" text-anchor="middle" font-size="10" fill="#5a7a90">סייר בכיר · סרגל רחב</text>
+  </g>
+
+  <!-- PHONE right -->
+  <g transform="translate(950,140)">
+    <rect width="150" height="310" rx="22" fill="#000" stroke="#243448" stroke-width="1.5"/>
+    <rect x="6" y="6" width="138" height="298" rx="18" fill="url(#dg)"/>
+    <!-- notch -->
+    <rect x="60" y="6" width="30" height="6" rx="3" fill="#000"/>
+    <!-- topbar -->
+    <rect x="6" y="14" width="138" height="20" fill="#0d1014"/>
+    <text x="140" y="27" text-anchor="end" font-size="8" font-weight="900" fill="#3dff52">⬡ מבצעים</text>
+    <!-- status pill -->
+    <rect x="10" y="40" width="130" height="18" rx="3" fill="#121620" stroke="#243448"/>
+    <text x="135" y="52" text-anchor="end" font-size="7" font-weight="700" fill="#3dff52">● זמין · משמרת 14:00-22:00</text>
+    <!-- mission card -->
+    <rect x="10" y="64" width="130" height="50" rx="4" fill="#121620" stroke="#243448"/>
+    <rect x="10" y="64" width="2" height="50" fill="#ff3333"/>
+    <text x="135" y="78" text-anchor="end" font-size="9" font-weight="800" fill="#d8eef8">אבטחת אירוע</text>
+    <text x="135" y="92" text-anchor="end" font-size="7" fill="#9ab8c8">דיזנגוף · 4 לוחמים</text>
+    <rect x="16" y="98" width="50" height="10" rx="5" fill="rgba(255,51,51,0.15)" stroke="#ff3333" stroke-width="0.5"/>
+    <text x="41" y="106" text-anchor="middle" font-size="6" font-weight="700" fill="#ff3333">דחוף</text>
+    <!-- map preview -->
+    <rect x="10" y="120" width="130" height="100" rx="4" fill="#0d1a28"/>
+    <path d="M 10 160 Q 60 140 100 160 T 140 180" stroke="#243448" stroke-width="1" fill="none"/>
+    <circle cx="60" cy="145" r="3" fill="#3dff52"/>
+    <circle cx="90" cy="180" r="3" fill="#29c5f6"/>
+    <circle cx="110" cy="200" r="3" fill="#ff3333"/>
+    <!-- bottom SOS -->
+    <rect x="10" y="228" width="130" height="32" rx="5" fill="#ff3333"/>
+    <text x="75" y="250" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">🚨 SOS</text>
+    <!-- nav -->
+    <rect x="10" y="264" width="130" height="34" rx="4" fill="#0d1014"/>
+    <text x="25" y="285" font-size="11">🗺️</text>
+    <text x="50" y="285" font-size="11">📋</text>
+    <text x="75" y="285" font-size="11">👥</text>
+    <text x="100" y="285" font-size="11">📡</text>
+    <text x="125" y="285" font-size="11">🗂️</text>
+
+    <text x="75" y="340" text-anchor="middle" font-size="12" font-weight="800" fill="#b06cf0" letter-spacing="2">◉ iOS / Android</text>
+    <text x="75" y="358" text-anchor="middle" font-size="10" fill="#5a7a90">לוחם בשטח · APNs/FCM</text>
+  </g>
+
+  <!-- connecting bus -->
+  <g stroke="#3dff52" stroke-width="1" stroke-dasharray="4,3" opacity="0.5">
+    <line x1="270" y1="305" x2="300" y2="260"/>
+    <line x1="900" y1="290" x2="950" y2="260"/>
+  </g>
+  <text x="600" y="600" text-anchor="middle" font-size="14" font-weight="800" fill="#5a7a90" letter-spacing="3">
+    ◉ FIREBASE REALTIME SYNC · &lt; 1 SEC · 3 PLATFORMS · ONE SOURCE OF TRUTH
+  </text>
+</svg>
