@@ -4915,7 +4915,12 @@ function renderNavigationP(c){
     pickerOpts += '</optgroup>';
   }
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
-  <div class="form-g addr-wrap"><label>נקודת מוצא</label><input type="text" id="nav-from" placeholder="כתובת התחלה..."/></div>
+  <div class="form-g addr-wrap"><label>נקודת מוצא</label>
+    <div class="addr-row" style="display:flex;gap:6px;align-items:stretch">
+      <input type="text" id="nav-from" placeholder="כתובת התחלה..." style="flex:1"/>
+      <button type="button" class="btn-sec" style="margin:0;padding:0 10px;font-size:12px;white-space:nowrap" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי">📍 מיקומי</button>
+    </div>
+  </div>
   <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>יעד מרשימה</label>
     <select id="nav-picker" onchange="navPickDestination(this.value)" style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;font-family:var(--font);outline:none">
@@ -4923,9 +4928,8 @@ function renderNavigationP(c){
     </select>
   </div>
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
-    <button class="btn-pri" onclick="calcNavRoute()">🧭 חשב מסלול</button>
-    <button class="btn-sec" style="margin:0" onclick="navFromMyLocation()">📍 מיקומי</button>
+  <div style="margin-bottom:10px">
+    <button class="btn-pri" style="width:100%" onclick="calcNavRoute()">🧭 חשב מסלול</button>
   </div>
   <div class="sec-hd">ניווט למשימה</div>
   ${missions.map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
