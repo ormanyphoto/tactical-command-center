@@ -69,7 +69,17 @@ class NativeBridge(private val context: Context) {
 
     @JavascriptInterface
     fun setPersonId(personId: String) {
-        if (personId.isEmpty()) return
+        // Validate before using as a Firebase path segment. Audit finding:
+        // this value is interpolated into `tac_fcm_tokens_native/$personId/...`
+        // by registerTokenForPersonId below. Untrusted input could try to
+        // escape the node (e.g. "../tac_sos"). Firebase would reject most
+        // of these with "Invalid path" but we also enforce our own narrow
+        // allowlist so the error never reaches Firebase and malformed JS
+        // payloads can't write to surprising places.
+        if (!isSafePersonId(personId)) {
+            Log.w(TAG, "setPersonId rejected invalid input")
+            return
+        }
         val prev = prefs.getString(KEY_PERSON_ID, null)
         prefs.edit().putString(KEY_PERSON_ID, personId).apply()
         Log.d(TAG, "setPersonId($personId) — previous=$prev")
@@ -94,8 +104,10 @@ class NativeBridge(private val context: Context) {
         val prev = prefs.getString(KEY_PERSON_ID, null)
         prefs.edit().remove(KEY_PERSON_ID).apply()
         Log.d(TAG, "clearPersonId — was $prev")
-        // Remove the linked-tokens entry for this device
-        if (prev != null) {
+        // Remove the linked-tokens entry for this device — but only if the
+        // stored pid passes validation. Defense-in-depth in case an old
+        // SharedPrefs value pre-dates the setPersonId guard.
+        if (isSafePersonId(prev)) {
             val deviceId = getDeviceId()
             try {
                 FirebaseDatabase.getInstance()
@@ -288,7 +300,21 @@ class NativeBridge(private val context: Context) {
         } catch (_: Exception) { false }
     }
 
+    // Personnel IDs are generated server-side as "P" + 5 digits (see
+    // PERSONNEL seed in index.html). Allow a slightly more permissive
+    // set — alphanumerics, dash, underscore, 1..64 chars — to cover
+    // any legitimate future change without accepting `../`, `/`, `#`,
+    // `$`, `[`, `]`, `.` which Firebase forbids in path segments.
+    private fun isSafePersonId(s: String?): Boolean {
+        if (s.isNullOrEmpty() || s.length > 64) return false
+        return s.all { c -> c.isLetterOrDigit() || c == '-' || c == '_' }
+    }
+
     private fun registerTokenForPersonId(personId: String) {
+        if (!isSafePersonId(personId)) {
+            Log.w(TAG, "registerTokenForPersonId rejected invalid input")
+            return
+        }
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
                 Log.w(TAG, "Failed to fetch FCM token for registration", task.exception)
