@@ -105,8 +105,18 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             let pattern = body["pattern"] as? [Int] ?? [400, 150, 400]
             HapticsHelper.play(pattern: pattern)
         case "openExternal":
-            if let urlStr = body["url"] as? String, let url = URL(string: urlStr) {
+            // Allowlist schemes so a malicious or compromised web payload
+            // can't drive the native app to open arbitrary URLs
+            // (javascript:, file:, custom deep-links, etc.). Anything
+            // outside this list is dropped and logged.
+            if let urlStr = body["url"] as? String,
+               let url = URL(string: urlStr),
+               let scheme = url.scheme?.lowercased(),
+               ["https","http","tel","sms","mailto",
+                "waze","googlemaps","comgooglemaps","maps","whatsapp"].contains(scheme) {
                 UIApplication.shared.open(url)
+            } else {
+                NSLog("[Bridge] openExternal rejected: \(body["url"] ?? "nil")")
             }
         case "nativeLog":
             NSLog("[WebLog] \(body)")

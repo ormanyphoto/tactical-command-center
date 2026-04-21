@@ -1136,18 +1136,33 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
       </div>
       <script>(function(){
         var _mapsRetried=false;
-        // If Maps API hasn't loaded after 8s → retry dynamically (handles mobile/cache failures)
+        // Triple-guard against loading the Maps SDK twice. On mobile
+        // WebViews with aggressive script caching the SDK sometimes
+        // evaluates more than once, each run re-registers its
+        // `gmp-*` custom elements, and the console floods with
+        // "Element already defined" warnings. We prevent the retry
+        // if (a) window._googleReady is already true, (b) window.google.maps
+        // is present (initial script loaded but onGoogleMapsReady hasn't
+        // fired yet), or (c) any <script src="…maps/api/js…"> tag exists
+        // in the document beyond the original.
+        function _mapsAlreadyLoaded(){
+          if(window._googleReady) return true;
+          if(window.google && window.google.maps) return true;
+          var tags = document.querySelectorAll('script[src*="maps.googleapis.com/maps/api/js"]');
+          // The first tag is the initial <script> at the top; >1 means
+          // something else already appended another.
+          return tags.length > 1;
+        }
         setTimeout(function(){
-          if(!window._googleReady && !_mapsRetried){
-            _mapsRetried=true;
-            var s=document.createElement('script');
-            s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
-            s.onerror=function(){
-              var ml=document.getElementById('map-loading');
-              if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
-            };
-            document.head.appendChild(s);
-          }
+          if(_mapsRetried || _mapsAlreadyLoaded()) return;
+          _mapsRetried=true;
+          var s=document.createElement('script');
+          s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
+          s.onerror=function(){
+            var ml=document.getElementById('map-loading');
+            if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
+          };
+          document.head.appendChild(s);
         },8000);
         // Force-hide spinner after 20s regardless
         setTimeout(function(){var ml=document.getElementById('map-loading');if(ml)ml.style.display='none';},20000);
@@ -2141,6 +2156,12 @@ let miniMapOn=false;
 // ── GOOGLE MAPS INIT ──
 window._googleReady=false;
 function onGoogleMapsReady(){
+  // Defuse double-invocation: if the Maps SDK loads twice (mobile
+  // WebView cache, dev refresh, stale SW script), this callback fires
+  // twice too. The second call would re-construct window.map, re-plot
+  // missions/units, and stack duplicate event listeners. Bail out early
+  // once we've initialized.
+  if(window._googleReady) return;
   window._googleReady=true;
   // Hide loading indicator immediately
   const ml=document.getElementById('map-loading');
