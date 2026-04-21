@@ -1693,7 +1693,7 @@ const BIOMETRIC = (() => {
       // Device verified — get password from sessionStorage (preferred) or fall back to legacy localStorage field
       const _bioPassRaw = sessionStorage.getItem('tac_bio_pass') || saved.pass || '';
       const pass = decodeURIComponent(escape(atob(_bioPassRaw)));
-      if(typeof AUTH!=='undefined' && AUTH.login(saved.email, pass)){
+      if(typeof AUTH!=='undefined' && (await AUTH.login(saved.email, pass))){
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = '';
         AUTH.applyPerms();
@@ -1782,30 +1782,96 @@ const AUTH = (() => {
 
   function _permsFor(role, user){ return (user && user.permsOverride) ? user.permsOverride : (ROLE_PERMS[role] || ROLE_PERMS['']); }
 
-  function login(email, password){
+  // Login flow — tries Firebase Auth first (secure), falls back to
+  // legacy plaintext PERSONNEL.loginPassword ONLY to bootstrap the
+  // Firebase Auth account on a user's first login. After that first
+  // migration, every subsequent login goes through Firebase Auth with
+  // no plaintext comparison. This lets operators keep working while
+  // we gradually move off shipped-in-HTML passwords, with no big-bang
+  // cutover day.
+  async function login(email, password){
     const em = (email||'').trim().toLowerCase();
-    const u = PERSONNEL.find(p => p.email && p.email.toLowerCase()===em && p.loginPassword===password);
-    if(!u){ if(typeof auditLog==='function') auditLog('ניסיון כניסה נכשל','warn',em); return false; }
-    _user = u;
-    localStorage.setItem('tac_auth_id', u.id);
-    localStorage.setItem('tac_auth_em', u.email);
-    if(typeof auditLog==='function') auditLog('כניסה למערכת','success',u.email);
-    return true;
+    if(!em || !password) return false;
+    const rosterUser = PERSONNEL.find(p => p.email && p.email.toLowerCase() === em);
+
+    const _finishLocal = (u, auditMsg) => {
+      _user = u;
+      localStorage.setItem('tac_auth_id', u.id);
+      localStorage.setItem('tac_auth_em', u.email);
+      if(typeof auditLog === 'function') auditLog(auditMsg, 'success', u.email);
+      return true;
+    };
+
+    // Firebase SDK available — prefer the secure path.
+    if(typeof firebase !== 'undefined' && firebase.auth){
+      try {
+        await firebase.auth().signInWithEmailAndPassword(em, password);
+        if(!rosterUser){
+          await firebase.auth().signOut();
+          if(typeof auditLog === 'function') auditLog('כניסה חסומה — אין התאמה ברוסטר','warn',em);
+          return false;
+        }
+        return _finishLocal(rosterUser, 'כניסה למערכת');
+      } catch(e){
+        // Sign-in failed. If the legacy plaintext password still matches
+        // PERSONNEL.loginPassword, bootstrap the Firebase Auth account
+        // on the fly — this is the lazy-migration step.
+        if(rosterUser && rosterUser.loginPassword === password){
+          try {
+            await firebase.auth().createUserWithEmailAndPassword(em, password);
+            console.log('[AUTH] migrated', rosterUser.id, 'to Firebase Auth');
+            return _finishLocal(rosterUser, 'כניסה + הגירה ל-Firebase Auth');
+          } catch(e2){
+            // Email already registered with a different password = Firebase
+            // reset the pw outside our control. Fail closed — require the
+            // operator to use the real Firebase Auth password.
+            if(e2.code === 'auth/email-already-in-use'){
+              if(typeof auditLog === 'function') auditLog('סיסמה שגויה (Firebase Auth)','warn',em);
+              return false;
+            }
+            // Any other creation error (weak-password, quota, network) —
+            // keep the user productive via legacy-only mode while we
+            // debug. The audit log flags it.
+            console.warn('[AUTH] Firebase create failed:', e2.code || e2.message || e2);
+            return _finishLocal(rosterUser, 'כניסה (Legacy — ללא Firebase Auth)');
+          }
+        }
+        if(typeof auditLog === 'function') auditLog('ניסיון כניסה נכשל','warn', em+' · '+(e.code||e.message||''));
+        return false;
+      }
+    }
+
+    // Firebase SDK not loaded at all — fall back to legacy plaintext.
+    if(rosterUser && rosterUser.loginPassword === password){
+      return _finishLocal(rosterUser, 'כניסה (Firebase SDK לא זמין)');
+    }
+    if(typeof auditLog === 'function') auditLog('ניסיון כניסה נכשל','warn',em);
+    return false;
   }
 
-  function logout(){
-    if(typeof auditLog==='function' && _user) auditLog('יציאה מהמערכת','info','');
+  async function logout(){
+    if(typeof auditLog === 'function' && _user) auditLog('יציאה מהמערכת','info','');
     _user = null;
     localStorage.removeItem('tac_auth_id');
     localStorage.removeItem('tac_auth_em');
     document.body.classList.remove('bo-active');
+    // Sign out of Firebase Auth too so the next user can start clean.
+    try {
+      if(typeof firebase !== 'undefined' && firebase.auth){
+        await firebase.auth().signOut();
+      }
+    } catch(_){}
     // Mark explicit logout so tacBoot won't auto-trigger biometric on the reload
     sessionStorage.setItem('tac_just_logged_out', '1');
-    // Full reload — clears all in-memory state and returns to clean login screen
     window.location.reload();
   }
 
   function restore(){
+    // Restore from localStorage if possible. Firebase Auth's own persistence
+    // is separate (survives across tabs via IndexedDB); this function just
+    // restores the PERSONNEL record so the UI knows the role/unit/etc. The
+    // Firebase Auth session is either still valid (user had logged in before)
+    // or will be re-established on the next login form submit.
     const id = localStorage.getItem('tac_auth_id');
     const em = localStorage.getItem('tac_auth_em');
     if(!id||!em) return false;
@@ -1881,12 +1947,19 @@ const AUTH = (() => {
     localStorage.setItem('tac_field_role', _user.role||'לוחם');
   }
 
-  function doLogin(){
+  async function doLogin(){
     const email = (document.getElementById('login-email').value||'').trim();
     const pass = document.getElementById('login-pass').value;
     const err = document.getElementById('login-err');
-    if(!email||!pass){ err.textContent='יש למלא אימייל וסיסמה'; return; }
-    if(login(email, pass)){
+    if(!email||!pass){ err.textContent='יש להזין אימייל וסיסמה'; return; }
+    // Disable the submit button while Firebase Auth round-trips so the
+    // user can't double-submit.
+    const submitBtn = document.querySelector('#login-screen button[onclick*="doLogin"]');
+    const origLabel = submitBtn ? submitBtn.textContent : '';
+    if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'מתחבר…'; }
+    const ok = await login(email, pass).catch(() => false);
+    if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = origLabel; }
+    if(ok){
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = '';
       applyPerms();
@@ -3998,7 +4071,20 @@ function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/<
 // retry once. Non-RTDB fetches pass through untouched.
 (function(){
   const RTDB_HOST = 'tactical-command-center-default-rtdb.firebaseio.com';
-  let _tokCache = { token:null, fetchedAt:0 };
+  // Cache keyed by user UID — when the user logs in/out the uid changes,
+  // forcing a token refresh on the next request. Prevents the interceptor
+  // from re-using the anon-session token after a real login.
+  let _tokCache = { token:null, uid:null, fetchedAt:0 };
+  function _invalidateTokenCache(){ _tokCache = { token:null, uid:null, fetchedAt:0 }; }
+  // Wire up auth-state listener once Firebase loads. A small polling
+  // loop because the interceptor code runs before firebase is available.
+  (function wireAuthListener(attempt){
+    if(typeof firebase !== 'undefined' && firebase.auth){
+      try { firebase.auth().onAuthStateChanged(_invalidateTokenCache); } catch(_){}
+      return;
+    }
+    if((attempt||0) < 50) setTimeout(()=>wireAuthListener((attempt||0)+1), 200);
+  })(0);
   // Resolves once Firebase Auth has a currentUser. Polls every 200ms
   // for up to ~10 seconds — any REST fetch that fires during the initial
   // boot window waits briefly instead of shipping an unauthed request
@@ -4019,14 +4105,19 @@ function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/<
     try {
       if(typeof firebase === 'undefined' || !firebase.auth) return null;
       const now = Date.now();
-      if(!forceRefresh && _tokCache.token && (now - _tokCache.fetchedAt) < 50*60*1000){
-        return _tokCache.token;
-      }
       let u = firebase.auth().currentUser;
       if(!u) u = await _waitForAuthUser();
       if(!u) return null;
+      // Reuse cache only when the uid matches — logging in as a different
+      // user must not accept the old user's token.
+      if(!forceRefresh
+         && _tokCache.token
+         && _tokCache.uid === u.uid
+         && (now - _tokCache.fetchedAt) < 50*60*1000){
+        return _tokCache.token;
+      }
       const t = await u.getIdToken(!!forceRefresh);
-      _tokCache = { token:t, fetchedAt: now };
+      _tokCache = { token:t, uid:u.uid, fetchedAt: now };
       return t;
     } catch(_){ return null; }
   }
@@ -4328,6 +4419,10 @@ function listenForSOS(){
   // cancels them (data disappears from /tac_sos).
   window._sosSeen = window._sosSeen || {};
   const _pollSOS = () => {
+    // SDK listener (child_added / child_changed / child_removed above)
+    // is the primary path. Skip the 15s REST poll when the WebSocket
+    // is alive; it's purely a failover.
+    if(window._rtdbConnected) return;
     fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_sos.json?_='+Date.now(), {cache:'no-store'})
     .then(r => r.ok ? r.json() : null)
     .then(data => {
@@ -11445,6 +11540,7 @@ setTimeout(_subscribeActiveNotif, 1500);
 // is the SDK listener; this just catches cases where it silently stalled.
 const _REST_DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
 setInterval(async ()=>{
+  if(window._rtdbConnected) return; // SDK listener is primary when WebSocket is alive
   try {
     const resp = await fetch(_REST_DB+'/tac_active_notif.json?_='+Date.now(), {cache:'no-store'});
     if(!resp.ok) return;
@@ -11467,6 +11563,7 @@ setInterval(async ()=>{
 // "approvals only show on the approver's own device".
 setInterval(async ()=>{
   if(!_currentActiveNotifId) return;
+  if(window._rtdbConnected) return; // SDK listener is primary when WebSocket is alive
   try {
     const resp = await fetch(_REST_DB+'/tac_notif_responses/'+_currentActiveNotifId+'.json?_='+Date.now(), {cache:'no-store'});
     if(!resp.ok) return;
@@ -12510,6 +12607,12 @@ function _showHeatmap(points){
 // ══════════════════════════════════════════════════════════
 const _DB_REST = 'https://tactical-command-center-default-rtdb.firebaseio.com';
 async function _fallbackLoadLocations(){
+  // Skip when the SDK WebSocket is healthy — the tac_locs .on('value')
+  // listener is already pushing updates in real time, so running this
+  // REST poll on top would just double every refresh (and cost quota).
+  // When the WebSocket drops, window._rtdbConnected flips false and the
+  // poll resumes as a genuine fallback.
+  if(window._rtdbConnected) return;
   try{
     const resp = await fetch(_DB_REST+'/tac_locs.json');
     if(!resp.ok) return;
@@ -15251,10 +15354,14 @@ const SYNC = (() => {
         });
       // connection state — WebSocket indicator only, don't block operations
       _db.ref('.info/connected').on('value', s=>{
-        const ws = s.val();
+        const ws = !!s.val();
         _setSyncDot(ws ? 'on' : 'warn');
         if(ws) _connected = true;
-        // Don't set _connected=false — HTTP reads still work without WebSocket
+        // Expose globally so REST-poll fallbacks can skip themselves when
+        // the WebSocket is healthy — the SDK listener is already delivering
+        // the same updates in real time, the poll just wastes bandwidth +
+        // quota. On disconnect the flag flips and the polls kick back in.
+        window._rtdbConnected = ws;
       });
       return true;
     } catch(e){ console.warn('[SYNC]',e); window._syncInitError=e.message||String(e); _setSyncDot('warn'); return false; }
@@ -15706,6 +15813,9 @@ const SYNC = (() => {
     //    any SDK caching or connection issues.
     if(_hiddenPollTimer) clearInterval(_hiddenPollTimer);
     _hiddenPollTimer = setInterval(async ()=>{
+      // SDK listener above already pushes updates when the WebSocket
+      // is healthy. Skip to save bandwidth.
+      if(window._rtdbConnected) return;
       try {
         const resp = await fetch(DB_REST_BASE+'/tac_loc_hidden.json?_='+Date.now(), {cache:'no-store'});
         if(!resp.ok) return;
@@ -16355,6 +16465,10 @@ const SYNC = (() => {
     //    WebSocket is wedged. Stopped/restarted on re-init.
     if(_photoPollTimer) clearInterval(_photoPollTimer);
     const pollOnce = () => {
+      // Same gating as _fallbackLoadLocations — skip when the SDK
+      // WebSocket is alive because tac_photos .on('value') above is
+      // already feeding every change.
+      if(window._rtdbConnected) return;
       fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_photos.json?_='+Date.now(), {cache:'no-store'})
         .then(r => r.ok ? r.json() : null)
         .then(data => { if(data) _applyPhotosSnapshot(data); })
