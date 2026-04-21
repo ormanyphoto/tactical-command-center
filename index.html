@@ -15303,11 +15303,51 @@ const SEC = {
 // ══════════════════════════════════════════════════════════
 const SYNC = (() => {
   let _db = null;
+  // _myUid is the key under which this device publishes its location to
+  // tac_locs. Historically it was a random local id (`u_xxxxxx`). When
+  // Firebase Auth lands we re-bind it to firebase.auth().currentUser.uid
+  // so per-uid rules can enforce "only the owner writes their own bucket"
+  // without needing a data migration. Legacy `u_*` ids keep working as a
+  // fallback for pre-auth publishes; once auth resolves, _migrateMyUid
+  // switches the key and cleans up the old entry.
   let _myUid = localStorage.getItem('tac_uid') || (() => {
     const uid = 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     localStorage.setItem('tac_uid', uid);
     return uid;
   })();
+  function _migrateMyUid(newUid){
+    if(!newUid || newUid === _myUid) return;
+    const oldUid = _myUid;
+    _myUid = newUid;
+    localStorage.setItem('tac_uid', newUid);
+    // Republish immediately under the new key so other devices see us
+    // without waiting for the next 8 s _doPublish tick.
+    try { _doPublish && _doPublish(); } catch(_){}
+    // Best-effort cleanup of the old bucket. Don't block on it — stale
+    // entries are also cleared by _cleanupStaleLocations every 5 min
+    // and _dedupeByPerson handles the transition visually.
+    if(_db && oldUid && oldUid !== newUid){
+      try { _db.ref('tac_locs/'+oldUid).remove().catch(()=>{}); } catch(_){}
+      try { _db.ref('tac_sos/'+oldUid).remove().catch(()=>{}); } catch(_){}
+    }
+  }
+  // Wire up the migration once firebase.auth is ready. onAuthStateChanged
+  // fires on every auth transition (anon → email-password, logout, etc.);
+  // _migrateMyUid is idempotent so it's safe to run each time.
+  (function waitForAuth(attempt){
+    if(typeof firebase === 'undefined' || !firebase.auth){
+      if((attempt||0) < 50) return setTimeout(()=>waitForAuth((attempt||0)+1), 200);
+      return;
+    }
+    try {
+      firebase.auth().onAuthStateChanged(u => {
+        if(u && u.uid) _migrateMyUid(u.uid);
+      });
+      // Also run once immediately in case we've already authenticated.
+      const cur = firebase.auth().currentUser;
+      if(cur && cur.uid) _migrateMyUid(cur.uid);
+    } catch(_){}
+  })(0);
   let _liveMarkers = {}, _publishTimer = null, _connected = false, _firstPosFix = false;
   let _myProfile = { name:'אנונימי', role:'שדה', status:'active' };
   // Cross-device privacy: Firebase-synced { personId: true } set. When a user
