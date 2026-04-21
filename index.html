@@ -1135,37 +1135,59 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <span style="font-size:13px;font-weight:700;color:var(--text3);font-family:var(--font)">טוען מפה...</span>
       </div>
       <script>(function(){
-        var _mapsRetried=false;
-        // Triple-guard against loading the Maps SDK twice. On mobile
-        // WebViews with aggressive script caching the SDK sometimes
-        // evaluates more than once, each run re-registers its
-        // `gmp-*` custom elements, and the console floods with
-        // "Element already defined" warnings. We prevent the retry
-        // if (a) window._googleReady is already true, (b) window.google.maps
-        // is present (initial script loaded but onGoogleMapsReady hasn't
-        // fired yet), or (c) any <script src="…maps/api/js…"> tag exists
-        // in the document beyond the original.
+        // Map boot resilience. Originally: one retry at 8 s. On flaky
+        // mobile (4G with packet loss, Samsung WebView, etc.) the first
+        // script load often stalls past that window, and by then the
+        // operator has already swiped away. New strategy — retry twice,
+        // earlier, and ALSO synthesise onGoogleMapsReady if google.maps
+        // loaded without firing the callback (a mobile quirk we've seen
+        // when the SDK's callback=…  parameter gets stripped by an
+        // aggressive proxy/SW).
         function _mapsAlreadyLoaded(){
           if(window._googleReady) return true;
-          if(window.google && window.google.maps) return true;
+          if(window.google && window.google.maps && typeof window.google.maps.Map === 'function') return true;
           var tags = document.querySelectorAll('script[src*="maps.googleapis.com/maps/api/js"]');
-          // The first tag is the initial <script> at the top; >1 means
-          // something else already appended another.
-          return tags.length > 1;
+          return tags.length > 2;
         }
-        setTimeout(function(){
-          if(_mapsRetried || _mapsAlreadyLoaded()) return;
-          _mapsRetried=true;
+        function _appendMapsScript(tag){
           var s=document.createElement('script');
           s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
           s.onerror=function(){
             var ml=document.getElementById('map-loading');
             if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
           };
+          s.setAttribute('data-retry', tag);
           document.head.appendChild(s);
-        },8000);
-        // Force-hide spinner after 20s regardless
-        setTimeout(function(){var ml=document.getElementById('map-loading');if(ml)ml.style.display='none';},20000);
+        }
+        // First retry at 4 s (was 8 s) — catches most mobile stalls.
+        setTimeout(function(){
+          if(_mapsAlreadyLoaded()) return;
+          _appendMapsScript('r1');
+        }, 4000);
+        // Second retry at 10 s if still nothing.
+        setTimeout(function(){
+          if(_mapsAlreadyLoaded()) return;
+          _appendMapsScript('r2');
+        }, 10000);
+        // Callback-synthesis guard. Some mobile proxies strip the
+        // `callback=onGoogleMapsReady` URL parameter — the SDK loads
+        // but onGoogleMapsReady never fires, so the map is forever
+        // stuck on the spinner. If we detect google.maps.Map is
+        // available but _googleReady is still false, call the
+        // callback ourselves.
+        var poll = setInterval(function(){
+          if(window._googleReady){ clearInterval(poll); return; }
+          if(window.google && window.google.maps && typeof window.google.maps.Map === 'function'
+             && typeof window.onGoogleMapsReady === 'function'){
+            try { window.onGoogleMapsReady(); } catch(_){}
+            clearInterval(poll);
+          }
+        }, 500);
+        setTimeout(function(){ clearInterval(poll); }, 30000);
+        // Force-hide spinner after 15s regardless (was 20s — no point
+        // staring at a spinner any longer; the callback-synthesis guard
+        // will bring the map in behind it if it eventually loads).
+        setTimeout(function(){var ml=document.getElementById('map-loading');if(ml)ml.style.display='none';}, 15000);
       })();</script>
       <!-- Zoom overlay buttons -->
       <div id="map-zoom-overlay" style="position:absolute;bottom:90px;left:10px;z-index:200;display:flex;flex-direction:column;gap:8px">
