@@ -16405,10 +16405,17 @@ const FIELD = (() => {
     if(gmap && wrap && gmap.parentElement !== wrap){
       if(placeholder) placeholder.style.display = 'none';
       wrap.insertBefore(gmap, wrap.firstChild);
-      // Also drag the location-privacy toggle along with the map so it
-      // renders on the field map exactly like it does in command mode.
-      const priv = document.getElementById('loc-privacy-btn');
-      if(priv) wrap.appendChild(priv);
+      // Drag every sibling that lives ON the map along with #gmap so the
+      // operator sees the same overlays they would in command mode:
+      //   - #loc-privacy-btn — visibility toggle
+      //   - #govmap-iframe — GovMap base-map iframe (otherwise stuck
+      //     behind field-mode, user sees a blank tactical map instead
+      //     of the government layer)
+      //   - #draw-mode-badge / #draw-ctrl-bar — drawing controls
+      ['loc-privacy-btn','govmap-iframe','draw-mode-badge','draw-ctrl-bar'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) wrap.appendChild(el);
+      });
       setTimeout(() => {
         try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
       }, 60);
@@ -16506,11 +16513,13 @@ const FIELD = (() => {
 
   function _restoreMapToCommand(){
     const gmap = document.getElementById('gmap');
-    const priv = document.getElementById('loc-privacy-btn');
     const mapWrap = document.getElementById('map-wrap');
     if(gmap && mapWrap && gmap.parentElement !== mapWrap){
       mapWrap.insertBefore(gmap, mapWrap.firstChild);
-      if(priv) mapWrap.appendChild(priv);
+      ['loc-privacy-btn','govmap-iframe','draw-mode-badge','draw-ctrl-bar'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) mapWrap.appendChild(el);
+      });
       setTimeout(() => {
         try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
       }, 60);
