@@ -14657,16 +14657,19 @@ function closeMobileMenu(){
 }
 function mobileGoView(v){
   closeMobileMenu();
-  // Toggle behavior: tapping the currently-active tab (other than map)
-  // dismisses the right-panel and leaves the user on the bare map. Using
-  // closePanel() instead of goView('map') is intentional — goView('map')
-  // actually opens the Map & Tools panel, which is the opposite of what
-  // the user wants when they're already on a panel and tap again to
-  // "get out of it".
-  if(v === currentView && v !== 'map'){
+  // Toggle behavior: tapping the currently-active tab dismisses the
+  // right-panel and leaves the user on the bare map. Covers two cases:
+  //   1. Panel-view tab → tap again → close panel, back to map.
+  //   2. מפה tap while the Map & Tools panel is still open (e.g. after
+  //      tapping מפה the first time) → close the panel and keep the
+  //      map visible. The second tap of מפה therefore always resolves
+  //      to "give me the bare tactical map".
+  // goView('map') would *open* Map & Tools (it maps v=map to
+  // goPanel('draw')), which is the opposite of what we want here.
+  const rp = document.getElementById('right-panel');
+  const panelOpen = rp && (rp.classList.contains('mobile-open') || !rp.classList.contains('hidden'));
+  if(v === currentView && (v !== 'map' || panelOpen)){
     if(typeof closePanel === 'function') closePanel();
-    // closePanel already resets currentView to 'map' and bn-item active
-    // state, so there's nothing left to do here.
     return;
   }
   goView(v); // goView handles mobile-open/close
