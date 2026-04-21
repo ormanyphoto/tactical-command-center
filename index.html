@@ -22,7 +22,7 @@
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>מערכת מבצעים v6.8.51 // כוננות מחוזית ת"א</title>
+<title>מערכת מבצעים v6.8.52 // כוננות מחוזית ת"א</title>
 <!-- Firebase SDK -->
 <script src="firebase-app-compat.js?v=2"></script>
 <script src="firebase-database-compat.js?v=2"></script>
@@ -873,7 +873,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <div id="login-screen" style="display:flex">
   <div id="login-box">
     <div id="login-logo">⬡ מערכת מבצעים</div>
-    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.51</div>
+    <div id="login-subtitle">כוננות מחוזית ת"א · v6.8.52</div>
     <div class="login-field">
       <label>אימייל</label>
       <input type="email" id="login-email" placeholder="your@email.com" dir="ltr" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -1276,7 +1276,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 <!-- FIELD MODE — shown to team members on mobile -->
 <div id="field-mode">
   <div id="fm-topbar">
-    <div id="fm-logo">⬡ מבצעים v6.8.51</div>
+    <div id="fm-logo">⬡ מבצעים v6.8.52</div>
     <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
     <div id="sync-dot" title="סטטוס חיבור"></div>
     <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
@@ -3203,11 +3203,13 @@ function _applyPos(pos, method){
 }
 
 function _ipLocate(onSuccess, onFail){
-  // In the native APK we have REAL GPS via Android permission — IP fallback
-  // just reports the cellular carrier's datacenter, which is often OUTSIDE
-  // Israel. Skip entirely in native mode.
-  if(window._runningInNativeApp){
-    console.warn('[GEO] IP fallback disabled in native app — use GPS only');
+  // In Android native APK we have REAL GPS and IP would report the cellular
+  // carrier's datacenter (often OUTSIDE Israel) — skip there.
+  // iOS native can fall through to IP as a last resort when the native shim
+  // fails (e.g. permission not yet granted), since it's still better than
+  // showing nothing on the map.
+  if(window._runningInNativeApp && window.Android){
+    console.warn('[GEO] IP fallback disabled in Android native app — GPS only');
     if(onFail) onFail();
     return;
   }
@@ -3245,6 +3247,14 @@ function _locateOnce(onSuccess, onFail){
     console.warn('[locate] no navigator.geolocation — falling back to IP');
     _ipLocate(onSuccess,onFail); return;
   }
+  // On iOS native app the "GPS" and "WiFi" hops both go through the same
+  // native shim, so if it fails it's pointless to retry — skip WiFi and
+  // go straight to IP (which still works on iOS native). On Android/web
+  // the traditional cascade is preserved. Also tighten GPS timeout on
+  // iOS native from 15s → 8s so users don't wait forever when permission
+  // is missing or denied.
+  const isIOSNative = !!(window._runningInNativeApp && !window.Android);
+  const gpsTimeout = isIOSNative ? 8000 : 15000;
   navigator.geolocation.getCurrentPosition(
     pos=>{
       console.log('[locate] GPS fix', pos.coords.latitude.toFixed(5), pos.coords.longitude.toFixed(5), 'acc='+Math.round(pos.coords.accuracy)+'m');
@@ -3254,13 +3264,18 @@ function _locateOnce(onSuccess, onFail){
       // err.code: 1=permission denied, 2=position unavailable, 3=timeout
       const codeMap = {1:'הרשאת מיקום נדחתה', 2:'מיקום לא זמין', 3:'פג זמן קצוב (GPS)'};
       window._locateLastErr = (codeMap[err && err.code] || 'GPS error') + ' · ' + (err && err.message || 'unknown');
-      console.warn('[locate] GPS failed code='+(err && err.code), err && err.message, '— trying WiFi');
-      _wifiLocate(onSuccess, function(){
-        console.warn('[locate] WiFi failed — trying IP');
+      console.warn('[locate] GPS failed code='+(err && err.code), err && err.message,
+        isIOSNative ? '— skipping WiFi (same shim), trying IP' : '— trying WiFi');
+      if(isIOSNative){
         _ipLocate(onSuccess, onFail);
-      });
+      } else {
+        _wifiLocate(onSuccess, function(){
+          console.warn('[locate] WiFi failed — trying IP');
+          _ipLocate(onSuccess, onFail);
+        });
+      }
     },
-    {enableHighAccuracy:true, timeout:15000, maximumAge:3000}
+    {enableHighAccuracy:true, timeout:gpsTimeout, maximumAge:3000}
   );
 }
 
@@ -8282,7 +8297,7 @@ loadPersonnelFromStorage();
 
     // v580_chapak_mehozi — upgrade P17931 to "מפקד חפ״ק מחוזי" with admin perms.
     // Older sessions stored role='חפ״ק' without the 'admin' permsOverride,
-    // which survived our v6.8.51 source-code update because the merge in
+    // which survived our v6.8.52 source-code update because the merge in
     // loadPersonnelFromStorage overlays stored values on top of defaults.
     if(!done.v580_chapak_mehozi){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
@@ -16027,7 +16042,7 @@ const PUSH = (() => {
             <br>• <b>הגדרות</b> → <b>אפליקציות</b> → <b>מבצעים</b> → <b>התראות</b> → הפעל והגדר כ"דחוף"
             <br>• הרבה יותר פשוט מאשר למצוא את זה עמוק בתוך הגדרות Chrome
           </div>
-          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.51)</a>
+          <a href="https://github.com/ormanyphoto/tactical-command-center/releases/latest" target="_blank" style="display:block;text-align:center;padding:11px;background:#3dff52;border-radius:8px;color:#001;font-size:13px;font-weight:900;text-decoration:none">📥 הורד APK (v6.8.52)</a>
         </div>
 
         <div style="background:rgba(255,122,26,0.08);border:1px solid rgba(255,122,26,0.35);border-radius:12px;padding:14px;margin-bottom:14px">

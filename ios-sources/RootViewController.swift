@@ -159,6 +159,11 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
     private static let bootstrapJS = """
     (function(){
       if(window.TCC_NATIVE) return;
+      // Signal to the web app that it's running inside the iOS native wrapper.
+      // Matches the Android flag set in index.html so _ipLocate etc. can
+      // take native-aware decisions.
+      window._runningInNativeApp = true;
+      try { document.documentElement.classList.add('native-app'); } catch(_){}
       function post(name,data){
         try { window.webkit.messageHandlers[name].postMessage(data||{}); } catch(e){}
       }
