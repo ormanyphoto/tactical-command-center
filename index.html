@@ -14658,11 +14658,16 @@ function closeMobileMenu(){
 function mobileGoView(v){
   closeMobileMenu();
   // Toggle behavior: tapping the currently-active tab (other than map)
-  // returns to the map. Gives one-handed users a quick way to dismiss a
-  // panel without hunting for the close-X. Tapping מפה while already on
-  // map is a no-op (avoids a pointless re-render).
+  // dismisses the right-panel and leaves the user on the bare map. Using
+  // closePanel() instead of goView('map') is intentional — goView('map')
+  // actually opens the Map & Tools panel, which is the opposite of what
+  // the user wants when they're already on a panel and tap again to
+  // "get out of it".
   if(v === currentView && v !== 'map'){
-    v = 'map';
+    if(typeof closePanel === 'function') closePanel();
+    // closePanel already resets currentView to 'map' and bn-item active
+    // state, so there's nothing left to do here.
+    return;
   }
   goView(v); // goView handles mobile-open/close
   // update bottom nav active state
