@@ -2966,7 +2966,7 @@ function plotMissions(){
         ?teamMembers.map(p=>{
           const initials=p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
           const av=p.photo&&p.photo.length>10
-            ?`<img src="${p.photo}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid ${p.color||col}"/>`
+            ?`<img src="${safePhotoSrc(p.photo)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:1.5px solid ${p.color||col}"/>`
             :`<div style="width:22px;height:22px;border-radius:50%;background:${p.color||col};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;color:#fff">${initials}</div>`;
           return `<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid ${divider}">
             ${av}
@@ -3961,6 +3961,15 @@ function _gpsErr(err, ctx){
 
 // ── HELPERS ──
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// Validate + escape a user-sourced photo URL before interpolating it
+// into `<img src="…">`. Photos arrive from Firebase (tac_photos) which
+// any teammate can write. Allowed: https:, data:image/*, blob:. Anything
+// else (javascript:, file:, mailto:, …) is dropped and we return ''.
+function safePhotoSrc(url){
+  if(!url || typeof url !== 'string') return '';
+  if(!/^(https?:|data:image\/[a-z0-9.+-]+;|blob:)/i.test(url)) return '';
+  return escHtml(url);
+}
 function statusHe(s){return{urgent:'דחוף',active:'פעיל',pending:'ממתין',completed:'הושלם',briefing:'בריפינג',draft:'טיוטה',debrief:'דיבריפינג'}[s]||s;}
 
 // ══════════════════════════════════════════════════
@@ -4648,7 +4657,7 @@ function openMsnDetail(id){
       +assignedPeople.map(p=>{
         const initials=p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
         const avHtml=p.photo&&p.photo.length>10
-          ?`<img src="${p.photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#29c5f6'}"/>`
+          ?`<img src="${safePhotoSrc(p.photo)}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#29c5f6'}"/>`
           :`<div style="width:30px;height:30px;border-radius:50%;background:${p.color||'#29c5f6'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0">${initials}</div>`;
         return `<div style="display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:6px 9px">
           ${avHtml}
@@ -4684,8 +4693,8 @@ function openMsnDetail(id){
     <button onclick="renderMsnsP(document.getElementById('rp-body'))" style="background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 10px;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);margin-bottom:10px">← רשימת משימות</button>
     <!-- Header -->
     <div style="border-right:4px solid ${col};padding-right:10px;margin-bottom:10px">
-      <div style="font-size:10px;font-weight:800;color:var(--text3);margin-bottom:2px">${m.id} · ${typeHe(m.type)}</div>
-      <div style="font-size:16px;font-weight:900;color:var(--texthi);margin-bottom:6px">${m.title}</div>
+      <div style="font-size:10px;font-weight:800;color:var(--text3);margin-bottom:2px">${escHtml(m.id)} · ${escHtml(typeHe(m.type))}</div>
+      <div style="font-size:16px;font-weight:900;color:var(--texthi);margin-bottom:6px">${escHtml(m.title||'')}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <span class="badge b-${m.status}">${statusHe(m.status)}</span>
         <span class="badge b-draft">עד׳: ${m.priority}</span>
@@ -5066,7 +5075,19 @@ async function sendAiMsg(){
       +' התראות: '+JSON.stringify(ALERTS)
       +' אירועים: '+JSON.stringify(INCIDENTS.map(function(i){return {id:i.id,title:i.title,status:i.status,type:i.type};}));
     const systemPrompt='אתה עוזר AI טקטי של כוננות מחוז תל אביב. אתה מסייע לקצינים בניתוח מצב, פריסת כוחות וקבלת החלטות מבצעיות. ענה בעברית בתמצות ובבהירות. המידע הנוכחי: '+ctx;
-    const _aiApiKey = localStorage.getItem('tac_anthropic_key')||'';
+    // Prefer sessionStorage — localStorage persists across browser restarts
+    // (and survives tab close), so a shared device leaked the key to anyone
+    // who opened the same origin next. sessionStorage clears when the tab
+    // closes. Auto-migrate any pre-existing localStorage copy once, then
+    // delete the localStorage entry so the key isn't double-stored.
+    let _aiApiKey = sessionStorage.getItem('tac_anthropic_key') || '';
+    if(!_aiApiKey){
+      _aiApiKey = localStorage.getItem('tac_anthropic_key') || '';
+      if(_aiApiKey){
+        sessionStorage.setItem('tac_anthropic_key', _aiApiKey);
+        localStorage.removeItem('tac_anthropic_key');
+      }
+    }
     if(!_aiApiKey){ throw new Error('מפתח API לא הוגדר. הגדר בהגדרות מערכת.'); }
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -6569,7 +6590,7 @@ function _renderShiftPersonnelPicker(){
     const initials = p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
     return `<div onclick="_toggleShiftPerson('${p.id}')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${sel?'var(--glow)':'var(--panel2)'};border:1.5px solid ${sel?'var(--accent)':'var(--border)'};border-radius:8px;cursor:pointer;transition:all 0.12s">
       <div style="width:8px;height:8px;border-radius:50%;background:${sel?'var(--accent)':'var(--border2)'};flex-shrink:0"></div>
-      ${p.photo?`<img src="${p.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#9ab8c8'}"/>`
+      ${p.photo?`<img src="${safePhotoSrc(p.photo)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#9ab8c8'}"/>`
         :`<div style="width:26px;height:26px;border-radius:50%;background:${p.color||'#9ab8c8'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">${initials}</div>`}
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:700;color:var(--texthi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(p.name)}</div>
@@ -6653,9 +6674,9 @@ function addShiftModal(){
     <div class="form-g"><label>מפקד משמרת</label>
       <select id="sh-cmd">
         <option value="">— בחר מפקד —</option>
-        ${PERSONNEL.filter(p=>p.role).map(p=>`<option value="${p.id}">${p.name} (${p.role})</option>`).join('')}
+        ${PERSONNEL.filter(p=>p.role).map(p=>`<option value="${escHtml(p.id)}">${escHtml(p.name||'')} (${escHtml(p.role)})</option>`).join('')}
         <optgroup label="── כל אנשי הצוות ──">
-        ${PERSONNEL.filter(p=>!p.role).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+        ${PERSONNEL.filter(p=>!p.role).map(p=>`<option value="${escHtml(p.id)}">${escHtml(p.name||'')}</option>`).join('')}
         </optgroup>
       </select>
     </div>
@@ -8146,7 +8167,7 @@ function boSettings(c){
     +'<b>שלב 2:</b> הדבק Service Account JSON מ: <a href="https://console.firebase.google.com/project/tactical-command-center/settings/serviceaccounts/adminsdk" target="_blank" style="color:var(--accent)">Firebase Console → Service accounts</a> ← לחץ <b>Generate new private key</b></div>'
     +'<div class="form-g"><label style="font-size:11px">📋 Service Account JSON</label>'
     +'<textarea id="cfg-sa-json" rows="4" class="form-inp" style="font-size:10px;font-family:monospace;direction:ltr;resize:vertical" placeholder=\'{"type":"service_account","project_id":"tactical-command-center","private_key":"-----BEGIN PRIVATE KEY-----\\n...","client_email":"..."}\'>'
-    +(localStorage.getItem('tac_sa_json')||'')
+    +(sessionStorage.getItem('tac_sa_json')||localStorage.getItem('tac_sa_json')||'')
     +'</textarea></div>'
     +'<div style="display:flex;gap:8px;margin-top:6px">'
     +'<button class="btn-pri" style="flex:1" onclick="'
@@ -8764,7 +8785,7 @@ function renderTeamsP(c){
               const memberRole=p.teamRole||p.role||'';
               const initials=p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
               const avHtml=p.photo&&p.photo.length>10
-                ?`<img src="${p.photo}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||t.color};flex-shrink:0"/>`
+                ?`<img src="${safePhotoSrc(p.photo)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||t.color};flex-shrink:0"/>`
                 :`<div style="width:26px;height:26px;border-radius:50%;background:${p.color||t.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex-shrink:0">${initials}</div>`;
               const TEAM_ROLES=['מפקד','נהג','לוחם','חובש','ראש צוות','חוד'];
               const roleOpts=TEAM_ROLES.map(r=>`<option value="${r}" ${memberRole===r?'selected':''}>${r}</option>`).join('');
@@ -8852,7 +8873,7 @@ function addMemberToTeamModal(tid){
     </div>
     <div id="member-list" style="display:flex;flex-direction:column;gap:4px;max-height:280px;overflow-y:auto">
       ${all.map(p=>`<div class="member-list-item" data-name="${p.name}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:all 0.12s" onclick="assignToTeam('${tid}','${p.id}')">
-        <div style="width:30px;height:30px;border-radius:50%;background:${p.color}22;border:2px solid ${p.color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;overflow:hidden">${p.photo?`<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}</div>
+        <div style="width:30px;height:30px;border-radius:50%;background:${p.color}22;border:2px solid ${p.color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;overflow:hidden">${p.photo?`<img src="${safePhotoSrc(p.photo)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}</div>
         <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--texthi)">${p.name}</div>
           <div style="font-size:10px;color:var(--text3)">${p.role||p.unit||'ללא תפקיד'} ${p.unit?'· '+p.unit:''}</div></div>
         <span style="font-size:10px;padding:2px 7px;border-radius:12px;${p.available?'background:rgba(61,255,82,0.1);color:var(--accent);border:1px solid rgba(61,255,82,0.3)':'background:rgba(255,51,51,0.08);color:var(--danger);border:1px solid rgba(255,51,51,0.2)'}">${p.available?'זמין':'לא זמין'}</span>
@@ -9030,7 +9051,7 @@ function renderPersonnelP(c){
       <input type="checkbox" class="pers-check" ${_selectedPersonnel.has(p.id)?'checked':''} onchange="togglePersonSelect('${p.id}',this.checked)" onclick="event.stopPropagation()"/>
       <span class="drag-handle" style="font-size:12px;color:var(--text3)">⠿</span>
       <div class="pers-avatar" onclick="pickPersonPhoto('${p.id}')" title="לחץ לשנות תמונה" style="cursor:pointer">
-        ${p.photo?`<img src="${p.photo}" alt="${p.name}"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}
+        ${p.photo?`<img src="${safePhotoSrc(p.photo)}" alt="${escHtml(p.name||'')}"/>`:(p.name.split(' ').map(w=>w[0]).join('').slice(0,2))}
       </div>
       <div class="pers-info" style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
@@ -9165,7 +9186,7 @@ function openPlacePersonModal(pid){
 
   const initials=p.name.split(' ').map(w=>w[0]).join('').slice(0,2);
   const avHtml=p.photo&&p.photo.length>10
-    ?`<img src="${p.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#29c5f6'}"/>`
+    ?`<img src="${safePhotoSrc(p.photo)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${p.color||'#29c5f6'}"/>`
     :`<div style="width:40px;height:40px;border-radius:50%;background:${p.color||'#29c5f6'};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;flex-shrink:0">${initials}</div>`;
 
   document.getElementById('modal-body').innerHTML=`
@@ -9582,7 +9603,7 @@ function editPersonModal(id){
   document.getElementById('modal-body').innerHTML=`
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
       <div class="photo-up" id="photo-preview-edit">
-        ${p.photo?`<img src="${p.photo}"/>`:'📷'}
+        ${p.photo?`<img src="${safePhotoSrc(p.photo)}"/>`:'📷'}
         <input type="file" accept="image/*" onchange="handlePersonPhoto(event,'photo-preview-edit','${id}')">
       </div>
       <div style="flex:1">
@@ -10484,7 +10505,11 @@ function listenForIncomingNotifications(){
       }
     }catch(e){ console.warn('[NOTIF poll]',e); }
   };
-  _notifPollTimer = setInterval(_poll, 2000); // every 2 seconds
+  // Always clear an existing poll timer before assigning — without this
+  // a second listenForIncomingNotifications call (flaky auth, dev
+  // hot-reload) would stack a second 2 s poller per call.
+  if(_notifPollTimer) clearInterval(_notifPollTimer);
+  _notifPollTimer = setInterval(_poll, 2000);
   _poll(); // immediate first poll
 
   // Heartbeat watchdog — if we haven't polled in 30s, something killed the timer;
@@ -16047,19 +16072,30 @@ const SYNC = (() => {
           const labelColor  = isDark ? '#8fa5b8' : '#4a6278';
           const boxBg       = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
           const roleColor   = isDark ? '#8fa5b8' : '#5a7082';
-          const ph=photoUrl&&photoUrl.length>10
-            ?`<img src="${photoUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
-            :`<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${initials}</div>`;
+          // XSS-hardened: d.* comes from Firebase tac_locs which any
+          // teammate can write. A crafted name like "<img src=x onerror=…>"
+          // used to execute inside the InfoWindow. Run every field through
+          // escHtml and also filter photoUrl to https:/data: schemes so
+          // an attacker can't smuggle javascript: URLs into the <img src>.
+          const _safePhotoUrl = (photoUrl && /^(https?:|data:image\/)/i.test(photoUrl)) ? photoUrl : '';
+          const ph = _safePhotoUrl && _safePhotoUrl.length > 10
+            ?`<img src="${escHtml(_safePhotoUrl)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:3px solid ${ringColor};flex-shrink:0"/>`
+            :`<div style="width:40px;height:40px;border-radius:50%;background:${bgColor};border:3px solid ${ringColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0">${escHtml(initials)}</div>`;
+          const _name   = escHtml(d.name || '');
+          const _role   = escHtml(d.role || '');
+          const _status = escHtml(d.status || 'פעיל');
+          const _acc    = escHtml(String(d.acc == null ? '--' : d.acc));
+          const _spd    = escHtml(String(d.spd == null ? 0  : d.spd));
           const iw=new google.maps.InfoWindow({content:
             `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:220px;background:${bgColorIW};color:${textColor};border-radius:8px">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${ph}<div>
-                <div style="font-size:15px;font-weight:800;color:${ringColor}">${d.name}${reallyIsMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
-                <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${d.role||''}</div></div></div>
+                <div style="font-size:15px;font-weight:800;color:${ringColor}">${_name}${reallyIsMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
+                <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${_role}</div></div></div>
               <div style="background:${boxBg};border-radius:8px;padding:9px 12px;font-size:12px;display:grid;grid-template-columns:auto 1fr;gap:5px 12px">
-                <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${d.status||'פעיל'}</span>
-                <span style="color:${labelColor};font-weight:600">📡 דיוק</span><span style="color:${textColor};font-weight:700">${d.acc||'--'} מ'</span>
-                <span style="color:${labelColor};font-weight:600">⚡ מהירות</span><span style="color:${textColor};font-weight:700">${d.spd||0} קמ"ש</span>
-                <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${ageStr}</span></div></div>`
+                <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${_status}</span>
+                <span style="color:${labelColor};font-weight:600">📡 דיוק</span><span style="color:${textColor};font-weight:700">${_acc} מ'</span>
+                <span style="color:${labelColor};font-weight:600">⚡ מהירות</span><span style="color:${textColor};font-weight:700">${_spd} קמ"ש</span>
+                <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${escHtml(ageStr)}</span></div></div>`
           });
           iw.open(window.map, _liveMarkers[markerKey]);
           window._infoWindows.push(iw);
@@ -16191,9 +16227,14 @@ const SYNC = (() => {
     [0, 300, 1500, 3500].forEach(ms => setTimeout(rerenderMarkers, ms));
   }
   function loadPhotos(){
-    // 1. Real-time SDK subscription (primary path)
+    // 1. Real-time SDK subscription (primary path). Detach any prior
+    // listener first — loadPhotos may be called more than once per
+    // session (openSetup → init again, connection retry) and each
+    // fresh .on('value') adds another subscription to the same ref,
+    // so every photo update used to fire N times.
     if(_db){
       try {
+        _db.ref('tac_photos').off('value');
         _db.ref('tac_photos').on('value', snap=>{
           _applyPhotosSnapshot(snap.val());
         }, err => console.warn('[SYNC] tac_photos subscription failed:', err));
@@ -16299,11 +16340,27 @@ const PUSH = (() => {
   let _sa = null; // service account JSON
 
   function loadSA(){
-    try{ _sa = JSON.parse(localStorage.getItem('tac_sa_json')||'null'); }catch(e){ _sa=null; }
+    // SA JSON holds a private_key. Prefer sessionStorage so it's gone
+    // when the tab closes (shared device protection). Auto-migrate any
+    // legacy localStorage copy once, then remove it. The canonical
+    // source is Firebase tac_config/sa_json — syncSAFromFirebase pulls
+    // it on every session.
+    try {
+      let raw = sessionStorage.getItem('tac_sa_json');
+      if(!raw){
+        raw = localStorage.getItem('tac_sa_json');
+        if(raw){
+          sessionStorage.setItem('tac_sa_json', raw);
+          localStorage.removeItem('tac_sa_json');
+        }
+      }
+      _sa = JSON.parse(raw || 'null');
+    } catch(e){ _sa = null; }
     return !!(_sa && _sa.private_key && _sa.client_email);
   }
   function saveSA(json){
-    localStorage.setItem('tac_sa_json', json);
+    sessionStorage.setItem('tac_sa_json', json);
+    try { localStorage.removeItem('tac_sa_json'); } catch(_){}
     loadSA();
     // Also save to Firebase so all other devices auto-sync (admin write)
     try{
@@ -16320,7 +16377,8 @@ const PUSH = (() => {
       const snap = await window._db.ref('tac_config/sa_json').once('value');
       const json = snap.val();
       if(json && typeof json === 'string'){
-        localStorage.setItem('tac_sa_json', json);
+        sessionStorage.setItem('tac_sa_json', json);
+        try { localStorage.removeItem('tac_sa_json'); } catch(_){}
         loadSA();
         console.log('[PUSH] SA synced from Firebase');
         return true;
