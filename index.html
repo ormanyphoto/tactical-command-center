@@ -5656,16 +5656,23 @@ function _personStatus(p){
     return {key:'enroute',lbl:'🚗 בדרך',badge:'b-deployed',order:1};
   }
   if(app && app.approved) return {key:'approved',lbl:'⏳ מאשר',badge:'b-onduty',order:2};
-  // Live availability from the operator-bar status popover (tac_locs.status
-  // published by SYNC.updateStatus). When a team member sets themselves to
-  // "לא זמין" / "כוננות", the כוחות list should reflect that immediately —
-  // not keep showing them as "זמין" based on the static PERSONNEL.available.
+  // Live availability. For the current user we trust the operator-bar's
+  // _operatorStatus first, because Firebase fallback polls of tac_locs
+  // sometimes overwrite the optimistic _liveLocs entry with stale data
+  // before the Firebase write round-trips — making the user's own row
+  // revert to "זמין" seconds after they pick "כוננות". For everyone
+  // else we read _liveLocs[p.id].status published by their SYNC.
+  const _u = (typeof AUTH !== 'undefined') ? AUTH.getUser() : null;
   const liveLoc = (window._liveLocs || {})[p.id];
-  const liveStatus = liveLoc && liveLoc.status;
+  let liveStatus = liveLoc && liveLoc.status;
+  if(_u && p.id === _u.id && typeof _operatorStatus === 'string') liveStatus = _operatorStatus;
+  // "standby" is grouped with "available" in sort order so the operator
+  // doesn't see their own row vanish to the bottom of the list when they
+  // go on standby — the visual badge + color still distinguish them.
   if(liveStatus === 'busy')    return {key:'busy',   lbl:'❌ לא זמין', badge:'b-unavail', order:5};
-  if(liveStatus === 'standby') return {key:'standby',lbl:'⏳ כוננות',  badge:'b-onduty',  order:4};
-  if(p.available) return {key:'available',lbl:'זמין',badge:'b-active',order:3};
-  return {key:'unavailable',lbl:'לא זמין',badge:'b-unavail',order:6};
+  if(liveStatus === 'standby') return {key:'standby',lbl:'⏳ כוננות',  badge:'b-onduty',  order:3};
+  if(p.available)              return {key:'available',lbl:'זמין',    badge:'b-active',  order:3};
+  return {key:'unavailable',   lbl:'לא זמין',  badge:'b-unavail', order:6};
 }
 function _renderUnitsListOnly(el){
   if(!el) return;
@@ -5700,6 +5707,10 @@ function _renderUnitsListOnly(el){
       rowBg = 'rgba(29,108,255,0.06)'; borderClr = 'rgba(29,108,255,0.3)'; dotClr = '#29c5f6';
     } else if(st.key === 'approved'){
       rowBg = 'rgba(240,176,0,0.06)'; borderClr = 'rgba(240,176,0,0.25)'; dotClr = '#f0b000';
+    } else if(st.key === 'standby'){
+      rowBg = 'rgba(240,176,0,0.06)'; borderClr = 'rgba(240,176,0,0.35)'; dotClr = '#f0b000';
+    } else if(st.key === 'busy'){
+      rowBg = 'var(--panel2)'; borderClr = 'rgba(255,51,51,0.35)'; dotClr = '#ff3333';
     } else if(p.available){
       rowBg = 'var(--panel2)'; borderClr = 'rgba(61,255,82,0.15)'; dotClr = '#3dff52';
     } else {
