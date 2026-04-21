@@ -4915,13 +4915,13 @@ function renderNavigationP(c){
     pickerOpts += '</optgroup>';
   }
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
+  <div class="form-g addr-wrap"><label>נקודת מוצא</label><input type="text" id="nav-from" placeholder="כתובת התחלה..."/></div>
+  <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>יעד מרשימה</label>
     <select id="nav-picker" onchange="navPickDestination(this.value)" style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;font-family:var(--font);outline:none">
       ${pickerOpts}
     </select>
   </div>
-  <div class="form-g addr-wrap"><label>נקודת מוצא</label><input type="text" id="nav-from" placeholder="כתובת התחלה..."/></div>
-  <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">
     <button class="btn-pri" onclick="calcNavRoute()">🧭 חשב מסלול</button>
