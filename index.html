@@ -3595,6 +3595,33 @@ async function calcNavRoute(){
     }
   });
 }
+// Destination picker in renderNavigationP — fill #nav-to from a mission
+// or an active emergency-notification destination/venue. Also triggers
+// the autocomplete input event so Google's bound Places Autocomplete
+// doesn't try to validate the typed value.
+function navPickDestination(v){
+  if(!v) return;
+  const dest = document.getElementById('nav-to');
+  if(!dest) return;
+  let addr = '';
+  if(v.startsWith('msn:')){
+    const m = MISSIONS.find(x => x.id === v.slice(4));
+    if(m) addr = m.location || (m.lat+','+m.lng);
+  } else if(v === 'notif:dest'){
+    const d = window._activeNotifDest;
+    if(d) addr = d.address || (d.lat+','+d.lng);
+  } else if(v.startsWith('notif:v')){
+    const idx = parseInt(v.slice(7), 10);
+    const ven = (window._activeNotifVenues || [])[idx];
+    if(ven) addr = ven.address || ven.name || (ven.lat+','+ven.lng);
+  }
+  if(!addr) return;
+  dest.value = addr;
+  dest.dispatchEvent(new Event('input'));
+  // Auto-fill origin with current location if empty — saves a tap.
+  const from = document.getElementById('nav-from');
+  if(from && !from.value) navFromMyLocation();
+}
 async function navFromMyLocation(){
   if(!navigator.geolocation)return;
   navigator.geolocation.getCurrentPosition(pos=>{
@@ -4858,7 +4885,41 @@ async function sendAiMsg(){
 // ── NAVIGATION PANEL ──
 function renderNavigationP(c){
   if(!c)c=document.getElementById('rp-body');
+  // Build the destination picker: active missions + current emergency
+  // notification destination/venues. Keeping the free-text input as well
+  // so the user still has the typed-address path when the destination
+  // hasn't been created as a mission/notif yet.
+  const missions = MISSIONS.filter(m => (m.status==='active' || m.status==='urgent') && m.lat && m.lng);
+  const notifDest = window._activeNotifDest;
+  const notifVenues = (window._activeNotifVenues || []).filter(v => v && v.lat && v.lng);
+  let pickerOpts = '<option value="">— בחר יעד מהמערכת —</option>';
+  if(missions.length){
+    pickerOpts += '<optgroup label="📋 משימות פעילות">';
+    missions.forEach(m => {
+      const label = (m.id + ': ' + (m.title||'משימה')).replace(/"/g,'&quot;');
+      const addr = m.location || (m.lat.toFixed(5)+', '+m.lng.toFixed(5));
+      pickerOpts += `<option value="msn:${m.id}">${label} — ${addr}</option>`;
+    });
+    pickerOpts += '</optgroup>';
+  }
+  if(notifDest || notifVenues.length){
+    pickerOpts += '<optgroup label="📢 הודעת חירום פעילה">';
+    if(notifDest && notifDest.lat && notifDest.lng){
+      const addr = (notifDest.address || (notifDest.lat.toFixed(5)+', '+notifDest.lng.toFixed(5))).replace(/"/g,'&quot;');
+      pickerOpts += `<option value="notif:dest">${addr} (יעד ראשי)</option>`;
+    }
+    notifVenues.forEach((v, i) => {
+      const addr = (v.address || v.name || (v.lat.toFixed(5)+', '+v.lng.toFixed(5))).replace(/"/g,'&quot;');
+      pickerOpts += `<option value="notif:v${i}">${addr}</option>`;
+    });
+    pickerOpts += '</optgroup>';
+  }
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
+  <div class="form-g"><label>יעד מרשימה</label>
+    <select id="nav-picker" onchange="navPickDestination(this.value)" style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;font-family:var(--font);outline:none">
+      ${pickerOpts}
+    </select>
+  </div>
   <div class="form-g addr-wrap"><label>נקודת מוצא</label><input type="text" id="nav-from" placeholder="כתובת התחלה..."/></div>
   <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
@@ -4867,7 +4928,7 @@ function renderNavigationP(c){
     <button class="btn-sec" style="margin:0" onclick="navFromMyLocation()">📍 מיקומי</button>
   </div>
   <div class="sec-hd">ניווט למשימה</div>
-  ${MISSIONS.filter(m=>m.status==='active'||m.status==='urgent').map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
+  ${missions.map(m=>`<div style="background:var(--panel2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:12px;font-weight:700;color:var(--texthi)">${m.id}: ${m.title}</div><div style="font-size:10px;color:var(--text3)">${m.lat.toFixed(4)}°, ${m.lng.toFixed(4)}°</div></div><button class="act-btn" onclick="navToMission('${m.id}')">🧭 נווט</button></div>`).join('')||'<p style="font-size:12px;color:var(--text3)">אין משימות פעילות</p>'}`;
   // Attach Places Autocomplete to nav inputs
   if(window._googleReady&&google.maps.places){
     ['nav-from','nav-to'].forEach(id=>{
