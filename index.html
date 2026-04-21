@@ -2271,17 +2271,43 @@ function onGoogleMapsReady(){
 
   // Global kill-switch for broken-image placeholders inside the map DOM.
   // Regardless of what Google Maps or any overlay tries to load, if it
-  // fails, we hide the element instead of showing Chrome's torn-paper icon.
-  const mapEl2 = document.getElementById('map');
-  if(mapEl2 && !mapEl2.__brokenImgGuard){
-    mapEl2.__brokenImgGuard = true;
-    mapEl2.addEventListener('error', e => {
+  // fails, we hide the element instead of showing Chrome's torn-paper
+  // icon. Bugs the guard used to have that are now fixed:
+  //   • It targeted #map, but our container is #gmap — guard never
+  //     fired. Now bound to #gmap + #map-wrap (captures overlays that
+  //     Maps injects as siblings of #gmap, e.g. the DirectionsRenderer's
+  //     internal waypoint icons).
+  //   • Error events from <img> don't bubble, so capture:true on the
+  //     widest container gives us the best chance to catch them before
+  //     they paint.
+  ['gmap','map-wrap','fm-map-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el || el.__brokenImgGuard) return;
+    el.__brokenImgGuard = true;
+    el.addEventListener('error', e => {
       const t = e.target;
-      if(t && t.tagName === 'IMG'){
+      if(!t) return;
+      if(t.tagName === 'IMG'){
+        // Zero-out the broken <img> so Chrome/Android don't paint the
+        // torn-paper placeholder. Using visibility (not display:none)
+        // so Maps' own layout math doesn't collapse.
         t.style.visibility = 'hidden';
         t.style.opacity = '0';
+        // Also strip src so the browser doesn't re-render the glyph
+        // on next reflow.
+        try { t.removeAttribute('src'); } catch(_){}
       }
-    }, true); // capture so we catch before bubbling
+    }, true);
+  });
+  // CSS `background-image: url(...)` that 404s leaves a transparent
+  // box in WebKit/Blink (no torn glyph) but shows a broken icon in
+  // some Android WebView builds. Inject a stylesheet that explicitly
+  // sets no-fallback-glyph behavior on all children of #gmap.
+  if(!document.getElementById('_tcc-broken-img-css')){
+    const s = document.createElement('style');
+    s.id = '_tcc-broken-img-css';
+    s.textContent = '#gmap img[src=""], #gmap img:not([src]){display:none!important}';
+    document.head.appendChild(s);
   }
 
   // Map events
