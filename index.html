@@ -16351,18 +16351,12 @@ document.addEventListener('click', (e) => {
   pop.classList.remove('open');
 });
 function operatorNavigate(){
-  const lat = window._lastLat, lng = window._lastLng;
-  if(lat == null || lng == null){
-    showToast({icon:'⚠️', title:'הפעל GPS תחילה', type:'warn'});
-    return;
-  }
-  const msn = (typeof MISSIONS !== 'undefined')
-    ? MISSIONS.filter(m => m.status==='active' && m.lat)[0]
-    : null;
-  const url = msn
-    ? 'https://www.google.com/maps/dir/?api=1&origin='+lat+','+lng+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving'
-    : 'https://maps.google.com/?q='+lat+','+lng;
-  window.open(url, '_blank');
+  // Open the in-app Google-navigation panel (same as the main nav tab)
+  // instead of dumping the user into external Google Maps with their
+  // current location only. The panel lets them type/pick a destination
+  // and see directions routed through the tactical map.
+  if(typeof mobileGoView === 'function') mobileGoView('navigation');
+  else if(typeof goView === 'function') goView('navigation');
 }
 // Keep the share-location button reflecting the current privacy state so
 // the operator-bar visually matches the toggle on the map.
