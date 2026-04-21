@@ -69,6 +69,24 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
+
+        // ── Reject bogus / stale / low-accuracy fixes ─────────────────────────
+        // iOS delivers a cached-coarse first fix almost instantly (sometimes
+        // off by 10+ km) before real GPS locks. Publishing that to Firebase
+        // teleports the operator to the wrong map pin. Filter:
+        //   • horizontalAccuracy < 0  → invalid reading
+        //   • horizontalAccuracy > 100m → too coarse for operational use
+        //   • timestamp > 15s old     → cached from a previous session / WKWebView
+        if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 100 {
+            NSLog("[Loc] reject acc=\(loc.horizontalAccuracy)m (out of range)")
+            return
+        }
+        let age = -loc.timestamp.timeIntervalSinceNow
+        if age > 15 {
+            NSLog("[Loc] reject stale fix age=\(age)s")
+            return
+        }
+
         let spd = max(0, loc.speed) // clamp negatives (means "unknown")
         let hdg = max(0, loc.course)
         onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)

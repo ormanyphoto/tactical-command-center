@@ -76,9 +76,17 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         case "startLocation":
             if locationManager == nil { locationManager = LocationManager() }
             locationManager?.onUpdate = { [weak self] lat, lng, acc, spd, hdg in
-                self?.webView.evaluateJavaScript(
-                    "window.dispatchEvent(new CustomEvent('tcc-native-loc',{detail:{lat:\(lat),lng:\(lng),acc:\(acc),spd:\(spd),hdg:\(hdg),ts:Date.now()}}))"
+                // Use %.7f for lat/lng (≈1 cm resolution) to avoid Swift
+                // default Double→String ever producing scientific notation
+                // or locale-specific decimal separators that would break
+                // JS JSON parsing. accuracy/speed/heading get 2 decimals.
+                let js = String(
+                    format: "window.dispatchEvent(new CustomEvent('tcc-native-loc',{detail:{lat:%.7f,lng:%.7f,acc:%.2f,spd:%.2f,hdg:%.2f,ts:Date.now()}}))",
+                    lat, lng, acc, spd, hdg
                 )
+                DispatchQueue.main.async {
+                    self?.webView.evaluateJavaScript(js, completionHandler: nil)
+                }
             }
             locationManager?.start()
         case "stopLocation":
@@ -166,10 +174,15 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
       };
 
       // ─── Geolocation shim ────────────────────────────────────────────────
-      // WKWebView has no built-in geolocation. We rewrite navigator.geolocation
-      // to call through to Core Location via the native bridge. The web app's
-      // existing navigator.geolocation.watchPosition / getCurrentPosition calls
-      // (SYNC._doPublish, GPS widgets, manual placement, etc.) work unchanged.
+      // WKWebView on iOS 16+ exposes a frozen `navigator.geolocation` object
+      // whose built-in implementation often returns cached / coarse Apple
+      // location-service fixes that don't match Core Location's high-accuracy
+      // positions (causing "live" pin offset from real location on map).
+      // Fix: REPLACE the entire navigator.geolocation object atomically with
+      // our native-bridge shim — the WKWebView implementation is then
+      // unreachable from web code. If the property itself is non-configurable
+      // (iOS sometimes freezes navigator too) we fall back to per-method
+      // patching with defineProperty.
       var _lastNativePos = null;
       var _watchers = {}; // id → callback object
       var _nextWatchId = 1;
@@ -177,7 +190,7 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         return {
           coords: {
             latitude: p.lat, longitude: p.lng,
-            accuracy: p.acc || 10,
+            accuracy: (p.acc>0?p.acc:10),
             altitude: null, altitudeAccuracy: null,
             heading: (p.hdg >= 0 ? p.hdg : null),
             speed: (p.spd >= 0 ? p.spd : null)
@@ -193,22 +206,11 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
           try{ _watchers[id].success && _watchers[id].success(pos); }catch(err){}
         });
       });
-      // Patch methods on the existing navigator.geolocation object.
-      // Some WKWebView versions freeze these methods — we use
-      // Object.defineProperty with configurable:true as a fallback so
-      // the override sticks even if simple assignment is read-only.
-      function _installGeoMethod(name, fn){
-        try { navigator.geolocation[name] = fn; } catch(_){}
-        try {
-          Object.defineProperty(navigator.geolocation, name, {
-            value: fn, writable: true, configurable: true, enumerable: true
-          });
-        } catch(_){}
-      }
-      if(navigator.geolocation){
-        post('nativeLog',{msg:'[geo-shim] installing overrides'});
-        _installGeoMethod('getCurrentPosition', function(success, error, options){
-          if(_lastNativePos && (Date.now() - (_lastNativePos.ts||0) < 15000)){
+
+      var _nativeGeo = {
+        getCurrentPosition: function(success, error, options){
+          // Prefer a fresh native fix; if we have one < 10s old, return it.
+          if(_lastNativePos && (Date.now() - (_lastNativePos.ts||0) < 10000)){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
             return;
           }
@@ -229,24 +231,54 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             if(_lastNativePos){ try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){} }
             else if(error){ try{ error({code:3, message:'Timeout (native shim)'}); }catch(_){} }
           }, timeout);
-        });
-        _installGeoMethod('watchPosition', function(success, error, options){
+        },
+        watchPosition: function(success, error, options){
           var id = _nextWatchId++;
           _watchers[id] = { success: success, error: error };
-          post('nativeLog',{msg:'[geo-shim] watchPosition called, id='+id});
+          post('nativeLog',{msg:'[geo-shim] watchPosition id='+id});
           try{ post('startLocation',{}); }catch(_){}
           if(_lastNativePos){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
           }
           return id;
-        });
-        _installGeoMethod('clearWatch', function(id){
+        },
+        clearWatch: function(id){
           delete _watchers[id];
           if(Object.keys(_watchers).length === 0){
             try{ post('stopLocation',{}); }catch(_){}
           }
-        });
+        }
+      };
+
+      // Atomically replace the whole object — survives WKWebView freezing
+      // individual methods. Try navigator.geolocation = _nativeGeo first
+      // (most reliable when it works), then defineProperty on navigator,
+      // then per-method defineProperty as last resort.
+      var _installed = false;
+      try { navigator.geolocation = _nativeGeo; _installed = (navigator.geolocation === _nativeGeo); } catch(_){}
+      if(!_installed){
+        try {
+          Object.defineProperty(navigator, 'geolocation', {
+            value: _nativeGeo, writable: false, configurable: true, enumerable: true
+          });
+          _installed = (navigator.geolocation === _nativeGeo);
+        } catch(_){}
       }
+      if(!_installed && navigator.geolocation){
+        // Fallback: patch each method individually
+        function _installGeoMethod(name, fn){
+          try { navigator.geolocation[name] = fn; } catch(_){}
+          try {
+            Object.defineProperty(navigator.geolocation, name, {
+              value: fn, writable: true, configurable: true, enumerable: true
+            });
+          } catch(_){}
+        }
+        _installGeoMethod('getCurrentPosition', _nativeGeo.getCurrentPosition);
+        _installGeoMethod('watchPosition',      _nativeGeo.watchPosition);
+        _installGeoMethod('clearWatch',         _nativeGeo.clearWatch);
+      }
+      post('nativeLog',{msg:'[geo-shim] install='+(_installed?'whole-object':'method-patch')});
 
       document.addEventListener('DOMContentLoaded', function(){
         try { window.TCC_NATIVE.requestPushToken(); } catch(_){}
