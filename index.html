@@ -307,7 +307,6 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 /* Tablet (768-1024): SOS button visible, positioned below emergency button */
 @media(min-width:768px) and (max-width:1024px){#map-sos-btn{bottom:28px;width:140px;font-size:13px;padding:9px 0}}
 /* ── DEPARTURE BANNER — shown after user approved, until they press "יצאתי לדרך" ── */
-/* z-index:9500 so it stacks ABOVE #field-mode (9000) on mobile */
 #depart-banner{display:none;position:fixed;top:62px;left:0;right:0;z-index:9500;background:linear-gradient(90deg,rgba(10,80,20,0.97),rgba(18,120,35,0.97));color:#fff;padding:10px 18px;align-items:center;gap:12px;border-bottom:2px solid rgba(61,255,82,0.55);backdrop-filter:blur(8px);font-family:var(--font);direction:rtl;box-shadow:0 6px 22px rgba(0,0,0,0.45)}
 #depart-banner.active{display:flex;animation:dpbSlide 0.35s ease-out}
 @keyframes dpbSlide{from{transform:translateY(-110%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -321,7 +320,6 @@ body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--bord
 .dpb-depart:hover{background:#5cff6e;transform:translateY(-1px)}
 .dpb-cancel{background:none;border:none;color:rgba(255,255,255,0.55);font-size:17px;cursor:pointer;padding:5px 7px;flex-shrink:0;line-height:1}
 .dpb-cancel:hover{color:#fff}
-body.fm-active #depart-banner{top:56px}
 @media(max-width:600px){#depart-banner{top:54px;padding:8px 10px;gap:8px}.dpb-sub{display:none}.dpb-title{font-size:12px}.dpb-depart{padding:8px 12px;font-size:11px}}
 body.bo-active #depart-banner{display:none !important}
 /* ── SOS DISTRESS SYSTEM ── */
@@ -703,60 +701,18 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 #draw-ctrl-bar .dcb-cancel{background:none;color:var(--danger);border:1px solid var(--danger);border-radius:14px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif}
 
 /* ══════════════════════════════════════════════════════════
-   FIELD MODE — Mobile UI for team members
+   OPERATOR BAR — field-operator quick actions on mobile
    ══════════════════════════════════════════════════════════ */
-#field-mode{position:fixed;inset:0;z-index:9000;background:#07090a;display:none;flex-direction:column;font-family:'Heebo',sans-serif;direction:rtl}
-#field-mode.active{display:flex}
-#fm-topbar{height:56px;background:rgba(13,16,20,0.98);border-bottom:1px solid #1a2838;display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;position:relative}
-#fm-logo{display:flex;align-items:center;gap:8px;flex-shrink:0}
-#fm-logo-hex{font-size:28px;font-weight:900;line-height:1;color:var(--accent);display:flex;align-items:center}
-#fm-logo-text{display:flex;flex-direction:column;gap:1px;line-height:1}
-#fm-logo-title{font-size:16px;font-weight:900;color:var(--accent);font-family:var(--font2);letter-spacing:0.04em;line-height:1}
-#fm-logo-sub{font-size:10px;font-weight:400;color:var(--text3);letter-spacing:0.02em;line-height:1}
-#fm-theme-btn{background:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;font-size:14px;color:rgba(255,255,255,0.85);cursor:pointer;line-height:1;flex-shrink:0}
-#fm-theme-btn:hover{border-color:var(--accent);color:var(--accent)}
-body.day #fm-topbar{background:#fff;border-bottom-color:#d4dde6}
-body.day #fm-name-badge{background:#f1f5f9;border-color:#cbd5e1;color:#1f2937}
-body.day #fm-logout-btn{color:rgba(30,41,59,0.65);border-color:rgba(30,41,59,0.2)}
-body.day #fm-theme-btn{color:rgba(30,41,59,0.85);border-color:rgba(30,41,59,0.2)}
-#fm-name-badge{background:#1a2838;border:1px solid #2e4460;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;color:#d8eef8;display:flex;align-items:center;gap:6px}
-#fm-name-badge .fm-dot{width:8px;height:8px;border-radius:50%;background:#3dff52;animation:fmpulse 2s infinite}
-@keyframes fmpulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.85)}}
-#fm-sos-btn{margin-right:auto;background:#ff3333;color:#fff;border:none;border-radius:10px;padding:7px 14px;font-size:13px;font-weight:900;cursor:pointer;font-family:'Heebo',sans-serif;letter-spacing:0.04em}
-#fm-logout-btn{background:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 10px;font-size:15px;color:rgba(255,255,255,0.55);cursor:pointer;line-height:1;flex-shrink:0}
-#fm-logout-btn:hover{color:#ff6b6b;border-color:#ff6b6b}
-#fm-map-wrap{flex:1;position:relative;overflow:hidden}
-#fm-gmap{position:absolute;inset:0;width:100%;height:100%}
-#fm-accuracy-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(13,16,20,0.88);border:1px solid #2e4460;border-radius:20px;padding:4px 14px;font-size:11px;font-weight:700;color:#9ab8c8;display:none;gap:10px;white-space:nowrap;z-index:10}
-#fm-accuracy-pill.visible{display:flex}
-#fm-bottom{background:rgba(13,16,20,0.98);border-top:1px solid #1a2838;padding:12px 14px 20px;flex-shrink:0;display:flex;flex-direction:column;gap:10px}
-#fm-gps-row{display:flex;gap:8px}
-#fm-gps-toggle{flex:1;height:52px;border-radius:12px;border:2px solid #2e4460;background:#121620;color:#5a7a90;font-size:14px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s}
-#fm-gps-toggle.on{border-color:#3dff52;background:rgba(61,255,82,0.08);color:#3dff52}
-#fm-gps-toggle .fm-gps-icon{font-size:20px}
-#fm-nav-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#29c5f6;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-#fm-tools-btn{width:52px;height:52px;border-radius:12px;border:1px solid #2e4460;background:#121620;color:#3dff52;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-body.day #fm-tools-btn{background:#ffffff;border-color:#cbd5e1;color:#15803d}
-/* The Map & Tools panel lives outside #field-mode (which is z-index 9000).
-   When the field user opens it we need the panel above the field overlay. */
-body.fm-active #right-panel.mobile-open{z-index:9100!important}
-#fm-status-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.fm-status-btn{height:38px;border-radius:8px;border:1px solid #1a2838;background:#0d1014;color:#5a7a90;font-size:11px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;transition:all 0.15s}
-.fm-status-btn.sel{border-color:var(--sc);background:rgba(var(--scr),0.12);color:var(--sc)}
-#fm-mission-bar{background:#121620;border:1px solid #1a2838;border-radius:10px;padding:10px 12px;font-size:12px;color:#5a7a90;display:none}
-#fm-mission-bar.has-mission{display:block;border-color:#29c5f6;color:#d8eef8}
-/* Day-mode variants for the field bottom bar — without these the panel
-   stayed dark while the rest of the UI flipped to light mode. */
-body.day #fm-bottom{background:#f7f9fc;border-top-color:#d4dde6}
-body.day #fm-gps-toggle{background:#ffffff;border-color:#cbd5e1;color:#475569}
-body.day #fm-gps-toggle.on{background:rgba(34,197,94,0.10);border-color:#22c55e;color:#15803d}
-body.day #fm-nav-btn{background:#ffffff;border-color:#cbd5e1;color:#1d4ed8}
-body.day .fm-status-btn{background:#ffffff;border-color:#cbd5e1;color:#475569}
-body.day .fm-status-btn.sel{color:var(--sc);background:rgba(var(--scr),0.15);border-color:var(--sc)}
-body.day #fm-mission-bar{background:#ffffff;border-color:#cbd5e1;color:#475569}
-body.day #fm-mission-bar.has-mission{border-color:#1d4ed8;color:#1e293b}
-body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e1;color:#475569}
-#fm-mission-title{font-weight:800;font-size:13px;color:#29c5f6;margin-bottom:2px}
+#operator-bar{display:none;position:fixed;bottom:60px;left:0;right:0;height:52px;background:var(--panel);border-top:1px solid var(--border2);z-index:501;direction:rtl;align-items:stretch;padding:0}
+#operator-bar>button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:none;font-family:var(--font);color:var(--texthi);font-size:10px;font-weight:700;cursor:pointer;border-right:1px solid var(--border2);padding:4px 2px}
+#operator-bar>button:first-child{border-right:none}
+#operator-bar>button:hover,#operator-bar>button.on{color:var(--accent)}
+#operator-bar .op-icon{font-size:18px;line-height:1}
+#operator-bar #op-loc-btn.off{color:#ff7a1a}
+#op-status-popover{display:none;position:fixed;bottom:116px;right:10px;z-index:600;background:var(--panel);border:1px solid var(--border2);border-radius:10px;padding:6px;flex-direction:column;gap:4px;box-shadow:0 6px 24px rgba(0,0,0,0.4);direction:rtl}
+#op-status-popover.open{display:flex}
+.op-status-opt{background:var(--panel2,#1a2028);border:1px solid var(--border2);border-radius:8px;padding:8px 14px;font-family:var(--font);font-size:12px;font-weight:700;color:var(--texthi);cursor:pointer;text-align:right}
+.op-status-opt:hover,.op-status-opt.sel{border-color:var(--sc);color:var(--sc);background:rgba(var(--scr),0.12)}
 /* Live marker pulse */
 @keyframes lmpulse{0%{r:11;opacity:0.9}70%{r:18;opacity:0}100%{r:18;opacity:0}}
 .live-marker-ring{animation:lmpulse 2s infinite}
@@ -804,8 +760,9 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
   .nav-tabs{display:none}
   #topbar-logo-wrap{width:auto;border-left:none}
   #bottom-nav{display:flex}
+  #operator-bar{display:flex}
   #right-panel{width:320px}
-  #main{padding-bottom:60px}
+  #main{padding-bottom:112px}
   .tb-btn{padding:7px 12px;font-size:12px}
   #topbar-logo{font-size:14px}
   #logo-title{font-size:16px!important}
@@ -814,7 +771,7 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
 }
 @media (max-width:1024px){
   /* Tablet + Mobile: panel slides in from the RIGHT (RTL-correct) */
-  #right-panel{position:fixed;top:54px;right:0;left:auto;bottom:60px;z-index:400;width:320px!important;max-width:90vw;transform:translateX(100%);transition:transform 0.25s ease;border:none;box-shadow:-4px 0 20px rgba(0,0,0,0.4)}
+  #right-panel{position:fixed;top:54px;right:0;left:auto;bottom:112px;z-index:400;width:320px!important;max-width:90vw;transform:translateX(100%);transition:transform 0.25s ease;border:none;box-shadow:-4px 0 20px rgba(0,0,0,0.4)}
   #right-panel.mobile-open{transform:translateX(0)}
   #right-panel.hidden{transform:translateX(100%)!important}
   /* Show the hamburger menu button on tablet widths too */
@@ -840,9 +797,10 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
   #sys-clock{display:none}
   /* Keep only: menu btn, logo, alerts, SOS */
   .tb-btn:not(.tbdanger):not([onclick*="alerts"]){display:none}
-  #right-panel{width:100%!important;max-width:100vw;bottom:60px}
+  #right-panel{width:100%!important;max-width:100vw;bottom:112px}
   #bottom-nav{display:flex}
-  #main{padding-bottom:60px}
+  #operator-bar{display:flex}
+  #main{padding-bottom:112px}
   #topbar-logo-wrap{width:auto;border-left:none}
   #logo-hex{display:none}
   #topbar-logo{font-size:13px;white-space:nowrap}
@@ -1140,6 +1098,20 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
   </div>
 
   <!-- BOTTOM NAV (tablet + mobile) -->
+  <!-- OPERATOR BAR — field-operator quick actions (share location, status,
+       navigate). Replaces the old #field-mode overlay; sits above #bottom-nav
+       on mobile/tablet only and operates on the same map as command mode. -->
+  <div id="operator-bar">
+    <button id="op-loc-btn" onclick="toggleLocPrivacy()" title="שתף מיקום">
+      <span class="op-icon">📡</span><span class="op-label">שתף מיקום</span>
+    </button>
+    <button id="op-status-btn" onclick="toggleStatusPopover()" title="מצב זמינות">
+      <span class="op-icon" id="op-status-icon">✅</span><span class="op-label" id="op-status-label">זמין</span>
+    </button>
+    <button id="op-nav-btn" onclick="operatorNavigate()" title="ניווט">
+      <span class="op-icon">🧭</span><span class="op-label">ניווט</span>
+    </button>
+  </div>
   <div id="bottom-nav">
     <button class="bn-item active" data-v="map" onclick="mobileGoView('map')"><span class="bn-icon">🗺️</span>מפה</button>
     <button class="bn-item" data-v="units" onclick="mobileGoView('units')"><span class="bn-icon">👥</span>כוחות</button>
@@ -1298,53 +1270,14 @@ body.day #fm-accuracy-pill{background:rgba(255,255,255,0.94);border-color:#cbd5e
 <!-- MODAL -->
 <div id="modal-wrap"><div id="modal-box"><button id="modal-x" onclick="closeModal()" title="סגור" aria-label="סגור">✕</button><div id="modal-ttl"></div><div id="modal-body"></div><div class="modal-acts"><button id="modal-ok" onclick="modalConfirm()">✓ אישור</button><button id="modal-cancel" onclick="closeModal()">✕ ביטול</button></div></div></div>
 
-<!-- FIELD MODE — shown to team members on mobile -->
-<div id="field-mode">
-  <div id="fm-topbar">
-    <div id="fm-logo">
-      <span id="fm-logo-hex">⬡</span>
-      <div id="fm-logo-text">
-        <span id="fm-logo-title">מערכת מבצעים</span>
-        <span id="fm-logo-sub">שדה</span>
-      </div>
-    </div>
-    <div id="fm-name-badge"><span class="fm-dot"></span><span id="fm-display-name">אנונימי</span></div>
-    <div id="sync-dot" title="סטטוס חיבור"></div>
-    <button id="fm-theme-btn" onclick="setTheme(document.body.classList.contains('night')?'day':'night')" title="יום/לילה">🌙</button>
-    <button id="fm-sos-btn" onclick="FIELD.sos()">🆘 מצוקה</button>
-    <button id="fm-logout-btn" onclick="AUTH.logout()" title="יציאה">🚪</button>
-  </div>
-  <!-- Approvals bar — populated by _listenApprovals so חפ״ק / commanders in
-       field mode can see who is on the way + ETA without switching modes -->
-  <div id="fm-approvals-bar" style="display:none;background:rgba(34,197,94,0.08);border-bottom:1px solid rgba(34,197,94,0.25);padding:6px 10px;max-height:96px;overflow-y:auto;direction:rtl"></div>
-  <div id="fm-map-wrap">
-    <div id="fm-gmap"></div>
-    <div id="fm-accuracy-pill">
-      <span>📡 <span id="fm-acc">—</span></span>
-      <span>⚡ <span id="fm-spd">0</span> קמ"ש</span>
-      <span>🔋 <span id="fm-bat">—</span></span>
-    </div>
-  </div>
-  <div id="fm-bottom">
-    <div id="fm-mission-bar">
-      <div id="fm-mission-title">אין משימה פעילה</div>
-      <div id="fm-mission-sub" style="font-size:11px;color:#5a7a90;margin-top:2px"></div>
-    </div>
-    <div id="fm-gps-row">
-      <button id="fm-gps-toggle" onclick="FIELD.toggleGPS()">
-        <span class="fm-gps-icon">📡</span>
-        <span id="fm-gps-label">שתף מיקום</span>
-      </button>
-      <button id="fm-tools-btn" title="מפה וכלים" onclick="FIELD.openTools()">🗺️</button>
-      <button id="fm-nav-btn" title="נווט" onclick="FIELD.navigate()">🧭</button>
-    </div>
-    <div id="fm-status-row">
-      <button class="fm-status-btn sel" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="FIELD.setStatus('active',this)">✅ זמין</button>
-      <button class="fm-status-btn" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="FIELD.setStatus('standby',this)">⏳ כוננות</button>
-      <button class="fm-status-btn" data-s="busy" style="--sc:#ff3333;--scr:255,51,51" onclick="FIELD.setStatus('busy',this)">❌ לא זמין</button>
-    </div>
-    <button onclick="FIELD.switchToCommand()" style="background:none;border:1px solid #1a2838;border-radius:8px;padding:6px;font-size:11px;color:#344858;cursor:pointer;font-family:Heebo,sans-serif;width:100%">⬡ עבור למצב פיקוד</button>
-  </div>
+<!-- Field mode was consolidated into command mode. The operator-bar above
+     #bottom-nav plus the ROLE_PERMS hide/show already cover the field use
+     case with a single map and a single navigation stack. -->
+<!-- Status popover triggered from #op-status-btn -->
+<div id="op-status-popover">
+  <button class="op-status-opt" data-s="active" style="--sc:#3dff52;--scr:61,255,82" onclick="operatorSetStatus('active')">✅ זמין</button>
+  <button class="op-status-opt" data-s="standby" style="--sc:#ffc107;--scr:255,193,7" onclick="operatorSetStatus('standby')">⏳ כוננות</button>
+  <button class="op-status-opt" data-s="busy" style="--sc:#ff3333;--scr:255,51,51" onclick="operatorSetStatus('busy')">❌ לא זמין</button>
 </div>
 
 <!-- Firebase setup banner -->
@@ -1847,10 +1780,7 @@ const AUTH = (() => {
     _user = null;
     localStorage.removeItem('tac_auth_id');
     localStorage.removeItem('tac_auth_em');
-    // Hide field mode immediately so it doesn't flash before the reload
-    const fm = document.getElementById('field-mode');
-    if(fm) fm.classList.remove('active');
-    document.body.classList.remove('fm-active','bo-active');
+    document.body.classList.remove('bo-active');
     // Mark explicit logout so tacBoot won't auto-trigger biometric on the reload
     sessionStorage.setItem('tac_just_logged_out', '1');
     // Full reload — clears all in-memory state and returns to clean login screen
@@ -7669,12 +7599,6 @@ function boSettings(c){
     +'SYNC.startPublishing({name:n,role:r,status:\'active\'});'
     +'showToast({icon:\'✅\',title:\'זהות עודכנה\',type:\'success\'});}">💾 שמור זהות</button>'
     +'</div>'
-    // ── Mode switch ──
-    +'<div class="bo-section"><div class="bo-hd">📱 מצב הפעלה</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">'
-    +'<button class="btn-pri" onclick="localStorage.setItem(\'tac_mode\',\'command\');location.reload()">⬡ מצב פיקוד</button>'
-    +'<button class="btn-sec" style="margin:0" onclick="localStorage.setItem(\'tac_mode\',\'field\');location.reload()">📱 מצב שדה</button>'
-    +'</div></div>'
     // ── FCM Push Notifications ──
     +'<div class="bo-section"><div class="bo-hd">🔔 Push Notifications — FCM v1</div>'
     // Status row
@@ -9533,6 +9457,8 @@ function _applyLocPrivacyUI(){
       if(sub) sub.textContent = 'פרטיות — לא גלוי';
     }
   }
+  // Mirror onto the operator-bar's share-location button
+  if(typeof _applyOperatorLocUI === 'function') _applyOperatorLocUI();
 }
 // Apply saved state on load (called after map init)
 function initLocPrivacy(){
@@ -16315,255 +16241,84 @@ const PUSH = (() => {
 // ══════════════════════════════════════════════════════════
 // FIELD — Mobile field mode for team members
 // ══════════════════════════════════════════════════════════
-const FIELD = (() => {
-  let _fmap = null, _fMarker = null, _watchId = null, _status = 'active';
-  let _sharing = false, _myMission = null;
-
-  function _isMobile(){
-    return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 600;
+// ══════════════════════════════════════════════════════════
+// OPERATOR — replaces the old FIELD mode. Provides the three
+// field-operator actions (share location, availability status,
+// navigate) used by the #operator-bar above #bottom-nav. The
+// legacy `FIELD` name is kept as an alias so any third-party call
+// sites or debug consoles still work.
+// ══════════════════════════════════════════════════════════
+let _operatorStatus = 'active';
+const STATUS_META = {
+  active:  {icon:'✅', label:'זמין',    sc:'#3dff52', scr:'61,255,82'},
+  standby: {icon:'⏳', label:'כוננות',  sc:'#ffc107', scr:'255,193,7'},
+  busy:    {icon:'❌', label:'לא זמין', sc:'#ff3333', scr:'255,51,51'},
+};
+function _applyOperatorStatusUI(){
+  const meta = STATUS_META[_operatorStatus] || STATUS_META.active;
+  const ic = document.getElementById('op-status-icon');
+  const lb = document.getElementById('op-status-label');
+  if(ic) ic.textContent = meta.icon;
+  if(lb) lb.textContent = meta.label;
+  document.querySelectorAll('.op-status-opt').forEach(b => {
+    b.classList.toggle('sel', b.dataset.s === _operatorStatus);
+  });
+}
+function operatorSetStatus(s){
+  _operatorStatus = s;
+  _applyOperatorStatusUI();
+  document.getElementById('op-status-popover')?.classList.remove('open');
+  if(typeof SYNC !== 'undefined' && SYNC.updateStatus) SYNC.updateStatus(s);
+  const meta = STATUS_META[s] || STATUS_META.active;
+  showToast({icon: meta.icon, title:'סטטוס עודכן: '+meta.label, type:'info', duration:2000});
+}
+function toggleStatusPopover(){
+  document.getElementById('op-status-popover')?.classList.toggle('open');
+}
+// Close the popover when tapping outside it
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('op-status-popover');
+  const btn = document.getElementById('op-status-btn');
+  if(!pop || !pop.classList.contains('open')) return;
+  if(pop.contains(e.target) || (btn && btn.contains(e.target))) return;
+  pop.classList.remove('open');
+});
+function operatorNavigate(){
+  const lat = window._lastLat, lng = window._lastLng;
+  if(lat == null || lng == null){
+    showToast({icon:'⚠️', title:'הפעל GPS תחילה', type:'warn'});
+    return;
   }
-
-  function boot(){
-    // Only auto-enter field mode after the user is authenticated
-    const mode = localStorage.getItem('tac_mode');
-    if(_isMobile() && mode !== 'command' &&
-       typeof AUTH !== 'undefined' && AUTH.getUser()){
-      setTimeout(()=>enterFieldMode(), 400);
-    }
-  }
-
-  function enterFieldMode(){
-    const fm = document.getElementById('field-mode');
-    if(!fm) return;
-    fm.classList.add('active');
-    // Body class is used by the global approvals bar CSS to stack above
-    // field-mode and slot beneath its 56px topbar. The חפ״ק user (on mobile,
-    // always in field mode) relies on this to see approvals + ETAs without
-    // leaving field view.
-    document.body.classList.add('fm-active');
-    // Ask for name if not set
-    const name = localStorage.getItem('tac_field_name');
-    if(!name){ _askIdentity(); } else { _setName(name); }
-    _initMap();
-    _syncMyMission();
-    // Ensure the approvals listener is running even in field mode so
-    // חפ״ק commanders see who's confirmed + ETA without leaving field view.
-    if(typeof _subscribeActiveNotif === 'function') _subscribeActiveNotif();
-    if(typeof _refreshFieldApprovalsBar === 'function') _refreshFieldApprovalsBar();
-  }
-
-  function _askIdentity(){
-    document.getElementById('modal-ttl').innerHTML='👤 זיהוי שדה';
-    document.getElementById('modal-body').innerHTML=`
-      <div class="form-g"><label>שם מלא</label><input id="fi-name" class="form-inp" placeholder="שם ומשפחה"/></div>
-      <div class="form-g"><label>תפקיד</label>
-        <select id="fi-role" class="form-inp">
-          <option>לוחם</option><option>קצין</option><option>נהג</option>
-          <option>פרמדיק</option><option>מפקד צוות</option><option>קשר</option>
-        </select>
-      </div>`;
-    document.getElementById('modal-ok').textContent='✅ כניסה';
-    document.getElementById('modal-cancel').style.display='none';
-    modalCB=()=>{
-      const n=(document.getElementById('fi-name')?.value||'').trim()||'שדה';
-      const r=document.getElementById('fi-role')?.value||'לוחם';
-      localStorage.setItem('tac_field_name',n);
-      localStorage.setItem('tac_field_role',r);
-      _setName(n);
-      SYNC.startPublishing({name:n,role:r,status:_status});
-      document.getElementById('modal-cancel').style.display='';
-    };
-    document.getElementById('modal-wrap').style.display='flex';
-  }
-
-  function _setName(name){
-    const el=document.getElementById('fm-display-name'); if(el) el.textContent=name;
-    const role=localStorage.getItem('tac_field_role')||'שדה';
-    // Sync to native bridge so background service uses correct name
-    if(window.Android && typeof window.Android.setUserProfile === 'function'){
-      try { window.Android.setUserProfile(name, role); } catch(_){}
-    }
-    SYNC.startPublishing({name,role,status:_status});
-  }
-
-  function _initMap(){
-    // Field mode reuses the COMMAND map instance (window.map / #gmap).
-    // A separate _fmap meant every Map & Tools button (GPS toggle, base
-    // map switch, layers, GovMap, drawing, etc.) operated on a map the
-    // field user couldn't see — buttons appeared inert. By mounting the
-    // single shared #gmap node inside #fm-map-wrap the field user gets
-    // the full tactical map with every feature intact.
-    if(!window._googleReady || !window.map){
-      if(!_initMap._tries) _initMap._tries = 0;
-      if(_initMap._tries++ > 150) return;
-      setTimeout(_initMap, 400);
-      return;
-    }
-    const gmap = document.getElementById('gmap');
-    const wrap = document.getElementById('fm-map-wrap');
-    const placeholder = document.getElementById('fm-gmap');
-    if(gmap && wrap && gmap.parentElement !== wrap){
-      if(placeholder) placeholder.style.display = 'none';
-      wrap.insertBefore(gmap, wrap.firstChild);
-      // Drag every sibling that lives ON the map along with #gmap so the
-      // operator sees the same overlays they would in command mode:
-      //   - #loc-privacy-btn — visibility toggle
-      //   - #govmap-iframe — GovMap base-map iframe (otherwise stuck
-      //     behind field-mode, user sees a blank tactical map instead
-      //     of the government layer)
-      //   - #draw-mode-badge / #draw-ctrl-bar — drawing controls
-      ['loc-privacy-btn','govmap-iframe','draw-mode-badge','draw-ctrl-bar'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) wrap.appendChild(el);
-      });
-      setTimeout(() => {
-        try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
-      }, 60);
-    }
-    _fmap = window.map;
-  }
-
-  function toggleGPS(){
-    if(_sharing){ _stopSharing(); } else { _startSharing(); }
-  }
-
-  function _startSharing(){
-    _sharing=true;
-    const btn=document.getElementById('fm-gps-toggle');
-    const lbl=document.getElementById('fm-gps-label');
-    if(btn) btn.classList.add('on');
-    if(lbl) lbl.textContent='מחפש מיקום...';
-    document.getElementById('fm-accuracy-pill').classList.add('visible');
-
-    // Start Firebase publishing ONCE (it has its own watchPosition loop).
-    // Previously this was called on every position update, which created a
-    // new watch each time and caused location flicker + state confusion.
-    SYNC.startPublishing({
-      name:localStorage.getItem('tac_field_name')||'שדה',
-      role:localStorage.getItem('tac_field_role')||'שדה',
-      status:_status
-    });
-
-    function _onPos(pos, method){
-      const ll={lat:pos.coords.latitude, lng:pos.coords.longitude};
-      const acc=Math.round(pos.coords.accuracy);
-      const spd=Math.round((pos.coords.speed||0)*3.6);
-      const el=id=>document.getElementById(id);
-      // Update label to show method
-      const icons={GPS:'📡 GPS',WiFi:'📶 WiFi',IP:'🌐 IP'};
-      if(lbl) lbl.textContent='משתף — '+(icons[method]||method)+' ('+acc+'מ)';
-      if(el('fm-acc')) el('fm-acc').textContent=acc+'מ';
-      if(el('fm-spd')) el('fm-spd').textContent=spd;
-      if(navigator.getBattery) navigator.getBattery().then(b=>{
-        if(el('fm-bat')) el('fm-bat').textContent=Math.round(b.level*100)+'%';
-      });
-      // SYNC.startPublishing already renders the operator's avatar
-      // bubble on the shared map — we don't paint a duplicate dot here.
-      // Just follow the user by centering the shared map.
-      if(window.map) window.map.setCenter(ll);
-      window._lastLat = ll.lat;
-      window._lastLng = ll.lng;
-    }
-    // Use global cascade: GPS → WiFi → IP for FIELD UI updates only
-    _startWatch(_onPos);
-    // Keep _watchId reference for legacy stop check
-    _watchId = gpsWatchId || 1;
-  }
-
-  function _stopSharing(){
-    _sharing=false;
-    _stopWatch();
-    _watchId=null;
-    SYNC.stopPublishing();
-    const btn=document.getElementById('fm-gps-toggle');
-    const lbl=document.getElementById('fm-gps-label');
-    if(btn) btn.classList.remove('on');
-    if(lbl) lbl.textContent='שתף מיקום';
-    document.getElementById('fm-accuracy-pill').classList.remove('visible');
-  }
-
-  function setStatus(s, btn){
-    _status=s;
-    document.querySelectorAll('.fm-status-btn').forEach(b=>b.classList.remove('sel'));
-    if(btn) btn.classList.add('sel');
-    SYNC.updateStatus(s);
-    showToast({icon:'✅',title:'סטטוס עודכן: '+s,type:'info',duration:2000});
-  }
-
-  function navigate(){
-    const lat = window._lastLat, lng = window._lastLng;
-    if(lat == null || lng == null){
-      showToast({icon:'⚠️',title:'הפעל GPS תחילה',type:'warn'});
-      return;
-    }
-    // Find nearest active mission
-    const msn=MISSIONS.filter(m=>m.status==='active'&&m.lat)[0];
-    if(msn){
-      window.open('https://www.google.com/maps/dir/?api=1&origin='+lat+','+lng+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving','_blank');
-    } else {
-      window.open('https://maps.google.com/?q='+lat+','+lng,'_blank');
-    }
-  }
-
-  function sos(){
-    SYNC.updateStatus('urgent');
-    triggerSOS();
-    showToast({icon:'🆘',title:'SOS נשלח!',sub:'מיקומך שודר לפיקוד',type:'warn',duration:8000});
-  }
-
-  function _restoreMapToCommand(){
-    const gmap = document.getElementById('gmap');
-    const mapWrap = document.getElementById('map-wrap');
-    if(gmap && mapWrap && gmap.parentElement !== mapWrap){
-      mapWrap.insertBefore(gmap, mapWrap.firstChild);
-      ['loc-privacy-btn','govmap-iframe','draw-mode-badge','draw-ctrl-bar'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) mapWrap.appendChild(el);
-      });
-      setTimeout(() => {
-        try { google.maps.event.trigger(window.map, 'resize'); } catch(_){}
-      }, 60);
-    }
-  }
-
-  function switchToCommand(){
-    localStorage.setItem('tac_mode','command');
-    _restoreMapToCommand();
-    document.getElementById('field-mode').classList.remove('active');
-    document.body.classList.remove('fm-active');
-    showToast({icon:'⬡',title:'מצב פיקוד פעיל',type:'info'});
-  }
-
-  function _syncMyMission(){
-    // Show first active mission assigned to this user
-    const uid=localStorage.getItem('tac_uid');
-    const msn=MISSIONS.find(m=>m.status==='active');
-    const bar=document.getElementById('fm-mission-bar');
-    const title=document.getElementById('fm-mission-title');
-    const sub=document.getElementById('fm-mission-sub');
-    if(msn&&bar&&title){
-      bar.classList.add('has-mission');
-      title.textContent='📋 '+msn.title;
-      if(sub) sub.textContent=(msn.location||'')+(msn.priority?' · '+msn.priority:'');
-    }
-  }
-
-  function openTools(){
-    // Reuse the existing command Map & Tools panel (#right-panel) rather
-    // than duplicating all the buttons inside the field overlay. A CSS
-    // rule (body.fm-active #right-panel.mobile-open) lifts its z-index
-    // above #field-mode so the slide-in appears on top of the field map.
-    if(typeof goPanel !== 'function') return;
-    goPanel('draw');
-    const rp = document.getElementById('right-panel');
-    if(rp){
-      rp.classList.remove('hidden');
-      rp.classList.add('mobile-open');
-    }
-  }
-
-  return { boot, enterFieldMode, toggleGPS, setStatus, navigate, sos, switchToCommand, openTools };
-})();
+  const msn = (typeof MISSIONS !== 'undefined')
+    ? MISSIONS.filter(m => m.status==='active' && m.lat)[0]
+    : null;
+  const url = msn
+    ? 'https://www.google.com/maps/dir/?api=1&origin='+lat+','+lng+'&destination='+msn.lat+','+msn.lng+'&travelmode=driving'
+    : 'https://maps.google.com/?q='+lat+','+lng;
+  window.open(url, '_blank');
+}
+// Keep the share-location button reflecting the current privacy state so
+// the operator-bar visually matches the toggle on the map.
+function _applyOperatorLocUI(){
+  const btn = document.getElementById('op-loc-btn');
+  if(!btn) return;
+  const on = !!window._locPrivacyOn;
+  btn.classList.toggle('on', on);
+  btn.classList.toggle('off', !on);
+  const lbl = btn.querySelector('.op-label');
+  if(lbl) lbl.textContent = on ? 'גלוי לצוות' : 'מוסתר';
+}
+// Legacy alias — a few call sites still reference FIELD.*
+const FIELD = {
+  boot(){ _applyOperatorStatusUI(); _applyOperatorLocUI(); },
+  setStatus: operatorSetStatus,
+  navigate:  operatorNavigate,
+  sos(){ if(typeof SYNC!=='undefined') SYNC.updateStatus('urgent'); if(typeof triggerSOS==='function') triggerSOS(); },
+  openTools(){ if(typeof goPanel==='function') goPanel('draw'); document.getElementById('right-panel')?.classList.remove('hidden'); document.getElementById('right-panel')?.classList.add('mobile-open'); },
+  toggleGPS(){ if(typeof toggleLocPrivacy==='function') toggleLocPrivacy(); },
+  switchToCommand(){ /* no-op — command is now the only mode */ },
+  enterFieldMode(){ /* no-op — see above */ },
+};
 
 // ══════════════════════════════════════════════════════════
 // BOOT — PWA + Firebase + Field mode init
