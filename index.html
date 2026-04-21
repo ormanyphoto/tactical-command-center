@@ -2951,8 +2951,8 @@ function _renderSearchResults(sr,results){
   sr.innerHTML='';
   results.forEach(item=>{
     const d=document.createElement('div');d.className='sr-item';
-    d.innerHTML=`<span style="font-weight:700">${item.primary}</span>`
-      +(item.secondary?`<span style="font-size:10px;color:var(--text3);margin-right:6px">${item.secondary}</span>`:'');
+    d.innerHTML=`<span style="font-weight:700">${escHtml(item.primary||'')}</span>`
+      +(item.secondary?`<span style="font-size:10px;color:var(--text3);margin-right:6px">${escHtml(item.secondary)}</span>`:'');
     d.onclick=()=>{
       map.setCenter(item.pos);map.setZoom(19);sr.style.display='none';
       document.getElementById('search-input').value=item.label;
@@ -9550,7 +9550,7 @@ function addCustomSkill(){
   const val=inp.value.trim();inp.value='';
   const grid=document.getElementById('skills-grid');if(!grid)return;
   const lbl=document.createElement('label');lbl.className='skill-cb checked';
-  lbl.innerHTML=`<input type="checkbox" checked value="${val}" onchange="toggleSkillCb(this)"/><span>${val}</span>`;
+  lbl.innerHTML=`<input type="checkbox" checked value="${escHtml(val)}" onchange="toggleSkillCb(this)"/><span>${escHtml(val)}</span>`;
   grid.appendChild(lbl);
 }
 
@@ -9633,7 +9633,7 @@ function addRoleRow(){
   const div=document.createElement('div');
   div.className='roles-row';div.dataset.i=i;
   div.style.cssText='display:flex;gap:5px;align-items:center;margin-bottom:5px';
-  div.innerHTML=`<input type="text" value="${val}" style="flex:1;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:6px 9px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none"/>
+  div.innerHTML=`<input type="text" value="${escHtml(val)}" style="flex:1;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:6px 9px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none"/>
     <button onclick="moveRole(-1,-1)" style="background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 8px;color:var(--text2);cursor:pointer;font-size:12px">▲</button>
     <button onclick="moveRole(-1,1)" style="background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:5px 8px;color:var(--text2);cursor:pointer;font-size:12px">▼</button>
     <button onclick="this.closest('.roles-row').remove()" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.3);border-radius:var(--r);padding:5px 8px;color:var(--danger);cursor:pointer;font-size:12px">✕</button>`;
@@ -15647,6 +15647,7 @@ const SYNC = (() => {
 
   function _subscribeGeofences(){
     if(!_db) return;
+    try { _db.ref('tac_geofences').off('value'); } catch(_){}
     _db.ref('tac_geofences').on('value', snap=>{
       const data = snap.val();
       // Handle null or empty — all geofences deleted remotely
@@ -15683,6 +15684,7 @@ const SYNC = (() => {
   // ── Sync MISSIONS from Firebase so all devices see new missions in real-time ──
   function _subscribeIncidents(){
     if(!_db) return;
+    try { _db.ref('tac_incidents').off('value'); } catch(_){}
     _db.ref('tac_incidents').on('value', function(snap){
       var data=snap.val();
       if(!data) return;
@@ -15710,6 +15712,7 @@ const SYNC = (() => {
       }
     };
     setTimeout(()=>_tryLoadMarkers(8), 2000);
+    try { _db.ref('tac_missions').off('value'); } catch(_){}
     _db.ref('tac_missions').on('value', snap=>{
       const data = snap.val();
       if(!data) return;
@@ -15842,6 +15845,7 @@ const SYNC = (() => {
     if(!_db) return;
     // 1. Real-time SDK subscription (primary)
     try {
+      try { _db.ref('tac_loc_hidden').off('value'); } catch(_){}
       _db.ref('tac_loc_hidden').on('value', snap=>{
         _applyHiddenState(snap.val() || {});
       }, err=>{
@@ -15881,6 +15885,7 @@ const SYNC = (() => {
       if(inner && typeof boShootingRange==='function') try{ boShootingRange(inner); }catch(e){}
     };
     try{
+      try { _db.ref('tac_equipment').off('value'); } catch(_){}
       _db.ref('tac_equipment').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
@@ -15897,6 +15902,7 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_equipment', err));
     }catch(e){ console.warn('[SYNC] tac_equipment subscribe error', e); }
     try{
+      try { _db.ref('tac_eq_categories').off('value'); } catch(_){}
       _db.ref('tac_eq_categories').on('value', s=>{
         const v=s.val();
         if(Array.isArray(v) && v.length){
@@ -15906,6 +15912,7 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_eq_categories', err));
     }catch(e){ console.warn('[SYNC] tac_eq_categories subscribe error', e); }
     try{
+      try { _db.ref('tac_sight_types').off('value'); } catch(_){}
       _db.ref('tac_sight_types').on('value', s=>{
         const v=s.val();
         if(Array.isArray(v) && v.length){
@@ -15915,6 +15922,7 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_sight_types', err));
     }catch(e){ console.warn('[SYNC] tac_sight_types subscribe error', e); }
     try{
+      try { _db.ref('tac_weapon_models').off('value'); } catch(_){}
       _db.ref('tac_weapon_models').on('value', s=>{
         const v=s.val();
         if(v && typeof v==='object' && !Array.isArray(v)){
@@ -15924,6 +15932,7 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_weapon_models', err));
     }catch(e){ console.warn('[SYNC] tac_weapon_models subscribe error', e); }
     try{
+      try { _db.ref('tac_personnel_sync').off('value'); } catch(_){}
       _db.ref('tac_personnel_sync').on('value', s=>{
         const v=s.val();
         const list = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
@@ -15945,6 +15954,7 @@ const SYNC = (() => {
       }, err=>console.warn('[SYNC] tac_personnel_sync', err));
     }catch(e){ console.warn('[SYNC] tac_personnel_sync subscribe error', e); }
     try{
+      try { _db.ref('tac_range_sessions').off('value'); } catch(_){}
       _db.ref('tac_range_sessions').on('value', s=>{
         const v=s.val();
         const next = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : null);
@@ -16061,6 +16071,7 @@ const SYNC = (() => {
       })
       .catch(()=>{});
     }, 5000);
+    try { _db.ref('tac_locs').off('value'); } catch(_){}
     _db.ref('tac_locs').on('value', snap=>{
       const rawData = snap.val()||{};
       const data = _dedupeByPerson(rawData);
