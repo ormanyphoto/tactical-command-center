@@ -17610,42 +17610,6 @@ const FIELD = {
       history.replaceState({}, '', location.pathname + (qs ? '?'+qs : ''));
     }
   } catch(_){}
-  // Opt-in mobile DevTools console — loads Eruda when the URL has
-  // ?debug=1. The console provides a floating button on mobile that
-  // expands to a full DevTools-style inspector with network/console/
-  // storage tabs, so we can diagnose sync issues without USB cables.
-  // Not included on normal loads to keep the bundle lean for operators.
-  //
-  // Hard-reset escape hatch: /?reset=1 unregisters any service worker,
-  // deletes every Cache Storage entry, clears localStorage, and reloads
-  // with the query string stripped. Useful when a device is stuck on a
-  // stale SW that refuses to update.
-  try {
-    const _qp = new URLSearchParams(location.search);
-    if(_qp.get('reset') === '1'){
-      (async () => {
-        try {
-          if('serviceWorker' in navigator){
-            const regs = await navigator.serviceWorker.getRegistrations();
-            await Promise.all(regs.map(r => r.unregister().catch(()=>{})));
-          }
-          if('caches' in window){
-            const keys = await caches.keys();
-            await Promise.all(keys.map(k => caches.delete(k).catch(()=>{})));
-          }
-        } catch(_){}
-        try { alert('Service worker + cache cleared. Reloading…'); } catch(_){}
-        location.replace(location.pathname);
-      })();
-      return;
-    }
-    if(_qp.get('debug') === '1'){
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-      s.onload = () => { try { window.eruda && window.eruda.init(); } catch(_){} };
-      document.head.appendChild(s);
-    }
-  } catch(_){}
   // Register service worker — updateViaCache:'none' so sw.js is always fetched
   // fresh from network. No forced page reloads here — they caused re-login loops.
   if('serviceWorker' in navigator){
