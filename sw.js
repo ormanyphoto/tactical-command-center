@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6.8.55-' + '2026042240';
+const CACHE = 'tac-v6.8.56-' + '2026042315';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install
@@ -287,6 +287,13 @@ const SHELL = [
   BASE + 'firebase-messaging-compat.js'
 ];
 
+// Aggressive skipWaiting — called synchronously at script evaluation
+// so the new SW doesn't sit in "waiting" state while an old tab is
+// still registered. In PWA mode on iOS/Android the app rarely closes
+// all tabs, which was keeping users on the old SW for days until a
+// full cold boot. This moves us off the old SW as soon as the new one
+// installs.
+self.skipWaiting();
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
