@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6.8.55-' + '2026042200';
+const CACHE = 'tac-v6.8.55-' + '2026042230';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install
@@ -315,6 +315,39 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
+  // Pass-through: third-party tile / map / media providers. These are
+  // the ones that break when the SW tries to cache or fall back to
+  // index.html:
+  //   - OSM tiles (tile.openstreetmap.org) — address layer
+  //   - ArcGIS Online tiles — navigation basemap
+  //   - Nominatim — geocoding JSON
+  //   - GovMap — Israeli gov iframe + tiles
+  //   - ipwho.is — IP fallback
+  // For image tile requests the previous default handler would fall back
+  // to index.html on network failure, the <img> tried to decode HTML as
+  // a PNG, and users saw "בעיית חיבור" on the address layer. Now these
+  // requests go straight to the network; on failure we return a tiny
+  // transparent PNG instead of HTML so the map tile just renders empty.
+  const isTile =
+       url.includes('tile.openstreetmap.org')
+    || url.includes('arcgisonline.com')
+    || url.includes('nominatim.openstreetmap.org')
+    || url.includes('govmap.gov.il')
+    || url.includes('ipwho.is');
+  if(isTile){
+    e.respondWith(
+      fetch(e.request).catch(() =>
+        // 1×1 transparent PNG — avoids the broken-image glyph and the
+        // "decode HTML as image" crash path without affecting the rest
+        // of the tile grid.
+        new Response(
+          Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII='), c=>c.charCodeAt(0)),
+          { status: 200, headers: {'Content-Type':'image/png'} }
+        )
+      )
+    );
+    return;
+  }
   if(url.includes('googleapis.com') || url.includes('gstatic.com') ||
      url.includes('firebaseio.com')  || url.includes('fonts.')){
     e.respondWith(fetch(e.request).catch(()=> caches.match(e.request)));

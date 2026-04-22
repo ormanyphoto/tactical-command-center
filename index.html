@@ -12893,9 +12893,20 @@ function toggleAddressLayer(){
           if(!img._retried){
             img._retried = true;
             setTimeout(()=>{ img.style.display = 'block'; img.src = url + '?r=1'; }, 2000);
-          } else if(!window._addrLayerErrShown){
+            return;
+          }
+          // Only toast when a SIGNIFICANT share of tiles fail — a single
+          // bad tile at the edge of the viewport shouldn't throw up a
+          // scary "בעיית חיבור" banner. Count failures over a 10 s window
+          // and only surface if we've seen >5. That catches real outages
+          // (network / OSM rate-limit) without false-positiving on edge
+          // tiles and over-zoom areas.
+          window._addrLayerErrCount = (window._addrLayerErrCount || 0) + 1;
+          clearTimeout(window._addrLayerErrReset);
+          window._addrLayerErrReset = setTimeout(()=>{ window._addrLayerErrCount = 0; }, 10000);
+          if(window._addrLayerErrCount > 5 && !window._addrLayerErrShown){
             window._addrLayerErrShown = true;
-            showToast({icon:'⚠️',title:'שכבת כתובות: בעיית חיבור',sub:'חלק מהמפה לא נטען',type:'warn',duration:5000});
+            showToast({icon:'⚠️',title:'שכבת כתובות: איטיות ברשת',sub:'חלק מהאריחים לא נטען — נסה שוב בעוד רגע',type:'warn',duration:5000});
             setTimeout(()=>{ window._addrLayerErrShown = false; }, 30000);
           }
         };
