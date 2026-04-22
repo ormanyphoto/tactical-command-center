@@ -12892,6 +12892,64 @@ setInterval(_fallbackLoadLocations, 5000);
 setTimeout(_fallbackLoadLocations, 3000);
 
 // ══════════════════════════════════════════════════════════
+// STANDALONE tac_personnel_sync REST POLL — independent of
+// SYNC.initFirebase so even if _subscribeLogistics fails silently,
+// mobile clients still pull remote edits every 10s. This is the
+// user-reported path that went silent.
+// ══════════════════════════════════════════════════════════
+(function(){
+  console.log('[PERSONNEL SYNC] standalone REST poll bound');
+  const applyPersonnelSnapshot = (list) => {
+    if(!Array.isArray(list) || !list.length) return;
+    if(typeof PERSONNEL === 'undefined') return;
+    let changed = false;
+    list.forEach(sp => {
+      if(!sp || !sp.id) return;
+      const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+      if(idx > -1){
+        const existing = PERSONNEL[idx];
+        const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+        const photo = existing.photo, pwd = existing.loginPassword;
+        Object.assign(existing, sp);
+        if(photo) existing.photo = photo;
+        if(pwd)   existing.loginPassword = pwd;
+        const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+        if(before !== after) changed = true;
+      } else {
+        PERSONNEL.push(sp);
+        changed = true;
+      }
+    });
+    if(!changed){ console.log('[PERSONNEL SYNC] standalone poll — no changes'); return; }
+    console.log('[PERSONNEL SYNC] standalone poll — applied changes');
+    try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
+    const rp = document.getElementById('rp-body');
+    if(rp){
+      if(currentPanel === 'personnel' && typeof renderPersonnelP === 'function'){ try { renderPersonnelP(rp); } catch(_){} }
+      else if(currentPanel === 'units' && typeof renderUnitsP === 'function'){ window._unitsLastHash = ''; try { renderUnitsP(rp); } catch(_){} }
+      else if(currentPanel === 'teams' && typeof renderTeamsP === 'function'){ try { renderTeamsP(rp); } catch(_){} }
+    }
+    if(typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers();
+  };
+  const pollOnce = async () => {
+    try {
+      const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'});
+      if(!r.ok){ console.warn('[PERSONNEL SYNC] standalone poll HTTP ' + r.status); return; }
+      const v = await r.json();
+      const list = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+      console.log('[PERSONNEL SYNC] standalone poll received ' + list.length + ' rows');
+      applyPersonnelSnapshot(list);
+    } catch(e){ console.warn('[PERSONNEL SYNC] standalone poll failed:', e && e.message); }
+  };
+  // First poll after 4s (gives auth time to land), then every 10s.
+  setTimeout(pollOnce, 4000);
+  setInterval(pollOnce, 10000);
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') pollOnce();
+  });
+})();
+
+// ══════════════════════════════════════════════════════════
 // BUILDINGS + ADDRESSES OVERLAY
 // Uses OpenStreetMap tiles — public, reliable, no API key, full Israeli
 // coverage with building footprints, house numbers, and Hebrew street names.
@@ -16122,6 +16180,7 @@ const SYNC = (() => {
   // equipment categories, weapon sight types, weapon models, and
   // training/range sessions. Keeps every client in sync across devices.
   function _subscribeLogistics(){
+    console.log('[PERSONNEL SYNC] _subscribeLogistics called, _db=', !!_db);
     if(!_db) return;
     const _refreshBO = ()=>{
       const inner = document.getElementById('bo-inner');
