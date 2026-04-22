@@ -5249,6 +5249,14 @@ function _startManualPlacement(){
     }).catch(e=>console.warn('[manual-loc] publish failed:', e.message));
     // Also push via SDK if available for realtime listener
     try{ if(window._db) window._db.ref('tac_locs/'+uid).set(d); }catch(_){}
+    // Preserve the last REAL GPS position before we clobber it — if the user
+    // hits "return to GPS" later, we can snap them back here while iOS
+    // CoreLocation warms up (5–30 s cold-start) instead of leaving the
+    // marker pinned to the manual spot with no visible change.
+    if(!window._manualLocOverride){
+      window._preManualLat = window._lastLat;
+      window._preManualLng = window._lastLng;
+    }
     window._lastLat=lat; window._lastLng=lng;
     window._manualLocOverride=true;
     // Stop GPS watch so it doesn't overwrite
@@ -5264,10 +5272,33 @@ function _resetToGPS(){
   window._manualLocOverride=false;
   if(_manualPlacementListener){ google.maps.event.removeListener(_manualPlacementListener); _manualPlacementListener=null; }
   document.getElementById('map')?.style.removeProperty('cursor');
-  // Re-start GPS publishing
+  // On iOS native the geolocation shim may have posted stopLocation when the
+  // previous watcher was cleared. Kick CoreLocation explicitly so the first
+  // real fix arrives as fast as possible, *before* we reinstall watchPosition.
+  try{ if(window.TCC_NATIVE && typeof window.TCC_NATIVE.startLocation === 'function') window.TCC_NATIVE.startLocation(); }catch(_){}
+  // Re-start GPS publishing — use the lightweight reset so _firstPosFix is
+  // cleared (otherwise the next real fix won't re-center the map, and the
+  // user just sees their marker move off-screen while the viewport stays
+  // pinned at the manual spot).
   if(typeof SYNC!=='undefined'){
     const u=(typeof AUTH!=='undefined')?AUTH.getUser():null;
-    SYNC.startPublishing(u?{name:u.name,role:u.role||'',status:'active'}:{});
+    const profile = u?{name:u.name,role:u.role||'',status:'active'}:{};
+    if(typeof SYNC.resetForGpsReacquisition === 'function'){
+      // Update profile via startPublishing path inside the reset
+      try { SYNC.resetForGpsReacquisition(); } catch(_){ SYNC.startPublishing(profile); }
+    } else {
+      SYNC.startPublishing(profile);
+    }
+  }
+  // If we saved a pre-manual real GPS fix, snap back to it immediately as a
+  // transient anchor — the map moves to a known-real spot right away instead
+  // of staying pinned on the manual pin until CoreLocation delivers. Firebase
+  // will be overwritten with the next real fix by startPublishing anyway.
+  if(typeof window._preManualLat === 'number' && typeof window._preManualLng === 'number'
+     && window.map && window.google){
+    try { window.map.panTo({lat: window._preManualLat, lng: window._preManualLng}); } catch(_){}
+    window._lastLat = window._preManualLat;
+    window._lastLng = window._preManualLng;
   }
   showToast({icon:'🔄',title:'חזרה למיקום GPS',sub:'המערכת תעדכן לפי GPS',type:'info'});
 }
@@ -17136,7 +17167,17 @@ const SYNC = (() => {
     _tryBoot();
   }
 
-  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, get connected(){ return _connected; }, myUid:_myUid, get _watchId(){ return _watchId; } };
+  // Lightweight reset for "return to real GPS after manual override" — does
+  // NOT touch the hidden flag or remove the Firebase entry (that's what full
+  // stopPublishing does, which is too aggressive for this case). Just clears
+  // _firstPosFix so the next real fix re-centers the map, clears the watch,
+  // and restarts publishing so watchPosition fires fresh on iOS.
+  function resetForGpsReacquisition(){
+    _firstPosFix = false;
+    if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
+    startPublishing(_myProfile);
+  }
+  return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, resetForGpsReacquisition, get connected(){ return _connected; }, myUid:_myUid, get _watchId(){ return _watchId; } };
 })();
 
 // ══════════════════════════════════════════════════════════
