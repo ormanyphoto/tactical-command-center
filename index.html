@@ -10906,7 +10906,7 @@ function _showIncomingNotif(notif, fbRef){
     if(incBtnsMain){
       incBtnsMain.innerHTML =
         '<button class="inc-approve" onclick="acknowledgeMessage()">✅ אישור הודעה</button>'
-      + '<button class="inc-decline" onclick="closeIncomingNotif()">סגור</button>';
+      + '<button class="inc-decline" onclick="declineMessage()">סגור</button>';
       incBtnsMain.style.display = '';
     }
     document.getElementById('incoming-notif-overlay').classList.add('open');
@@ -11227,23 +11227,31 @@ function closeIncomingNotif(){
   if(ov) ov.classList.remove('open');
   _currentIncomingNotif = null;
 }
-// Acknowledge a type=message notification. Writes a tiny receipt so the
-// sender can see who read it, but does NOT change the user's live status
-// (unlike respondToNotif(true) which sets busy/standby), does NOT show
-// the departure banner, and does NOT open Waze. Removes the message
-// from the user's notifications queue.
-function acknowledgeMessage(){
+// Internal: write the user's response to a type=message notification
+// and optionally flip their live availability. Shared by both the ack
+// ("מאשר") and the close ("לא זמין") buttons so the two paths produce
+// identical records (differing only in the `approved` flag). No
+// departure banner, no Waze — message is a routine comms blast, not a
+// dispatch.
+function _respondToMessage(approved){
   if(!_currentIncomingNotif) { closeIncomingNotif(); return; }
   const {notif, fbRef} = _currentIncomingNotif;
   const u = (typeof AUTH !== 'undefined') ? AUTH.getUser() : null;
   const myId = u ? u.id : null;
   if(myId && notif.id){
     const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    // Same shape as respondToNotif so the commander's approvals list
+    // picks this up — `approved:true` surfaces the responder in
+    // "⏳ מאשר", `approved:false` leaves them out so _personStatus
+    // falls through to the live status we set below ("❌ לא זמין").
     const payload = {
       personId: myId,
       name: u.name || '',
       role: u.role || '',
-      acknowledged: true,
+      color: u.color || '#29c5f6',
+      approved: !!approved,
+      departed: false,
+      departedAt: null,
       ts: Date.now()
     };
     fetch(DB+'/tac_notif_responses/'+notif.id+'/'+myId+'.json', {
@@ -11251,13 +11259,30 @@ function acknowledgeMessage(){
       body: JSON.stringify(payload)
     }).catch(()=>{});
     try { if(window._db) window._db.ref('tac_notif_responses/'+notif.id+'/'+myId).set(payload).catch(()=>{}); } catch(_){}
+    // Live status: only flip to "busy" on decline. Acknowledging a
+    // routine message should NOT change the user's availability —
+    // they're still whatever they were (active / standby).
+    try {
+      if(!approved){
+        if(typeof SYNC !== 'undefined' && SYNC.updateStatus) SYNC.updateStatus('busy');
+        if(typeof operatorSetStatus === 'function') operatorSetStatus('busy');
+      }
+    } catch(_){}
     // Pop the message off the user's queue
     fetch(DB+'/tac_notifications/'+myId+'/'+notif.id+'.json', {method:'DELETE'}).catch(()=>{});
     try { if(fbRef) fbRef.remove().catch(()=>{}); else if(window._db) window._db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{}); } catch(_){}
   }
   closeIncomingNotif();
-  showToast({icon:'✅', title:'ההודעה אושרה', type:'success', duration:2000});
+  showToast({
+    icon: approved ? '✅' : '❌',
+    title: approved ? 'ההודעה אושרה' : 'ההודעה נסגרה',
+    sub: approved ? '' : 'הסטטוס שלך עודכן ל"לא זמין"',
+    type: approved ? 'success' : 'info',
+    duration: 2200
+  });
 }
+function acknowledgeMessage(){ _respondToMessage(true); }
+function declineMessage()    { _respondToMessage(false); }
 function respondToNotif(approved){
   if(!_currentIncomingNotif) return;
   const {notif, fbRef} = _currentIncomingNotif;
