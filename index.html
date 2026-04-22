@@ -3536,6 +3536,16 @@ function locateMe(showToastOnSuccess){
   // Debounce: skip if called within 30s (auto-calls on boot)
   const now = Date.now();
   const showMsg = showToastOnSuccess !== false && (now - _locateLastShown > 30000);
+  // If the operator had set a manual location override (GPS was jammed,
+  // they picked their spot from the long-press context menu), tapping
+  // the GPS-focus button is the explicit "go back to real GPS" signal.
+  // Without this the override stays set, the previous clearWatch call
+  // had stopped CoreLocation, and the incoming getCurrentPosition
+  // would spin up cold and time out → user reported "same timeout
+  // error, never returns to GPS".
+  if(window._manualLocOverride === true && typeof _resetToGPS === 'function'){
+    try { _resetToGPS(); } catch(_){}
+  }
   _locateOnce((pos,method)=>{
     const ll={lat:pos.coords.latitude,lng:pos.coords.longitude};
     map.setCenter(ll);
