@@ -8379,7 +8379,7 @@ function boSettings(c){
     +'<b>שלב 2:</b> הדבק Service Account JSON מ: <a href="https://console.firebase.google.com/project/tactical-command-center/settings/serviceaccounts/adminsdk" target="_blank" style="color:var(--accent)">Firebase Console → Service accounts</a> ← לחץ <b>Generate new private key</b></div>'
     +'<div class="form-g"><label style="font-size:11px">📋 Service Account JSON</label>'
     +'<textarea id="cfg-sa-json" rows="4" class="form-inp" style="font-size:10px;font-family:monospace;direction:ltr;resize:vertical" placeholder=\'{"type":"service_account","project_id":"tactical-command-center","private_key":"-----BEGIN PRIVATE KEY-----\\n...","client_email":"..."}\'>'
-    +(sessionStorage.getItem('tac_sa_json')||localStorage.getItem('tac_sa_json')||'')
+    +(localStorage.getItem('tac_sa_json')||sessionStorage.getItem('tac_sa_json')||'')
     +'</textarea></div>'
     +'<div style="display:flex;gap:8px;margin-top:6px">'
     +'<button class="btn-pri" style="flex:1" onclick="'
@@ -16650,18 +16650,23 @@ const PUSH = (() => {
   let _sa = null; // service account JSON
 
   function loadSA(){
-    // SA JSON holds a private_key. Prefer sessionStorage so it's gone
-    // when the tab closes (shared device protection). Auto-migrate any
-    // legacy localStorage copy once, then remove it. The canonical
-    // source is Firebase tac_config/sa_json — syncSAFromFirebase pulls
-    // it on every session.
+    // SA JSON holds a long-lived private_key. Persistence across app
+    // restarts matters because a Samsung/iOS foreground-service wipe
+    // would otherwise re-prompt for Firebase sync every launch, and
+    // between "Push Notifications: חסר" and working FCM we prefer the
+    // latter. The XSS vectors that could exfiltrate this value are
+    // already closed (escHtml / safePhotoSrc rollout) and Firebase
+    // Rules gate the network read (auth != null on tac_config/sa_json),
+    // so client-side storage isn't the primary defence any more.
+    // Migrate back from any stray sessionStorage value left over from
+    // the earlier experiment.
     try {
-      let raw = sessionStorage.getItem('tac_sa_json');
+      let raw = localStorage.getItem('tac_sa_json');
       if(!raw){
-        raw = localStorage.getItem('tac_sa_json');
+        raw = sessionStorage.getItem('tac_sa_json');
         if(raw){
-          sessionStorage.setItem('tac_sa_json', raw);
-          localStorage.removeItem('tac_sa_json');
+          localStorage.setItem('tac_sa_json', raw);
+          sessionStorage.removeItem('tac_sa_json');
         }
       }
       _sa = JSON.parse(raw || 'null');
@@ -16669,8 +16674,8 @@ const PUSH = (() => {
     return !!(_sa && _sa.private_key && _sa.client_email);
   }
   function saveSA(json){
-    sessionStorage.setItem('tac_sa_json', json);
-    try { localStorage.removeItem('tac_sa_json'); } catch(_){}
+    localStorage.setItem('tac_sa_json', json);
+    try { sessionStorage.removeItem('tac_sa_json'); } catch(_){}
     loadSA();
     // Also save to Firebase so all other devices auto-sync (admin write)
     try{
@@ -16683,12 +16688,16 @@ const PUSH = (() => {
   async function syncSAFromFirebase(){
     if(loadSA()) return true; // already have local
     if(!window._db) return false;
+    // Rules require auth — skip if we haven't signed in yet, the 10s
+    // retry interval will try again once auth lands.
+    if(typeof firebase === 'undefined' || !firebase.auth
+       || !firebase.auth().currentUser) return false;
     try{
       const snap = await window._db.ref('tac_config/sa_json').once('value');
       const json = snap.val();
       if(json && typeof json === 'string'){
-        sessionStorage.setItem('tac_sa_json', json);
-        try { localStorage.removeItem('tac_sa_json'); } catch(_){}
+        localStorage.setItem('tac_sa_json', json);
+        try { sessionStorage.removeItem('tac_sa_json'); } catch(_){}
         loadSA();
         console.log('[PUSH] SA synced from Firebase');
         return true;
