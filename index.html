@@ -11710,7 +11710,13 @@ setInterval(async ()=>{
 // "approvals only show on the approver's own device".
 setInterval(async ()=>{
   if(!_currentActiveNotifId) return;
-  if(window._rtdbConnected) return; // SDK listener is primary when WebSocket is alive
+  // Approvals MUST stay in sync across every viewer — when a commander
+  // deletes an entry, every other commander needs to see it gone within
+  // a few seconds. Unlike tac_locs/tac_photos polls (gated on
+  // _rtdbConnected), the approvals poll now runs regardless of the
+  // WebSocket's reported state. If the SDK listener is silently wedged
+  // (seen on Samsung WebView even when .info/connected says alive), the
+  // REST poll is the only thing that brings the update home.
   try {
     const resp = await fetch(_REST_DB+'/tac_notif_responses/'+_currentActiveNotifId+'.json?_='+Date.now(), {cache:'no-store'});
     if(!resp.ok) return;
@@ -12562,7 +12568,7 @@ function renderApprovalsSection(){
         }
         const dotStyle = e.departed ? '' : 'background:#f0b000';
         const arriveBtn = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);border-radius:6px;color:var(--danger);font-size:15px;font-weight:700;cursor:pointer;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;opacity:0.85;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2)" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" onclick="event.stopPropagation();removeApproval(this.dataset.pid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         return `<div class="approval-item">
           <div class="approval-dot" style="${dotStyle}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
@@ -12607,7 +12613,7 @@ function renderApprovalsSection(){
           statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
         }
         const arriveBtn2 = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);border-radius:6px;color:var(--danger);font-size:15px;font-weight:700;cursor:pointer;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;opacity:0.85;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2)" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" onclick="event.stopPropagation();removeApproval(this.dataset.pid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         html += `<div class="approval-item">
           <div class="approval-dot" style="background:${e.departed?v.color:'#f0b000'}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
