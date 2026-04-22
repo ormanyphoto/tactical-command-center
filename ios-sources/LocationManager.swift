@@ -8,6 +8,10 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     let clm = CLLocationManager()
     /// Called on each position update with lat, lng, accuracy (m), speed (m/s), heading (deg).
     var onUpdate: ((Double, Double, Double, Double, Double) -> Void)?
+    /// Tracks whether we've emitted at least one fix since start() — we
+    /// accept the very first fix regardless of accuracy so the web app
+    /// can render an immediate marker; later fixes get the strict filter.
+    private var firstFixEmitted = false
 
     override init() {
         super.init()
@@ -62,6 +66,8 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     func stop() {
         clm.stopUpdatingLocation()
         clm.stopUpdatingHeading()
+        // Reset so next start() re-accepts its first fix unfiltered.
+        firstFixEmitted = false
     }
 
     // ─── Delegate ──────────────────────────────────────────────────────────
@@ -76,21 +82,33 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let loc = locations.last else { return }
 
-        // ── Reject only catastrophically bad fixes ────────────────────────────
-        // iOS delivers a cached-coarse first fix instantly (can be 10+ km off)
-        // before real GPS locks. Publishing that would teleport the operator.
-        // But being too strict (e.g. 100m) rejects legitimate indoor first
-        // fixes where iOS takes 20–30s to drop below 100m. So we only reject
-        // clearly-invalid (<0) or absurdly coarse (>500m, which is cellular
-        // fallback, not usable on an operational map) fixes.
+        let age = -loc.timestamp.timeIntervalSinceNow
+
+        // ── First fix: accept anything not catastrophically invalid ──────────
+        // On cold-start, iOS often delivers a cached cellular-tower fix with
+        // accuracy 1000–2000 m before GPS locks. Rejecting that (as we used
+        // to with the >500m threshold) left the web app with no avatar for
+        // 10–30 s, producing the "מיקום נעלם" reports. Accept the first
+        // fix regardless so something renders immediately; the strict filter
+        // kicks in for subsequent fixes.
+        if !firstFixEmitted {
+            if loc.horizontalAccuracy < 0 {
+                NSLog("[Loc] reject first fix — invalid acc=\(loc.horizontalAccuracy)")
+                return
+            }
+            firstFixEmitted = true
+            NSLog("[Loc] FIRST fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s (accepted unfiltered)")
+            let spd = max(0, loc.speed)
+            let hdg = max(0, loc.course)
+            onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)
+            return
+        }
+
+        // ── Subsequent fixes: strict filter ──────────────────────────────────
         if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 500 {
             NSLog("[Loc] reject acc=\(loc.horizontalAccuracy)m (out of range)")
             return
         }
-        // Stale filter: reject fixes older than 30s (covers the "WKWebView
-        // returns cached fix from a previous session" case without rejecting
-        // legitimate slightly-stale fixes on slow devices).
-        let age = -loc.timestamp.timeIntervalSinceNow
         if age > 30 {
             NSLog("[Loc] reject stale fix age=\(age)s")
             return

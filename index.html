@@ -15920,6 +15920,22 @@ const SYNC = (() => {
         if(window.map && window._googleReady){
           _updateLiveMarker(_myUid, seed, true);
         }
+      } else if(window._locPrivacyOn !== false && notHidden && _db){
+        // No in-memory _lastLat/Lng (fresh boot, cold WKWebView). Read our
+        // own previous entry from Firebase and reuse it as the seed so the
+        // avatar isn't blank while iOS CoreLocation warms up (10–30 s).
+        // The next real fix from watchPosition overwrites.
+        try {
+          _db.ref('tac_locs/'+_myUid).once('value').then(s=>{
+            const prev = s && s.val();
+            if(prev && typeof prev.lat === 'number' && typeof prev.lng === 'number'){
+              window._lastLat = prev.lat; window._lastLng = prev.lng;
+              if(window.map && window._googleReady){
+                _updateLiveMarker(_myUid, prev, true);
+              }
+            }
+          }).catch(()=>{});
+        } catch(_){}
       }
     } catch(_){}
     // Use watchPosition for continuous real-time tracking
@@ -16002,6 +16018,11 @@ const SYNC = (() => {
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
     // Stop GPS watch so we don't re-publish
     if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
+    // On iOS the shim intentionally no longer auto-stops Core Location on
+    // clearWatch (prevents 10–30 s cold-starts on next enable). But a true
+    // privacy-off stopPublishing should actually stop the hardware — call
+    // the explicit forceStop hook when it exists.
+    try { if(navigator.geolocation && typeof navigator.geolocation._forceStop === 'function'){ navigator.geolocation._forceStop(); } } catch(_){}
 
     const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
     const myPersonId = u ? u.id : null;

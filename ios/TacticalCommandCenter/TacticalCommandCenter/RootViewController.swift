@@ -216,6 +216,10 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
       window.addEventListener('tcc-native-loc', function(e){
         var p = e.detail; if(!p) return;
         _lastNativePos = p;
+        // Mirror every native fix onto window globals so fallback code paths
+        // (startPublishing seed, SOS, manual-exit map restore) always have
+        // fresh data even when no watcher is registered.
+        try { window._lastLat = p.lat; window._lastLng = p.lng; } catch(_){}
         var pos = _nativePosToGeoPosition(p);
         Object.keys(_watchers).forEach(function(id){
           try{ _watchers[id].success && _watchers[id].success(pos); }catch(err){}
@@ -224,12 +228,20 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
 
       var _nativeGeo = {
         getCurrentPosition: function(success, error, options){
-          // Prefer a fresh native fix; if we have one < 10s old, return it.
-          if(_lastNativePos && (Date.now() - (_lastNativePos.ts||0) < 10000)){
+          // Always kick Core Location so the next real fix arrives ASAP in
+          // parallel, even if we return a cached one below.
+          try{ post('startLocation',{}); }catch(_){}
+          // If we have ANY cached fix, return it immediately — iOS BestForNav
+          // cold-start can take 30 s, and making the caller wait for fresh data
+          // is what caused "can't locate" errors and disappearing avatars after
+          // toggle/manual flows. The live watchPosition (and any parallel
+          // getCurrentPosition awaiting the event) will deliver the real fix
+          // separately.
+          if(_lastNativePos){
             try{ success(_nativePosToGeoPosition(_lastNativePos)); }catch(_){}
             return;
           }
-          try{ post('startLocation',{}); }catch(_){}
+          // No cache at all — wait for first event
           var resolved = false;
           var handler = function(e){
             if(resolved) return;
@@ -238,7 +250,7 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
             try{ success(_nativePosToGeoPosition(e.detail)); }catch(_){}
           };
           window.addEventListener('tcc-native-loc', handler);
-          var timeout = (options && options.timeout) || 15000;
+          var timeout = (options && options.timeout) || 25000;
           setTimeout(function(){
             if(resolved) return;
             resolved = true;
@@ -259,9 +271,19 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         },
         clearWatch: function(id){
           delete _watchers[id];
-          if(Object.keys(_watchers).length === 0){
-            try{ post('stopLocation',{}); }catch(_){}
-          }
+          // NOTE: We intentionally do NOT post('stopLocation') here anymore.
+          // Every clearWatch used to stop CLLocationManager, and re-starting
+          // it caused a 10–30 s cold-start on the next watchPosition call —
+          // that's what made the avatar vanish after toggle-off/on and after
+          // _resetToGPS (manual → GPS). Keeping Core Location warm costs a
+          // small amount of battery while the app is foregrounded, but
+          // guarantees the very next watchPosition delivers an instant fix.
+          // The app lifecycle in RootViewController handles stopping CL when
+          // the app actually backgrounds.
+        },
+        // Exposed for explicit "fully stop" cases (app background, logout)
+        _forceStop: function(){
+          try{ post('stopLocation',{}); }catch(_){}
         }
       };
 
