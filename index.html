@@ -17525,7 +17525,23 @@ const FIELD = {
   // Register service worker — updateViaCache:'none' so sw.js is always fetched
   // fresh from network. No forced page reloads here — they caused re-login loops.
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(()=>{});
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        // Force an update check every time the tab becomes visible (user
+        // swipes back to the PWA, unlocks phone, etc.) — without this the
+        // browser's default 24 h check window keeps mobile users on stale
+        // deploys for far too long.
+        const _forceUpdate = () => { try { reg.update(); } catch(_){} };
+        document.addEventListener('visibilitychange', () => {
+          if(document.visibilityState === 'visible') _forceUpdate();
+        });
+        window.addEventListener('focus', _forceUpdate);
+        // Also poll every 5 min while the tab stays in the foreground so
+        // long-running sessions pick up deploys without needing a tab
+        // switch.
+        setInterval(_forceUpdate, 5 * 60 * 1000);
+      })
+      .catch(()=>{});
     // When a new SW activates and claims this client, reload once to get fresh HTML
     let _swReloading = false;
     const _swReload = () => { if (!_swReloading) { _swReloading = true; window.location.reload(); } };
