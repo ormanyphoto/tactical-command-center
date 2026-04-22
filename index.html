@@ -1383,7 +1383,7 @@ const GKEY='AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo';
 const SCOLORS={urgent:'#ff3333',active:'#3dff52',pending:'#ffc107',completed:'#29c5f6',briefing:'#b06cf0',draft:'#5a7a90',debrief:'#ff7a1a'};
 const MICONS={arrest:'🚨',surveillance:'👁️',escort:'🛡️',traffic:'🚧',rescue:'🏥',default:'◉'};
 const TCOLORS={אדום:'#ff3333',כחול:'#29c5f6',ירוק:'#3dff52',צהוב:'#ffc107',אלפא:'#a8e800',רפואה:'#ff4aaa',מבצע:'#b06cf0',K9:'#ff7a1a','יחידה-5':'#9ab8c8'};
-const ALL_SKILLS=['נשק','חובש','נהג','צלף','כלבן','משא ומתן','חבלה','קשר','מפעיל רחפן','מודיעין','סנפלינג','כימי/ביולוגי','לוגיסטיקה','רופא','סייבר','חילוץ','ירי מדויק','נהיגה מבצעית','מנהיגות','מתורגמן'];
+const ALL_SKILLS=['נשק','חובש','נהג','צלף','כלבן','משא ומתן','חבלה','קשר','מפעיל רחפן','מודיעין','סנפלינג','כימי/ביולוגי','לוגיסטיקה','רופא','סייבר','חילוץ','ירי מדויק','מדריך ירי','נהיגה מבצעית','מנהיגות','מתורגמן'];
 let ALL_ROLES=['מפקד יחידה','סגן מפקד יחידה','מפקד פלגה','סגן מפקד פלגה','מפקד צוות','סגן מפקד צוות','מפקד חפ״ק מחוזי','מפקד חפ״ק','סגן מפקד חפ״ק','חפ״ק','לוחם','איש חפ״ק','מפעיל רחפן','צופה רחפן'];
 let MISSIONS=[];
 let UNITS=[];
@@ -10028,6 +10028,13 @@ function editPersonModal(id){
     }
   };
   document.getElementById('modal-wrap').style.display='flex';
+  // Scroll is on #modal-box (overflow-y:auto), not on #modal-body.
+  // Replacing modal-body's innerHTML doesn't reset modal-box's scrollTop,
+  // so when you save one person's card (closing the modal at scrollTop
+  // > 0) then open another, the new card opened mid-way down. Force-
+  // reset the scroll to the top whenever we render a fresh card.
+  const _mbox = document.getElementById('modal-box');
+  if(_mbox) _mbox.scrollTop = 0;
 }
 
 // ── PHOTO UPLOAD ──
