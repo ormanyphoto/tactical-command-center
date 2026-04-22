@@ -16171,20 +16171,52 @@ const SYNC = (() => {
         const v=s.val();
         const list = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
         if(!list.length) return;
+        // Merge remote → local PERSONNEL.
+        let changed = false;
         list.forEach(sp=>{
           if(!sp || !sp.id) return;
           const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
           if(idx>-1){
             const existing = PERSONNEL[idx];
             const photo = existing.photo, pwd = existing.loginPassword;
+            // Skip the assign if nothing changed, so a passive echo of
+            // our own write doesn't trigger a re-render flicker.
+            const snapshot = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
             Object.assign(existing, sp);
             if(photo) existing.photo = photo;
             if(pwd)   existing.loginPassword = pwd;
-          } else PERSONNEL.push(sp);
+            const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+            if(snapshot !== after) changed = true;
+          } else {
+            PERSONNEL.push(sp);
+            changed = true;
+          }
         });
         try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
-        const inner=document.getElementById('bo-inner');
-        if(inner && typeof boEquipment==='function' && (window._eqTab==='weapons'||window._eqTab==='personal')) try{ boEquipment(inner); }catch(e){}
+        // If any PERSONNEL field actually changed, repaint any currently-
+        // visible surface that reads PERSONNEL. Without this, roles /
+        // skills / unit updates on one device never reached other users'
+        // screens until they switched panels or refreshed.
+        if(changed){
+          const rp = document.getElementById('rp-body');
+          if(rp){
+            if(currentPanel === 'personnel' && typeof renderPersonnelP === 'function'){
+              try { renderPersonnelP(rp); } catch(_){}
+            } else if(currentPanel === 'units' && typeof renderUnitsP === 'function'){
+              // Invalidate the hash so the units panel's re-render picks
+              // up changes inside the approvals section AND the main list.
+              window._unitsLastHash = '';
+              try { renderUnitsP(rp); } catch(_){}
+            } else if(currentPanel === 'teams' && typeof renderTeamsP === 'function'){
+              try { renderTeamsP(rp); } catch(_){}
+            }
+          }
+          // Equipment back-office tabs
+          const inner=document.getElementById('bo-inner');
+          if(inner && typeof boEquipment==='function' && (window._eqTab==='weapons'||window._eqTab==='personal')) try{ boEquipment(inner); }catch(e){}
+          // Repaint map markers so new unit colours / names show up
+          if(typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers();
+        }
       }, err=>console.warn('[SYNC] tac_personnel_sync', err));
     }catch(e){ console.warn('[SYNC] tac_personnel_sync subscribe error', e); }
     try{
