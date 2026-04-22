@@ -8884,11 +8884,31 @@ function savePersonnelToStorage(){
     // color, order, coords, available flag, perms, weapons, mission.
     // Photos are synced separately via tac_photos. Passwords are NEVER synced.
     try {
+      // Deep-strip `undefined` because Firebase SDK .set() rejects any
+      // payload that contains `undefined` anywhere (REST silently drops
+      // it via JSON.stringify, but the SDK throws
+      // "value argument contains undefined"). In practice this bit us
+      // on `p.weapons = undefined` for personnel with no guns assigned —
+      // every SDK write silently failed and remote viewers stayed on
+      // stale data. Convert undefined → null (Firebase's own idiom for
+      // "delete this key") and drop properties that are strictly
+      // undefined so nothing reaches .set() with a forbidden value.
+      const _stripUndef = (v) => {
+        if(v === undefined) return null;
+        if(v === null || typeof v !== 'object') return v;
+        if(Array.isArray(v)) return v.map(_stripUndef);
+        const out = {};
+        Object.keys(v).forEach(k => {
+          const cleaned = _stripUndef(v[k]);
+          if(cleaned !== undefined) out[k] = cleaned;
+        });
+        return out;
+      };
       const cleanList = PERSONNEL.map(p => {
         const c = Object.assign({}, p);
         delete c.photo;
         delete c.loginPassword;
-        return c;
+        return _stripUndef(c);
       });
       // Dual-write: SDK for instant push to listeners + REST PUT as a
       // reliable backup. Without the REST path, silent SDK failures
