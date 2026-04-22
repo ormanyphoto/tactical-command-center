@@ -1006,7 +1006,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         </div>
         <!-- Venues -->
         <div>
-          <div class="nm-label">📍 זירות אירוע <span style="font-weight:500;color:var(--text3)">— כל זירה תסומן במפה + ניווט ישיר</span></div>
+          <div class="nm-label">📍 זירות אירוע <span style="font-weight:500;color:var(--text3)">— אופציונלי · כל זירה תסומן במפה + ניווט ישיר</span></div>
           <div class="nm-venues-wrap" id="nm-venues-list"></div>
           <button class="nm-add-venue-btn" onclick="addNotifVenue()" style="margin-top:6px">＋ הוסף זירה נוספת</button>
           <!-- hidden compat field -->
@@ -10333,8 +10333,11 @@ function sendNotification(){
   const body  = (document.getElementById('nm-body')||{}).value||'';
   if(!title.trim()){showToast({icon:'⚠️',title:'נא להזין כותרת',type:'warn'});return;}
 
+  // Venues (addresses) are optional now — a broadcast "call everyone"
+  // message doesn't need a specific scene. If the sender did enter
+  // venues we still geocode and attach them; if not, the notification
+  // goes out without location data.
   const venues = _getNotifVenues();
-  if(!venues.length){showToast({icon:'⚠️',title:'נא להזין לפחות זירה אחת',type:'warn'});return;}
 
   let db = window._db;
   if(!db && typeof SYNC!=='undefined'){
@@ -10370,10 +10373,13 @@ function sendNotification(){
       title: title.trim(),
       body: body.trim(),
       threat,
-      venues,                         // full venues array
-      address: venues[0].address,     // compat: primary address
-      lat: venues[0].lat||null,
-      lng: venues[0].lng||null,
+      venues,                         // full venues array (may be empty)
+      // Primary address/lat/lng kept for back-compat with older clients
+      // that read payload.address / .lat / .lng directly. Null-safe when
+      // venues is empty (no-address broadcast).
+      address: venues[0]?.address || '',
+      lat: venues[0]?.lat || null,
+      lng: venues[0]?.lng || null,
       senderName,
       senderId,
       sentAt: Date.now()
@@ -10483,21 +10489,27 @@ function sendNotification(){
     });
   }
 
-  // Geocode each venue with address
-  venues.forEach((v,i)=>{
-    if(v.address && window._geocoder){
-      window._geocoder.geocode({address:v.address, region:'il'}, (results, status)=>{
-        if(status==='OK' && results[0]){
-          const loc = results[0].geometry.location;
-          venues[i].lat = loc.lat();
-          venues[i].lng = loc.lng();
-        }
+  // Geocode each venue with address. If venues is empty, pending is 0
+  // and the .forEach never runs — invoke _onAllGeocoded directly so the
+  // notification still ships as a no-address broadcast.
+  if(pending === 0){
+    _onAllGeocoded();
+  } else {
+    venues.forEach((v,i)=>{
+      if(v.address && window._geocoder){
+        window._geocoder.geocode({address:v.address, region:'il'}, (results, status)=>{
+          if(status==='OK' && results[0]){
+            const loc = results[0].geometry.location;
+            venues[i].lat = loc.lat();
+            venues[i].lng = loc.lng();
+          }
+          if(--pending === 0) _onAllGeocoded();
+        });
+      } else {
         if(--pending === 0) _onAllGeocoded();
-      });
-    } else {
-      if(--pending === 0) _onAllGeocoded();
-    }
-  });
+      }
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════
