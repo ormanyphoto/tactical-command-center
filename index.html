@@ -11718,8 +11718,12 @@ setInterval(async ()=>{
     if(!data || typeof data!=='object') return;
     let changed = false;
     const newData = {};
+    const tomb = window._approvalsJustDeleted || {};
     Object.values(data).forEach(d=>{
-      if(d && d.approved && d.personId) newData[d.personId] = d;
+      if(d && d.approved && d.personId){
+        if(tomb[d.personId]) return; // skip just-deleted (see removeApproval)
+        newData[d.personId] = d;
+      }
     });
     // Check for additions or changes (departed, arrived status)
     Object.entries(newData).forEach(([pid, d])=>{
@@ -11753,10 +11757,18 @@ function _listenApprovals(notifId){
   const ref = db.ref('tac_notif_responses/'+notifId);
   const handler = ref.on('value', snap=>{
     _approvalsData = {};
+    const tomb = window._approvalsJustDeleted || {};
     if(snap.exists()){
       snap.forEach(child=>{
         const d = child.val();
-        if(d && d.approved) _approvalsData[d.personId] = d;
+        if(d && d.approved){
+          // Skip entries we just admin-removed locally — the REST DELETE
+          // is still in flight and Firebase may still be serving the
+          // stale snapshot; without this guard the row reappears for a
+          // few seconds and the user has to click "✕" again.
+          if(tomb[d.personId]) return;
+          _approvalsData[d.personId] = d;
+        }
       });
     }
     console.log('[APPROVALS] updated, count=', Object.keys(_approvalsData).length);
@@ -12480,11 +12492,19 @@ function adminMarkArrived(personId){
   const name = (_approvalsData[personId]||{}).name || personId;
   showToast({icon:'📍',title:name+' סומן כהגיע',type:'success'});
 }
+// Recently-deleted approvals keyed by personId with the ts of deletion.
+// Used to shield against the SDK listener's value-rebuild racing with
+// the REST DELETE: if the snapshot STILL contains an entry we just
+// deleted, ignore it for a few seconds instead of re-adding the row.
+window._approvalsJustDeleted = window._approvalsJustDeleted || {};
 function removeApproval(personId){
   if(!_currentActiveNotifId) return;
   const notifId = _currentActiveNotifId;
   const path = 'tac_notif_responses/'+notifId+'/'+personId;
 
+  // Guard: the tombstone lives for 8 s, covering any reasonable round-trip
+  // from the REST DELETE back through the SDK's value listener.
+  window._approvalsJustDeleted[personId] = Date.now();
   // Optimistic local removal so the UI feels instant
   delete _approvalsData[personId];
   const c = document.getElementById('rp-body');
@@ -12494,18 +12514,20 @@ function removeApproval(personId){
   }
   showToast({icon:'🗑️', title:'אישור הוסר', type:'info'});
 
-  // Delete via BOTH SDK and REST — the SDK sometimes fails silently
-  // (auth not ready, RTDB rules reject) but REST with .json usually works
-  // because RTDB public rules allow writes from any origin.
+  // Delete via BOTH SDK and REST — SDK pushes to other viewers' listeners
+  // in real time; REST is the authoritative write that survives a wedged
+  // WebSocket. Fire both in parallel.
   if(window._db){
     window._db.ref(path).remove().catch(e => console.warn('[removeApproval] SDK failed:', e && e.message));
   }
-  // REST fallback — most reliable method
   fetch('https://tactical-command-center-default-rtdb.firebaseio.com/'+path+'.json', {
     method: 'DELETE'
   }).then(r => {
     if(!r.ok) console.warn('[removeApproval] REST HTTP', r.status);
   }).catch(e => console.warn('[removeApproval] REST failed:', e && e.message));
+  // Clear the tombstone after 8 s so a later re-approval by the same
+  // person would show up again.
+  setTimeout(()=>{ delete window._approvalsJustDeleted[personId]; }, 8000);
 }
 
 function renderApprovalsSection(){
@@ -12540,7 +12562,7 @@ function renderApprovalsSection(){
         }
         const dotStyle = e.departed ? '' : 'background:#f0b000';
         const arriveBtn = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;padding:2px 4px;opacity:0.6;flex-shrink:0" title="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);border-radius:6px;color:var(--danger);font-size:15px;font-weight:700;cursor:pointer;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;opacity:0.85;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2)" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         return `<div class="approval-item">
           <div class="approval-dot" style="${dotStyle}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
@@ -12585,7 +12607,7 @@ function renderApprovalsSection(){
           statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
         }
         const arriveBtn2 = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:none;border:none;color:var(--danger);font-size:13px;cursor:pointer;padding:2px 4px;opacity:0.6;flex-shrink:0" title="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button onclick="removeApproval('${e.personId}')" style="background:rgba(255,51,51,0.08);border:1px solid rgba(255,51,51,0.25);border-radius:6px;color:var(--danger);font-size:15px;font-weight:700;cursor:pointer;min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;opacity:0.85;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2)" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         html += `<div class="approval-item">
           <div class="approval-dot" style="background:${e.departed?v.color:'#f0b000'}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
