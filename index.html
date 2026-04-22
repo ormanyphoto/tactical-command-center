@@ -12503,10 +12503,51 @@ function adminMarkArrived(personId){
 // the REST DELETE: if the snapshot STILL contains an entry we just
 // deleted, ignore it for a few seconds instead of re-adding the row.
 window._approvalsJustDeleted = window._approvalsJustDeleted || {};
-function removeApproval(personId){
-  if(!_currentActiveNotifId) return;
-  const notifId = _currentActiveNotifId;
+// Event delegation at document level so the ✕ button always fires no
+// matter which event path the browser picks (click, touchend, pointer).
+// Inline handlers on the button were observed to need two taps on some
+// Samsung / mobile WebView builds — the first tap was being swallowed
+// by an ancestor with a stale click handler or by the browser's
+// double-tap-zoom detection. Capture-phase delegation means no
+// ancestor can eat the event before we handle it. Idempotent: the
+// tombstone + _approvalsData check prevents a duplicate fire from
+// re-deleting or re-adding.
+if(!window._approvalDelBtnBound){
+  window._approvalDelBtnBound = true;
+  const _fireDel = (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('.approval-del-btn');
+    if(!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const pid = btn.dataset.pid;
+    const nid = btn.dataset.nid || _currentActiveNotifId;
+    if(!pid) return;
+    // Dedupe: if this exact button was just fired (< 500 ms), skip.
+    // Prevents double-processing when both touchend and the synthesized
+    // click race through on mobile.
+    const now = Date.now();
+    if(btn._lastFired && now - btn._lastFired < 500) return;
+    btn._lastFired = now;
+    removeApproval(pid, nid);
+  };
+  // capture:true so we see the event BEFORE any ancestor handler.
+  document.addEventListener('click', _fireDel, true);
+  document.addEventListener('touchend', _fireDel, { capture: true, passive: false });
+}
+function removeApproval(personId, explicitNotifId){
+  // Prefer the notifId passed from the button's data-nid attribute so a
+  // stale _currentActiveNotifId can't silently break the delete. The
+  // variable was observed to be null on devices that opened the כוחות
+  // panel before _subscribeActiveNotif attached its listener; clicking
+  // X produced no visual change at all because of the early return.
+  const notifId = explicitNotifId || _currentActiveNotifId;
+  if(!notifId){
+    console.warn('[removeApproval] no notifId — cannot delete', personId);
+    showToast({icon:'⚠️', title:'לא ניתן לבטל אישור', sub:'אירוע פעיל לא זוהה', type:'warn', duration:3500});
+    return;
+  }
   const path = 'tac_notif_responses/'+notifId+'/'+personId;
+  console.log('[removeApproval]', personId, 'notif=', notifId);
 
   // Guard: the tombstone lives for 8 s, covering any reasonable round-trip
   // from the REST DELETE back through the SDK's value listener.
@@ -12568,7 +12609,7 @@ function renderApprovalsSection(){
         }
         const dotStyle = e.departed ? '' : 'background:#f0b000';
         const arriveBtn = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" onclick="event.stopPropagation();removeApproval(this.dataset.pid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" data-nid="${escHtml(_currentActiveNotifId||'')}" onclick="event.stopPropagation();removeApproval(this.dataset.pid,this.dataset.nid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid,this.dataset.nid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         return `<div class="approval-item">
           <div class="approval-dot" style="${dotStyle}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
@@ -12613,7 +12654,7 @@ function renderApprovalsSection(){
           statusHtml = `<span style="font-size:10px;font-weight:700;color:#f0b000">⏳ ממתין ליציאה</span>`;
         }
         const arriveBtn2 = (canDelete && !e.arrived) ? `<button onclick="adminMarkArrived('${e.personId}')" style="background:rgba(41,197,246,0.15);border:1px solid rgba(41,197,246,0.3);color:#29c5f6;font-size:10px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:5px;flex-shrink:0;font-family:var(--font)" title="סמן הגעה">📍 הגיע</button>` : '';
-        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" onclick="event.stopPropagation();removeApproval(this.dataset.pid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
+        const delBtn = canDelete ? `<button class="approval-del-btn" data-pid="${e.personId}" data-nid="${escHtml(_currentActiveNotifId||'')}" onclick="event.stopPropagation();removeApproval(this.dataset.pid,this.dataset.nid);return false" ontouchend="event.stopPropagation();event.preventDefault();removeApproval(this.dataset.pid,this.dataset.nid);return false" type="button" style="background:rgba(255,51,51,0.12);border:1px solid rgba(255,51,51,0.35);border-radius:6px;color:var(--danger);font-size:16px;font-weight:800;cursor:pointer;min-width:38px;min-height:38px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,51,51,0.2);user-select:none;-webkit-user-select:none;pointer-events:auto" title="הסר אישור" aria-label="הסר אישור">✕</button>` : '';
         html += `<div class="approval-item">
           <div class="approval-dot" style="background:${e.departed?v.color:'#f0b000'}"></div>
           <div style="flex:1;min-width:0"><span class="approval-name">${e.name}</span><span class="approval-role"> · ${e.role||''}</span></div>
