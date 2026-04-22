@@ -84,20 +84,27 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
 
         let age = -loc.timestamp.timeIntervalSinceNow
 
-        // ── First fix: accept anything not catastrophically invalid ──────────
-        // On cold-start, iOS often delivers a cached cellular-tower fix with
-        // accuracy 1000–2000 m before GPS locks. Rejecting that (as we used
-        // to with the >500m threshold) left the web app with no avatar for
-        // 10–30 s, producing the "מיקום נעלם" reports. Accept the first
-        // fix regardless so something renders immediately; the strict filter
-        // kicks in for subsequent fixes.
+        // ── First fix: relaxed but NOT unfiltered ────────────────────────────
+        // On cold-start iOS delivers a cached cellular-tower fix before GPS
+        // locks, typically 500–2000 m accuracy. That's acceptable to render
+        // "roughly where I am." But iOS will also hand us CACHED fixes from
+        // previous sessions — hours old and sometimes in a different city
+        // (seen 14 km off in the field). Those must be rejected.
+        //
+        // Rules for fix #1:
+        //   • accuracy in 0–3000 m (cellular / rough WiFi, not city-fallback)
+        //   • age < 120 s (fresh-enough, not a stale session cache)
         if !firstFixEmitted {
-            if loc.horizontalAccuracy < 0 {
-                NSLog("[Loc] reject first fix — invalid acc=\(loc.horizontalAccuracy)")
+            if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 3000 {
+                NSLog("[Loc] reject first fix — acc=\(loc.horizontalAccuracy)m (too coarse)")
+                return
+            }
+            if age > 120 {
+                NSLog("[Loc] reject first fix — age=\(Int(age))s (stale cache)")
                 return
             }
             firstFixEmitted = true
-            NSLog("[Loc] FIRST fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s (accepted unfiltered)")
+            NSLog("[Loc] FIRST fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s (accepted relaxed)")
             let spd = max(0, loc.speed)
             let hdg = max(0, loc.course)
             onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)

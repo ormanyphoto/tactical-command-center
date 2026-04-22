@@ -15924,11 +15924,19 @@ const SYNC = (() => {
         // No in-memory _lastLat/Lng (fresh boot, cold WKWebView). Read our
         // own previous entry from Firebase and reuse it as the seed so the
         // avatar isn't blank while iOS CoreLocation warms up (10–30 s).
-        // The next real fix from watchPosition overwrites.
+        // IMPORTANT: only use the Firebase fallback if it's recent (< 30 min)
+        // — otherwise we'd restore a possibly-bad cellular-tower fix from a
+        // previous session (e.g., the 14 km offset users reported) instead of
+        // waiting the extra few seconds for real GPS.
         try {
           _db.ref('tac_locs/'+_myUid).once('value').then(s=>{
             const prev = s && s.val();
             if(prev && typeof prev.lat === 'number' && typeof prev.lng === 'number'){
+              const ageMs = Date.now() - (prev.ts || 0);
+              if(ageMs > 30*60*1000){
+                console.log('[SYNC] skip Firebase seed — entry is', Math.round(ageMs/60000)+'min old');
+                return;
+              }
               window._lastLat = prev.lat; window._lastLng = prev.lng;
               if(window.map && window._googleReady){
                 _updateLiveMarker(_myUid, prev, true);
