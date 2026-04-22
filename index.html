@@ -10895,9 +10895,36 @@ function _showIncomingNotif(notif, fbRef){
     return;
   }
 
-  // ── EMERGENCY popup (approve / decline / depart) ──
+  // ── MESSAGE popup (simple ack) ──
+  // Type=message is a routine comms blast, not a dispatch. Show a minimal
+  // "acknowledge / close" pair — no departure flow, no status change,
+  // no map navigation. Keeps alerts and missions on the original 3-button
+  // approve/decline/depart flow (below).
+  const isMessage = notif.type === 'message';
   _currentIncomingNotif = {notif, fbRef};
-  if(incBtnsMain) incBtnsMain.style.display = '';
+  if(isMessage){
+    if(incBtnsMain){
+      incBtnsMain.innerHTML =
+        '<button class="inc-approve" onclick="acknowledgeMessage()">✅ אישור הודעה</button>'
+      + '<button class="inc-decline" onclick="closeIncomingNotif()">סגור</button>';
+      incBtnsMain.style.display = '';
+    }
+    document.getElementById('incoming-notif-overlay').classList.add('open');
+    _playAlertSound(getAlertSoundForType('message'));
+    _vibrate([200]);
+    return;
+  }
+
+  // ── EMERGENCY popup (approve / decline / depart) ──
+  // Always rewrite the button row so a prior "message" popup (which
+  // rewrites inc-btns with different handlers) can't leak its handlers
+  // into the next emergency notif.
+  if(incBtnsMain){
+    incBtnsMain.innerHTML =
+      '<button class="inc-approve" onclick="respondToNotif(true)">✅ אשר — מגיע</button>'
+    + '<button class="inc-decline" onclick="respondToNotif(false)">❌ לא זמין</button>';
+    incBtnsMain.style.display = '';
+  }
   if(departBtn) departBtn.style.display = '';
   // Address button
   const addrBtn = document.getElementById('inc-addr-btn');
@@ -11192,6 +11219,45 @@ function _navToVenueId(vid){
   else if(v.address) openNavToAddress(v.address);
 }
 
+// Close the incoming-notification overlay without recording anything.
+// Used by the "message" popup's "סגור" option (routine comms that the
+// user saw but didn't want to flag as read).
+function closeIncomingNotif(){
+  const ov = document.getElementById('incoming-notif-overlay');
+  if(ov) ov.classList.remove('open');
+  _currentIncomingNotif = null;
+}
+// Acknowledge a type=message notification. Writes a tiny receipt so the
+// sender can see who read it, but does NOT change the user's live status
+// (unlike respondToNotif(true) which sets busy/standby), does NOT show
+// the departure banner, and does NOT open Waze. Removes the message
+// from the user's notifications queue.
+function acknowledgeMessage(){
+  if(!_currentIncomingNotif) { closeIncomingNotif(); return; }
+  const {notif, fbRef} = _currentIncomingNotif;
+  const u = (typeof AUTH !== 'undefined') ? AUTH.getUser() : null;
+  const myId = u ? u.id : null;
+  if(myId && notif.id){
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    const payload = {
+      personId: myId,
+      name: u.name || '',
+      role: u.role || '',
+      acknowledged: true,
+      ts: Date.now()
+    };
+    fetch(DB+'/tac_notif_responses/'+notif.id+'/'+myId+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+    try { if(window._db) window._db.ref('tac_notif_responses/'+notif.id+'/'+myId).set(payload).catch(()=>{}); } catch(_){}
+    // Pop the message off the user's queue
+    fetch(DB+'/tac_notifications/'+myId+'/'+notif.id+'.json', {method:'DELETE'}).catch(()=>{});
+    try { if(fbRef) fbRef.remove().catch(()=>{}); else if(window._db) window._db.ref('tac_notifications/'+myId+'/'+notif.id).remove().catch(()=>{}); } catch(_){}
+  }
+  closeIncomingNotif();
+  showToast({icon:'✅', title:'ההודעה אושרה', type:'success', duration:2000});
+}
 function respondToNotif(approved){
   if(!_currentIncomingNotif) return;
   const {notif, fbRef} = _currentIncomingNotif;
@@ -11496,12 +11562,34 @@ setTimeout(()=>{
 function cancelDeparture(){
   if(!confirm('לבטל את האישור?')) return;
   const st = _getPendingDeparture();
-  if(st && window._db && st.notifId && st.personId){
-    window._db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update({
-      approved: false,
-      cancelled: true,
-      cancelledAt: Date.now()
+  if(st && st.notifId && st.personId){
+    const patch = { approved: false, cancelled: true, cancelledAt: Date.now() };
+    // Dual-write: SDK for real-time push to other listeners, REST PATCH
+    // as the authoritative backup. Prior code only used SDK — if the
+    // WebSocket was wedged (common on Samsung WebView), the cancel
+    // silently vanished and the commander's כוחות panel kept showing
+    // the user as "ממתין ליציאה" indefinitely.
+    try { if(window._db) window._db.ref('tac_notif_responses/'+st.notifId+'/'+st.personId).update(patch).catch(()=>{}); } catch(_){}
+    const DB = 'https://tactical-command-center-default-rtdb.firebaseio.com';
+    fetch(DB+'/tac_notif_responses/'+st.notifId+'/'+st.personId+'.json', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(patch)
     }).catch(()=>{});
+    // Optimistic local update so THIS device's כוחות panel reflects the
+    // cancel without waiting for the Firebase round-trip to echo back.
+    try {
+      if(_approvalsData && _approvalsData[st.personId]){
+        delete _approvalsData[st.personId];
+        const c = document.getElementById('rp-body');
+        if(c && (currentPanel === 'units' || currentPanel === 'personnel')) goPanel(currentPanel);
+      }
+    } catch(_){}
+    // Reset the user's live status back to "active" (they were "busy"
+    // after approving) so the roster shows them as available again.
+    try {
+      if(typeof SYNC !== 'undefined' && SYNC.updateStatus) SYNC.updateStatus('active');
+      if(typeof operatorSetStatus === 'function') operatorSetStatus('active');
+    } catch(_){}
   }
   localStorage.removeItem('tac_pending_departure');
   _hideDepartBanner();
