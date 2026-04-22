@@ -3373,11 +3373,14 @@ function _locateOnce(onSuccess, onFail){
   // On iOS native app the "GPS" and "WiFi" hops both go through the same
   // native shim, so if it fails it's pointless to retry — skip WiFi and
   // go straight to IP (which still works on iOS native). On Android/web
-  // the traditional cascade is preserved. Also tighten GPS timeout on
-  // iOS native from 15s → 8s so users don't wait forever when permission
-  // is missing or denied.
+  // the traditional cascade is preserved.
+  // Timeout budget: iOS CoreLocation first-fix indoors often takes
+  // 15–25 s (especially before kCLLocationAccuracyBestForNavigation
+  // settles), so the previous 8 s was firing code=3 before the fix ever
+  // arrived. Raised to 25 s — if permission is missing it'll still fail
+  // fast (code=1 comes immediately), only legitimate slow-fix cases wait.
   const isIOSNative = !!(window._runningInNativeApp && !window.Android);
-  const gpsTimeout = isIOSNative ? 8000 : 15000;
+  const gpsTimeout = isIOSNative ? 25000 : 15000;
   navigator.geolocation.getCurrentPosition(
     pos=>{
       console.log('[locate] GPS fix', pos.coords.latitude.toFixed(5), pos.coords.longitude.toFixed(5), 'acc='+Math.round(pos.coords.accuracy)+'m');
