@@ -3536,43 +3536,36 @@ function locateMe(showToastOnSuccess){
   // Debounce: skip if called within 30s (auto-calls on boot)
   const now = Date.now();
   const showMsg = showToastOnSuccess !== false && (now - _locateLastShown > 30000);
-  // Remember whether we started this call from a manual override so the
-  // error path can decide what to do. When manual was active we must not
-  // leave the user stranded on a blank error — they had a valid
-  // (manual) position already; we just failed to replace it with GPS.
+  // Tapping GPS-focus is the user's explicit "exit manual mode" signal.
+  // Clear the override now (not conditionally on success) so the
+  // watchPosition that _resetToGPS re-installs can publish the next
+  // real CoreLocation fix to the marker — even if the synchronous
+  // one-shot below times out. Otherwise the user would stay visibly
+  // pinned to the manual spot until their next explicit tap.
   const wasManual = window._manualLocOverride === true;
   if(wasManual){
-    // Kick CoreLocation out of its stopped state so the shim's 25s wait
-    // actually has a live feed. Don't flip _manualLocOverride yet — only
-    // once we get a real fix (success path below) do we consider the
-    // user "off manual".
     try { if(typeof _resetToGPS === 'function') _resetToGPS(); } catch(_){}
-    // Re-arm the override while we wait — _resetToGPS clears it, but we
-    // want it restored if the GPS attempt times out.
-    window._manualLocOverride = true;
+    // _resetToGPS already sets _manualLocOverride=false — keep it that way.
   }
   _locateOnce((pos,method)=>{
     const ll={lat:pos.coords.latitude,lng:pos.coords.longitude};
     map.setCenter(ll);
     map.setZoom(method==='IP'?12:method==='WiFi'?16:18);
     _applyPos(pos,method);
-    // Real GPS fix landed — clear the override for good this time.
-    window._manualLocOverride = false;
     if(showMsg){
       _locateLastShown = now;
       showToast({icon:_methodIcon(method),title:'מיקום נמצא',sub:'דיוק: '+Math.round(pos.coords.accuracy)+'מ',type:'success',duration:2500});
     }
   }, ()=>{
     if(wasManual){
-      // GPS didn't come back but the user HAS a valid manual position —
-      // keep them on it instead of popping a scary "cannot locate" toast
-      // that does nothing. Re-center on the manual point so the map
-      // visibly responds to their tap.
-      if(window._lastLat != null && window._lastLng != null && typeof map !== 'undefined' && map){
-        try { map.setCenter({lat: window._lastLat, lng: window._lastLng}); } catch(_){}
-      }
+      // GPS didn't land within the 25 s window, but we've already kicked
+      // CoreLocation back on (_resetToGPS → watchPosition →
+      // post('startLocation')). The background watch will push the
+      // first real fix into _applyPos whenever it arrives, so the
+      // marker moves to the real GPS coords on its own — no need to
+      // re-pin the user on manual. Just tell them it's still warming up.
       if(showMsg){
-        showToast({icon:'📍', title:'GPS עדיין לא זמין', sub:'נשאר במיקום שהוגדר ידנית', type:'warn', duration:4500});
+        showToast({icon:'🛰️', title:'GPS עדיין מתחבר', sub:'יתעדכן אוטומטית ברגע שתושג קליטה', type:'info', duration:4500});
       }
       return;
     }
