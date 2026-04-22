@@ -8890,8 +8890,23 @@ function savePersonnelToStorage(){
         delete c.loginPassword;
         return c;
       });
-      window._db.ref('tac_personnel_sync').set(cleanList).catch(()=>{});
-    } catch(_){}
+      // Dual-write: SDK for instant push to listeners + REST PUT as a
+      // reliable backup. Without the REST path, silent SDK failures
+      // (stalled WebSocket, auth race) left remote viewers stuck on
+      // the pre-edit data until they refreshed. Log both paths so any
+      // regression is visible in the console instead of swallowed.
+      window._db.ref('tac_personnel_sync').set(cleanList)
+        .then(()=> console.log('[PERSONNEL SYNC] SDK ok (' + cleanList.length + ' rows)'))
+        .catch(e => console.warn('[PERSONNEL SYNC] SDK failed:', e && (e.code || e.message)));
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(cleanList)
+      }).then(r => {
+        if(!r.ok) console.warn('[PERSONNEL SYNC] REST HTTP ' + r.status);
+        else      console.log('[PERSONNEL SYNC] REST ok');
+      }).catch(e => console.warn('[PERSONNEL SYNC] REST failed:', e && e.message));
+    } catch(e){ console.warn('[PERSONNEL SYNC] throw:', e && e.message); }
   }
 }
 function loadPersonnelFromStorage(){
@@ -16165,11 +16180,61 @@ const SYNC = (() => {
         }
       }, err=>console.warn('[SYNC] tac_weapon_models', err));
     }catch(e){ console.warn('[SYNC] tac_weapon_models subscribe error', e); }
+    // REST-poll fallback for tac_personnel_sync — fires every 15 s and
+    // applies the same merge logic as the SDK listener. On Samsung /
+    // Android WebView the SDK .on('value') occasionally goes silent
+    // (no error, no events) and remote edits never reach the device.
+    // This poll is the safety net that makes the "I updated roles on
+    // desktop, mobile still stale" case impossible.
+    if(!window._personnelSyncPollBound){
+      window._personnelSyncPollBound = true;
+      const applyPersonnelSnapshot = (list) => {
+        if(!Array.isArray(list) || !list.length) return;
+        let changed = false;
+        list.forEach(sp => {
+          if(!sp || !sp.id) return;
+          const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+          if(idx > -1){
+            const existing = PERSONNEL[idx];
+            const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+            const photo = existing.photo, pwd = existing.loginPassword;
+            Object.assign(existing, sp);
+            if(photo) existing.photo = photo;
+            if(pwd)   existing.loginPassword = pwd;
+            const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+            if(before !== after) changed = true;
+          } else {
+            PERSONNEL.push(sp);
+            changed = true;
+          }
+        });
+        if(!changed) return;
+        console.log('[PERSONNEL SYNC] REST poll applied changes');
+        try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
+        const rp = document.getElementById('rp-body');
+        if(rp){
+          if(currentPanel === 'personnel' && typeof renderPersonnelP === 'function'){ try { renderPersonnelP(rp); } catch(_){} }
+          else if(currentPanel === 'units' && typeof renderUnitsP === 'function'){ window._unitsLastHash = ''; try { renderUnitsP(rp); } catch(_){} }
+          else if(currentPanel === 'teams' && typeof renderTeamsP === 'function'){ try { renderTeamsP(rp); } catch(_){} }
+        }
+        if(typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers();
+      };
+      setInterval(async () => {
+        try {
+          const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'});
+          if(!r.ok) return;
+          const v = await r.json();
+          const list = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+          applyPersonnelSnapshot(list);
+        } catch(_){}
+      }, 15000);
+    }
     try{
       try { _db.ref('tac_personnel_sync').off('value'); } catch(_){}
       _db.ref('tac_personnel_sync').on('value', s=>{
         const v=s.val();
         const list = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+        console.log('[PERSONNEL SYNC] subscriber fired, ' + list.length + ' rows');
         if(!list.length) return;
         // Merge remote → local PERSONNEL.
         let changed = false;
