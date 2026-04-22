@@ -2430,6 +2430,67 @@ function onGoogleMapsReady(){
   // Map events
   map.addListener('click',onMapClick);
   map.addListener('rightclick',onMapRightClick);
+  // Long-press to open the context menu on mobile/tablet. Desktop users
+  // right-click; touch devices never fire 'rightclick' so they couldn't
+  // reach the same menu (including the manual-location picker, which
+  // matters a lot when GPS is jammed/unavailable). Implementation: track
+  // the first touch's position, start a 600 ms timer; if the finger
+  // doesn't move more than ~12 px and doesn't lift, fire showCtxMenu at
+  // that lat/lng and suppress the subsequent click so the map doesn't
+  // do both "open menu" and "add waypoint".
+  (function setupLongPress(){
+    const gmapEl = document.getElementById('gmap');
+    if(!gmapEl) return;
+    let pressTimer = null, startX = 0, startY = 0, firedLongPress = false;
+    const MOVE_TOLERANCE = 12;
+    const clearTimer = () => { if(pressTimer){ clearTimeout(pressTimer); pressTimer = null; } };
+    gmapEl.addEventListener('touchstart', (e) => {
+      if(e.touches.length !== 1) { clearTimer(); return; }
+      firedLongPress = false;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      clearTimer();
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        firedLongPress = true;
+        // Convert pixel to LatLng via Maps projection
+        try {
+          const rect = gmapEl.getBoundingClientRect();
+          const px = startX - rect.left;
+          const py = startY - rect.top;
+          const proj = map.getProjection();
+          if(!proj) return;
+          const bounds = map.getBounds();
+          if(!bounds) return;
+          const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+          const topRight = proj.fromLatLngToPoint(ne);
+          const bottomLeft = proj.fromLatLngToPoint(sw);
+          const scale = Math.pow(2, map.getZoom());
+          const worldX = bottomLeft.x + (px / scale);
+          const worldY = topRight.y + (py / scale);
+          const ll = proj.fromPointToLatLng(new google.maps.Point(worldX, worldY));
+          showCtxMenu(ll, { x: px, y: py });
+          if(navigator.vibrate) navigator.vibrate(30);
+        } catch(_){}
+      }, 600);
+    }, { passive: true });
+    gmapEl.addEventListener('touchmove', (e) => {
+      if(e.touches.length !== 1) { clearTimer(); return; }
+      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if(Math.hypot(dx, dy) > MOVE_TOLERANCE) clearTimer();
+    }, { passive: true });
+    gmapEl.addEventListener('touchend', () => { clearTimer(); }, { passive: true });
+    gmapEl.addEventListener('touchcancel', () => { clearTimer(); }, { passive: true });
+    // Swallow the click that would fire right after long-press ends so
+    // the map doesn't also process it as a tap (which would run the
+    // regular click handler, e.g. adding a waypoint the user didn't ask
+    // for). capture:true so we see it first.
+    document.addEventListener('click', (e) => {
+      if(!firedLongPress) return;
+      firedLongPress = false;
+      e.stopPropagation(); e.preventDefault();
+    }, true);
+  })();
   map.addListener('zoom_changed',()=>{
     const z=map.getZoom();
     const el=document.getElementById('s-zoom');if(el)el.textContent=String(z).padStart(2,'0');
@@ -2931,6 +2992,7 @@ function showCtxMenu(latLng, pixel){
   // Build context menu content
   const lat=latLng.lat().toFixed(5), lng=latLng.lng().toFixed(5);
   const menuItems=[
+    {icon:'📍',label:'הגדר כאן את מיקומי',        action:`closeAllInfoWindows();_startManualPlacement()`},
     {icon:'📋',label:'משימה חדשה כאן',          action:`closeAllInfoWindows();_nmLat=${latLng.lat()};_nmLng=${latLng.lng()};openNewMsnModal()`},
     {icon:'👤',label:'פרוס יחידה',               action:`closeAllInfoWindows();showToast({icon:'👤',title:'פריסת יחידה',sub:'${lat}°, ${lng}°',type:'info'})`},
     {icon:'⭕',label:'מעגל רדיוס (200מ)',         action:`closeAllInfoWindows();startCircleAt(_ctxLatLng)`},
