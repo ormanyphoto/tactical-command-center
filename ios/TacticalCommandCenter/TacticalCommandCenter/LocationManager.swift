@@ -84,43 +84,31 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
 
         let age = -loc.timestamp.timeIntervalSinceNow
 
-        // ── First fix: relaxed but NOT unfiltered ────────────────────────────
-        // On cold-start iOS delivers a cached cellular-tower fix before GPS
-        // locks, typically 500–2000 m accuracy. That's acceptable to render
-        // "roughly where I am." But iOS will also hand us CACHED fixes from
-        // previous sessions — hours old and sometimes in a different city
-        // (seen 14 km off in the field). Those must be rejected.
+        // ── Strict accuracy filter (operational tactical use) ────────────────
+        // Requirement: publish ONLY real-GPS-grade fixes (≤50 m). Cellular-
+        // tower / cached-coarse fixes (100 m+) mislead the operator about
+        // teammate positions and were producing 14 km offsets when accepted.
+        // If iOS is still warming up and can only deliver coarse fixes,
+        // we publish nothing — the previous known-good position stays on
+        // the map until real GPS locks.
         //
-        // Rules for fix #1:
-        //   • accuracy in 0–3000 m (cellular / rough WiFi, not city-fallback)
-        //   • age < 120 s (fresh-enough, not a stale session cache)
-        if !firstFixEmitted {
-            if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 3000 {
-                NSLog("[Loc] reject first fix — acc=\(loc.horizontalAccuracy)m (too coarse)")
-                return
-            }
-            if age > 120 {
-                NSLog("[Loc] reject first fix — age=\(Int(age))s (stale cache)")
-                return
-            }
-            firstFixEmitted = true
-            NSLog("[Loc] FIRST fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s (accepted relaxed)")
-            let spd = max(0, loc.speed)
-            let hdg = max(0, loc.course)
-            onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)
-            return
-        }
-
-        // ── Subsequent fixes: strict filter ──────────────────────────────────
-        if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 500 {
-            NSLog("[Loc] reject acc=\(loc.horizontalAccuracy)m (out of range)")
+        // Rules (same for first and subsequent fixes):
+        //   • accuracy in 0–50 m
+        //   • age < 30 s (no cached-from-previous-session garbage)
+        if loc.horizontalAccuracy < 0 || loc.horizontalAccuracy > 50 {
+            NSLog("[Loc] reject acc=\(Int(loc.horizontalAccuracy))m (> 50 m)")
             return
         }
         if age > 30 {
-            NSLog("[Loc] reject stale fix age=\(age)s")
+            NSLog("[Loc] reject stale fix age=\(Int(age))s")
             return
         }
-        NSLog("[Loc] fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s")
+        if !firstFixEmitted {
+            firstFixEmitted = true
+            NSLog("[Loc] FIRST good fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s")
+        } else {
+            NSLog("[Loc] fix acc=\(Int(loc.horizontalAccuracy))m age=\(Int(age))s")
+        }
 
         let spd = max(0, loc.speed) // clamp negatives (means "unknown")
         let hdg = max(0, loc.course)
