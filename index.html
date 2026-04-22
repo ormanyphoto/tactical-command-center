@@ -16216,6 +16216,12 @@ const SYNC = (() => {
     // fails to load (onerror or 1.5s watchdog), fall back to initials-only
     // SVG → PNG. If that also fails, emit a last-resort minimal PNG
     // (solid-fill circle) so the marker always lands on the map.
+    // Retina / high-DPR scale. Google Maps displays the icon at
+    // scaledSize(W,H) CSS pixels, so on a 2× / 3× device screen the
+    // bitmap gets upscaled → name label and avatar look soft. We
+    // render the canvas at (devicePixelRatio || 2)× and let Maps
+    // down-scale, which keeps edges sharp on every phone.
+    const PX = Math.max(2, Math.min(3, (window.devicePixelRatio || 2)));
     function _rasterize(svgUrl, photoImg, onPng, onFail){
       const img = new Image();
       let done = false;
@@ -16223,9 +16229,15 @@ const SYNC = (() => {
         if(done) return; done = true;
         try {
           const cvs = document.createElement('canvas');
-          cvs.width = W; cvs.height = H;
+          cvs.width = W * PX; cvs.height = H * PX;
           const g = cvs.getContext('2d');
-          g.clearRect(0, 0, W, H);
+          g.clearRect(0, 0, W * PX, H * PX);
+          // Work in logical W×H coords; the scale() transform maps them
+          // to PX× device pixels so the browser rasterises the SVG at
+          // the higher resolution and text stays crisp.
+          g.scale(PX, PX);
+          g.imageSmoothingEnabled = true;
+          g.imageSmoothingQuality = 'high';
           g.drawImage(img, 0, 0, W, H);
           // Composite the profile photo on top of the placeholder disk.
           // Clipping via a circular path gives a round avatar that exactly
@@ -16266,9 +16278,10 @@ const SYNC = (() => {
             // via canvas (no SVG at all, so no WebView SVG quirks possible).
             try {
               const cvs = document.createElement('canvas');
-              cvs.width = W; cvs.height = H;
+              cvs.width = W * PX; cvs.height = H * PX;
               const g = cvs.getContext('2d');
-              g.clearRect(0, 0, W, H);
+              g.clearRect(0, 0, W * PX, H * PX);
+              g.scale(PX, PX);
               g.fillStyle = ringColor;
               g.beginPath(); g.arc(cx, bubCy, rOuter, 0, Math.PI*2); g.fill();
               g.fillStyle = bgColor;
