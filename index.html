@@ -15883,6 +15883,45 @@ const SYNC = (() => {
 
   function startPublishing(profile){
     if(profile) _myProfile={..._myProfile,...profile};
+    // ── iOS cold-start guard ────────────────────────────────────────────────
+    // On iOS native, watchPosition goes through the TCC geolocation shim.
+    // When the previous watcher was cleared (toggle-off, manual-placement
+    // cleanup, page hide), Swift stopped CoreLocation. Re-starting it can
+    // take 10–30 s to deliver the first fix. During that window the user's
+    // tac_locs entry is either missing (stopPublishing deleted it) or stale,
+    // and the avatar renders as nothing — creating the "my avatar
+    // disappeared after toggling location" report on iOS only.
+    // Fix: if we already have a last-known position, publish it immediately
+    // so the marker reappears instantly. The next real fix overwrites.
+    try {
+      const u0 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+      const pid0 = u0 ? u0.id : null;
+      const notHidden = !(pid0 && _hiddenPersons[pid0]);
+      if(window._locPrivacyOn !== false && notHidden
+         && typeof window._lastLat === 'number' && typeof window._lastLng === 'number'){
+        const seed = {
+          name: u0 ? u0.name : _myProfile.name,
+          role: u0 ? (u0.role||_myProfile.role) : _myProfile.role,
+          status: _myProfile.status || 'active',
+          color: u0 ? (u0.color||'#29c5f6') : '#29c5f6',
+          personId: pid0 || '',
+          lat: window._lastLat, lng: window._lastLng,
+          acc: 0, hdg: 0, spd: 0,
+          ts: Date.now(), uid: _myUid
+        };
+        if(_db){ try{ _db.ref('tac_locs/'+_myUid).set(seed).catch(()=>{}); }catch(_){} }
+        // REST fallback so the entry survives even if SDK auth hasn't
+        // re-handshaked after a long stop.
+        try {
+          fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/'+_myUid+'.json',
+            { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(seed) }
+          ).catch(()=>{});
+        } catch(_){}
+        if(window.map && window._googleReady){
+          _updateLiveMarker(_myUid, seed, true);
+        }
+      }
+    } catch(_){}
     // Use watchPosition for continuous real-time tracking
     if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
     if('geolocation' in navigator){
