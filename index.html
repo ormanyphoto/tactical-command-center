@@ -16219,15 +16219,24 @@ const SYNC = (() => {
         }
         if(typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers();
       };
-      setInterval(async () => {
+      const _pollOnce = async () => {
         try {
           const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'});
-          if(!r.ok) return;
+          if(!r.ok){ console.warn('[PERSONNEL SYNC] REST poll HTTP ' + r.status); return; }
           const v = await r.json();
           const list = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
           applyPersonnelSnapshot(list);
-        } catch(_){}
-      }, 15000);
+        } catch(e){ console.warn('[PERSONNEL SYNC] REST poll failed:', e && e.message); }
+      };
+      // Kick off immediately, then poll every 10 s. On mobile devices
+      // where the SDK listener can be silently stalled, this is the
+      // primary delivery path for remote edits. Also run on page
+      // visibility so switching back to the tab pulls fresh data instantly.
+      _pollOnce();
+      setInterval(_pollOnce, 10000);
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState === 'visible') _pollOnce();
+      });
     }
     try{
       try { _db.ref('tac_personnel_sync').off('value'); } catch(_){}
