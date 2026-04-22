@@ -17531,6 +17531,19 @@ const FIELD = {
       history.replaceState({}, '', location.pathname + (qs ? '?'+qs : ''));
     }
   } catch(_){}
+  // Opt-in mobile DevTools console — loads Eruda when the URL has
+  // ?debug=1. The console provides a floating button on mobile that
+  // expands to a full DevTools-style inspector with network/console/
+  // storage tabs, so we can diagnose sync issues without USB cables.
+  // Not included on normal loads to keep the bundle lean for operators.
+  try {
+    if(new URLSearchParams(location.search).get('debug') === '1'){
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      s.onload = () => { try { window.eruda && window.eruda.init(); } catch(_){} };
+      document.head.appendChild(s);
+    }
+  } catch(_){}
   // Register service worker — updateViaCache:'none' so sw.js is always fetched
   // fresh from network. No forced page reloads here — they caused re-login loops.
   if('serviceWorker' in navigator){
