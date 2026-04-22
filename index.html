@@ -2453,6 +2453,11 @@ function onGoogleMapsReady(){
       pressTimer = setTimeout(() => {
         pressTimer = null;
         firedLongPress = true;
+        // Arm the guard in onMapClick so the release-click doesn't close
+        // the menu the long-press is about to open. Auto-expires so a
+        // genuine tap 800ms+ later still closes InfoWindows normally.
+        window._longPressActive = true;
+        setTimeout(() => { window._longPressActive = false; }, 800);
         // Convert pixel to LatLng via Maps projection
         try {
           const rect = gmapEl.getBoundingClientRect();
@@ -2912,6 +2917,14 @@ function toggle3D(){
 function onMapClick(e){
   if(activeDrawMode==='point'){addDrawPoint(e.latLng);return;}
   if(activeDrawMode==='circle'){addDrawCircle(e.latLng);return;}
+  // Long-press just opened the context menu — the touch-release fires a
+  // synthetic click on Google's internal event bus which would otherwise
+  // immediately re-run this handler and wipe out the menu we just opened.
+  // The flag is set in setupLongPress and auto-expires after 800 ms.
+  if(window._longPressActive){
+    window._longPressActive = false;
+    return;
+  }
   // Left-click: only close any open InfoWindows — no popup
   closeAllInfoWindows();
 }
