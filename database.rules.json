@@ -1,19 +1,5 @@
 {
   "rules": {
-    "//": [
-      "Everyone authenticated (via firebase.auth().signInAnonymously() in",
-      "SYNC.initFirebase) can READ all live data — this is what makes the",
-      "team see each other on the map in real time. Unauthenticated clients",
-      "are blocked entirely, so random internet scanners no longer pull the",
-      "operational roster, GPS traces, SOS records, or emergency messages.",
-      "",
-      "Write rules preserve the 'everyone broadcasts, everyone sees' model.",
-      "Ownership enforcement (a teammate can't overwrite another teammate's",
-      "tac_locs / tac_sos entry) will require migrating the app's locally-",
-      "generated _myUid to firebase.auth().currentUser.uid — that's a code",
-      "change, tracked as a future step. The current auth-gate alone closes",
-      "the high-severity 'anyone on the internet' class of attacks."
-    ],
     ".read":  "auth != null",
     ".write": "auth != null",
 
