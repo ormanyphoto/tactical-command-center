@@ -1926,6 +1926,18 @@ const AUTH = (() => {
         await firebase.auth().signOut();
       }
     } catch(_){}
+    // Clear the native (iOS) background auth cache so the previous
+    // operator's refresh token isn't sitting in the Keychain when the
+    // next user logs in on this device.
+    try {
+      if(window.TCC_NATIVE && typeof window.TCC_NATIVE.clearBackgroundAuth === 'function'){
+        window.TCC_NATIVE.clearBackgroundAuth();
+      }
+    } catch(_){}
+    if(window._nativeAuthRefreshTimer){
+      clearInterval(window._nativeAuthRefreshTimer);
+      window._nativeAuthRefreshTimer = null;
+    }
     // Mark explicit logout so tacBoot won't auto-trigger biometric on the reload
     sessionStorage.setItem('tac_just_logged_out', '1');
     window.location.reload();
@@ -16564,23 +16576,28 @@ const SYNC = (() => {
     if(typeof locateMe==='function') setTimeout(()=>locateMe(false), 500);
     // iOS-only: push Firebase auth + profile to native Swift so the
     // BackgroundPublisher can keep writing tac_locs while WKWebView's JS
-    // is suspended in the background (UIBackgroundModes:location keeps
-    // CoreLocation alive, but JS stops — without this, remote viewers saw
-    // the operator "frozen" the moment the iOS app left foreground).
+    // is suspended in the background. Swift autonomously refreshes the
+    // ID token via securetoken.googleapis.com using the refresh token
+    // we cache here, so the background publisher keeps working
+    // indefinitely — the user does NOT need to re-open the app.
+    // The periodic push below just keeps the profile fields (name/role/
+    // color/status) in sync if the user edits them.
     if(window.TCC_NATIVE && typeof window.TCC_NATIVE.cacheAuthForBackground === 'function'){
       _pushNativeAuthCache();
-      // Refresh the cached token every 30 min so a typical mission stays
-      // covered. Firebase ID tokens expire at ~60 min — refreshing well
-      // ahead avoids the background publisher falling off a cliff.
       if(!window._nativeAuthRefreshTimer){
         window._nativeAuthRefreshTimer = setInterval(_pushNativeAuthCache, 30*60*1000);
       }
     }
   }
 
-  // Pushes a fresh Firebase ID token + user profile into the iOS native
-  // layer so BackgroundPublisher.swift can PATCH tac_locs/{uid} from
-  // Swift while the web app is suspended. No-op on web and Android.
+  // Pushes a fresh Firebase ID token + refresh token + user profile into
+  // the iOS native layer so BackgroundPublisher.swift can autonomously
+  // refresh and publish tac_locs/{uid} from Swift while the web app is
+  // suspended. The refresh token is long-lived (10+ years) so once cached
+  // the iOS BackgroundPublisher can keep publishing indefinitely without
+  // the user ever opening the app again — it will call
+  // securetoken.googleapis.com itself when its ID token expires.
+  // No-op on web and Android.
   async function _pushNativeAuthCache(){
     try {
       if(!(window.TCC_NATIVE && typeof window.TCC_NATIVE.cacheAuthForBackground === 'function')) return;
@@ -16589,15 +16606,33 @@ const SYNC = (() => {
       if(!fuser) return;
       const token = await fuser.getIdToken(false).catch(()=>null);
       if(!token) return;
+      // firebase.auth().currentUser.refreshToken is a public string
+      // property on the User object (v8+/v9+). This is the secret that
+      // native Swift will use to exchange for fresh ID tokens via
+      // securetoken.googleapis.com/v1/token.
+      const refreshToken = fuser.refreshToken || '';
+      // Pick up the Firebase web API key + project ID from the SDK config
+      // so Swift can construct the token-refresh URL without us hard-coding
+      // it. Both values are public-facing (they ship in google-services
+      // .plist and firebase-config.js already).
+      let apiKey = '', projectId = '';
+      try {
+        const opts = firebase.app().options;
+        apiKey    = opts.apiKey    || '';
+        projectId = opts.projectId || '';
+      } catch(_){}
       const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
       window.TCC_NATIVE.cacheAuthForBackground({
-        uid:      fuser.uid,
-        idToken:  token,
-        personId: u ? (u.id||'') : '',
-        name:     u ? (u.name||'') : '',
-        role:     u ? (u.role||'לוחם') : '',
-        color:    u ? (u.color||'#29c5f6') : '#29c5f6',
-        status:   (_myProfile && _myProfile.status) || 'active'
+        uid:          fuser.uid,
+        idToken:      token,
+        refreshToken: refreshToken,
+        apiKey:       apiKey,
+        projectId:    projectId,
+        personId:     u ? (u.id||'') : '',
+        name:         u ? (u.name||'') : '',
+        role:         u ? (u.role||'לוחם') : '',
+        color:        u ? (u.color||'#29c5f6') : '#29c5f6',
+        status:       (_myProfile && _myProfile.status) || 'active'
       });
     } catch(e){ console.warn('[native-bg-auth] cache failed:', e && e.message); }
   }

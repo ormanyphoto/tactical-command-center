@@ -1,99 +1,198 @@
 // BackgroundPublisher.swift — publishes location fixes directly to
-// Firebase Realtime Database from Swift when the app is backgrounded.
+// Firebase Realtime Database from Swift while the app is backgrounded,
+// with autonomous token refresh so publishing never stops just because
+// the ID token expired.
 //
 // Why: when the app enters background, iOS suspends WKWebView JavaScript
-// execution within a few seconds. CoreLocation keeps delivering fixes to
-// the Swift delegate (UIBackgroundModes:location + allowsBackgroundLocationUpdates),
+// execution within a few seconds. CoreLocation keeps firing fixes to the
+// Swift delegate (UIBackgroundModes:location + allowsBackgroundLocationUpdates),
 // but the `tcc-native-loc` CustomEvent that the bridge dispatches into the
 // webview is processed by JS that is effectively paused — so nothing ever
 // reaches `tac_locs/{uid}` in Firebase. Remote viewers see the operator
-// frozen in place for the entire duration the app is not in the foreground.
+// frozen the moment the app is not in the foreground.
 //
-// Fix: while the app is in the background, publish each accepted location
-// fix via Firebase RTDB REST PATCH ourselves. Requires the web layer to
-// cache the user's uid, a valid ID token, and their profile metadata (via
-// TCC_NATIVE.cacheAuthForBackground — see RootViewController.swift) so we
-// can author the same payload shape as the web's watchPosition callback.
-//
-// Token lifecycle: Firebase ID tokens expire after 1 hour. The web layer
-// re-caches the token every ~30 min while foregrounded, which covers the
-// majority of "pocket during a mission" cases. Once the token expires
-// and the app hasn't been foregrounded, background writes will fail with
-// 401 — at which point the only recovery is the user opening the app
-// again (which refreshes the token).
+// How: the web layer calls TCC_NATIVE.cacheAuthForBackground(info) after
+// login with {uid, idToken, refreshToken, apiKey, projectId, personId,
+// name, role, color, status}. We store the refreshToken in the Keychain
+// (long-lived secret) and everything else in UserDefaults. On each CL
+// fix in background:
+//   1. If our ID token is within 50 min of issuance, reuse it.
+//   2. Otherwise POST to https://securetoken.googleapis.com/v1/token?key=<API_KEY>
+//      with grant_type=refresh_token to get a fresh ID token, cache it.
+//   3. PUT tac_locs/{uid}.json with the payload.
+// No SDK required — pure URLSession. Tokens refresh autonomously for as
+// long as the refresh token is valid (10+ years typical) or until the
+// user explicitly signs out.
 
 import Foundation
 import UIKit
+import Security
 
 final class BackgroundPublisher {
 
     static let shared = BackgroundPublisher()
     private init() {}
 
-    // Keys stored in UserDefaults (not Keychain — ID tokens are short-lived
-    // and non-transferable; worst case of UserDefaults leak is an hour of
-    // extra database write capability for an attacker who already has
-    // physical+unlock access to the device).
-    private let kUid      = "tcc.bg.uid"
-    private let kToken    = "tcc.bg.idToken"
-    private let kTokenAt  = "tcc.bg.idTokenSavedAt"
-    private let kPersonId = "tcc.bg.personId"
-    private let kName     = "tcc.bg.name"
-    private let kRole     = "tcc.bg.role"
-    private let kColor    = "tcc.bg.color"
-    private let kStatus   = "tcc.bg.status"
+    // ── UserDefaults keys ────────────────────────────────────────────────
+    private let kUid       = "tcc.bg.uid"
+    private let kToken     = "tcc.bg.idToken"
+    private let kTokenAt   = "tcc.bg.idTokenSavedAt"
+    private let kApiKey    = "tcc.bg.apiKey"
+    private let kProject   = "tcc.bg.projectId"
+    private let kPersonId  = "tcc.bg.personId"
+    private let kName      = "tcc.bg.name"
+    private let kRole      = "tcc.bg.role"
+    private let kColor     = "tcc.bg.color"
+    private let kStatus    = "tcc.bg.status"
 
-    private let dbHost = "tactical-command-center-default-rtdb.firebaseio.com"
+    // Keychain service/account for the refresh token (long-lived secret).
+    private let kcService  = "com.tacops.commandcenter.bgpub"
+    private let kcAccount  = "firebase.refreshToken"
 
-    // MARK: — called from RootViewController.userContentController
+    // In-flight refresh de-duplication — multiple location updates can
+    // race when tokens expire. Serializing here prevents bombing
+    // securetoken.googleapis.com with N identical refresh requests.
+    private var refreshInFlight: URLSessionDataTask?
+    private let refreshQueue = DispatchQueue(label: "tcc.bg.refresh")
+
+    private var dbHost: String {
+        let p = UserDefaults.standard.string(forKey: kProject) ?? "tactical-command-center"
+        return "\(p)-default-rtdb.firebaseio.com"
+    }
+
+    // MARK: — called from RootViewController
 
     func cacheAuth(_ body: [String: Any]) {
         let d = UserDefaults.standard
-        if let v = body["uid"]      as? String, !v.isEmpty { d.set(v, forKey: kUid) }
-        if let v = body["idToken"]  as? String, !v.isEmpty {
+        if let v = body["uid"]       as? String, !v.isEmpty { d.set(v, forKey: kUid) }
+        if let v = body["apiKey"]    as? String, !v.isEmpty { d.set(v, forKey: kApiKey) }
+        if let v = body["projectId"] as? String, !v.isEmpty { d.set(v, forKey: kProject) }
+        if let v = body["personId"]  as? String { d.set(v, forKey: kPersonId) }
+        if let v = body["name"]      as? String { d.set(v, forKey: kName) }
+        if let v = body["role"]      as? String { d.set(v, forKey: kRole) }
+        if let v = body["color"]     as? String { d.set(v, forKey: kColor) }
+        if let v = body["status"]    as? String { d.set(v, forKey: kStatus) }
+        if let v = body["idToken"]   as? String, !v.isEmpty {
             d.set(v, forKey: kToken)
             d.set(Date().timeIntervalSince1970, forKey: kTokenAt)
         }
-        if let v = body["personId"] as? String { d.set(v, forKey: kPersonId) }
-        if let v = body["name"]     as? String { d.set(v, forKey: kName) }
-        if let v = body["role"]     as? String { d.set(v, forKey: kRole) }
-        if let v = body["color"]    as? String { d.set(v, forKey: kColor) }
-        if let v = body["status"]   as? String { d.set(v, forKey: kStatus) }
-        NSLog("[BgPub] cached auth for uid=\(body["uid"] ?? "?")")
+        // Refresh token — long-lived — goes to Keychain so it survives
+        // backups-restore protections and isn't casually readable via the
+        // file system.
+        if let v = body["refreshToken"] as? String, !v.isEmpty {
+            keychainSet(v)
+        }
+        NSLog("[BgPub] cached auth uid=\(body["uid"] ?? "?") hasRefreshToken=\(body["refreshToken"] != nil)")
     }
 
     func updateStatus(_ status: String) {
         UserDefaults.standard.set(status, forKey: kStatus)
     }
 
-    // MARK: — called from LocationManager's onUpdate
+    func clearAuth() {
+        let d = UserDefaults.standard
+        [kUid, kToken, kTokenAt, kPersonId, kName, kRole, kColor, kStatus].forEach { d.removeObject(forKey: $0) }
+        keychainDelete()
+    }
 
-    /// Publish a fix to Firebase via REST. Returns immediately; HTTP
-    /// request runs on URLSession's default background queue. Only
-    /// publishes when the app is in the background — when foregrounded,
-    /// the web JS path handles publishing to avoid double-writes.
+    // MARK: — LocationManager hook
+
+    /// Called from LocationManager on every accepted fix. Only publishes
+    /// when the app is backgrounded — in foreground the JS path writes.
     func publishIfBackgrounded(lat: Double, lng: Double, acc: Double, spd: Double, hdg: Double) {
         let state = UIApplication.shared.applicationState
-        guard state == .background || state == .inactive else {
-            // Foregrounded — let the WKWebView JS do it (it's already hooked
-            // via tcc-native-loc and will run real-time).
-            return
+        guard state == .background || state == .inactive else { return }
+        ensureFreshToken { [weak self] token in
+            guard let self = self, let token = token else { return }
+            self.publish(lat: lat, lng: lng, acc: acc, spd: spd, hdg: hdg, idToken: token)
         }
+    }
+
+    // MARK: — Token lifecycle
+
+    /// Invokes completion with a valid ID token, refreshing via the
+    /// refresh token if the cached one is stale. Nil on unrecoverable
+    /// failure (no refresh token, API key missing, HTTP error).
+    private func ensureFreshToken(_ completion: @escaping (String?) -> Void) {
+        let d = UserDefaults.standard
+        let now = Date().timeIntervalSince1970
+        let savedAt = d.double(forKey: kTokenAt)
+        let age = savedAt > 0 ? (now - savedAt) : Double.infinity
+
+        // Firebase ID tokens are valid 60 min. Refresh when > 50 min old
+        // so we don't cut it close on request-round-trip.
+        if age < 50 * 60, let token = d.string(forKey: kToken), !token.isEmpty {
+            completion(token); return
+        }
+        refreshToken(completion)
+    }
+
+    private func refreshToken(_ completion: @escaping (String?) -> Void) {
+        let d = UserDefaults.standard
+        guard let apiKey = d.string(forKey: kApiKey), !apiKey.isEmpty else {
+            NSLog("[BgPub] refresh — no apiKey cached")
+            completion(nil); return
+        }
+        guard let refreshToken = keychainGet(), !refreshToken.isEmpty else {
+            NSLog("[BgPub] refresh — no refreshToken in Keychain")
+            completion(nil); return
+        }
+        guard let url = URL(string: "https://securetoken.googleapis.com/v1/token?key=\(apiKey)") else {
+            completion(nil); return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = "grant_type=refresh_token&refresh_token=\(refreshToken)"
+        req.httpBody = body.data(using: .utf8)
+
+        let task = URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            guard let self = self else { completion(nil); return }
+            if let err = err {
+                NSLog("[BgPub] refresh error: \(err.localizedDescription)")
+                completion(nil); return
+            }
+            guard let http = resp as? HTTPURLResponse else { completion(nil); return }
+            guard let data = data else { completion(nil); return }
+            if http.statusCode != 200 {
+                let bodyStr = String(data: data, encoding: .utf8) ?? "<no body>"
+                NSLog("[BgPub] refresh HTTP \(http.statusCode): \(bodyStr.prefix(200))")
+                // If the refresh token itself was revoked (user signed out
+                // on another device, password changed, etc.), clear it so
+                // we don't keep hammering the endpoint.
+                if http.statusCode == 400 || http.statusCode == 401 {
+                    if bodyStr.contains("TOKEN_EXPIRED") || bodyStr.contains("INVALID_REFRESH_TOKEN") || bodyStr.contains("USER_DISABLED") {
+                        NSLog("[BgPub] refresh token revoked — clearing keychain")
+                        self.keychainDelete()
+                    }
+                }
+                completion(nil); return
+            }
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let newIdToken = json["id_token"] as? String else {
+                NSLog("[BgPub] refresh response parse failed")
+                completion(nil); return
+            }
+            // Some endpoints issue a rotated refresh token — persist it.
+            if let newRefresh = json["refresh_token"] as? String, !newRefresh.isEmpty {
+                self.keychainSet(newRefresh)
+            }
+            let dd = UserDefaults.standard
+            dd.set(newIdToken, forKey: self.kToken)
+            dd.set(Date().timeIntervalSince1970, forKey: self.kTokenAt)
+            NSLog("[BgPub] refresh ok — new ID token issued")
+            completion(newIdToken)
+        }
+        task.resume()
+    }
+
+    // MARK: — Write payload
+
+    private func publish(lat: Double, lng: Double, acc: Double, spd: Double, hdg: Double, idToken: String) {
         let d = UserDefaults.standard
         guard let uid = d.string(forKey: kUid), !uid.isEmpty else {
-            NSLog("[BgPub] skip — no cached uid"); return
+            NSLog("[BgPub] publish — no uid"); return
         }
-        guard let token = d.string(forKey: kToken), !token.isEmpty else {
-            NSLog("[BgPub] skip — no cached idToken"); return
-        }
-        // Token age sanity check — Firebase ID tokens expire at 1 h; skip
-        // once we know it's staler than that, rather than firing requests
-        // that all fail with 401.
-        let tokenAge = Date().timeIntervalSince1970 - d.double(forKey: kTokenAt)
-        if tokenAge > 55 * 60 {
-            NSLog("[BgPub] skip — token age=\(Int(tokenAge))s > 55min"); return
-        }
-
         let payload: [String: Any] = [
             "name":     d.string(forKey: kName) ?? "—",
             "role":     d.string(forKey: kRole) ?? "",
@@ -108,19 +207,65 @@ final class BackgroundPublisher {
             "uid":  uid
         ]
         guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        guard let url = URL(string: "https://\(dbHost)/tac_locs/\(uid).json?auth=\(token)") else { return }
+        guard let url = URL(string: "https://\(dbHost)/tac_locs/\(uid).json?auth=\(idToken)") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "PUT"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = body
         URLSession.shared.dataTask(with: req) { _, resp, err in
             if let err = err {
-                NSLog("[BgPub] PUT error: \(err.localizedDescription)")
-                return
+                NSLog("[BgPub] PUT error: \(err.localizedDescription)"); return
             }
             if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
                 NSLog("[BgPub] PUT HTTP \(http.statusCode)")
+                // 401/403 → force-refresh on the next fix instead of reusing
+                // what we had. Setting tokenSavedAt to 0 triggers refresh.
+                if http.statusCode == 401 || http.statusCode == 403 {
+                    UserDefaults.standard.set(0.0, forKey: self.kTokenAt)
+                }
             }
         }.resume()
+    }
+
+    // MARK: — Keychain helpers
+
+    private func keychainSet(_ value: String) {
+        guard let data = value.data(using: .utf8) else { return }
+        let query: [String: Any] = [
+            kSecClass        as String: kSecClassGenericPassword,
+            kSecAttrService  as String: kcService,
+            kSecAttrAccount  as String: kcAccount,
+        ]
+        SecItemDelete(query as CFDictionary)
+        var add = query
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let status = SecItemAdd(add as CFDictionary, nil)
+        if status != errSecSuccess {
+            NSLog("[BgPub] Keychain SecItemAdd failed: \(status)")
+        }
+    }
+
+    private func keychainGet() -> String? {
+        let query: [String: Any] = [
+            kSecClass       as String: kSecClassGenericPassword,
+            kSecAttrService as String: kcService,
+            kSecAttrAccount as String: kcAccount,
+            kSecReturnData  as String: true,
+            kSecMatchLimit  as String: kSecMatchLimitOne,
+        ]
+        var out: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &out)
+        guard status == errSecSuccess, let data = out as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func keychainDelete() {
+        let query: [String: Any] = [
+            kSecClass       as String: kSecClassGenericPassword,
+            kSecAttrService as String: kcService,
+            kSecAttrAccount as String: kcAccount,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }

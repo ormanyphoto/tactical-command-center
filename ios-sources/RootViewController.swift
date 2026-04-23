@@ -23,7 +23,8 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
          "vibrate",
          "openExternal",
          "nativeLog",
-         "cacheAuthForBackground"
+         "cacheAuthForBackground",
+         "clearBackgroundAuth"
         ].forEach { name in
             userContentController.add(ScriptMessageDelegate(parent: self), name: name)
         }
@@ -100,11 +101,14 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
                 BackgroundPublisher.shared.updateStatus(status)
             }
         case "cacheAuthForBackground":
-            // Web layer hands us the uid + Firebase ID token + profile fields
-            // so BackgroundPublisher can write tac_locs/{uid} directly to the
-            // RTDB REST API while WKWebView JS is suspended. Token refreshed
-            // every ~30 min by the web layer.
+            // Web layer hands us the uid + Firebase ID token + REFRESH TOKEN
+            // + apiKey + profile fields so BackgroundPublisher can
+            // autonomously refresh the ID token via securetoken.googleapis
+            // .com and keep publishing tac_locs/{uid} indefinitely while
+            // WKWebView JS is suspended in the background.
             BackgroundPublisher.shared.cacheAuth(body)
+        case "clearBackgroundAuth":
+            BackgroundPublisher.shared.clearAuth()
         case "requestPushToken":
             if let token = PushTokenManager.shared.currentToken {
                 PushTokenManager.shared.dispatchToWeb(webView: webView, token: token)
@@ -194,11 +198,15 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         vibrate: function(pat){ post('vibrate',{pattern: pat||[400,150,400]}); },
         openExternal: function(url){ post('openExternal',{url:url}); },
         log: function(msg){ post('nativeLog',{msg:msg}); },
-        // Hands native Swift the Firebase uid + ID token + profile so the
-        // BackgroundPublisher can PUT tac_locs/{uid} from Swift while
-        // WKWebView's JS is suspended in the background. Call this after
-        // login and then re-call every ~30 min with a fresh ID token.
-        cacheAuthForBackground: function(info){ post('cacheAuthForBackground', info||{}); }
+        // Hands native Swift the Firebase uid + ID token + REFRESH TOKEN
+        // + API key + profile so the BackgroundPublisher can PUT
+        // tac_locs/{uid} from Swift while WKWebView's JS is suspended in
+        // the background, and refresh its own ID tokens via
+        // securetoken.googleapis.com when they expire.
+        cacheAuthForBackground: function(info){ post('cacheAuthForBackground', info||{}); },
+        // Called on logout — drops the cached refresh token + profile so
+        // the next user doesn't inherit the previous operator's secret.
+        clearBackgroundAuth: function(){ post('clearBackgroundAuth', {}); }
       };
 
       // ─── Geolocation shim ────────────────────────────────────────────────
