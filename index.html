@@ -8360,7 +8360,46 @@ function boSettings(c){
   } catch(_){}
   var fieldName=localStorage.getItem('tac_field_name')||'';
   var fieldRole=localStorage.getItem('tac_field_role')||'';
-  c.innerHTML=
+  // Admin-only branding section (logo / title / subtitle). Shown only when
+  // the current user has 'admin' permission. Changes propagate via Firebase.
+  var _isAdmin = false;
+  try { _isAdmin = (typeof AUTH !== 'undefined') && AUTH.isAdmin && AUTH.isAdmin(); } catch(_){ _isAdmin = false; }
+  var brandSectionHtml = '';
+  if(_isAdmin && typeof BRANDING !== 'undefined'){
+    var b = BRANDING.get();
+    var d = BRANDING.getDefaults();
+    var isImg = typeof b.logo === 'string' && b.logo.indexOf('data:image/') === 0;
+    brandSectionHtml =
+      '<div class="bo-section"><div class="bo-hd">🎨 מיתוג מערכת (מנהל מערכת)</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">התאם את שם המערכת, תת-כותרת והלוגו ליחידה / ארגון / חברה. השינוי מסתנכרן לכל המשתמשים.</div>'
+      // Logo row — supports emoji/text OR image upload (data URL)
+      +'<div class="form-g"><label>לוגו (אימוג׳י/סמל או תמונה)</label>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +'<div id="brand-logo-preview" style="width:46px;height:46px;border-radius:10px;background:rgba(0,0,0,0.25);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;flex-shrink:0">'
+      +(isImg ? '<img src="'+b.logo+'" style="width:100%;height:100%;object-fit:contain"/>' : escHtml(b.logo||d.logo))
+      +'</div>'
+      +'<input id="brand-logo-text" class="form-inp" style="flex:1;min-width:120px" maxlength="4" placeholder="⬡" value="'+(isImg?'':escHtml(b.logo||''))+'"/>'
+      +'<input id="brand-logo-file" type="file" accept="image/*" style="display:none" onchange="_brandOnLogoFile(this)"/>'
+      +'<button class="act-btn" onclick="document.getElementById(\'brand-logo-file\').click()">📷 תמונה</button>'
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:4px">אימוג׳י/תו אחד או תמונה (PNG/SVG, עד 200KB)</div>'
+      +'</div>'
+      // Main title
+      +'<div class="form-g"><label>כותרת ראשית</label>'
+      +'<input id="brand-title" class="form-inp" maxlength="60" placeholder="'+escHtml(d.title)+'" value="'+escHtml(b.title||'')+'"/>'
+      +'</div>'
+      // Subtitle
+      +'<div class="form-g"><label>תת-כותרת</label>'
+      +'<input id="brand-sub" class="form-inp" maxlength="80" placeholder="'+escHtml(d.sub)+'" value="'+escHtml(b.sub||'')+'"/>'
+      +'</div>'
+      // Action row
+      +'<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+      +'<button class="btn-pri" style="flex:1;min-width:140px" onclick="_brandSave()">💾 שמור שינויים</button>'
+      +'<button class="act-btn" style="min-width:140px" onclick="_brandReset()">↺ חזרה למקור</button>'
+      +'</div>'
+      +'</div>';
+  }
+  c.innerHTML= brandSectionHtml +
     '<div class="bo-section"><div class="bo-hd">💾 גיבוי ושחזור</div>'
     +'<div class="config-row"><div><div class="config-lbl">גיבוי מלא</div><div class="config-desc">הורדת כל הנתונים לקובץ JSON</div></div>'
     +'<button class="act-btn" onclick="exportFullBackup()">⬇️ הורד גיבוי</button></div>'
@@ -15587,6 +15626,93 @@ function hasAdminPerm(subPerm){
 }
 
 // ══════════════════════════════════════════════════════════
+// Branding (admin) — save/reset/upload handlers wired to the
+// admin settings section. Gated by AUTH.isAdmin() at call time
+// as defense-in-depth even though the UI already hides for
+// non-admins.
+// ══════════════════════════════════════════════════════════
+function _brandRequireAdmin(){
+  try {
+    if(typeof AUTH === 'undefined' || !AUTH.isAdmin || !AUTH.isAdmin()){
+      showToast({icon:'🔒',title:'אין הרשאה',sub:'רק מנהל מערכת יכול לשנות מיתוג',type:'warn'});
+      return false;
+    }
+  } catch(_){ return false; }
+  return true;
+}
+function _brandSave(){
+  if(!_brandRequireAdmin()) return;
+  const titleEl = document.getElementById('brand-title');
+  const subEl = document.getElementById('brand-sub');
+  const logoTextEl = document.getElementById('brand-logo-text');
+  const title = (titleEl && titleEl.value || '').trim();
+  const sub = (subEl && subEl.value || '').trim();
+  let logo = (logoTextEl && logoTextEl.value || '').trim();
+  // If an image was staged via the file picker, it's cached on window._brandPendingLogoImg
+  if(window._brandPendingLogoImg){ logo = window._brandPendingLogoImg; window._brandPendingLogoImg = null; }
+  // Fall back to defaults for any blank field so the UI never ends up empty
+  const d = BRANDING.getDefaults();
+  const payload = {
+    logo: logo || d.logo,
+    title: title || d.title,
+    sub: sub || d.sub
+  };
+  BRANDING.saveToFirebase(payload);
+  showToast({icon:'✅',title:'מיתוג נשמר',sub:'יסונכרן לכל המשתמשים',type:'success'});
+  // Re-render the settings panel so the preview reflects the new values
+  try {
+    const body = document.getElementById('rp-body');
+    if(body && typeof currentPanel !== 'undefined' && currentPanel === 'settings'){
+      boSettings(body);
+    }
+  } catch(_){}
+}
+function _brandReset(){
+  if(!_brandRequireAdmin()) return;
+  if(!confirm('לשחזר את המיתוג למקור (מערכת מבצעים / ⬡)?')) return;
+  BRANDING.reset();
+  showToast({icon:'↺',title:'מיתוג שוחזר',sub:'חזרה לברירת המחדל',type:'info'});
+  try {
+    const body = document.getElementById('rp-body');
+    if(body && typeof currentPanel !== 'undefined' && currentPanel === 'settings'){
+      boSettings(body);
+    }
+  } catch(_){}
+}
+function _brandOnLogoFile(input){
+  if(!_brandRequireAdmin()) return;
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(!/^image\//.test(f.type)){
+    showToast({icon:'⚠️',title:'סוג קובץ לא נתמך',sub:'בחר תמונה (PNG/JPG/SVG)',type:'warn'});
+    return;
+  }
+  if(f.size > 200*1024){
+    showToast({icon:'⚠️',title:'הקובץ גדול מדי',sub:'מקסימום 200KB',type:'warn'});
+    return;
+  }
+  const r = new FileReader();
+  r.onload = ()=>{
+    const dataUrl = r.result;
+    // Stage the data URL — it's applied on Save so the user can cancel
+    window._brandPendingLogoImg = dataUrl;
+    const prev = document.getElementById('brand-logo-preview');
+    if(prev){
+      prev.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = dataUrl; img.style.cssText = 'width:100%;height:100%;object-fit:contain';
+      prev.appendChild(img);
+    }
+    // Clear the text input so it's clear the image will take priority
+    const logoTextEl = document.getElementById('brand-logo-text');
+    if(logoTextEl) logoTextEl.value = '';
+    showToast({icon:'📷',title:'תמונה נטענה',sub:'לחץ שמור כדי להחיל',type:'info',duration:2500});
+  };
+  r.onerror = ()=> showToast({icon:'⚠️',title:'טעינת תמונה נכשלה',type:'warn'});
+  r.readAsDataURL(f);
+}
+
+// ══════════════════════════════════════════════════════════
 // #9 MOBILE WIDGET — compact dashboard opened via URL hash
 // ══════════════════════════════════════════════════════════
 function openMobileWidget(){
@@ -15825,6 +15951,10 @@ const SYNC = (() => {
       if(!firebase.apps.length) firebase.initializeApp(cfg);
       _db = firebase.database();
       window._db = _db;
+      // Start branding subscription as soon as the DB handle exists. Branding
+      // is read-only for non-admins and the Firebase rules allow any authed
+      // user to read, so this is safe before the personal subscription chain.
+      try { if(typeof BRANDING !== 'undefined') BRANDING.subscribe(); } catch(_){}
       _setSyncDot('warn'); // stays warn until auth completes and subs attach
       // Start subscriptions ONLY after anonymous auth resolves. The DB
       // rules used to allow public reads — not anymore. Starting
@@ -17228,6 +17358,147 @@ const SYNC = (() => {
     startPublishing(_myProfile);
   }
   return { init, boot, startPublishing, enablePublishing, stopPublishing, updateStatus, openSetup, savePhoto, loadPhotos, loadPersonnelFromFirebase, rerenderMarkers, autoStartPublishing: _autoStartPublishing, resetForGpsReacquisition, get connected(){ return _connected; }, myUid:_myUid, get _watchId(){ return _watchId; } };
+})();
+
+// ══════════════════════════════════════════════════════════
+// BRANDING — admin-configurable logo / title / subtitle,
+// synced via Firebase (tac_branding) so every device sees
+// the same org branding. Only admins can change it.
+// ══════════════════════════════════════════════════════════
+const BRANDING = (() => {
+  const DEFAULTS = { logo: '⬡', title: 'מערכת מבצעים', sub: 'כוננות מחוזית ת"א' };
+  const LS_KEY = 'tac_branding';
+  let _current = { ...DEFAULTS };
+
+  function _load(){
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if(raw){ const p = JSON.parse(raw); _current = { ...DEFAULTS, ...p }; }
+    } catch(_){ _current = { ...DEFAULTS }; }
+    return _current;
+  }
+
+  function _save(obj){
+    _current = { ...DEFAULTS, ...(obj||{}) };
+    try { localStorage.setItem(LS_KEY, JSON.stringify(_current)); } catch(_){}
+  }
+
+  // Apply branding to all the DOM elements where the system name/logo appears.
+  // Called on boot, on every Firebase snapshot, and after admin save/reset.
+  function apply(){
+    const b = _current;
+    // Header logo + title + sub
+    const logoHex = document.getElementById('logo-hex');
+    const logoTitle = document.getElementById('logo-title');
+    const logoSub = document.getElementById('logo-sub');
+    if(logoHex){
+      // If logo is a data URL (uploaded image), render an <img>; else plain text
+      if(typeof b.logo === 'string' && b.logo.startsWith('data:image/')){
+        logoHex.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = b.logo;
+        img.alt = 'logo';
+        img.style.cssText = 'height:34px;width:34px;object-fit:contain;display:block';
+        logoHex.appendChild(img);
+      } else {
+        logoHex.textContent = b.logo || DEFAULTS.logo;
+      }
+    }
+    if(logoTitle) logoTitle.textContent = b.title || DEFAULTS.title;
+    if(logoSub) logoSub.textContent = b.sub || DEFAULTS.sub;
+    // Login screen
+    const loginLogo = document.getElementById('login-logo');
+    if(loginLogo){
+      // Login screen shows "<logo> <title>" inline — preserve that look
+      if(typeof b.logo === 'string' && b.logo.startsWith('data:image/')){
+        loginLogo.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = b.logo;
+        img.alt = 'logo';
+        img.style.cssText = 'height:38px;width:38px;object-fit:contain;display:inline-block;vertical-align:middle;margin-left:8px';
+        loginLogo.appendChild(img);
+        loginLogo.appendChild(document.createTextNode(b.title || DEFAULTS.title));
+      } else {
+        loginLogo.textContent = (b.logo || DEFAULTS.logo) + ' ' + (b.title || DEFAULTS.title);
+      }
+    }
+    const loginSub = document.getElementById('login-subtitle');
+    if(loginSub){
+      // Preserve the " · v..." suffix if present
+      const existing = loginSub.textContent || '';
+      const m = existing.match(/(\s·\sv[\d.]+.*)$/);
+      loginSub.textContent = (b.sub || DEFAULTS.sub) + (m ? m[1] : '');
+    }
+    // Document title — keep version suffix if present
+    try {
+      const m = (document.title||'').match(/v[\d.]+/);
+      document.title = (b.title || DEFAULTS.title) + (m ? ' ' + m[0] : '') + ' // ' + (b.sub || DEFAULTS.sub);
+    } catch(_){}
+  }
+
+  function get(){ return { ..._current }; }
+  function getDefaults(){ return { ...DEFAULTS }; }
+
+  // Persist to Firebase so every client picks it up
+  function saveToFirebase(obj){
+    _save(obj);
+    apply();
+    try {
+      if(window._db){
+        window._db.ref('tac_branding').set(_current)
+          .catch(e=>console.warn('[BRAND] set failed', e));
+      }
+    } catch(_){}
+    // REST dual-write so it survives SDK auth hiccups
+    try {
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_branding.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(_current)
+      }).catch(()=>{});
+    } catch(_){}
+  }
+
+  function reset(){
+    _save({ ...DEFAULTS });
+    apply();
+    try {
+      if(window._db){ window._db.ref('tac_branding').remove().catch(()=>{}); }
+    } catch(_){}
+    try {
+      fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_branding.json',
+        { method:'DELETE' }).catch(()=>{});
+    } catch(_){}
+  }
+
+  // Subscribe to Firebase changes so branding propagates live across devices
+  function subscribe(){
+    try {
+      if(!window._db) return;
+      window._db.ref('tac_branding').on('value', snap=>{
+        const v = snap && snap.val();
+        if(v && typeof v === 'object'){
+          _current = { ...DEFAULTS, ...v };
+          try { localStorage.setItem(LS_KEY, JSON.stringify(_current)); } catch(_){}
+          apply();
+        } else {
+          _current = { ...DEFAULTS };
+          try { localStorage.removeItem(LS_KEY); } catch(_){}
+          apply();
+        }
+      }, err=>console.warn('[BRAND] subscribe err', err));
+    } catch(e){ console.warn('[BRAND] subscribe failed', e); }
+  }
+
+  // Boot: load from localStorage + apply immediately (no flicker), then
+  // subscribe to Firebase when it comes online.
+  _load();
+  // Apply once DOM is ready
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', apply);
+  } else {
+    apply();
+  }
+  return { apply, get, getDefaults, saveToFirebase, reset, subscribe };
 })();
 
 // ══════════════════════════════════════════════════════════
