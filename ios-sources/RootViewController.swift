@@ -22,7 +22,8 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
          "requestPushToken",
          "vibrate",
          "openExternal",
-         "nativeLog"
+         "nativeLog",
+         "cacheAuthForBackground"
         ].forEach { name in
             userContentController.add(ScriptMessageDelegate(parent: self), name: name)
         }
@@ -96,7 +97,14 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
                 // Forward to web app's SYNC.updateStatus via existing handler;
                 // also remember so background foreground-service could use it.
                 UserDefaults.standard.set(status, forKey: "tcc_status")
+                BackgroundPublisher.shared.updateStatus(status)
             }
+        case "cacheAuthForBackground":
+            // Web layer hands us the uid + Firebase ID token + profile fields
+            // so BackgroundPublisher can write tac_locs/{uid} directly to the
+            // RTDB REST API while WKWebView JS is suspended. Token refreshed
+            // every ~30 min by the web layer.
+            BackgroundPublisher.shared.cacheAuth(body)
         case "requestPushToken":
             if let token = PushTokenManager.shared.currentToken {
                 PushTokenManager.shared.dispatchToWeb(webView: webView, token: token)
@@ -185,7 +193,12 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         requestPushToken: function(){ post('requestPushToken',{}); },
         vibrate: function(pat){ post('vibrate',{pattern: pat||[400,150,400]}); },
         openExternal: function(url){ post('openExternal',{url:url}); },
-        log: function(msg){ post('nativeLog',{msg:msg}); }
+        log: function(msg){ post('nativeLog',{msg:msg}); },
+        // Hands native Swift the Firebase uid + ID token + profile so the
+        // BackgroundPublisher can PUT tac_locs/{uid} from Swift while
+        // WKWebView's JS is suspended in the background. Call this after
+        // login and then re-call every ~30 min with a fresh ID token.
+        cacheAuthForBackground: function(info){ post('cacheAuthForBackground', info||{}); }
       };
 
       // ─── Geolocation shim ────────────────────────────────────────────────

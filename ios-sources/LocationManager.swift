@@ -112,7 +112,19 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
 
         let spd = max(0, loc.speed) // clamp negatives (means "unknown")
         let hdg = max(0, loc.course)
+        // 1. Hand off to WKWebView (foreground path — JS publishes normally).
         onUpdate?(loc.coordinate.latitude, loc.coordinate.longitude, loc.horizontalAccuracy, spd, hdg)
+        // 2. If the app is in the background, also publish directly from
+        //    Swift because WKWebView's JS is suspended and the tcc-native-loc
+        //    event won't be processed. Publishing twice in foreground is
+        //    avoided by publishIfBackgrounded checking applicationState.
+        BackgroundPublisher.shared.publishIfBackgrounded(
+            lat: loc.coordinate.latitude,
+            lng: loc.coordinate.longitude,
+            acc: loc.horizontalAccuracy,
+            spd: spd,
+            hdg: hdg
+        )
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
