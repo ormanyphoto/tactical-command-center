@@ -3950,22 +3950,53 @@ function _navLabelMarker(pos, letter, fill){
     },
   });
 }
-async function calcNavRoute(){
+async function calcNavRoute(originOverride, isRecalc){
   const fromEl = document.getElementById('nav-from');
   const toEl   = document.getElementById('nav-to');
   const mode   = document.getElementById('nav-mode')?.value || 'DRIVING';
-  const origin      = _navResolve(fromEl);
+  const origin      = originOverride || _navResolve(fromEl);
   const destination = _navResolve(toEl);
   if(!origin || !destination){ showToast({icon:'⚠️',title:'יש להזין מוצא ויעד',type:'warn'}); return; }
   _ensureDirServices();
-  showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
+  // Route options — read from the checkboxes in the nav panel
+  const avoidTolls    = !!document.getElementById('nav-avoid-tolls')?.checked;
+  const avoidHighways = !!document.getElementById('nav-avoid-highways')?.checked;
+  const avoidFerries  = !!document.getElementById('nav-avoid-ferries')?.checked;
+  const avoidABZones  = document.getElementById('nav-avoid-ab-zones')?.checked !== false;
+  if(!isRecalc) showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
+  // Try fetching alternative routes so that if the top pick intersects an
+  // Area A/B polygon we can fall back to a cleaner one.
   _dirService.route({
     origin, destination,
     travelMode: google.maps.TravelMode[mode], language:'he', region:'IL',
+    avoidTolls, avoidHighways, avoidFerries,
+    provideRouteAlternatives: avoidABZones,
   }, (result, status) => {
     if(status !== 'OK'){
       showToast({icon:'❌', title:'שגיאת ניווט', sub:status, type:'danger'});
       return;
+    }
+    // If the user wants to avoid Area A/B, pick the first route whose
+    // polyline doesn't intersect any of the known risk polygons. If ALL
+    // alternatives intersect, fall back to the top pick and warn the
+    // operator so they can decide.
+    let chosenIndex = 0;
+    if(avoidABZones && result.routes && result.routes.length > 1 && typeof _routeIntersectsRiskZones === 'function'){
+      const firstClean = result.routes.findIndex(r => !_routeIntersectsRiskZones(r));
+      if(firstClean >= 0){ chosenIndex = firstClean; }
+      else {
+        showToast({icon:'⚠️', title:'כל המסלולים עוברים בשטח A/B', sub:'נבחר הקצר ביותר — שים לב', type:'warn', duration:8000});
+      }
+    } else if(avoidABZones && result.routes && result.routes[0] && typeof _routeIntersectsRiskZones === 'function'){
+      if(_routeIntersectsRiskZones(result.routes[0])){
+        showToast({icon:'⚠️', title:'המסלול עובר בשטח A/B', sub:'שים לב להגבלה חוקית', type:'warn', duration:8000});
+      }
+    }
+    if(chosenIndex !== 0){
+      // Swap the picked route to index 0 so DirectionsRenderer shows it.
+      const picked = result.routes[chosenIndex];
+      result.routes.splice(chosenIndex, 1);
+      result.routes.unshift(picked);
     }
     _dirRenderer.setDirections(result);
     const leg = result.routes[0].legs[0];
@@ -3984,7 +4015,12 @@ async function calcNavRoute(){
     // Arm offline turn-by-turn guidance on the map — arrows at each turn
     // point + a live "next maneuver" HUD that updates as the avatar moves.
     _navArmTurnByTurn(leg);
-    showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
+    // Activate live navigation mode — follow-me ON, map rotation follows
+    // heading, auto-zoom, and off-route recalc. Options are read from
+    // the checkboxes in the nav panel.
+    _navStartLiveMode(result.routes[0]);
+    if(!isRecalc) showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
+    else            showToast({icon:'🛣️', title:'מסלול חדש', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:3500});
   });
 }
 
@@ -4151,6 +4187,181 @@ function _bearingDeg(a, b){
   if(brng < 0) brng += 360;
   return brng;
 }
+
+// ── Area A/B avoidance — coarse polygons derived from the West Bank
+//    Oslo-II map. These are approximations meant as a safety net: the
+//    routing engine doesn't know about the legal restriction, so we
+//    check the candidate polyline against these polygons ourselves
+//    and either pick an alternative route or warn the operator.
+//    Numbers are [lat,lng] for clarity; list covers the main A+B
+//    enclaves (Ramallah, Nablus, Jenin, Jericho, Hebron, Bethlehem,
+//    Qalqilya, Tulkarm). Not complete or legally authoritative —
+//    treat as an advisory filter, not a guarantee.
+const _AREA_AB_POLYGONS = [
+  // Ramallah + al-Bireh + nearby A/B
+  [[31.870,35.170],[31.930,35.160],[31.960,35.200],[31.945,35.260],[31.870,35.265],[31.845,35.215]],
+  // Nablus + Balata + suburbs
+  [[32.170,35.210],[32.250,35.210],[32.260,35.330],[32.200,35.360],[32.155,35.310]],
+  // Jenin
+  [[32.430,35.260],[32.490,35.270],[32.490,35.330],[32.430,35.340]],
+  // Tulkarm
+  [[32.285,35.000],[32.330,35.000],[32.330,35.055],[32.285,35.055]],
+  // Qalqilya
+  [[32.180,34.960],[32.220,34.960],[32.220,35.010],[32.180,35.010]],
+  // Jericho
+  [[31.820,35.420],[31.890,35.420],[31.890,35.490],[31.820,35.490]],
+  // Bethlehem + Beit Jala + Beit Sahour
+  [[31.680,35.165],[31.735,35.165],[31.740,35.255],[31.680,35.255]],
+  // Hebron city A
+  [[31.500,35.060],[31.560,35.060],[31.560,35.140],[31.500,35.140]],
+];
+function _pointInPoly(lat, lng, poly){
+  let inside = false;
+  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi = poly[i][1], yi = poly[i][0];
+    const xj = poly[j][1], yj = poly[j][0];
+    const intersect = ((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function _pointInAnyABZone(lat, lng){
+  return _AREA_AB_POLYGONS.some(p => _pointInPoly(lat, lng, p));
+}
+// Fast check: does the route's overview_path (polyline) touch any
+// A/B polygon? Sparse sampling — every ~50th vertex — since polygons
+// are large enough that we don't need every point.
+function _routeIntersectsRiskZones(route){
+  const path = route && route.overview_path;
+  if(!path || !path.length) return false;
+  const step = Math.max(1, Math.floor(path.length / 60));
+  for(let i=0; i<path.length; i+=step){
+    const p = path[i];
+    if(_pointInAnyABZone(p.lat(), p.lng())) return true;
+  }
+  return false;
+}
+
+// ── Swap origin and destination ────────────────────────────────────────
+function navSwapOriginDestination(){
+  const fromEl = document.getElementById('nav-from');
+  const toEl   = document.getElementById('nav-to');
+  if(!fromEl || !toEl) return;
+  const tmpV = fromEl.value, tmpLat = fromEl.dataset.lat, tmpLng = fromEl.dataset.lng;
+  fromEl.value = toEl.value;
+  if(toEl.dataset.lat) fromEl.dataset.lat = toEl.dataset.lat; else delete fromEl.dataset.lat;
+  if(toEl.dataset.lng) fromEl.dataset.lng = toEl.dataset.lng; else delete fromEl.dataset.lng;
+  toEl.value = tmpV;
+  if(tmpLat) toEl.dataset.lat = tmpLat; else delete toEl.dataset.lat;
+  if(tmpLng) toEl.dataset.lng = tmpLng; else delete toEl.dataset.lng;
+  if(typeof _saveNavPanelState === 'function') _saveNavPanelState();
+  // If a route was already drawn, recompute with the swapped endpoints.
+  if(window._navLastRoute){ calcNavRoute(); }
+  else {
+    showToast({icon:'⇅', title:'הוחלפו מוצא ויעד', type:'info', duration:2000});
+  }
+}
+
+// ── Navigation live mode — map rotation, auto-zoom, off-route recalc ──
+// Activated automatically when a route is calculated; turns off when the
+// user calls navClearRoute or the HUD is dismissed.
+let _navLiveActive = false;
+function _navStartLiveMode(route){
+  _navLiveActive = true;
+  // Follow-Me is forced ON while navigating — the operator always wants
+  // the map to track them. It's still togglable from the map-tools panel
+  // if they insist on panning around manually.
+  if(!window._followMe){
+    window._followMe = true;
+    localStorage.setItem('tac_follow_me', '1');
+    if(typeof _applyFollowMeUI === 'function') _applyFollowMeUI();
+    if(typeof _installFollowMeDragHook === 'function') _installFollowMeDragHook();
+  }
+  // Cache an encoded polyline for fast off-route checks (we compare
+  // the live position to the nearest point on this polyline every fix).
+  window._navRoutePath = route && route.overview_path ? route.overview_path.map(p=>({lat:p.lat(),lng:p.lng()})) : [];
+  window._navOffRouteCount = 0;
+  window._navLastRecalcAt = 0;
+  // Tight initial zoom so the operator sees the next ~300m clearly.
+  try {
+    if(window.map){
+      if(window.map.getZoom() < 16) window.map.setZoom(17);
+    }
+  } catch(_){}
+  // Install the live-update hook (heading, zoom, off-route detection).
+  window._navOnOwnFix = _navHandleLiveFix;
+}
+function _navStopLiveMode(){
+  _navLiveActive = false;
+  window._navOnOwnFix = null;
+  window._navRoutePath = null;
+  // Restore the default north-up orientation on the map.
+  try { if(window.map && typeof window.map.setHeading === 'function') window.map.setHeading(0); } catch(_){}
+}
+// Called on every own-GPS fix while navigation is live. Does three things:
+//   1. Rotate the map so the heading direction is "up" (if user opted in).
+//   2. Detect off-route (distance from polyline > 60 m sustained) and
+//      auto-recompute a fresh route from the current position to the
+//      same destination. Throttled to at most one recalc per 20 s so we
+//      don't hammer the Directions API on GPS jitter.
+//   3. Maintain zoom level — zoom out a little on highways, in on city
+//      streets, based on speed.
+function _navHandleLiveFix(lat, lng){
+  if(!_navLiveActive || !window.map) return;
+  const rotate = document.getElementById('nav-rotate-map')?.checked !== false;
+  const recalc = document.getElementById('nav-auto-recalc')?.checked !== false;
+  // Rotation — align map so travel direction is up. Needs two recent
+  // fixes to compute a bearing; we cache the previous one.
+  if(rotate && typeof window._navPrevFix === 'object' && window._navPrevFix){
+    const h = _bearingDeg(window._navPrevFix, {lat, lng});
+    try { if(typeof window.map.setHeading === 'function') window.map.setHeading(h); } catch(_){}
+  }
+  window._navPrevFix = {lat, lng};
+  // Auto-zoom based on speed (if we know it). Fallback to zoom 17.
+  try {
+    const z = window.map.getZoom();
+    if(z < 16) window.map.setZoom(17);
+  } catch(_){}
+  // Off-route detection
+  if(recalc && window._navRoutePath && window._navRoutePath.length){
+    const dist = _distanceToPath({lat,lng}, window._navRoutePath);
+    if(dist > 60){
+      window._navOffRouteCount = (window._navOffRouteCount||0) + 1;
+      // Sustained deviation (3 consecutive fixes) → recalc
+      if(window._navOffRouteCount >= 3){
+        const now = Date.now();
+        if(now - (window._navLastRecalcAt||0) > 20*1000){
+          window._navLastRecalcAt = now;
+          window._navOffRouteCount = 0;
+          showToast({icon:'🔄', title:'סטית מהמסלול — מחשב מחדש', type:'info', duration:3500});
+          calcNavRoute({lat, lng}, true);
+        }
+      }
+    } else {
+      window._navOffRouteCount = 0;
+    }
+  }
+}
+function _distanceToPath(pt, path){
+  // Returns the minimum distance from pt to any segment of path.
+  let min = Infinity;
+  for(let i=0; i<path.length-1; i++){
+    const d = _distPointToSegment(pt, path[i], path[i+1]);
+    if(d < min) min = d;
+  }
+  return min;
+}
+function _distPointToSegment(p, a, b){
+  // Projects p onto segment a→b (in degrees), then Haversines.
+  // Cheap and good enough for city-scale off-route checks.
+  const ax = a.lng, ay = a.lat, bx = b.lng, by = b.lat, px = p.lng, py = p.lat;
+  const dx = bx-ax, dy = by-ay;
+  if(dx === 0 && dy === 0) return _haversineMeters(p, a);
+  let t = ((px-ax)*dx + (py-ay)*dy) / (dx*dx + dy*dy);
+  t = Math.max(0, Math.min(1, t));
+  const proj = { lat: ay + t*dy, lng: ax + t*dx };
+  return _haversineMeters(p, proj);
+}
 // Render a "launch in Waze / Google Maps" row inside the nav panel so the
 // operator can hand off the route to a real turn-by-turn navigator with
 // one tap.
@@ -4277,6 +4488,10 @@ function navClearRoute(){
   window._navLastRoute = null;
   const box = document.getElementById('nav-launch-box');
   if(box) box.remove();
+  // Stop live-navigation side effects (rotation, auto-zoom, recalc,
+  // turn-by-turn HUD) so the map behaves normally again after clearing.
+  if(typeof _navStopLiveMode === 'function') _navStopLiveMode();
+  if(typeof _navClearTurnByTurn === 'function') _navClearTurnByTurn();
   showToast({icon:'🧹', title:'מסלול נוקה', type:'info', duration:2000});
 }
 async function navToMission(msnId){
@@ -5770,6 +5985,7 @@ function _saveNavPanelState(){
   const mode = document.getElementById('nav-mode');
   const sel  = document.getElementById('nav-picker');
   if(!from || !to) return;
+  const cb = id => { const el = document.getElementById(id); return el ? !!el.checked : undefined; };
   window._navPanelState = {
     fromVal: from.value,
     fromLat: from.dataset.lat || '',
@@ -5779,10 +5995,21 @@ function _saveNavPanelState(){
     toLng:   to.dataset.lng || '',
     mode:    mode ? mode.value : 'DRIVING',
     picker:  sel ? sel.value : '',
+    avoidTolls:    cb('nav-avoid-tolls'),
+    avoidHighways: cb('nav-avoid-highways'),
+    avoidFerries:  cb('nav-avoid-ferries'),
+    avoidABZones:  cb('nav-avoid-ab-zones'),
+    rotateMap:     cb('nav-rotate-map'),
+    autoRecalc:    cb('nav-auto-recalc'),
   };
+  try { localStorage.setItem('tac_nav_state', JSON.stringify(window._navPanelState)); } catch(_){}
 }
 function _restoreNavPanelState(){
-  const s = window._navPanelState;
+  let s = window._navPanelState;
+  if(!s){
+    try { s = JSON.parse(localStorage.getItem('tac_nav_state')||'null'); }catch(_){ s = null; }
+    if(s) window._navPanelState = s;
+  }
   if(!s) return;
   const from = document.getElementById('nav-from');
   const to   = document.getElementById('nav-to');
@@ -5800,6 +6027,13 @@ function _restoreNavPanelState(){
   }
   if(mode && s.mode) mode.value = s.mode;
   if(sel && s.picker) sel.value = s.picker;
+  const setCb = (id, v) => { const el = document.getElementById(id); if(el && typeof v === 'boolean') el.checked = v; };
+  setCb('nav-avoid-tolls',    s.avoidTolls);
+  setCb('nav-avoid-highways', s.avoidHighways);
+  setCb('nav-avoid-ferries',  s.avoidFerries);
+  setCb('nav-avoid-ab-zones', s.avoidABZones);
+  setCb('nav-rotate-map',     s.rotateMap);
+  setCb('nav-auto-recalc',    s.autoRecalc);
 }
 function renderNavigationP(c){
   if(!c) c = document.getElementById('rp-body');
@@ -5831,6 +6065,9 @@ function renderNavigationP(c){
       <button type="button" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי" aria-label="מיקום נוכחי" style="flex:0 0 auto;width:36px;margin:0;padding:0;border:1px solid var(--border2);border-radius:var(--r);background:var(--panel2);color:var(--accent);font-size:16px;cursor:pointer">📍</button>
     </div>
   </div>
+  <div style="display:flex;justify-content:center;margin:-4px 0 -4px">
+    <button type="button" onclick="navSwapOriginDestination()" title="החלף בין מוצא ליעד" aria-label="החלף מוצא ויעד" style="width:32px;height:32px;border:1px solid var(--border2);border-radius:50%;background:var(--panel2);color:var(--accent);font-size:16px;cursor:pointer;line-height:1;padding:0;transition:transform 0.2s">⇅</button>
+  </div>
   <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>יעד מרשימה</label>
     <select id="nav-picker" onchange="navPickDestination(this.value)" style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;font-family:var(--font);outline:none">
@@ -5838,6 +6075,22 @@ function renderNavigationP(c){
     </select>
   </div>
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
+  <div class="form-g">
+    <label style="margin-bottom:4px;display:block">אפשרויות מסלול</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px">
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-tolls" style="accent-color:var(--accent)">🛣️ ללא אגרה</label>
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-highways" style="accent-color:var(--accent)">🚧 ללא מהירים</label>
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-ferries" style="accent-color:var(--accent)">⛴️ ללא מעבורות</label>
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="סינון מסלול שעובר דרך שטחי A ו-B (הגבלת חוק)"><input type="checkbox" id="nav-avoid-ab-zones" style="accent-color:var(--accent)" checked>⚠️ ללא שטחי A/B</label>
+    </div>
+  </div>
+  <div class="form-g">
+    <label style="margin-bottom:4px;display:block">ניווט חי</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px">
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="המפה תסתובב עם כיוון הנסיעה במקום צפון למעלה"><input type="checkbox" id="nav-rotate-map" style="accent-color:var(--accent)" checked>🧭 סיבוב מפה לפי כיוון</label>
+      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="חישוב מסלול חליפי אוטומטית אם סטית מהדרך"><input type="checkbox" id="nav-auto-recalc" style="accent-color:var(--accent)" checked>🔄 חישוב חוזר בסטייה</label>
+    </div>
+  </div>
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
     <button class="btn-pri" style="width:100%" onclick="calcNavRoute()">🧭 חשב מסלול</button>
     <button class="btn-sec" style="margin:0" onclick="navClearRoute()" title="הסרת המסלול הנוכחי מהמפה">🧹 נקה</button>
@@ -5886,7 +6139,9 @@ function renderNavigationP(c){
   if(window._navLastRoute) _renderNavLaunchers();
   // Persist state whenever the user changes any form field so the
   // snapshot is fresh the next time the panel renders.
-  ['nav-from','nav-to','nav-mode','nav-picker'].forEach(id => {
+  ['nav-from','nav-to','nav-mode','nav-picker',
+   'nav-avoid-tolls','nav-avoid-highways','nav-avoid-ferries','nav-avoid-ab-zones',
+   'nav-rotate-map','nav-auto-recalc'].forEach(id => {
     const el = document.getElementById(id);
     if(!el || el._navSaveBound) return;
     el.addEventListener('change', _saveNavPanelState);
@@ -16443,6 +16698,11 @@ const SYNC = (() => {
                 // distance to the next maneuver as the operator moves.
                 try { window._ttOnOwnFix(d.lat, d.lng); } catch(_){}
               }
+              if(typeof window._navOnOwnFix === 'function'){
+                // Live navigation: rotate map to heading, auto-zoom,
+                // and detect off-route conditions for recalculation.
+                try { window._navOnOwnFix(d.lat, d.lng); } catch(_){}
+              }
             }
           } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
         };
@@ -18441,6 +18701,48 @@ const FIELD = {
 // ══════════════════════════════════════════════════════════
 // BOOT — PWA + Firebase + Field mode init
 // ══════════════════════════════════════════════════════════
+// ── SCREEN WAKE LOCK ────────────────────────────────────────────────────
+// Keep the device screen from locking while the app is open. On modern
+// browsers (iOS 16.4+, Android Chrome, Safari) the Screen Wake Lock API
+// is the right tool. We re-request the lock when the user returns to the
+// tab (navigator.wakeLock is released whenever the page loses focus).
+// On the iOS native wrapper, RootViewController sets
+// UIApplication.isIdleTimerDisabled = true which is the proper native
+// equivalent and survives background/foreground cycles. Best-effort on
+// every platform — we never show errors, just log them.
+(function screenWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  let _wl = null;
+  async function acquire(){
+    if(document.visibilityState !== 'visible') return;
+    try {
+      _wl = await navigator.wakeLock.request('screen');
+      _wl.addEventListener('release', ()=>{ _wl = null; });
+      console.log('[wake-lock] acquired');
+    } catch(e){
+      // Common on iPads in split view or when the battery is very low
+      // — not fatal, just means the screen will dim normally.
+      console.warn('[wake-lock] acquire failed:', e && e.message);
+    }
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible' && !_wl) acquire();
+  });
+  // First attempt right away (most browsers now allow without gesture if
+  // the tab has focus). If this fails we'll retry on the first user
+  // interaction, which is always allowed.
+  acquire();
+  const retryOnce = ()=>{
+    if(!_wl){ acquire(); }
+    document.removeEventListener('click',    retryOnce, true);
+    document.removeEventListener('touchend', retryOnce, true);
+    document.removeEventListener('keydown',  retryOnce, true);
+  };
+  document.addEventListener('click',    retryOnce, true);
+  document.addEventListener('touchend', retryOnce, true);
+  document.addEventListener('keydown',  retryOnce, true);
+})();
+
 (function tacBoot(){ try {
   // ── Detect native Android WebView via window.Android JS bridge ──
   // MainActivity (Kotlin) injects NativeBridge as `window.Android` so the

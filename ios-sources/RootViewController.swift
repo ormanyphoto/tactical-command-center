@@ -14,6 +14,18 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 0x07/255, green: 0x09/255, blue: 0x0a/255, alpha: 1)
 
+        // Keep the device screen from auto-locking while the app is in the
+        // foreground. The operator typically mounts the phone on a dashboard
+        // or console during missions — an auto-dim after 30 s makes them lose
+        // map awareness. This is the native equivalent of the Web Wake Lock
+        // API the webview also uses; either one is sufficient, but the native
+        // setting is more robust and survives web-view JS slowdowns.
+        UIApplication.shared.isIdleTimerDisabled = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(_reassertIdleTimer),
+            name: UIApplication.didBecomeActiveNotification, object: nil
+        )
+
         // ─── Register JS → native message handlers ────────────────────────
         // The web app calls window.webkit.messageHandlers.<name>.postMessage(obj).
         ["startLocation",
@@ -67,6 +79,10 @@ class RootViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, 
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
+    @objc private func _reassertIdleTimer() {
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
 
     // ─── JS → native dispatcher ────────────────────────────────────────────
     func userContentController(_ userContentController: WKUserContentController,
