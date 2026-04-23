@@ -146,7 +146,13 @@ final class BackgroundPublisher {
         let body = "grant_type=refresh_token&refresh_token=\(refreshToken)"
         req.httpBody = body.data(using: .utf8)
 
+        var bgTask: UIBackgroundTaskIdentifier = .invalid
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "BgPub.refresh") {
+            if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask); bgTask = .invalid }
+        }
+        NSLog("[BgPub] refresh — requesting new ID token from securetoken")
         let task = URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            defer { if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask); bgTask = .invalid } }
             guard let self = self else { completion(nil); return }
             if let err = err {
                 NSLog("[BgPub] refresh error: \(err.localizedDescription)")
@@ -212,16 +218,44 @@ final class BackgroundPublisher {
         req.httpMethod = "PUT"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = body
-        URLSession.shared.dataTask(with: req) { _, resp, err in
+
+        // Keep the process alive long enough for the HTTPS request to
+        // complete. Without this, iOS will suspend the app between
+        // location updates (even though we have UIBackgroundModes:location)
+        // and any in-flight URLSession task gets cancelled — which is why
+        // "lock the screen right after opening the app" made publishing
+        // appear to stop. beginBackgroundTask gives us up to ~30 s per
+        // call; we end the task the moment the request completes.
+        var bgTask: UIBackgroundTaskIdentifier = .invalid
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "BgPub.PUT") {
+            // Expiration handler — if iOS runs out of patience we at
+            // least end the task cleanly so the system doesn't kill the
+            // app.
+            if bgTask != .invalid {
+                UIApplication.shared.endBackgroundTask(bgTask)
+                bgTask = .invalid
+            }
+        }
+        NSLog("[BgPub] publish PUT tac_locs/\(uid) acc=\(Int(acc))m")
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, err in
+            defer {
+                if bgTask != .invalid {
+                    UIApplication.shared.endBackgroundTask(bgTask)
+                    bgTask = .invalid
+                }
+            }
             if let err = err {
                 NSLog("[BgPub] PUT error: \(err.localizedDescription)"); return
             }
-            if let http = resp as? HTTPURLResponse, http.statusCode >= 400 {
-                NSLog("[BgPub] PUT HTTP \(http.statusCode)")
-                // 401/403 → force-refresh on the next fix instead of reusing
-                // what we had. Setting tokenSavedAt to 0 triggers refresh.
-                if http.statusCode == 401 || http.statusCode == 403 {
-                    UserDefaults.standard.set(0.0, forKey: self.kTokenAt)
+            if let http = resp as? HTTPURLResponse {
+                if http.statusCode >= 400 {
+                    NSLog("[BgPub] PUT HTTP \(http.statusCode)")
+                    if http.statusCode == 401 || http.statusCode == 403 {
+                        // Token rejected — next fix will trigger a refresh.
+                        UserDefaults.standard.set(0.0, forKey: self?.kTokenAt ?? "tcc.bg.idTokenSavedAt")
+                    }
+                } else {
+                    NSLog("[BgPub] PUT ok (\(http.statusCode))")
                 }
             }
         }.resume()

@@ -1268,7 +1268,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <div class="mp-group-label">מיקום</div>
         <button class="mp-btn mp-gps-focus" onclick="locateMe()" title="מיקומי"><svg class="gps-ico" viewBox="0 0 297 297" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M148.5,0C66.653,0,0.067,66.616,0.067,148.499C0.067,230.383,66.653,297,148.5,297s148.433-66.617,148.433-148.501C296.933,66.616,230.347,0,148.5,0z M158.597,276.411v-61.274c0-5.575-4.521-10.097-10.097-10.097s-10.097,4.521-10.097,10.097v61.274c-62.68-4.908-112.845-55.102-117.747-117.814h61.207c5.575,0,10.097-4.521,10.097-10.097s-4.522-10.097-10.097-10.097H20.656C25.558,75.69,75.723,25.497,138.403,20.589v61.274c0,5.575,4.521,10.097,10.097,10.097s10.097-4.521,10.097-10.097V20.589c62.681,4.908,112.846,55.102,117.747,117.814h-61.207c-5.575,0-10.097,4.521-10.097,10.097s4.521,10.097,10.097,10.097h61.207C271.441,221.31,221.276,271.503,158.597,276.411z"/><circle cx="148.5" cy="148.5" r="14" fill="currentColor"/></svg></button>
         <button class="mp-btn" onclick="toggleGPS()" id="gps-btn" title="GPS מעקב רציף">🛰️</button>
-        <button class="mp-btn" onclick="toggleFollowMe()" id="follow-me-btn" title="עקוב אחריי (המפה תזוז עם המשתמש)">🧭</button>
         <div class="mp-divider"></div>
         <div class="mp-group-label">תצוגה</div>
         <button class="mp-btn" onclick="setMapType('roadmap');setActiveMapBtn(this)" id="mtype-road-btn" title="מפת רחובות" style="border-color:var(--accent)">🏘️</button>
@@ -3982,8 +3981,150 @@ async function calcNavRoute(){
     };
     _renderNavLaunchers(leg);
     _saveNavPanelState();
+    // Arm offline turn-by-turn guidance on the map — arrows at each turn
+    // point + a live "next maneuver" HUD that updates as the avatar moves.
+    _navArmTurnByTurn(leg);
     showToast({icon:'🛣️', title:'מסלול חושב', sub:`${leg.distance.text} · ${leg.duration.text}`, type:'success', duration:6000});
   });
+}
+
+// ── OFFLINE TURN-BY-TURN GUIDANCE ─────────────────────────────────────
+// Once a route is computed, we extract each step's maneuver (turn-left,
+// turn-right, straight, ramp, roundabout, …) and the point on the polyline
+// where it applies. We drop a directional arrow marker at each turn point
+// and track the user's progress: as the avatar crosses each step, we
+// advance a "next maneuver" HUD that shows what to do next and how far
+// away it is. Works without any network call after the initial route
+// request — useful when GPS is spotty or cellular is disrupted but the
+// operator still has the previously-fetched route cached client-side.
+let _ttArrows = [];   // map markers, one per turn step
+let _ttHud = null;    // DOM element pinned top-right of map
+let _ttSteps = [];    // [{loc:LatLng, maneuver, instruction, distance_m}, …]
+let _ttCurStep = 0;   // index of the NEXT step to pass
+let _ttTrackHook = null; // watchPosition-bound function registered on own fixes
+function _navArmTurnByTurn(leg){
+  _navClearTurnByTurn();
+  if(!leg || !leg.steps || !leg.steps.length) return;
+  const manIcon = {
+    'turn-left':'⬅️', 'turn-slight-left':'↖️', 'turn-sharp-left':'⬅️',
+    'turn-right':'➡️','turn-slight-right':'↗️','turn-sharp-right':'➡️',
+    'straight':'⬆️', 'ramp-left':'↖️','ramp-right':'↗️',
+    'merge':'🔀', 'fork-left':'↖️','fork-right':'↗️',
+    'ferry':'⛴️', 'ferry-train':'🚂',
+    'roundabout-left':'🔄','roundabout-right':'🔄',
+    'uturn-left':'↩️','uturn-right':'↪️',
+  };
+  _ttSteps = leg.steps.map(s=>({
+    loc: s.start_location,
+    endLoc: s.end_location,
+    maneuver: s.maneuver || 'straight',
+    instructionHtml: s.instructions || '',   // HTML from Google, safe to inject as innerHTML
+    distance_m: (s.distance && s.distance.value) || 0,
+    distanceText: (s.distance && s.distance.text) || '',
+  }));
+  // Drop a small directional arrow pin at every step's start — a visual
+  // cue the operator can read on the map without looking at the HUD.
+  _ttSteps.forEach((st, i)=>{
+    if(i===0) return; // step 0 is the origin; arrow at start is redundant with "A"
+    try {
+      const m = new google.maps.Marker({
+        position: st.loc, map: window.map, zIndex: 820,
+        label:{ text: manIcon[st.maneuver]||'•', color:'#ffffff', fontSize:'16px', fontWeight:'900' },
+        icon:{
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 12, fillColor:'#1a8c2e', fillOpacity:0.95,
+          strokeColor:'#ffffff', strokeWeight:2,
+        }
+      });
+      _ttArrows.push(m);
+    } catch(_){}
+  });
+  _ttCurStep = 1; // next step (first turn) is index 1
+  _renderTtHud();
+  // Subscribe to own-position changes so we can advance as the operator moves.
+  _ttTrackHook = function(lat, lng){
+    if(!_ttSteps.length) return;
+    // Find the nearest upcoming step by distance to current position.
+    // If the operator has passed the current step's START (i.e. the
+    // distance to the NEXT step is shorter than to the current one),
+    // advance. This is a coarse but robust approach — it doesn't need
+    // snap-to-road, just straight-line proximity.
+    const curPt = {lat, lng};
+    while(_ttCurStep < _ttSteps.length - 1){
+      const cur = _ttSteps[_ttCurStep];
+      const next = _ttSteps[_ttCurStep+1];
+      const dCur = _haversineMeters(curPt, {lat: cur.loc.lat(), lng: cur.loc.lng()});
+      const dNext = _haversineMeters(curPt, {lat: next.loc.lat(), lng: next.loc.lng()});
+      if(dCur < 30 || dNext < dCur){
+        _ttCurStep++;
+        continue;
+      }
+      break;
+    }
+    _renderTtHud(curPt);
+  };
+  // Use the same hook the follow-me feature uses — fire on every real
+  // GPS fix for this user.
+  window._ttOnOwnFix = _ttTrackHook;
+}
+function _navClearTurnByTurn(){
+  _ttArrows.forEach(m=>{ try{ m.setMap(null); }catch(_){} });
+  _ttArrows = [];
+  _ttSteps = [];
+  _ttCurStep = 0;
+  _ttTrackHook = null;
+  window._ttOnOwnFix = null;
+  if(_ttHud && _ttHud.parentNode){ _ttHud.parentNode.removeChild(_ttHud); _ttHud = null; }
+}
+function _renderTtHud(curPt){
+  if(!_ttSteps.length) return;
+  if(!_ttHud){
+    _ttHud = document.createElement('div');
+    _ttHud.id = 'nav-tt-hud';
+    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;padding:12px 16px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);min-width:240px;max-width:360px;cursor:pointer;font-size:13px;line-height:1.35;user-select:none';
+    _ttHud.onclick = ()=>{ _navClearTurnByTurn(); };
+    _ttHud.title = 'לחץ לסגור ניווט';
+    const mapHost = document.getElementById('map') || document.getElementById('gmap') || document.body;
+    (mapHost.parentElement || mapHost).appendChild(_ttHud);
+  }
+  const step = _ttSteps[_ttCurStep];
+  if(!step){
+    _ttHud.innerHTML = '<div style="font-size:15px;font-weight:900;color:#3dff52">🏁 הגעת ליעד</div>';
+    setTimeout(()=>_navClearTurnByTurn(), 6000);
+    return;
+  }
+  const manIcon = {
+    'turn-left':'⬅️','turn-slight-left':'↖️','turn-sharp-left':'⬅️',
+    'turn-right':'➡️','turn-slight-right':'↗️','turn-sharp-right':'➡️',
+    'straight':'⬆️','ramp-left':'↖️','ramp-right':'↗️',
+    'merge':'🔀','fork-left':'↖️','fork-right':'↗️',
+    'roundabout-left':'🔄','roundabout-right':'🔄',
+    'uturn-left':'↩️','uturn-right':'↪️',
+  };
+  const icon = manIcon[step.maneuver] || '⬆️';
+  let distTxt = step.distanceText;
+  if(curPt){
+    const dm = _haversineMeters(curPt, {lat: step.loc.lat(), lng: step.loc.lng()});
+    distTxt = dm < 1000 ? (Math.round(dm)+' מ׳') : ((dm/1000).toFixed(1)+' ק״מ');
+  }
+  _ttHud.innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
+      + '<span style="font-size:28px;line-height:1">'+icon+'</span>'
+      + '<span style="font-size:18px;font-weight:900;color:#3dff52">'+distTxt+'</span>'
+    + '</div>'
+    + '<div style="font-size:12px;color:#c2d6e2">'+(step.instructionHtml||'')+'</div>'
+    + '<div style="font-size:10px;color:#7290a4;margin-top:6px">שלב '+(_ttCurStep+1)+' מתוך '+_ttSteps.length+' · לחץ לסגור</div>';
+}
+// Great-circle distance (Haversine) in meters — no external service.
+function _haversineMeters(a, b){
+  const R = 6371000;
+  const toRad = d => d*Math.PI/180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const sa = Math.sin(dLat/2)*Math.sin(dLat/2) +
+             Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat)) *
+             Math.sin(dLng/2)*Math.sin(dLng/2);
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(sa)));
 }
 // Render a "launch in Waze / Google Maps" row inside the nav panel so the
 // operator can hand off the route to a real turn-by-turn navigator with
@@ -4821,6 +4962,7 @@ function renderDrawP(c){
   <div class="sec-hd">📍 מיקום</div>
   <div class="mp-grid">
     <button class="mp-btn" id="rp-gps-btn" onclick="toggleGPS()" title="GPS מעקב רציף"><span>🛰️</span><span class="mp-btn-label">GPS</span></button>
+    <button class="mp-btn${window._followMe?' mp-active':''}" id="follow-me-btn" onclick="toggleFollowMe()" title="המפה תזוז יחד איתך בזמן תנועה"><span>🧭</span><span class="mp-btn-label">עקוב אחריי</span></button>
     <button class="mp-btn" id="rp-sv-btn" onclick="toggleStreetViewMode('rp-sv-btn')" title="לחץ על המפה לפתוח Street View"><span>👁️</span><span class="mp-btn-label">Street View</span></button>
   </div>
 
@@ -16264,11 +16406,18 @@ const SYNC = (() => {
               } else {
                 window.map.panTo({lat:d.lat,lng:d.lng});
               }
-            } else if(typeof window._followMeApplyPos === 'function'){
-              // Follow-Me: on subsequent fixes, re-center the viewport on
-              // the device owner so the avatar doesn't drift off-screen
-              // as the operator moves. No-op when follow-me is off.
-              window._followMeApplyPos(d.lat, d.lng);
+            } else {
+              if(typeof window._followMeApplyPos === 'function'){
+                // Follow-Me: re-center viewport on the device owner so the
+                // avatar doesn't drift off-screen as the operator moves.
+                // No-op when follow-me is off.
+                window._followMeApplyPos(d.lat, d.lng);
+              }
+              if(typeof window._ttOnOwnFix === 'function'){
+                // Turn-by-turn guidance: advance the HUD and re-compute
+                // distance to the next maneuver as the operator moves.
+                try { window._ttOnOwnFix(d.lat, d.lng); } catch(_){}
+              }
             }
           } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
         };
