@@ -45,10 +45,13 @@ html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--b
 body.day #topbar{background:rgba(255,255,255,0.72)}
 /* subtle radial accent wash behind the bar */
 #topbar::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 20% 40%,rgba(26,140,46,0.08),transparent 50%),radial-gradient(ellipse at 80% 60%,rgba(26,140,46,0.04),transparent 50%);z-index:-1}
-#topbar-logo-wrap{flex-shrink:0;display:flex;align-items:center;padding-left:14px;border-left:1px solid var(--border2)}
-#topbar-logo{display:flex;align-items:center;gap:12px;white-space:nowrap}
-#logo-hex{width:52px;height:52px;border-radius:4px;background:linear-gradient(135deg,rgba(26,140,46,0.2) 0%,rgba(26,140,46,0.05) 100%);border:1px solid rgba(26,140,46,0.45);display:flex!important;align-items:center;justify-content:center;font-size:28px!important;color:#22a838!important;font-weight:900;box-shadow:0 3px 10px rgba(26,140,46,0.2);flex-shrink:0}
-#logo-title{font-family:var(--font2);font-size:16px!important;font-weight:900;color:var(--texthi)!important;line-height:1.15!important;letter-spacing:0.01em!important}
+/* Logo wrap — width matches right-panel (360px) so its border-left
+   aligns with the map's right edge visually */
+#topbar-logo-wrap{width:360px;flex-shrink:0;display:flex;align-items:center;padding:0 18px 0 14px;border-left:1px solid var(--border2);box-sizing:border-box}
+#topbar-logo{display:flex;align-items:center;gap:14px;white-space:nowrap}
+/* Logo — plain glyph, no container/frame, bigger */
+#logo-hex{width:auto;height:auto;border:none;background:none;box-shadow:none;border-radius:0;padding:0;display:flex!important;align-items:center;justify-content:center;font-size:44px!important;color:#22a838!important;font-weight:900;flex-shrink:0;line-height:1;text-shadow:0 2px 8px rgba(26,140,46,0.25)}
+#logo-title{font-family:var(--font2);font-size:17px!important;font-weight:900;color:var(--texthi)!important;line-height:1.15!important;letter-spacing:0.01em!important}
 #logo-sub{font-size:11px!important;color:var(--text2)!important;line-height:1.2!important;letter-spacing:0.03em!important;font-weight:500!important}
 /* ── Right-cluster chips ── */
 .tb-chip{background:var(--panel2);border:1.5px solid var(--border2);border-radius:4px;min-height:58px;display:flex;align-items:center;gap:8px;padding:4px 14px;cursor:pointer;transition:all 0.18s;color:var(--text);font-family:var(--font)}
@@ -794,7 +797,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #sys-time{font-size:15px!important}
   #sys-date{font-size:10px!important}
   #topbar-logo{font-size:14px}
-  #logo-hex{width:40px!important;height:40px!important;font-size:22px!important}
+  #logo-hex{font-size:34px!important;width:auto!important;height:auto!important}
   #logo-title{font-size:15px!important}
   #logo-sub{font-size:10px!important}
   #topbar-user{padding:0 14px;max-width:160px}
@@ -816,6 +819,12 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   #right-panel{width:420px!important;max-width:55vw!important}
   #right-panel.hidden{width:0!important;overflow:hidden!important;transform:translateX(100%)!important}
   #mobile-drawer-panel{width:360px!important}
+}
+/* Keep the topbar logo-wrap in sync with the right-panel width so its
+   border-left always lands on the map's right edge. Only applies where
+   nav-tabs are visible (> 1024 px). */
+@media (min-width:1025px) and (max-width:1366px){
+  #topbar-logo-wrap{width:420px}
 }
 @media (max-width:768px){
   #topbar{height:54px;padding:0 10px;gap:6px;overflow:hidden}
