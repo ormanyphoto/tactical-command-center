@@ -4005,15 +4005,6 @@ let _ttTrackHook = null; // watchPosition-bound function registered on own fixes
 function _navArmTurnByTurn(leg){
   _navClearTurnByTurn();
   if(!leg || !leg.steps || !leg.steps.length) return;
-  const manIcon = {
-    'turn-left':'⬅️', 'turn-slight-left':'↖️', 'turn-sharp-left':'⬅️',
-    'turn-right':'➡️','turn-slight-right':'↗️','turn-sharp-right':'➡️',
-    'straight':'⬆️', 'ramp-left':'↖️','ramp-right':'↗️',
-    'merge':'🔀', 'fork-left':'↖️','fork-right':'↗️',
-    'ferry':'⛴️', 'ferry-train':'🚂',
-    'roundabout-left':'🔄','roundabout-right':'🔄',
-    'uturn-left':'↩️','uturn-right':'↪️',
-  };
   _ttSteps = leg.steps.map(s=>({
     loc: s.start_location,
     endLoc: s.end_location,
@@ -4022,18 +4013,38 @@ function _navArmTurnByTurn(leg){
     distance_m: (s.distance && s.distance.value) || 0,
     distanceText: (s.distance && s.distance.text) || '',
   }));
-  // Drop a small directional arrow pin at every step's start — a visual
-  // cue the operator can read on the map without looking at the HUD.
+  // Drop a directional arrow pin at every TURN point (skip "straight"
+  // steps — they clutter the map without adding info). The arrow's
+  // rotation is computed from the geographic heading at that point,
+  // so it actually points in the direction the operator should drive.
   _ttSteps.forEach((st, i)=>{
-    if(i===0) return; // step 0 is the origin; arrow at start is redundant with "A"
+    if(i===0) return; // origin — "A" marker is already there
+    const man = st.maneuver || 'straight';
+    // Only draw at points where something changes direction (any
+    // turn / ramp / fork / u-turn / roundabout).
+    if(man === 'straight' || man === 'merge') return;
+    // Bearing along the *outgoing* segment — that's the direction the
+    // driver must travel AFTER the turn, i.e. what the arrow should
+    // point at. Fallback to start→end of this step if endLoc is missing.
+    const heading = _bearingDeg(
+      {lat: st.loc.lat(),    lng: st.loc.lng()},
+      {lat: st.endLoc.lat(), lng: st.endLoc.lng()}
+    );
     try {
       const m = new google.maps.Marker({
         position: st.loc, map: window.map, zIndex: 820,
-        label:{ text: manIcon[st.maneuver]||'•', color:'#ffffff', fontSize:'16px', fontWeight:'900' },
         icon:{
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 12, fillColor:'#1a8c2e', fillOpacity:0.95,
-          strokeColor:'#ffffff', strokeWeight:2,
+          // Google's FORWARD_CLOSED_ARROW is a solid filled triangle
+          // that respects the `rotation` option — perfect for a compass
+          // needle. 0° points north; our bearing is also degrees from
+          // north, so no offset needed.
+          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 5,
+          fillColor: '#1a8c2e',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          rotation: heading,
         }
       });
       _ttArrows.push(m);
@@ -4125,6 +4136,20 @@ function _haversineMeters(a, b){
              Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat)) *
              Math.sin(dLng/2)*Math.sin(dLng/2);
   return 2*R*Math.asin(Math.min(1, Math.sqrt(sa)));
+}
+// Initial bearing (forward azimuth) from a → b, in degrees clockwise
+// from true north. Used to rotate turn arrows so they point along
+// the actual road, not in some screen-space default direction.
+function _bearingDeg(a, b){
+  const toRad = d => d*Math.PI/180;
+  const toDeg = r => r*180/Math.PI;
+  const φ1 = toRad(a.lat), φ2 = toRad(b.lat);
+  const λ1 = toRad(a.lng), λ2 = toRad(b.lng);
+  const y = Math.sin(λ2-λ1) * Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+  let brng = toDeg(Math.atan2(y, x));
+  if(brng < 0) brng += 360;
+  return brng;
 }
 // Render a "launch in Waze / Google Maps" row inside the nav panel so the
 // operator can hand off the route to a real turn-by-turn navigator with
