@@ -826,6 +826,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 @media (min-width:1025px) and (max-width:1366px){
   #topbar-logo-wrap{width:420px}
 }
+/* Tablet landscape (iPad Pro, iPad Air in landscape): the 420 px logo-wrap
+   steals too much room from the nav-tabs — buttons overflow the viewport
+   and disappear. Shrink the logo-wrap to auto so the separator sits right
+   next to the logo text and every tab stays reachable. The map-edge
+   alignment loses on these devices; keeping the full nav-bar wins. */
+@media (min-width:1025px) and (max-width:1366px) and (orientation:landscape) and (pointer:coarse){
+  #topbar-logo-wrap{width:auto;padding-left:14px}
+}
 @media (max-width:768px){
   #topbar{height:54px;padding:0 10px;gap:6px;overflow:hidden}
   .nav-tabs{display:none}
