@@ -9087,7 +9087,34 @@ function _compressPhoto(dataUrl, maxPx, quality, cb){
   img.src = dataUrl;
 }
 
+// Dedupe TEAMS by normalized name — guards against the "חפ״ק twice" bug
+// where two teams with identical names but different IDs slip in via
+// Back-Office creation on two devices, or seed drift over time. Runs
+// before every save and after every load so duplicates can't persist.
+// Returns true if anything was changed.
+function _dedupeTeamsByName(){
+  if(!Array.isArray(TEAMS) || TEAMS.length <= 1) return false;
+  const norm = s => String(s||'').trim().replace(/["'״׳]/g,'"').toLowerCase();
+  const seen = new Map(); // normalized name → kept id
+  const out = [];
+  for(const t of TEAMS){
+    if(!t || !t.name) continue;
+    const key = norm(t.name);
+    if(!key) continue;
+    if(seen.has(key)){
+      console.log('[TEAMS] duplicate removed:', t.id, '"'+t.name+'" (kept:', seen.get(key), ')');
+      continue;
+    }
+    seen.set(key, t.id);
+    out.push(t);
+  }
+  if(out.length === TEAMS.length) return false;
+  TEAMS.splice(0, TEAMS.length, ...out);
+  return true;
+}
+
 function savePersonnelToStorage(){
+  _dedupeTeamsByName(); // strip any duplicate-name teams before persisting
   try{
     localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL));
     localStorage.setItem('tac_teams', JSON.stringify(TEAMS));
@@ -9174,6 +9201,7 @@ function loadPersonnelFromStorage(){
       PERSONNEL.splice(0,PERSONNEL.length,...merged);
     }
     if(t){const d=JSON.parse(t);TEAMS.splice(0,TEAMS.length,...d);}
+    _dedupeTeamsByName();
   }catch(e){}
 }
 loadPersonnelFromStorage();
@@ -16300,6 +16328,14 @@ const SYNC = (() => {
         const remoteIds = new Set(data.teams.map(t=>t.id));
         const localOnly = TEAMS.filter(t=>!remoteIds.has(t.id));
         TEAMS.splice(0, TEAMS.length, ...data.teams, ...localOnly);
+        // De-duplicate by normalized name — if remote or local had two teams
+        // with the same name (different ids — typical after a sync race or
+        // accidental double-create), keep only the first and write the
+        // cleaned list back to Firebase so it doesn't resurrect next time.
+        const wasDuped = (typeof _dedupeTeamsByName === 'function') && _dedupeTeamsByName();
+        if(wasDuped){
+          try{ _db.ref('tac_teams_sync/teams').set(TEAMS).catch(()=>{}); }catch(_){}
+        }
         changed = true;
       }
       // Restore unit assignments to PERSONNEL
