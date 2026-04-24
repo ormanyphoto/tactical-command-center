@@ -9641,44 +9641,236 @@ function exportPersonnelCSV(){
 function openImportCSV(){
   document.getElementById('modal-ttl').innerHTML='⬆ ייבוא אנשי צוות מ-CSV';
   document.getElementById('modal-body').innerHTML=`
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">הקובץ צריך עמודות: שם מלא, טלפון, דוא"ל, יחידה, תפקיד, אות קריאה, כתובת, זמינות, כישורים</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      עמודה ראשונה = <b>מזהה</b> — מאפשרת עדכון אנשי צוות קיימים במקום יצירת כפילויות.<br>
+      שאר העמודות: שם מלא, טלפון, דוא"ל, יחידה, תפקיד, אות קריאה, כתובת, זמינות, כישורים.<br>
+      <span style="color:var(--text3)">תא ריק = לא לשנות את הערך הקיים.</span>
+    </p>
     <div class="csv-drop">
       📁 גרור קובץ CSV לכאן או לחץ לבחירה
       <input type="file" accept=".csv,text/csv" onchange="handleCSVImport(event)">
     </div>
-    <div id="csv-preview" style="margin-top:8px;font-size:12px;color:var(--accent2)"></div>`;
+    <div id="csv-preview" style="margin-top:8px;font-size:12px;color:var(--accent2)"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
+      <div style="font-size:12px;color:var(--warn);font-weight:700;margin-bottom:6px">🧹 ניקוי כפילויות</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">
+        אם ייבוא קודם יצר כפילויות בטעות (אותו שם פעמיים או יותר) — הכפתור הזה יאחד אותם.
+        הרשומה הישנה נשמרת, הנתונים החדשים (שהיו מלאים יותר) מתמזגים אליה, והכפילויות נמחקות.
+      </div>
+      <button class="btn-sec" style="width:100%;margin:0;border-color:var(--warn);color:var(--warn)" onclick="dedupePersonnelByName()">
+        🧹 איחוד כפילויות לפי שם
+      </button>
+    </div>`;
   modalCB=null;
   document.getElementById('modal-wrap').style.display='flex';
+}
+
+// Cleanup utility — for recovering from a previous buggy CSV import
+// that created duplicates (same name, different generated ID). Merges
+// duplicates into the earliest entry (by order), filling in any fields
+// the original had missing from the later duplicates, then removes the
+// duplicate rows.
+function dedupePersonnelByName(){
+  const norm = s => String(s||'').trim().replace(/\s+/g,' ').replace(/["'״׳]/g,'"').toLowerCase();
+  const groups = new Map();
+  PERSONNEL.forEach(p => {
+    if(!p || !p.name) return;
+    const k = norm(p.name);
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  });
+
+  const dupeGroups = [...groups.values()].filter(g => g.length > 1);
+  if(!dupeGroups.length){
+    showToast({icon:'✅',title:'לא נמצאו כפילויות',type:'info'});
+    return;
+  }
+
+  const total = dupeGroups.reduce((s,g)=>s+(g.length-1), 0);
+  if(!confirm('נמצאו '+total+' רשומות כפולות של '+dupeGroups.length+' אנשי צוות.\nלמזג את הכפילויות לרשומה אחת לכל אדם?')){
+    return;
+  }
+
+  // Merge each group: keep the one with the lowest `order` (earliest
+  // in the sorted list — usually the "real" original), copy any
+  // missing-on-original fields from the duplicates into it, then
+  // delete the duplicates.
+  const toRemove = new Set();
+  let mergedCount = 0, removedCount = 0;
+  dupeGroups.forEach(group => {
+    // Sort so the primary is the one with the most "original" feel:
+    // oldest id (lowest numeric suffix) wins; tie-break by order.
+    group.sort((a,b) => {
+      const ai = String(a.id||'').replace(/\D/g,'');
+      const bi = String(b.id||'').replace(/\D/g,'');
+      const ad = ai ? parseInt(ai,10) : Infinity;
+      const bd = bi ? parseInt(bi,10) : Infinity;
+      if(ad !== bd) return ad - bd;
+      return (a.order||0) - (b.order||0);
+    });
+    const primary = group[0];
+    const duplicates = group.slice(1);
+    duplicates.forEach(d => {
+      // Fill in fields the primary is missing from the duplicate.
+      Object.keys(d).forEach(k => {
+        if(k === 'id' || k === 'order') return;
+        const pv = primary[k];
+        const dv = d[k];
+        const primaryEmpty = pv === '' || pv == null || (Array.isArray(pv) && !pv.length);
+        if(primaryEmpty && dv !== '' && dv != null && !(Array.isArray(dv) && !dv.length)){
+          primary[k] = dv;
+        }
+      });
+      toRemove.add(d.id);
+      removedCount++;
+    });
+    mergedCount++;
+  });
+
+  // Remove duplicates from PERSONNEL in-place.
+  for(let i=PERSONNEL.length-1; i>=0; i--){
+    if(toRemove.has(PERSONNEL[i].id)) PERSONNEL.splice(i, 1);
+  }
+
+  // Renumber order so the list stays sane.
+  PERSONNEL.forEach((p,i) => { p.order = i; });
+
+  savePersonnelToStorage();
+  renderPersonnelP(document.getElementById('rp-body'));
+  showToast({
+    icon:'🧹',
+    title:'כפילויות אוחדו',
+    sub: 'מוזגו '+mergedCount+' אנשי צוות · הוסרו '+removedCount+' כפילויות',
+    type:'success',
+    duration: 5000
+  });
+  try { auditLog('איחוד כפילויות אנשי צוות','info', mergedCount+' מוזגו / '+removedCount+' הוסרו'); } catch(_){}
+}
+
+// Proper CSV line parser — handles quoted cells containing commas.
+function _parseCSVLine(line){
+  const out = [];
+  let cur = '', inQ = false;
+  for(let i=0; i<line.length; i++){
+    const ch = line[i];
+    if(ch === '"'){
+      if(inQ && line[i+1] === '"'){ cur += '"'; i++; } // escaped quote
+      else inQ = !inQ;
+    } else if(ch === ',' && !inQ){
+      out.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map(c => c.trim());
 }
 
 function handleCSVImport(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
-    const lines=e.target.result.split('\n').filter(l=>l.trim());
-    let imported=0;
-    lines.slice(1).forEach(line=>{
-      const cols=line.split(',').map(c=>c.replace(/^"|"$/g,'').trim());
-      if(cols[1]){
-        PERSONNEL.push({
-          id:'P'+String(Date.now()+imported).slice(-5),
-          name:cols[1]||'',phone:cols[2]||'',email:cols[3]||'',
-          unit:cols[4]||'',role:cols[5]||'',callsign:cols[6]||'',
-          address:cols[7]||'',
-          available:(cols[8]||'').includes('זמין'),
-          skills:(cols[9]||'').split(';').filter(Boolean),
-          mission:null,photo:'',color:'#9ab8c8',order:PERSONNEL.length
+    // Strip BOM that Excel prepends to UTF-8 CSVs
+    const text = e.target.result.replace(/^\uFEFF/, '');
+    const lines = text.split(/\r?\n/).filter(l=>l.trim());
+    // Detect whether the first row is a header (any non-numeric content)
+    const first = lines[0] ? _parseCSVLine(lines[0]) : [];
+    const hasHeader = first.some(c => /[א-תA-Za-z]/.test(c) && !/^\d/.test(c.trim()));
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+
+    // Normalize a string for name-based matching — trim, collapse
+    // whitespace, unify quote chars. Handles "אור מני " vs "אור מני".
+    const _norm = s => String(s||'').trim().replace(/\s+/g,' ').replace(/["'״׳]/g,'"').toLowerCase();
+    // Build lookup maps over EXISTING personnel so each imported row
+    // can be matched in O(1) by id / email / name.
+    const byId    = new Map();
+    const byEmail = new Map();
+    const byName  = new Map();
+    PERSONNEL.forEach(p => {
+      if(p.id)    byId.set(String(p.id).trim(), p);
+      if(p.email) byEmail.set(_norm(p.email), p);
+      if(p.name)  byName.set(_norm(p.name), p);
+    });
+
+    let updated = 0, added = 0, skipped = 0;
+    dataLines.forEach(line=>{
+      const cols = _parseCSVLine(line);
+      // Drop surrounding quotes left over in cells
+      const c = cols.map(s => s.replace(/^"|"$/g,''));
+      // Column order (matches exportPersonnelCSV headers):
+      //   0 id, 1 name, 2 phone, 3 email, 4 unit, 5 role,
+      //   6 callsign, 7 address, 8 availability, 9 skills
+      const importedId   = c[0] || '';
+      const name         = c[1] || '';
+      const phone        = c[2] || '';
+      const email        = c[3] || '';
+      const unit         = c[4] || '';
+      const role         = c[5] || '';
+      const callsign     = c[6] || '';
+      const address      = c[7] || '';
+      const availRaw     = c[8] || '';
+      const skillsRaw    = c[9] || '';
+      if(!name){ skipped++; return; }
+
+      // Match priority: ID → email → name (so a renamed person is still
+      // found by ID, and an ID-less row matches by email).
+      let match = null;
+      if(importedId && byId.has(importedId.trim())) match = byId.get(importedId.trim());
+      if(!match && email) match = byEmail.get(_norm(email));
+      if(!match && name)  match = byName.get(_norm(name));
+
+      const payload = {
+        name, phone, email, unit, role, callsign, address,
+        available: availRaw.includes('זמין') || availRaw.toLowerCase()==='true' || availRaw==='1',
+        skills: skillsRaw.split(';').map(s=>s.trim()).filter(Boolean),
+      };
+
+      if(match){
+        // UPDATE — only overwrite fields that have content in the CSV.
+        // Empty cells are treated as "no change" so a partially-filled
+        // row can't silently wipe existing data.
+        Object.keys(payload).forEach(k => {
+          const v = payload[k];
+          if(v === '' || v == null) return;
+          if(Array.isArray(v) && v.length === 0) return;
+          match[k] = v;
         });
-        imported++;
+        // availability is boolean — only update when a value was supplied
+        if(availRaw !== '') match.available = payload.available;
+        updated++;
+      } else {
+        // NEW — generate a fresh ID only if the CSV didn't provide one
+        // (or it collides with an existing id).
+        const newId = importedId && !byId.has(importedId.trim())
+          ? importedId.trim()
+          : ('P' + String(Date.now() + added).slice(-5));
+        const np = Object.assign({
+          id: newId,
+          mission: null, photo: '', color: '#9ab8c8',
+          order: PERSONNEL.length
+        }, payload);
+        PERSONNEL.push(np);
+        // Update lookups so duplicate rows in the same CSV don't re-add.
+        byId.set(newId, np);
+        if(email) byEmail.set(_norm(email), np);
+        if(name)  byName.set(_norm(name), np);
+        added++;
       }
     });
+
     const prev=document.getElementById('csv-preview');
-    if(prev)prev.textContent=`✓ יובאו ${imported} רשומות`;
+    if(prev) prev.textContent = `✓ עודכנו ${updated} · נוספו ${added}` + (skipped ? ` · דולגו ${skipped}` : '');
     savePersonnelToStorage();
     setTimeout(()=>{
       closeModal();
       renderPersonnelP(document.getElementById('rp-body'));
-      showToast({icon:'⬆️',title:`יובאו ${imported} אנשי צוות`,type:'success'});
+      showToast({
+        icon: '⬆️',
+        title: 'ייבוא CSV הסתיים',
+        sub: updated+' עודכנו · '+added+' נוספו',
+        type: 'success',
+        duration: 4500
+      });
     },700);
   };
   reader.readAsText(file,'UTF-8');
