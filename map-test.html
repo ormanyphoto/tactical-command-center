@@ -7,16 +7,20 @@
 <style>
   html,body{margin:0;padding:0;font-family:system-ui,-apple-system,'Segoe UI',Arial;background:#0d1014;color:#e8eff5;height:100%}
   #wrap{display:flex;flex-direction:column;height:100vh}
-  #info{background:#0d1014;padding:10px 14px;border-bottom:2px solid #1a8c2e;font-size:13px;line-height:1.5;max-height:50vh;overflow:auto}
+  #info{background:#0d1014;padding:10px 14px;border-bottom:2px solid #1a8c2e;font-size:13px;line-height:1.5;max-height:55vh;overflow:auto}
   #info b{color:#3dff52}
   #info code{background:#1c2430;padding:1px 5px;border-radius:3px;font-size:11px;color:#29c5f6;word-break:break-all}
-  #map{flex:1;min-height:40vh;background:#1a2028}
+  .maps{display:flex;flex:1;min-height:40vh;border-top:1px solid #1a8c2e}
+  .mapbox{flex:1;position:relative;border-right:1px solid #1a8c2e;min-width:0}
+  .mapbox:last-child{border-right:none}
+  .mapbox > .map{position:absolute;inset:0;background:#202830}
+  .mapbox > .cap{position:absolute;top:6px;left:6px;right:6px;background:rgba(0,0,0,0.65);color:#fff;padding:4px 8px;font-size:11px;border-radius:4px;z-index:5;font-weight:700}
   .status{padding:3px 8px;border-radius:4px;font-weight:700;display:inline-block;margin:2px 4px 2px 0;font-size:12px}
   .s-ok{background:#1a5a22;color:#3dff52}
   .s-fail{background:#5a1a1a;color:#ff6060}
   .s-pending{background:#3a3a1a;color:#ffc107}
   button{background:#1a8c2e;color:white;border:none;border-radius:4px;padding:6px 12px;font-weight:700;cursor:pointer;margin:4px 2px;font-family:inherit;font-size:12px}
-  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-all}
   .log-err{color:#ff6060}
   .log-ok{color:#3dff52}
   .log-info{color:#8fb3d9}
@@ -32,16 +36,18 @@
       <span class="status s-pending">⏳ מחכה ל-Google Maps API...</span>
     </div>
     <div style="margin-top:6px">
-      <button onclick="testRotate()">🔄 סובב 90°</button>
-      <button onclick="testTilt()">⛰️ Tilt 45°</button>
+      <button onclick="testRotate()">🔄 סובב 90° (mapId)</button>
       <button onclick="resetView()">↩️ אפס</button>
     </div>
     <div class="log" id="log"></div>
   </div>
-  <div id="map"></div>
+  <div class="maps">
+    <div class="mapbox"><div class="cap">WITHOUT mapId (בדיקת API Key)</div><div class="map" id="map-nomapid"></div></div>
+    <div class="mapbox"><div class="cap">WITH mapId (בדיקת Vector)</div><div class="map" id="map-withmapid"></div></div>
+  </div>
 </div>
 <script>
-let map;
+let mapA, mapB;
 const log = document.getElementById('log');
 const status = document.getElementById('status');
 document.getElementById('dom').textContent = location.hostname + location.pathname;
@@ -55,112 +61,109 @@ function logLine(msg, cls){
   log.scrollTop = log.scrollHeight;
 }
 
-// Google Maps calls this if auth fails (bad API key, referrer rejected, etc.)
 window.gm_authFailure = () => {
-  logLine('❌ gm_authFailure — ה-API Key נדחה. רוב הסיכויים: הגבלת דומיין או Maps JavaScript API לא מופעל.', 'log-err');
-  status.innerHTML = '<span class="status s-fail">❌ API Key נדחה (gm_authFailure)</span>';
+  logLine('❌ gm_authFailure — ה-API Key נדחה', 'log-err');
+  status.innerHTML = '<span class="status s-fail">❌ API Key נדחה</span>';
 };
-
-// Catch any JS errors from Google's code
 window.addEventListener('error', e => {
   if (e.filename && e.filename.includes('maps.googleapis.com')){
     logLine('Maps JS error: ' + (e.message || e.error), 'log-err');
   }
 });
 
-// Timeout — if onMaps doesn't fire within 15s, something's wrong
 setTimeout(() => {
-  if (!map) {
-    logLine('⚠️ Maps API לא נטען תוך 15 שניות. פתח את DevTools (F12) → Network → חפש maps/api/js — מה ה-status code?', 'log-err');
-    status.innerHTML = '<span class="status s-fail">❌ Timeout — Maps לא נטען</span>';
+  if (!mapA && !mapB) {
+    logLine('⚠️ Maps API לא נטען תוך 15 שניות', 'log-err');
+    status.innerHTML = '<span class="status s-fail">❌ Timeout</span>';
   }
 }, 15000);
 
 function onMaps(){
   logLine('✅ Google Maps API נטען', 'log-ok');
+  // ── Map A: NO mapId (tests if API key works at all)
   try {
-    logLine('יוצר מפה עם mapId=5075a944af766b257648230b...');
-    map = new google.maps.Map(document.getElementById('map'), {
+    logLine('מפה A: יוצר ללא mapId...');
+    mapA = new google.maps.Map(document.getElementById('map-nomapid'), {
       center: { lat: 32.0667, lng: 34.7818 },
-      zoom: 14,
+      zoom: 13,
+      gestureHandling: 'greedy',
+      disableDefaultUI: true,
+    });
+    google.maps.event.addListenerOnce(mapA, 'tilesloaded', () => {
+      logLine('✅ A: tilesloaded (ללא mapId — API Key תקין)', 'log-ok');
+    });
+  } catch(e){
+    logLine('❌ A: כשל ביצירה: ' + e.message, 'log-err');
+  }
+  // ── Map B: WITH mapId (tests if Map ID + Vector works)
+  try {
+    logLine('מפה B: יוצר עם mapId=5075a944af766b257648230b...');
+    mapB = new google.maps.Map(document.getElementById('map-withmapid'), {
+      center: { lat: 32.0667, lng: 34.7818 },
+      zoom: 13,
       mapId: '5075a944af766b257648230b',
       rotateControl: true,
       headingInteractionEnabled: true,
       gestureHandling: 'greedy',
-      disableDefaultUI: false,
+      disableDefaultUI: true,
     });
-    logLine('✅ מפה נוצרה בהצלחה', 'log-ok');
-
-    google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
-      logLine('✅ tilesloaded — טיילים נטענו', 'log-ok');
+    google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => {
+      logLine('✅ B: tilesloaded (Map ID עובד!)', 'log-ok');
       let rt = 'לא ידוע';
       try {
-        if (google.maps.RenderingType && typeof map.getRenderingType === 'function') {
-          const r = map.getRenderingType();
-          logLine('renderingType raw: ' + String(r));
+        if (google.maps.RenderingType && typeof mapB.getRenderingType === 'function') {
+          const r = mapB.getRenderingType();
           if (r === google.maps.RenderingType.VECTOR) rt = 'VECTOR ✅';
           else if (r === google.maps.RenderingType.RASTER) rt = 'RASTER ❌';
-          else rt = 'UNKNOWN (' + r + ')';
-        } else {
-          rt = 'getRenderingType לא קיים';
+          else rt = 'UNKNOWN';
         }
-      } catch(e){ rt = 'שגיאה: ' + e.message; }
-      const okClass = rt.includes('VECTOR') ? 's-ok' : 's-fail';
-      status.innerHTML = '<span class="status s-ok">מפה נטענה</span>' +
-        '<span class="status ' + okClass + '">Rendering: ' + rt + '</span>';
-      if (rt.includes('VECTOR')){
-        logLine('🎉 מצוין — הסיבוב אמור לעבוד. נסה "סובב 90°" או שתי אצבעות.', 'log-ok');
-      } else {
-        logLine('⚠️ ה-Map ID לא מחזיר Vector. בדוק ב-Cloud Console שהטעינת עודכנה.', 'log-err');
-      }
+      } catch(e){}
+      logLine('B: Rendering = ' + rt, rt.includes('VECTOR')?'log-ok':'log-err');
+      status.innerHTML = '<span class="status s-ok">מפות נטענו</span>' +
+        '<span class="status ' + (rt.includes('VECTOR')?'s-ok':'s-fail') + '">B: ' + rt + '</span>';
     });
-
-    google.maps.event.addListener(map, 'heading_changed', () => {
-      const h = Math.round(map.getHeading() || 0);
-      logLine('heading: ' + h + '°', 'log-ok');
+    google.maps.event.addListener(mapB, 'heading_changed', () => {
+      const h = Math.round(mapB.getHeading() || 0);
+      logLine('B heading: ' + h + '°', 'log-ok');
     });
-
   } catch(e){
-    logLine('❌ כשל ביצירת מפה: ' + e.message, 'log-err');
-    status.innerHTML = '<span class="status s-fail">❌ יצירת מפה נכשלה</span>';
+    logLine('❌ B: כשל ביצירה: ' + e.message, 'log-err');
   }
+  // Also monitor if only one of them loads
+  setTimeout(() => {
+    const aL = mapA && mapA.__loaded;
+    const bL = mapB && mapB.__loaded;
+    // We don't actually set __loaded, but if tilesloaded never fired for one,
+    // that's already logged. Add explicit timeout diagnostic:
+  }, 8000);
+  // After 8s, if B hasn't loaded, log it
+  setTimeout(() => {
+    const check = () => {
+      const aTxt = 'A: ' + (document.querySelector('#map-nomapid canvas, #map-nomapid img, #map-nomapid .gm-style') ? 'יש תוכן' : 'ריק');
+      const bTxt = 'B: ' + (document.querySelector('#map-withmapid canvas, #map-withmapid img, #map-withmapid .gm-style') ? 'יש תוכן' : 'ריק');
+      logLine('בדיקה אחרי 10ש׳: ' + aTxt + ' | ' + bTxt, 'log-info');
+    };
+    setTimeout(check, 10000);
+  }, 1000);
 }
 
 function testRotate(){
-  if (!map) { logLine('אין מפה — חכה שתטען', 'log-err'); return; }
-  const cur = map.getHeading() || 0;
-  const target = cur + 90;
-  logLine('setHeading(' + target + '°) ...');
-  try { map.setHeading(target); } catch(e){ logLine('setHeading error: ' + e.message, 'log-err'); }
+  if (!mapB) { logLine('אין מפה B', 'log-err'); return; }
+  const cur = mapB.getHeading() || 0;
+  try { mapB.setHeading(cur + 90); } catch(e){ logLine('setHeading err: ' + e.message, 'log-err'); }
   setTimeout(() => {
-    const after = Math.round(map.getHeading() || 0);
-    if (Math.abs(after - target) < 5){
-      logLine('✅ סיבוב הצליח → ' + after + '°', 'log-ok');
-    } else {
-      logLine('❌ הסיבוב לא זז. Actual: ' + after + '°. ה-Map ID כנראה Raster או הגדרה לא נטענה.', 'log-err');
-    }
-  }, 600);
+    const after = Math.round(mapB.getHeading() || 0);
+    if (Math.abs(after - (cur + 90)) < 5) logLine('✅ סיבוב הצליח → ' + after + '°', 'log-ok');
+    else logLine('❌ הסיבוב לא עבד. actual=' + after + '°', 'log-err');
+  }, 700);
 }
-function testTilt(){
-  if (!map) return;
-  logLine('setTilt(45°) ...');
-  try { map.setTilt(45); } catch(e){ logLine('setTilt error: ' + e.message, 'log-err'); }
-}
-function resetView(){
-  if (!map) return;
-  map.setHeading(0); map.setTilt(0);
-  logLine('אופס');
-}
+function resetView(){ if (mapB) { mapB.setHeading(0); mapB.setTilt(0); } }
 
-// Load Maps script
 const s = document.createElement('script');
 s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps&loading=async';
 s.async = true; s.defer = true;
-s.onerror = () => {
-  logLine('❌ כשל בטעינת סקריפט Maps — רשת/CORS/domain restriction', 'log-err');
-  status.innerHTML = '<span class="status s-fail">❌ Script load failed</span>';
-};
-logLine('טוען maps.googleapis.com/maps/api/js ...');
+s.onerror = () => { logLine('❌ כשל בטעינת סקריפט', 'log-err'); };
+logLine('טוען maps API...');
 document.head.appendChild(s);
 </script>
 </body>
