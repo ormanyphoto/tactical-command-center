@@ -2410,6 +2410,13 @@ function onGoogleMapsReady(){
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
+  // Vector map ID — required for proper rotation where only the tile
+  // content rotates and labels/markers stay upright (Waze-style), on
+  // the roadmap view. Without a mapId the map renders as legacy raster
+  // tiles and setHeading() silently no-ops. The user can override with
+  // their own Cloud Console Map ID via localStorage.tac_map_id.
+  const _customMapId = localStorage.getItem('tac_map_id') || '';
+  const _effectiveMapId = _customMapId || 'DEMO_MAP_ID';
   map=new google.maps.Map(mapEl,{
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
@@ -2420,9 +2427,10 @@ function onGoogleMapsReady(){
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
-    // Enable rotation gestures (two-finger twist on touch, Shift+drag on
-    // desktop). Satellite/hybrid rotate natively; roadmap without a
-    // mapId relies on the CSS-transform fallback below.
+    // Vector rendering + rotation gestures — two-finger twist on touch
+    // rotates the map content while labels stay upright, just like any
+    // nav app.
+    mapId: _effectiveMapId,
     rotateControl:true,
     headingInteractionEnabled:true,
     isFractionalZoomEnabled:true,
@@ -4575,15 +4583,13 @@ function _navHandleLiveFix(lat, lng){
   let heading = null;
   if(rotate && window._navPrevFix){
     heading = _bearingDeg(window._navPrevFix, {lat, lng});
-    // Native rotation — works on satellite/hybrid and on vector maps
-    // (requires mapId). Silent no-op on legacy roadmap tiles.
+    // Native rotation — properly rotates just the tiles/vectors while
+    // keeping labels and markers upright. Works on satellite/hybrid
+    // natively, and on roadmap only when the map has a vector Map ID
+    // configured. On non-vector roadmap the call is a silent no-op;
+    // switch to satellite view (🛰 button) to see rotation during
+    // navigation until a Map ID is wired up.
     try { if(typeof window.map.setHeading === 'function') window.map.setHeading(heading); } catch(_){}
-    // CSS-transform fallback — rotates the #gmap container so roadmap
-    // users also get heading-aligned navigation. Our UI buttons live
-    // outside #gmap (in #right-panel), so they stay upright. Markers
-    // and route polyline are inside #gmap and rotate with it, which
-    // is the correct look (a "heading-up" compass view).
-    _navApplyCssRotation(-heading);
   }
   window._navPrevFix = {lat, lng};
   // Auto-zoom based on speed (if we know it). Fallback to zoom 17.
@@ -4618,21 +4624,8 @@ function _navHandleLiveFix(lat, lng){
   }
 }
 
-// ── CSS-transform rotation fallback ─────────────────────────────────────
-// Google Maps JS silently no-ops map.setHeading() on legacy roadmap
-// rendering (no mapId). We keep the roadmap working during heading-up
-// navigation by rotating the #gmap element itself. Smoothly interpolates
-// in CSS via the transition property.
-function _navApplyCssRotation(deg){
-  const el = document.getElementById('gmap');
-  if(!el) return;
-  if(!el._cssRotInit){
-    el.style.transformOrigin = '50% 50%';
-    el.style.transition = 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)';
-    el._cssRotInit = true;
-  }
-  el.style.transform = 'rotate('+deg+'deg)';
-}
+// Clears any leftover CSS transform from earlier versions that rotated
+// #gmap (which also rotated labels/markers — wrong, removed).
 function _navClearCssRotation(){
   const el = document.getElementById('gmap');
   if(!el) return;
