@@ -11411,6 +11411,20 @@ function addNotifVenue(address){
     ac.addListener('place_changed', ()=>{
       const place = ac.getPlace();
       if(place && place.formatted_address) inp.value = place.formatted_address;
+      // CRITICAL: stamp the picked coordinates onto the input so
+      // sendNotification uses them directly instead of re-geocoding
+      // the text (which frequently lands on a different place for
+      // ambiguous Israeli addresses — "הרצל 16" exists in >40 cities).
+      if(place && place.geometry && place.geometry.location){
+        inp.dataset.lat = String(place.geometry.location.lat());
+        inp.dataset.lng = String(place.geometry.location.lng());
+      }
+    });
+    // If the operator manually edits the address after picking a
+    // suggestion, clear the stamped coords so a fresh geocode runs.
+    inp.addEventListener('input', ()=>{
+      delete inp.dataset.lat;
+      delete inp.dataset.lng;
     });
   }
 }
@@ -11438,7 +11452,11 @@ function _getNotifVenues(){
       label: inp.dataset.label||('זירה '+(i+1)),
       address: inp.value.trim(),
       color: inp.dataset.color||_venueColor(i),
-      lat: null, lng: null
+      // Pick up coordinates stamped by autocomplete's place_changed,
+      // so sendNotification can skip the re-geocode step for venues
+      // the operator selected from the Google suggestions list.
+      lat: inp.dataset.lat ? Number(inp.dataset.lat) : null,
+      lng: inp.dataset.lng ? Number(inp.dataset.lng) : null
     }))
     .filter(v=>v.address);
 }
@@ -11716,13 +11734,25 @@ function sendNotification(){
     _onAllGeocoded();
   } else {
     venues.forEach((v,i)=>{
-      if(v.address && window._geocoder){
-        window._geocoder.geocode({address:v.address, region:'il'}, (results, status)=>{
-          if(status==='OK' && results[0]){
+      // Autocomplete already stamped the picked lat/lng. Skip the
+      // re-geocode — it's what was producing the wrong destination
+      // for ambiguous Israeli addresses in the first place.
+      if(v.lat != null && v.lng != null){
+        if(--pending === 0) _onAllGeocoded();
+        return;
+      }
+      if(v.address){
+        // Use the wrapper which applies componentRestrictions:{country:'il'}
+        // and the Israel bounding-box bias — way more accurate than
+        // the raw geocoder.geocode({region:'il'}) that was here before.
+        _geocodeAddr({address:v.address}).then(results=>{
+          if(results && results[0]){
             const loc = results[0].geometry.location;
             venues[i].lat = loc.lat();
             venues[i].lng = loc.lng();
           }
+          if(--pending === 0) _onAllGeocoded();
+        }).catch(()=>{
           if(--pending === 0) _onAllGeocoded();
         });
       } else {
