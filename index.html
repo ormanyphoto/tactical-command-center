@@ -1288,11 +1288,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         allowfullscreen
         src="about:blank">
       </iframe>
-      <!-- Blocker: GovMap renders its own zoom / locate controls in the
-           bottom-left of its iframe. We can't style inside the iframe
-           (cross-origin), so we mask that corner with an opaque div
-           matching the app background when govmap mode is active. -->
-      <div id="govmap-ui-blocker" style="display:none;position:absolute;left:0;bottom:0;width:80px;height:260px;background:var(--bg);z-index:150;pointer-events:none"></div>
       <!-- Draw mode badge -->
       <div class="draw-mode-badge" id="draw-mode-badge">✏️ מצב ציור גבול — לחץ על המפה להוספת נקודות</div>
       <!-- Draw control bar -->
@@ -2877,10 +2872,6 @@ function switchBaseMap(provider){
     iframeEl.src=_buildGovmapUrl();
     iframeEl.style.display='block';
     if(gmapEl) gmapEl.style.display='none';
-    // Show blocker that covers GovMap's native bottom-left zoom / locate
-    // controls so they don't appear underneath our floating UI.
-    const blocker=document.getElementById('govmap-ui-blocker');
-    if(blocker) blocker.style.display='block';
     // Button states
     if(gb) gb.classList.remove('mp-active');
     if(vm) vm.classList.add('mp-active');
@@ -2893,9 +2884,6 @@ function switchBaseMap(provider){
     iframeEl.style.display='none';
     iframeEl.src='about:blank';
     if(gmapEl) gmapEl.style.display='block';
-    // Hide blocker when leaving GovMap — no need to mask anything on Google.
-    const blocker=document.getElementById('govmap-ui-blocker');
-    if(blocker) blocker.style.display='none';
     if(map) google.maps.event.trigger(map,'resize');
     // Mark the currently active Google map type
     const typeMap={roadmap:'rp-mtype-road',satellite:'rp-mtype-sat',hybrid:'rp-mtype-hyb',terrain:'rp-mtype-ter'};
