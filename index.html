@@ -671,12 +671,18 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .config-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
 .config-lbl{font-size:13px;font-weight:600;color:var(--text)}
 .config-desc{font-size:11px;color:var(--text3)}
-.toggle{position:relative;display:inline-block;width:40px;height:22px}
+.toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
 .toggle input{display:none}
 .toggle-slider{position:absolute;inset:0;background:var(--border3);border-radius:22px;cursor:pointer;transition:all 0.2s}
 .toggle input:checked+.toggle-slider{background:var(--accent)}
 .toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:white;border-radius:50%;transition:all 0.2s}
 .toggle input:checked+.toggle-slider::before{left:21px}
+/* Nav panel — list of labeled toggle rows (label on the right in RTL,
+   switch on the left). Ellipsis keeps text from overflowing the panel. */
+.nav-toggle-list{display:flex;flex-direction:column;gap:0;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:0 12px;overflow:hidden}
+.nav-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
+.nav-toggle-row:first-child{border-top:none}
+.nav-toggle-lbl{font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 /* GPS */
 #gps-widget{position:absolute;bottom:30px;right:14px;z-index:200;background:var(--panel);border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;font-size:11px;font-weight:600;display:none;min-width:178px;direction:rtl;box-shadow:0 4px 14px rgba(0,0,0,0.3)}
 #gps-widget.on{display:block}
@@ -1997,6 +2003,32 @@ const AUTH = (() => {
     // Show/hide admin buttons
     const tbAdminBtn = document.getElementById('tb-admin-btn');
     if(tbAdminBtn) tbAdminBtn.style.display = isAdmin ? '' : 'none';
+    // Birthday reminder for managers — only show once per day, only for
+    // admin users, and skip if the only birthday is the user's own.
+    if(isAdmin){
+      try {
+        const today = new Date().toISOString().slice(0,10);
+        const seenKey = 'tac_bday_seen_'+today;
+        if(!localStorage.getItem(seenKey) && typeof _birthdaysToday === 'function'){
+          const bdays = _birthdaysToday().filter(p => p.id !== _user.id);
+          if(bdays.length){
+            const names = bdays.map(p => p.name).join(' · ');
+            setTimeout(()=>{
+              if(typeof showToast === 'function'){
+                showToast({
+                  icon: '🎂',
+                  title: bdays.length === 1 ? 'יום הולדת היום 🎈' : 'ימי הולדת היום 🎈',
+                  sub: names,
+                  type: 'info',
+                  duration: 12000
+                });
+              }
+            }, 2500);
+          }
+          localStorage.setItem(seenKey, '1');
+        }
+      } catch(_){}
+    }
     // Update mobile drawer user card
     const mobName = document.getElementById('mob-user-name');
     const mobRole = document.getElementById('mob-user-role');
@@ -4620,6 +4652,53 @@ function _gpsErr(err, ctx){
 
 // ── HELPERS ──
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+// Inject the birthday bounce keyframes once per page
+(function _injectBdayCss(){
+  if(document.getElementById('bday-css')) return;
+  const s = document.createElement('style');
+  s.id = 'bday-css';
+  s.textContent = '@keyframes bday-bounce{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-3px) rotate(6deg)}} .bday-badge{filter:drop-shadow(0 0 4px rgba(255,180,80,0.5))}';
+  (document.head || document.documentElement).appendChild(s);
+})();
+
+// ── Birthday helpers ────────────────────────────────────────────────────
+// A person's DOB is stored as ISO YYYY-MM-DD in PERSONNEL[i].dob. These
+// utilities check whether the day matches today (ignoring year) and
+// generate a reusable "🎂🎈" badge that can be injected into any name
+// string. Kept at the top of the file so every renderer can use them.
+function _isBirthdayToday(person){
+  if(!person || !person.dob) return false;
+  const parts = String(person.dob).split('-');
+  if(parts.length < 3) return false;
+  const mo = parseInt(parts[1],10);
+  const da = parseInt(parts[2],10);
+  if(!mo || !da) return false;
+  const now = new Date();
+  return mo === (now.getMonth()+1) && da === now.getDate();
+}
+function _bdayBadge(person, opts){
+  if(!_isBirthdayToday(person)) return '';
+  const size = (opts && opts.size) || 13;
+  // Compute age if year is present
+  let ageStr = '';
+  try {
+    const [y] = String(person.dob).split('-').map(Number);
+    if(y && y > 1900){
+      const now = new Date();
+      let age = now.getFullYear() - y;
+      ageStr = ' ('+age+')';
+    }
+  } catch(_){}
+  const title = 'יום הולדת שמח ל'+(person.name||'')+ageStr+' 🎂';
+  return '<span class="bday-badge" title="'+escHtml(title)+'" style="display:inline-block;font-size:'+size+'px;margin-inline-start:4px;animation:bday-bounce 1.4s ease-in-out infinite;vertical-align:middle">🎂🎈</span>';
+}
+// List all people whose birthday is today — used by the boot-time
+// reminder. Returns [] if none.
+function _birthdaysToday(){
+  if(typeof PERSONNEL === 'undefined' || !Array.isArray(PERSONNEL)) return [];
+  return PERSONNEL.filter(_isBirthdayToday);
+}
 // ══════════════════════════════════════════════════════════
 // RTDB REST auth interceptor
 // ══════════════════════════════════════════════════════════
@@ -6074,17 +6153,32 @@ function renderNavigationP(c){
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
   <div class="form-g">
     <label style="margin-bottom:4px;display:block">אפשרויות מסלול</label>
-    <div style="display:flex;flex-direction:column;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px">
-      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap"><input type="checkbox" id="nav-avoid-tolls" style="accent-color:var(--accent);flex-shrink:0"><span>🛣️ ללא כבישי אגרה</span></label>
-      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)"><input type="checkbox" id="nav-avoid-highways" style="accent-color:var(--accent);flex-shrink:0"><span>🚧 ללא כבישים מהירים</span></label>
-      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)" title="סינון מסלול שעובר דרך שטחי A ו-B (הגבלת חוק)"><input type="checkbox" id="nav-avoid-ab-zones" style="accent-color:var(--accent);flex-shrink:0" checked><span>⚠️ ללא שטחי A ו-B</span></label>
+    <div class="nav-toggle-list">
+      <div class="nav-toggle-row">
+        <span class="nav-toggle-lbl">🛣️ ללא כבישי אגרה</span>
+        <label class="toggle"><input type="checkbox" id="nav-avoid-tolls"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="nav-toggle-row">
+        <span class="nav-toggle-lbl">🚧 ללא כבישים מהירים</span>
+        <label class="toggle"><input type="checkbox" id="nav-avoid-highways"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="nav-toggle-row" title="סינון מסלול שעובר דרך שטחי A ו-B (הגבלת חוק)">
+        <span class="nav-toggle-lbl">⚠️ ללא שטחי A ו-B</span>
+        <label class="toggle"><input type="checkbox" id="nav-avoid-ab-zones" checked><span class="toggle-slider"></span></label>
+      </div>
     </div>
   </div>
   <div class="form-g">
     <label style="margin-bottom:4px;display:block">ניווט חי</label>
-    <div style="display:flex;flex-direction:column;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px">
-      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap" title="המפה תסתובב עם כיוון הנסיעה במקום צפון למעלה"><input type="checkbox" id="nav-rotate-map" style="accent-color:var(--accent);flex-shrink:0" checked><span>🧭 סיבוב מפה לפי כיוון הנסיעה</span></label>
-      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)" title="חישוב מסלול חליפי אוטומטית אם סטית מהדרך"><input type="checkbox" id="nav-auto-recalc" style="accent-color:var(--accent);flex-shrink:0" checked><span>🔄 חישוב מחדש בסטייה מהמסלול</span></label>
+    <div class="nav-toggle-list">
+      <div class="nav-toggle-row" title="המפה תסתובב עם כיוון הנסיעה במקום צפון למעלה">
+        <span class="nav-toggle-lbl">🧭 סיבוב מפה לפי כיוון</span>
+        <label class="toggle"><input type="checkbox" id="nav-rotate-map" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="nav-toggle-row" title="חישוב מסלול חליפי אוטומטית אם סטית מהדרך">
+        <span class="nav-toggle-lbl">🔄 חישוב מחדש בסטייה</span>
+        <label class="toggle"><input type="checkbox" id="nav-auto-recalc" checked><span class="toggle-slider"></span></label>
+      </div>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
@@ -7312,7 +7406,7 @@ function boPersonnel(c){
         +'<span style="font-size:11px;color:var(--text3);font-weight:700;cursor:grab;min-width:28px">⠿ '+(i+1)+'</span>'
         + avatar
         +'<div style="flex:1;min-width:0">'
-          +'<div style="font-weight:800;color:var(--texthi);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+          +'<div style="font-weight:800;color:var(--texthi);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.name)+_bdayBadge(p)+'</div>'
           +'<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.role||'—')+' · '+(p.unit||'—')+'</div>'
         +'</div>'
         +'<span class="badge '+(av?'b-active':'b-unavail')+'" style="flex:none;font-size:10px;padding:3px 8px">'+(av?'זמין':'לא זמין')+'</span>'
@@ -10042,7 +10136,7 @@ function renderPersonnelP(c){
       </div>
       <div class="pers-info" style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
-          <div class="pers-name">${p.name}</div>
+          <div class="pers-name">${p.name}${_bdayBadge(p)}</div>
           <span class="pers-avail-inline ${availClass}" onclick="togglePersonAvail('${p.id}')" title="לחץ להחלפת זמינות ידנית">${availLabel}</span>
         </div>
         <div class="pers-sub">
@@ -10613,6 +10707,7 @@ function editPersonModal(id){
           <option value="false" ${!p.available?'selected':''}>לא זמין</option>
         </select>
       </div>
+      <div class="form-g"><label>תאריך לידה 🎂</label><input type="date" id="ep-dob" value="${p.dob||''}" style="color-scheme:dark" title="יום הולדת — חברי הצוות יראו אייקון בתאריך זה"/></div>
     </div>
     <div class="form-g"><label>תפקיד</label>${buildRolesSelect('ep-role',p.role||'')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
@@ -10755,6 +10850,8 @@ function editPersonModal(id){
     p.unit=document.getElementById('ep-unit').value;
     p.role=getRoleValue('ep-role');
     p.callsign=document.getElementById('ep-callsign').value;
+    const dobVal=(document.getElementById('ep-dob')||{}).value||'';
+    p.dob=dobVal||null; // ISO YYYY-MM-DD or null
     p.vehiclePlate=document.getElementById('ep-vplate').value;
     p.vehicleType=document.getElementById('ep-vtype').value;
     p.vehiclePoliceApproved=document.getElementById('ep-vpolice').checked;
