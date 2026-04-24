@@ -683,10 +683,12 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 .nav-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
 .nav-toggle-row:first-child{border-top:none}
 .nav-toggle-lbl{font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
-/* Swap origin/destination — centered, colored circular button sitting
-   between the two address rows, with breathing room above and below
-   so it never overlaps the input frames. */
-.nav-swap-wrap{display:flex;justify-content:center;align-items:center;margin:10px 0;padding:2px 0}
+/* Origin → Swap → Destination block — a single flex column with an
+   explicit `gap` so the spacing above and below the swap button is
+   guaranteed identical (not subject to .form-g bottom margins or label
+   ambient spacing). */
+.nav-od-block{display:flex;flex-direction:column;gap:14px;margin-bottom:10px}
+.nav-swap-wrap{display:flex;justify-content:center;align-items:center;margin:0;padding:0}
 .nav-swap-btn{
   width:38px;height:38px;padding:0;line-height:1;cursor:pointer;
   border-radius:50%;
@@ -6155,16 +6157,18 @@ function renderNavigationP(c){
   const missions = MISSIONS.filter(m => (m.status==='active' || m.status==='urgent') && m.lat && m.lng);
   const pickerOpts = _buildNavPickerOpts();
   c.innerHTML=`<div class="sec-hd">ניווט Google Maps</div>
-  <div class="form-g addr-wrap"><label>נקודת מוצא</label>
-    <div class="addr-row" style="display:flex;gap:4px;align-items:stretch">
-      <input type="text" id="nav-from" placeholder="כתובת התחלה..." style="flex:1;min-width:0"/>
-      <button type="button" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי" aria-label="מיקום נוכחי" style="flex:0 0 auto;width:36px;margin:0;padding:0;border:1px solid var(--border2);border-radius:var(--r);background:var(--panel2);color:var(--accent);font-size:16px;cursor:pointer">📍</button>
+  <div class="nav-od-block">
+    <div class="form-g addr-wrap" style="margin:0"><label>נקודת מוצא</label>
+      <div class="addr-row" style="display:flex;gap:4px;align-items:stretch">
+        <input type="text" id="nav-from" placeholder="כתובת התחלה..." style="flex:1;min-width:0"/>
+        <button type="button" onclick="navFromMyLocation()" title="מלא לפי המיקום הנוכחי" aria-label="מיקום נוכחי" style="flex:0 0 auto;width:36px;margin:0;padding:0;border:1px solid var(--border2);border-radius:var(--r);background:var(--panel2);color:var(--accent);font-size:16px;cursor:pointer">📍</button>
+      </div>
     </div>
+    <div class="nav-swap-wrap">
+      <button type="button" class="nav-swap-btn" onclick="navSwapOriginDestination()" title="החלף בין מוצא ליעד" aria-label="החלף מוצא ויעד">⇅</button>
+    </div>
+    <div class="form-g addr-wrap" style="margin:0"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   </div>
-  <div class="nav-swap-wrap">
-    <button type="button" class="nav-swap-btn" onclick="navSwapOriginDestination()" title="החלף בין מוצא ליעד" aria-label="החלף מוצא ויעד">⇅</button>
-  </div>
-  <div class="form-g addr-wrap"><label>יעד</label><input type="text" id="nav-to" placeholder="כתובת יעד..."/></div>
   <div class="form-g"><label>יעד מרשימה</label>
     <select id="nav-picker" onchange="navPickDestination(this.value)" style="width:100%;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:12px;font-family:var(--font);outline:none">
       ${pickerOpts}
