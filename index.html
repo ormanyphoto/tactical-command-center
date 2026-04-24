@@ -2428,13 +2428,19 @@ function onGoogleMapsReady(){
       return !!c.getContext('webgl2');
     } catch(_){ return false; }
   })();
+  // tac_mapid_blocked is set by the 10-s tile-timeout below when a
+  // previous load's vector map never rendered. It's a sticky flag so
+  // the user doesn't get the blank map again even if WebGL2 claims to
+  // work. Reset it manually via ?purge=1.
+  const _mapIdBlocked = (() => { try { return localStorage.getItem('tac_mapid_blocked') === '1'; } catch(_){ return false; } })();
   if(!_hasWebGL2){
-    console.warn('[map] WebGL2 not available — falling back to raster map (rotation on roadmap disabled). Enable hardware acceleration in the browser to get vector tiles.');
+    console.warn('[map] WebGL2 not available — falling back to raster map.');
+  } else if(_mapIdBlocked){
+    console.warn('[map] mapId blocked by previous timeout — falling back to raster map.');
   }
-  // Pick the Map ID ONLY if WebGL2 is supported. localStorage override
-  // is also gated on WebGL2 so a previously-saved tac_map_id can't
-  // resurrect the blank-map bug after a browser downgrade.
-  const _customMapId = _hasWebGL2
+  // Pick the Map ID ONLY if WebGL2 is supported AND we haven't been
+  // burned by a tile-timeout recovery earlier this session.
+  const _customMapId = (_hasWebGL2 && !_mapIdBlocked)
     ? (localStorage.getItem('tac_map_id') || TCC_DEFAULT_MAP_ID)
     : '';
   const _mapOpts = {
@@ -2489,6 +2495,27 @@ function onGoogleMapsReady(){
       {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
     ];
     map=new google.maps.Map(mapEl, _mapOpts);
+  }
+  // ── Blank-map safety net ─────────────────────────────────────────────
+  // If we asked for a vector map (mapId set) but Google never fires
+  // tilesloaded within 10 s, the vector renderer has silently failed
+  // (usually WebGL2 advertised but broken driver). Set a flag in
+  // localStorage telling the next load NOT to use mapId, then reload.
+  // This recovers users from a black map without any manual action.
+  if(_mapOpts.mapId){
+    let _tilesOk = false;
+    google.maps.event.addListenerOnce(map, 'tilesloaded', () => { _tilesOk = true; });
+    setTimeout(() => {
+      if(_tilesOk) return;
+      console.warn('[map] no tilesloaded after 10s — vector renderer silently failed. Reloading without mapId.');
+      try { localStorage.setItem('tac_mapid_blocked', '1'); } catch(_){}
+      try { localStorage.removeItem('tac_map_id'); } catch(_){}
+      // Prevent reload loop — only auto-reload once per session.
+      if(!sessionStorage.getItem('tac_mapid_reloaded')){
+        sessionStorage.setItem('tac_mapid_reloaded', '1');
+        location.reload();
+      }
+    }, 10000);
   }
 
   // On map ready: immediately pull GPS and center on the user.
@@ -19188,6 +19215,12 @@ const FIELD = {
           for(const k of keys){ await caches.delete(k); }
         }
       } catch(_){}
+      // Reset map-related state that could keep the user stuck on a
+      // blank map: saved Cloud Console Map ID and the "mapId is
+      // broken, never use it again" sticky flag.
+      try { localStorage.removeItem('tac_map_id'); } catch(_){}
+      try { localStorage.removeItem('tac_mapid_blocked'); } catch(_){}
+      try { sessionStorage.removeItem('tac_mapid_reloaded'); } catch(_){}
       // Clean the URL and hard-reload. location.replace avoids a back-
       // button trap that would send the user right back into purge.
       const clean = location.origin + location.pathname;
