@@ -2421,33 +2421,17 @@ function onGoogleMapsReady(){
   // says — otherwise users on WebGL1-only browsers get a blank black
   // map. The fallback is raster roadmap + inline styles + auto-switch
   // to hybrid for rotation during navigation.
-  // Vector map — enables Waze-style tile rotation with labels staying
-  // upright. Gated on a real WebGL2 probe (separate canvas — calling
-  // getContext with a different type on the same canvas always returns
-  // null after the first call, so earlier versions falsely reported
-  // WebGL1-only on every device).
-  const TCC_DEFAULT_MAP_ID = '5075a944af766b257648230b';
-  const _hasWebGL2 = (() => {
-    try {
-      const c = document.createElement('canvas');
-      const gl = c.getContext('webgl2');
-      return !!gl;
-    } catch(_){ return false; }
+  // Map type — RASTER only. We tried Google Maps JS Vector (with
+  // valid mapId + confirmed WebGL2) and it silently failed to render
+  // on multiple devices including a flagship Galaxy S26 Ultra. Google
+  // Maps JS Vector is not a reliable enough foundation for this app,
+  // so we stay on raster and never attempt vector automatically.
+  // If a specific device is known to work, an operator can opt in
+  // with localStorage.tac_map_id — but that's a per-device choice,
+  // not a default.
+  const _customMapId = (() => {
+    try { return localStorage.getItem('tac_map_id') || ''; } catch(_){ return ''; }
   })();
-  // Sticky failure flag: if a previous load detected the vector
-  // renderer silently failing (8s timeout below), store the timestamp
-  // and skip vector for 24 h. Auto-clears via ?purge=1.
-  const _mapIdBlocked = (() => {
-    try {
-      const v = Number(localStorage.getItem('tac_mapid_blocked') || 0);
-      return v > 0 && (Date.now() - v) < 24*60*60*1000;
-    } catch(_){ return false; }
-  })();
-  const _useVector = _hasWebGL2 && !_mapIdBlocked;
-  console.log('[map] WebGL2:', _hasWebGL2, 'blocked:', _mapIdBlocked, 'useVector:', _useVector);
-  const _customMapId = _useVector
-    ? (localStorage.getItem('tac_map_id') || TCC_DEFAULT_MAP_ID)
-    : '';
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
