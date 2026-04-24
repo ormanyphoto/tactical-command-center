@@ -687,8 +687,14 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
    explicit `gap` so the spacing above and below the swap button is
    guaranteed identical (not subject to .form-g bottom margins or label
    ambient spacing). */
-.nav-od-block{display:flex;flex-direction:column;gap:14px;margin-bottom:10px}
-.nav-swap-wrap{display:flex;justify-content:center;align-items:center;margin:0;padding:0}
+/* Origin → Swap → Destination: equal breathing room on both sides of
+   the swap button. 10 px gap matches what the upper side of the block
+   looks like (the lower side was inflated by the destination label's
+   line-height ambient, which we neutralize with line-height:1 below). */
+.nav-od-block{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+.nav-od-block > .form-g{margin:0!important}
+.nav-od-block > .form-g > label{line-height:1;padding:0;margin:0 0 4px}
+.nav-swap-wrap{display:flex;justify-content:center;align-items:center;margin:0;padding:0;line-height:0}
 .nav-swap-btn{
   width:38px;height:38px;padding:0;line-height:1;cursor:pointer;
   border-radius:50%;
@@ -6140,10 +6146,11 @@ function renderNavigationP(c){
   // calculated route's launcher buttons are all still live. Re-running
   // the whole template would wipe them when the user re-opens the panel
   // after coming back from Waze / Google Maps.
-  if(c.querySelector('#nav-from') && c.querySelector('#nav-to')){
+  if(c.querySelector('#nav-from') && c.querySelector('#nav-to') && c.querySelector('.nav-od-block')){
     // Refresh only the destination-picker options so newly created
     // missions / emergency notifications show up without clobbering
-    // the form state.
+    // the form state. Gated on `.nav-od-block` so older renders (before
+    // the O/D wrapper existed) get a full re-render with the new layout.
     const sel = c.querySelector('#nav-picker');
     if(sel) sel.innerHTML = _buildNavPickerOpts();
     // If a route was calculated earlier, keep the launcher row visible.
