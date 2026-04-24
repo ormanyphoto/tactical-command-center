@@ -14218,15 +14218,15 @@ function toggleAddressLayer(){
       // Wrap X so world tiles work; return empty for out-of-bounds Y
       tileX = ((tileX % n) + n) % n;
       if(tileY < 0 || tileY >= n) return div;
-      // Tile provider: CartoDB Voyager (same OSM data, styled, CDN-backed,
-      // no User-Agent restrictions). OSM's own tile server blocks generic
-      // mobile UAs per their foundation policy, which silently broke the
-      // "כתובות ומבנים" layer on phone/tablet. CartoDB's subdomains are
-      // a/b/c/d — spreading requests across four reduces per-host load.
-      const sub = ['a','b','c','d'][Math.abs(tileX + tileY) % 4];
-      const url = 'https://'+sub+'.basemaps.cartocdn.com/rastertiles/voyager/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
-      // Fallback to OSM if CartoDB 4xx/5xxs (wired up below via onerror).
-      const fallbackUrl = 'https://'+['a','b','c'][Math.abs(tileX + tileY) % 3]+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      // Tile provider: tile.openstreetmap.de (German OSM mirror).
+      // Same Mapnik style as openstreetmap.org (the classic look the
+      // user liked — streets, buildings, all Hebrew labels), but
+      // doesn't block mobile/tablet User-Agents the way OSM's own
+      // tile server does. Fallback to openstreetmap.org for desktop
+      // clients that still get through.
+      const sub = ['a','b','c'][Math.abs(tileX + tileY) % 3];
+      const url = 'https://tile.openstreetmap.de/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      const fallbackUrl = 'https://'+sub+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
       // Retry helper — attempts the same URL once more after 2s
       function _retryTile(imgEl, retryUrl){
         if(imgEl._retried) return;

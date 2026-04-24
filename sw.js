@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6.16.2-' + '2026042413';
+const CACHE = 'tac-v6.16.3-' + '2026042414';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install
@@ -337,6 +337,7 @@ self.addEventListener('fetch', e => {
   // transparent PNG instead of HTML so the map tile just renders empty.
   const isTile =
        url.includes('tile.openstreetmap.org')
+    || url.includes('tile.openstreetmap.de')
     || url.includes('basemaps.cartocdn.com')
     || url.includes('arcgisonline.com')
     || url.includes('nominatim.openstreetmap.org')
