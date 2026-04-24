@@ -16,7 +16,7 @@
   .mapbox > .map{position:absolute;inset:0;background:#202830}
   .mapbox > .cap{position:absolute;top:6px;left:6px;right:6px;background:rgba(0,0,0,0.65);color:#fff;padding:4px 8px;font-size:11px;border-radius:4px;z-index:5;font-weight:700}
   button{background:#1a8c2e;color:white;border:none;border-radius:4px;padding:6px 12px;font-weight:700;cursor:pointer;margin:4px 2px;font-family:inherit;font-size:12px}
-  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:250px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-all}
   .log-err{color:#ff6060}
   .log-ok{color:#3dff52}
   .log-info{color:#8fb3d9}
@@ -27,24 +27,23 @@
 <div id="wrap">
   <div id="info">
     <div><b>Map ID:</b> <code>5075a944af766b257648230b</code></div>
-    <div><b>API Key:</b> <code>AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo</code></div>
-    <div><b>Domain:</b> <code id="dom"></code></div>
+    <div id="webgl-status" style="margin-top:4px"></div>
     <div style="margin-top:6px">
-      <button onclick="inspectB()">🔍 בדוק סטטוס מפה B</button>
-      <button onclick="testRotate()">🔄 סובב 90°</button>
+      <button onclick="createAsRaster()">🔁 צור B כ-RASTER</button>
+      <button onclick="inspectB()">🔍 בדוק DOM</button>
+      <button onclick="resizeMapB()">📐 טריגר resize</button>
       <button onclick="location.reload()">↻ רענן</button>
     </div>
     <div class="log" id="log"></div>
   </div>
   <div class="maps">
     <div class="mapbox"><div class="cap">WITHOUT mapId</div><div class="map" id="map-nomapid"></div></div>
-    <div class="mapbox"><div class="cap">WITH mapId + renderingType:VECTOR</div><div class="map" id="map-withmapid"></div></div>
+    <div class="mapbox"><div class="cap">WITH mapId</div><div class="map" id="map-withmapid"></div></div>
   </div>
 </div>
 <script>
 let mapA, mapB;
 const log = document.getElementById('log');
-document.getElementById('dom').textContent = location.hostname + location.pathname;
 
 function logLine(msg, cls){
   const t = new Date().toLocaleTimeString('he-IL');
@@ -55,129 +54,116 @@ function logLine(msg, cls){
   log.scrollTop = log.scrollHeight;
 }
 
-window.gm_authFailure = () => {
-  logLine('❌ gm_authFailure — ה-API Key נדחה', 'log-err');
-};
+// ── WebGL capability check ─────────────────────────────────────────────
+function checkWebGL(){
+  const c = document.createElement('canvas');
+  let gl = null;
+  let gl2 = null;
+  try { gl = c.getContext('webgl') || c.getContext('experimental-webgl'); } catch(_){}
+  try { gl2 = c.getContext('webgl2'); } catch(_){}
+  const out = document.getElementById('webgl-status');
+  let status = '';
+  if (gl2) {
+    const vendor = gl2.getParameter(gl2.VENDOR);
+    const renderer = gl2.getParameter(gl2.RENDERER);
+    status = '<span style="color:#3dff52">✅ WebGL2 תומך</span> · ' + vendor + ' · ' + renderer;
+    logLine('WebGL2 OK: ' + vendor + ' / ' + renderer, 'log-ok');
+  } else if (gl) {
+    status = '<span style="color:#ffc107">⚠️ WebGL1 בלבד (Vector דורש WebGL2)</span>';
+    logLine('WebGL1 only — Vector requires WebGL2!', 'log-warn');
+  } else {
+    status = '<span style="color:#ff6060">❌ אין WebGL!</span>';
+    logLine('NO WebGL — vector tiles cannot render!', 'log-err');
+  }
+  out.innerHTML = status;
+  return !!gl2;
+}
+checkWebGL();
+
+window.gm_authFailure = () => logLine('❌ gm_authFailure', 'log-err');
 window.addEventListener('error', e => {
   if (e.filename && e.filename.includes('maps.googleapis.com')){
-    logLine('Maps JS error: ' + (e.message || e.error), 'log-err');
+    logLine('Maps error: ' + (e.message || e.error), 'log-err');
   }
 });
 
-// Intercept fetch to spot tile failures
-const _origFetch = window.fetch;
-window.fetch = function(url, ...rest){
-  const u = String(url);
-  if (u.includes('googleapis.com') && (u.includes('tile') || u.includes('maptile') || u.includes('2mm'))){
-    return _origFetch.apply(this, arguments).then(r => {
-      if (!r.ok) logLine('tile fetch ' + r.status + ': ' + u.slice(0, 120), 'log-err');
-      return r;
-    }).catch(e => {
-      logLine('tile fetch FAIL: ' + e.message, 'log-err');
-      throw e;
-    });
-  }
-  return _origFetch.apply(this, arguments);
-};
-
 function onMaps(){
-  logLine('✅ Google Maps API נטען, version = ' + (google.maps.version || '?'), 'log-ok');
-  logLine('RenderingType enum: VECTOR=' + google.maps.RenderingType?.VECTOR + ', RASTER=' + google.maps.RenderingType?.RASTER);
-  // Map A: no mapId
+  logLine('✅ Maps API ' + (google.maps.version || '?'), 'log-ok');
+  // Map A — no mapId
   try {
     mapA = new google.maps.Map(document.getElementById('map-nomapid'), {
       center: { lat: 32.0667, lng: 34.7818 },
       zoom: 13,
-      gestureHandling: 'greedy',
       disableDefaultUI: true,
     });
-    google.maps.event.addListenerOnce(mapA, 'tilesloaded', () => {
-      logLine('✅ A: tilesloaded', 'log-ok');
-    });
-  } catch(e){
-    logLine('❌ A: ' + e.message, 'log-err');
-  }
-  // Map B: with mapId + forced VECTOR
+    google.maps.event.addListenerOnce(mapA, 'tilesloaded', () => logLine('✅ A: tilesloaded', 'log-ok'));
+  } catch(e){ logLine('A err: ' + e.message, 'log-err'); }
+  // Map B — mapId only, minimal config
   try {
-    const opts = {
+    logLine('מפה B: mapId minimal...');
+    mapB = new google.maps.Map(document.getElementById('map-withmapid'), {
       center: { lat: 32.0667, lng: 34.7818 },
       zoom: 13,
       mapId: '5075a944af766b257648230b',
-      gestureHandling: 'greedy',
       disableDefaultUI: true,
-      rotateControl: true,
-      headingInteractionEnabled: true,
-    };
-    if (google.maps.RenderingType) {
-      opts.renderingType = google.maps.RenderingType.VECTOR;
-    }
-    if (google.maps.ColorScheme) {
-      opts.colorScheme = google.maps.ColorScheme.LIGHT;
-    }
-    logLine('מפה B: new google.maps.Map(...) עם opts:');
-    logLine(JSON.stringify(Object.keys(opts)));
-    mapB = new google.maps.Map(document.getElementById('map-withmapid'), opts);
-    logLine('✅ B: נוצרה', 'log-ok');
-
-    // Check rendering type immediately
-    setTimeout(() => {
-      try {
-        const rt = mapB.getRenderingType && mapB.getRenderingType();
-        logLine('B.getRenderingType() [2s]: ' + rt + ' (VECTOR=2, RASTER=1)');
-      } catch(e){ logLine('getRenderingType err: ' + e.message, 'log-err'); }
-    }, 2000);
-
+    });
     google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => {
       logLine('✅ B: tilesloaded', 'log-ok');
-      try {
+      setTimeout(() => { inspectB(); }, 500);
+    });
+    // Log ALL events on map B for diagnosis
+    ['idle','bounds_changed','center_changed','zoom_changed','projection_changed','maptypeid_changed','renderingtype_changed','heading_changed'].forEach(ev => {
+      google.maps.event.addListener(mapB, ev, () => logLine('B: ' + ev, 'log-info'));
+    });
+    setTimeout(() => {
+      if (mapB.getRenderingType){
         const r = mapB.getRenderingType();
-        const rn = r === google.maps.RenderingType.VECTOR ? 'VECTOR' : (r === google.maps.RenderingType.RASTER ? 'RASTER' : String(r));
-        logLine('B Rendering = ' + rn, rn === 'VECTOR' ? 'log-ok' : 'log-err');
-      } catch(e){}
+        logLine('B.getRenderingType [3s]: ' + r, 'log-info');
+      }
+    }, 3000);
+  } catch(e){ logLine('B err: ' + e.message, 'log-err'); }
+}
+
+function createAsRaster(){
+  logLine('מחדש את B כ-RASTER (ללא mapId)...', 'log-warn');
+  const el = document.getElementById('map-withmapid');
+  el.innerHTML = '';
+  try {
+    mapB = new google.maps.Map(el, {
+      center: { lat: 32.0667, lng: 34.7818 },
+      zoom: 13,
+      disableDefaultUI: true,
     });
-    google.maps.event.addListener(mapB, 'renderingtype_changed', () => {
-      const r = mapB.getRenderingType();
-      logLine('B renderingtype_changed → ' + r, 'log-warn');
-    });
-    google.maps.event.addListenerOnce(mapB, 'idle', () => {
-      logLine('B: idle event fired', 'log-info');
-    });
-  } catch(e){
-    logLine('❌ B: ' + e.message, 'log-err');
-  }
+    google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => logLine('✅ B raster: tilesloaded — אם זה עובד, הבעיה ספציפית ל-vector', 'log-ok'));
+  } catch(e){ logLine('raster err: ' + e.message, 'log-err'); }
+}
+
+function resizeMapB(){
+  if (!mapB) return;
+  try {
+    google.maps.event.trigger(mapB, 'resize');
+    logLine('resize triggered', 'log-info');
+  } catch(e){ logLine('resize err: ' + e.message, 'log-err'); }
 }
 
 function inspectB(){
-  if (!mapB) { logLine('אין mapB', 'log-err'); return; }
+  if (!mapB) return logLine('אין B', 'log-err');
   const el = document.getElementById('map-withmapid');
-  const childs = el.children.length;
   const canvases = el.querySelectorAll('canvas').length;
   const imgs = el.querySelectorAll('img').length;
   const divs = el.querySelectorAll('div').length;
-  logLine('B DOM: children=' + childs + ' canvases=' + canvases + ' imgs=' + imgs + ' divs=' + divs);
-  try {
-    logLine('B center: ' + mapB.getCenter().toString() + ' zoom: ' + mapB.getZoom());
-    logLine('B mapTypeId: ' + mapB.getMapTypeId());
-    logLine('B renderingType: ' + (mapB.getRenderingType && mapB.getRenderingType()));
-  } catch(e){ logLine('inspect err: ' + e.message, 'log-err'); }
+  logLine('B DOM: canvases=' + canvases + ' imgs=' + imgs + ' divs=' + divs);
+  if (canvases === 0) logLine('⚠️ אין canvas! WebGL לא מתחיל.', 'log-warn');
+  // Check for Google Maps specific error overlays
+  const errOverlay = el.querySelector('.gm-err-container, .gm-err-content');
+  if (errOverlay) logLine('⚠️ Google error overlay: ' + errOverlay.textContent.slice(0, 200), 'log-err');
+  logLine('B center: ' + mapB.getCenter() + ' zoom: ' + mapB.getZoom());
 }
 
-function testRotate(){
-  if (!mapB) return;
-  const cur = mapB.getHeading() || 0;
-  try { mapB.setHeading(cur + 90); } catch(e){ logLine('setHeading: ' + e.message, 'log-err'); }
-  setTimeout(() => {
-    const after = Math.round(mapB.getHeading() || 0);
-    logLine('סיבוב: cur=' + cur + ' → after=' + after + (Math.abs(after - (cur + 90)) < 5 ? ' ✅' : ' ❌'), Math.abs(after - (cur + 90)) < 5 ? 'log-ok' : 'log-err');
-  }, 700);
-}
-
-// Load Maps — force weekly version + beta to ensure vector support
 const s = document.createElement('script');
 s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps&v=weekly&loading=async';
 s.async = true; s.defer = true;
-s.onerror = () => logLine('❌ כשל בטעינת סקריפט', 'log-err');
-logLine('טוען v=weekly ...');
+s.onerror = () => logLine('❌ script load err', 'log-err');
 document.head.appendChild(s);
 </script>
 </body>
