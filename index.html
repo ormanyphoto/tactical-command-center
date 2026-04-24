@@ -267,6 +267,13 @@ body.day .mp-btn:hover .gps-ico{color:var(--accent2);filter:drop-shadow(0 0 3px 
 }
 .map-ov-btn:active{transform:scale(0.94)}
 
+/* Manual rotation overlay — visible on mobile (≤767) and tablet (768–1024).
+   Hidden on desktop because a rotated-via-CSS map confuses Google's
+   drag/click hit-testing; desktop operators can still rely on the live
+   nav-mode auto-rotation or use the existing keyboard-driven pan. */
+#map-rotate-overlay{display:none}
+@media(max-width:1024px){#map-rotate-overlay{display:flex}}
+
 /* Crosshair button gets its own icon color (lime) to stand out from +/− */
 .map-ov-btn.map-ov-locate{color:var(--accent2)}
 .map-ov-btn.map-ov-locate:hover{color:#fff}
@@ -1236,6 +1243,15 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button onclick="mapZoom(1)" title="הגדל" class="map-ov-btn">＋</button>
         <button onclick="mapZoom(-1)" title="הקטן" class="map-ov-btn">－</button>
         <button onclick="locateMe()" title="מרכז עלי" class="map-ov-btn map-ov-locate"><svg viewBox="0 0 297 297" width="20" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path fill="currentColor" d="M148.5,0C66.653,0,0.067,66.616,0.067,148.499C0.067,230.383,66.653,297,148.5,297s148.433-66.617,148.433-148.501C296.933,66.616,230.347,0,148.5,0z M158.597,276.411v-61.274c0-5.575-4.521-10.097-10.097-10.097s-10.097,4.521-10.097,10.097v61.274c-62.68-4.908-112.845-55.102-117.747-117.814h61.207c5.575,0,10.097-4.521,10.097-10.097s-4.522-10.097-10.097-10.097H20.656C25.558,75.69,75.723,25.497,138.403,20.589v61.274c0,5.575,4.521,10.097,10.097,10.097s10.097-4.521,10.097-10.097V20.589c62.681,4.908,112.846,55.102,117.747,117.814h-61.207c-5.575,0-10.097,4.521-10.097,10.097s4.521,10.097,10.097,10.097h61.207C271.441,221.31,221.276,271.503,158.597,276.411z"/><circle cx="148.5" cy="148.5" r="14" fill="currentColor"/></svg></button>
+      </div>
+      <!-- Manual map-rotation overlay — mobile/tablet only. Raster Google
+           maps ignore setHeading(), so we CSS-rotate #gmap via
+           _setMapHeading(). Tap ↺/↻ to nudge 15°, tap the compass disc
+           to reset north-up. -->
+      <div id="map-rotate-overlay" style="position:absolute;bottom:90px;left:60px;z-index:200;display:none;flex-direction:column;gap:8px">
+        <button onclick="mapRotateNudge(-15)" title="סובב שמאלה" class="map-ov-btn">↺</button>
+        <button onclick="mapRotateReset()" title="צפון למעלה" class="map-ov-btn" id="map-rotate-compass-btn"><span id="map-rotate-compass" style="display:inline-block;font-size:16px;line-height:1;transition:transform 0.2s">🧭</span></button>
+        <button onclick="mapRotateNudge(15)" title="סובב ימינה" class="map-ov-btn">↻</button>
       </div>
       <!-- Emergency notification button + SOS button bottom-right -->
       <button id="map-emergency-btn" onclick="openNotifModal()" style="display:none">📢 הודעת חירום</button>
@@ -4121,21 +4137,27 @@ function _navClearTurnByTurn(){
   _ttCurStep = 0;
   _ttTrackHook = null;
   window._ttOnOwnFix = null;
+  window._ttHudMinimized = false;
+  window._ttLastPt = null;
   if(_ttHud && _ttHud.parentNode){ _ttHud.parentNode.removeChild(_ttHud); _ttHud = null; }
+}
+function _navHudToggleMinimized(){
+  window._ttHudMinimized = !window._ttHudMinimized;
+  _renderTtHud(window._ttLastPt || null);
 }
 function _renderTtHud(curPt){
   if(!_ttSteps.length) return;
+  if(curPt) window._ttLastPt = curPt;
   if(!_ttHud){
     _ttHud = document.createElement('div');
     _ttHud.id = 'nav-tt-hud';
-    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;padding:12px 16px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);min-width:240px;max-width:360px;cursor:pointer;font-size:13px;line-height:1.35;user-select:none';
-    _ttHud.onclick = ()=>{ _navClearTurnByTurn(); };
-    _ttHud.title = 'לחץ לסגור ניווט';
     const mapHost = document.getElementById('map') || document.getElementById('gmap') || document.body;
     (mapHost.parentElement || mapHost).appendChild(_ttHud);
   }
   const step = _ttSteps[_ttCurStep];
   if(!step){
+    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;padding:12px 16px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);min-width:240px;max-width:360px;font-size:13px;line-height:1.35';
+    _ttHud.onclick = null;
     _ttHud.innerHTML = '<div style="font-size:15px;font-weight:900;color:#3dff52">🏁 הגעת ליעד</div>';
     setTimeout(()=>_navClearTurnByTurn(), 6000);
     return;
@@ -4154,13 +4176,53 @@ function _renderTtHud(curPt){
     const dm = _haversineMeters(curPt, {lat: step.loc.lat(), lng: step.loc.lng()});
     distTxt = dm < 1000 ? (Math.round(dm)+' מ׳') : ((dm/1000).toFixed(1)+' ק״מ');
   }
-  _ttHud.innerHTML =
+  // Clear the container each render, then rebuild from DOM elements so
+  // we can attach handlers without stringified onclick= (CSP-safe,
+  // survives re-renders cleanly).
+  _ttHud.innerHTML = '';
+  if(window._ttHudMinimized){
+    // Collapsed pill — just the maneuver icon + distance. Click to expand.
+    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:999px;padding:6px 14px;color:#fff;font-family:var(--font);box-shadow:0 4px 16px rgba(0,0,0,0.5);cursor:pointer;font-size:14px;line-height:1;user-select:none;display:flex;align-items:center;gap:8px';
+    _ttHud.title = 'לחץ להרחיב';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px';
+    row.innerHTML = '<span style="font-size:20px">'+icon+'</span><span style="font-size:14px;font-weight:900;color:#3dff52">'+distTxt+'</span>';
+    _ttHud.appendChild(row);
+    _ttHud.onclick = _navHudToggleMinimized;
+    return;
+  }
+  _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;padding:10px 14px 10px 14px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);min-width:240px;max-width:360px;font-size:13px;line-height:1.35;user-select:none';
+  _ttHud.onclick = null;
+  // Header row — title on the right, min/close buttons on the left.
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px';
+  const ttl = document.createElement('div');
+  ttl.style.cssText = 'font-size:10px;color:#7290a4;font-weight:700';
+  ttl.textContent = 'שלב '+(_ttCurStep+1)+' מתוך '+_ttSteps.length;
+  const btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;gap:4px';
+  const mkBtn = (label, title, handler) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.title = title;
+    b.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:#fff;border-radius:6px;width:22px;height:22px;font-size:13px;line-height:1;font-weight:900;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-family:var(--font)';
+    b.onclick = (e) => { e.stopPropagation(); handler(); };
+    return b;
+  };
+  btns.appendChild(mkBtn('–', 'מזער', _navHudToggleMinimized));
+  btns.appendChild(mkBtn('✕', 'סגור ניווט', _navClearTurnByTurn));
+  hdr.appendChild(ttl);
+  hdr.appendChild(btns);
+  _ttHud.appendChild(hdr);
+  const body = document.createElement('div');
+  body.innerHTML =
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
       + '<span style="font-size:28px;line-height:1">'+icon+'</span>'
       + '<span style="font-size:18px;font-weight:900;color:#3dff52">'+distTxt+'</span>'
     + '</div>'
-    + '<div style="font-size:12px;color:#c2d6e2">'+(step.instructionHtml||'')+'</div>'
-    + '<div style="font-size:10px;color:#7290a4;margin-top:6px">שלב '+(_ttCurStep+1)+' מתוך '+_ttSteps.length+' · לחץ לסגור</div>';
+    + '<div style="font-size:12px;color:#c2d6e2">'+(step.instructionHtml||'')+'</div>';
+  _ttHud.appendChild(body);
 }
 // Great-circle distance (Haversine) in meters — no external service.
 function _haversineMeters(a, b){
@@ -4297,7 +4359,101 @@ function _navStopLiveMode(){
   window._navRoutePath = null;
   // Restore the default north-up orientation on the map.
   try { if(window.map && typeof window.map.setHeading === 'function') window.map.setHeading(0); } catch(_){}
+  try { _setMapHeading(0); } catch(_){}
+  window._speedCamAlerted = {};
 }
+// ── Map rotation (CSS-based) ──────────────────────────────────────────
+// Google's raster roadmap tiles don't honour map.setHeading() — the SDK
+// only rotates vector maps (those with a mapId) and satellite imagery.
+// Since we can't switch the base tile stack without breaking the rest
+// of the operator workflow, rotate the #gmap container itself via a
+// CSS transform. This rotates the tiles, our polylines, and any
+// markers pinned to geographic coords together — exactly what we want
+// for a "map-up" navigation view. HUDs and on-map button overlays are
+// siblings of #gmap (children of #map-wrap) so they stay upright.
+// Caveat: Google's internal drag/click hit-testing operates in the
+// unrotated coordinate space, so panning feels offset when the map is
+// rotated. That's acceptable for nav use (operator is driving, not
+// panning) and for tap-to-rotate manual use (gesture isn't a pan).
+function _setMapHeading(deg){
+  const el = document.getElementById('gmap');
+  if(!el) return;
+  const d = ((Number(deg)||0) % 360 + 360) % 360;
+  const prev = Number(window._mapHeading || 0);
+  // Ignore sub-degree jitter — the live nav loop fires multiple times
+  // per second and applying a near-identical transform on each fix
+  // churns the compositor for no visible change.
+  if(Math.abs(d - prev) < 1) return;
+  window._mapHeading = d;
+  el.style.transformOrigin = 'center center';
+  el.style.transform = d === 0 ? '' : ('rotate(' + (-d) + 'deg)');
+  // Trigger a Google-Maps resize only when we first deviate from
+  // north-up or come back to it — that's when the tile viewport bounds
+  // actually need re-computation. Avoid doing it on every small
+  // heading delta (would thrash tile loading during a turn).
+  const wasZero = prev === 0, isZero = d === 0;
+  if(wasZero !== isZero){
+    try {
+      if(window.google && window.google.maps && window.map){
+        google.maps.event.trigger(window.map, 'resize');
+      }
+    } catch(_){}
+  }
+  // Update the compass indicator on the manual-rotate control if present.
+  try {
+    const ind = document.getElementById('map-rotate-compass');
+    if(ind) ind.style.transform = 'rotate(' + (-d) + 'deg)';
+  } catch(_){}
+}
+function mapRotateNudge(delta){
+  const cur = Number(window._mapHeading || 0);
+  _setMapHeading(cur + delta);
+}
+function mapRotateReset(){ _setMapHeading(0); }
+// Two-finger twist gesture on the map — mobile/tablet only. We can't
+// delegate this to Google's own rotate gesture because the raster map
+// doesn't support it. Listen on the map-wrap container (the parent of
+// #gmap) so we see touches even when they start on a marker. We only
+// act on clearly-intentional rotation gestures: two fingers, rotation
+// magnitude above a small deadzone to avoid jitter while pinch-zooming.
+(function installMapRotateGesture(){
+  function bind(){
+    const wrap = document.getElementById('map-wrap');
+    if(!wrap){ setTimeout(bind, 500); return; }
+    if(wrap._rotateGestureBound) return;
+    wrap._rotateGestureBound = true;
+    let startAngle = null, startHeading = 0, lastAngle = 0;
+    function angle(t1, t2){
+      return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
+    }
+    wrap.addEventListener('touchstart', (e) => {
+      if(e.touches.length === 2){
+        startAngle = angle(e.touches[0], e.touches[1]);
+        lastAngle = startAngle;
+        startHeading = Number(window._mapHeading || 0);
+      }
+    }, {passive:true});
+    wrap.addEventListener('touchmove', (e) => {
+      if(e.touches.length === 2 && startAngle != null){
+        const a = angle(e.touches[0], e.touches[1]);
+        const delta = a - startAngle;
+        // 6° deadzone — prevents pinch-zoom from dragging the heading.
+        if(Math.abs(delta - (lastAngle - startAngle)) > 0.5 || Math.abs(delta) > 6){
+          _setMapHeading(startHeading + delta);
+          lastAngle = a;
+        }
+      }
+    }, {passive:true});
+    wrap.addEventListener('touchend', () => {
+      if(startAngle != null){ startAngle = null; }
+    }, {passive:true});
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+})();
 // Called on every own-GPS fix while navigation is live. Does three things:
 //   1. Rotate the map so the heading direction is "up" (if user opted in).
 //   2. Detect off-route (distance from polyline > 60 m sustained) and
@@ -4311,10 +4467,14 @@ function _navHandleLiveFix(lat, lng){
   const rotate = document.getElementById('nav-rotate-map')?.checked !== false;
   const recalc = document.getElementById('nav-auto-recalc')?.checked !== false;
   // Rotation — align map so travel direction is up. Needs two recent
-  // fixes to compute a bearing; we cache the previous one.
+  // fixes to compute a bearing; we cache the previous one. We apply the
+  // rotation via CSS transform (see _setMapHeading) because raster
+  // Google maps ignore setHeading(); we still call setHeading() for
+  // vector/satellite edge cases.
   if(rotate && typeof window._navPrevFix === 'object' && window._navPrevFix){
     const h = _bearingDeg(window._navPrevFix, {lat, lng});
     try { if(typeof window.map.setHeading === 'function') window.map.setHeading(h); } catch(_){}
+    try { _setMapHeading(h); } catch(_){}
   }
   window._navPrevFix = {lat, lng};
   // Auto-zoom based on speed (if we know it). Fallback to zoom 17.
@@ -4322,23 +4482,87 @@ function _navHandleLiveFix(lat, lng){
     const z = window.map.getZoom();
     if(z < 16) window.map.setZoom(17);
   } catch(_){}
-  // Off-route detection
+  // Off-route detection — tuned for faster response. Previously needed
+  // 3 consecutive fixes >60 m away and throttled at 20 s, which felt
+  // sluggish in the field. Tightened to 2 fixes >40 m and 8 s throttle
+  // so the operator gets a fresh route within ~12 s of actually deviating.
   if(recalc && window._navRoutePath && window._navRoutePath.length){
     const dist = _distanceToPath({lat,lng}, window._navRoutePath);
-    if(dist > 60){
+    if(dist > 40){
       window._navOffRouteCount = (window._navOffRouteCount||0) + 1;
-      // Sustained deviation (3 consecutive fixes) → recalc
-      if(window._navOffRouteCount >= 3){
+      if(window._navOffRouteCount >= 2){
         const now = Date.now();
-        if(now - (window._navLastRecalcAt||0) > 20*1000){
+        if(now - (window._navLastRecalcAt||0) > 8*1000){
           window._navLastRecalcAt = now;
           window._navOffRouteCount = 0;
-          showToast({icon:'🔄', title:'סטית מהמסלול — מחשב מחדש', type:'info', duration:3500});
+          showToast({icon:'🔄', title:'סטית מהמסלול — מחשב מחדש', type:'info', duration:2500});
           calcNavRoute({lat, lng}, true);
         }
       }
     } else {
       window._navOffRouteCount = 0;
+    }
+  }
+  // Speed-camera proximity alert (separate channel from recalc).
+  if(typeof _navCheckSpeedCameras === 'function'){
+    try { _navCheckSpeedCameras(lat, lng); } catch(_){}
+  }
+}
+// ── Speed-camera / speed-trap proximity alerts ────────────────────────
+// Advisory list of fixed Israeli speed-enforcement points. Coverage is
+// intentionally partial — operators can extend SPEED_CAMERAS via the
+// JS console (window.SPEED_CAMERAS.push({lat,lng,name,limit})) and the
+// nav loop picks the change up on the next fix. Kept in-repo so the
+// feature works offline without a round-trip to a server.
+window.SPEED_CAMERAS = window.SPEED_CAMERAS || [
+  // Ayalon corridor (Tel Aviv metro) — well-known fixed cams
+  {lat:32.0664, lng:34.7836, name:'איילון — מחלף השלום',     limit:90},
+  {lat:32.0950, lng:34.8100, name:'איילון צפון — גשר השלום',  limit:90},
+  {lat:32.1270, lng:34.8030, name:'איילון צפון — גלילות',     limit:90},
+  // Route 2 (Coastal highway)
+  {lat:32.3310, lng:34.8540, name:'כביש 2 — אזור חדרה',       limit:110},
+  {lat:32.7720, lng:35.0430, name:'כביש 2 — מחלף עתלית',      limit:100},
+  // Route 1 (Jerusalem-Tel Aviv)
+  {lat:31.8520, lng:35.0100, name:'כביש 1 — מוצא',             limit:90},
+  {lat:31.8600, lng:34.9300, name:'כביש 1 — שער הגיא',         limit:100},
+  {lat:31.8450, lng:34.8500, name:'כביש 1 — לטרון',            limit:110},
+  // Route 6 (Cross-Israel toll)
+  {lat:32.1800, lng:35.0290, name:'כביש 6 — מחלף עירון',       limit:110},
+  {lat:31.8600, lng:34.9600, name:'כביש 6 — מחלף דניאל',       limit:110},
+  // Route 4
+  {lat:32.1700, lng:34.8500, name:'כביש 4 — כפר שמריהו',       limit:80},
+  {lat:32.4900, lng:34.9100, name:'כביש 4 — חדרה מזרח',        limit:90},
+];
+window._speedCamAlerted = window._speedCamAlerted || {};
+function _navCheckSpeedCameras(lat, lng){
+  const cams = window.SPEED_CAMERAS;
+  if(!cams || !cams.length) return;
+  const now = Date.now();
+  const here = {lat, lng};
+  for(let i=0; i<cams.length; i++){
+    const c = cams[i];
+    if(c == null || typeof c.lat !== 'number' || typeof c.lng !== 'number') continue;
+    const d = _haversineMeters(here, {lat:c.lat, lng:c.lng});
+    if(d < 500){
+      // Alert once per approach — re-arm only after we've moved ≥900 m away,
+      // otherwise a stop-and-go in the camera's zone spams toasts.
+      const last = window._speedCamAlerted[i] || 0;
+      if(!last || now - last > 3*60*1000){
+        window._speedCamAlerted[i] = now;
+        const dm = Math.round(d);
+        const lim = c.limit ? (' · מקס ' + c.limit + ' קמ״ש') : '';
+        showToast({
+          icon:'📸',
+          title:'מצלמת מהירות ' + dm + ' מ׳ קדימה',
+          sub: (c.name || 'מכמונת מהירות') + lim,
+          type:'warn',
+          duration:5500,
+        });
+        try { if(typeof _playAlertSound === 'function') _playAlertSound('warble'); } catch(_){}
+      }
+    } else if(d > 900 && window._speedCamAlerted[i]){
+      // Far enough away — clear the cooldown so a return trip re-alerts.
+      delete window._speedCamAlerted[i];
     }
   }
 }
@@ -16702,6 +16926,11 @@ const SYNC = (() => {
                 // Live navigation: rotate map to heading, auto-zoom,
                 // and detect off-route conditions for recalculation.
                 try { window._navOnOwnFix(d.lat, d.lng); } catch(_){}
+              } else if(typeof _navCheckSpeedCameras === 'function' && (d.spd||0) > 10){
+                // Speed-camera alerts work outside of active nav too —
+                // as long as the device is actually moving (>10 km/h),
+                // warn the operator before known enforcement points.
+                try { _navCheckSpeedCameras(d.lat, d.lng); } catch(_){}
               }
             }
           } else if(tries<30){ setTimeout(()=>_tryMarker(tries+1), 500); }
