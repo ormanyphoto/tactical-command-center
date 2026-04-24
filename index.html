@@ -19097,6 +19097,38 @@ const FIELD = {
   document.addEventListener('keydown',  retryOnce, true);
 })();
 
+// ── Self-nuke path for stuck caches ────────────────────────────────────
+// Users sometimes get stuck with an old Service Worker + cache combo
+// and can't easily trigger a clean reload (Chrome's "allow pasting"
+// console block, PWA installs with persistent caches, Samsung WebView,
+// etc.). Visiting the app with ?purge=1 (or ?nuke=1) on the URL wipes
+// every SW registration and every cache, then reloads to a clean URL.
+// Also accepts hash #purge for cases where query strings are stripped
+// by native app routing.
+(function nukeIfRequested(){
+  try {
+    const qs = new URLSearchParams(location.search);
+    const wantNuke = qs.get('purge') === '1' || qs.get('nuke') === '1' || location.hash === '#purge';
+    if(!wantNuke) return;
+    (async () => {
+      try {
+        if(navigator.serviceWorker){
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for(const r of regs){ await r.unregister(); }
+        }
+        if(window.caches){
+          const keys = await caches.keys();
+          for(const k of keys){ await caches.delete(k); }
+        }
+      } catch(_){}
+      // Clean the URL and hard-reload. location.replace avoids a back-
+      // button trap that would send the user right back into purge.
+      const clean = location.origin + location.pathname;
+      location.replace(clean);
+    })();
+  } catch(_){}
+})();
+
 (function tacBoot(){ try {
   // ── Detect native Android WebView via window.Android JS bridge ──
   // MainActivity (Kotlin) injects NativeBridge as `window.Android` so the
