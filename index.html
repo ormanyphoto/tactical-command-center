@@ -2420,6 +2420,12 @@ function onGoogleMapsReady(){
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
+    // Enable rotation gestures (two-finger twist on touch, Shift+drag on
+    // desktop). Satellite/hybrid rotate natively; roadmap without a
+    // mapId relies on the CSS-transform fallback below.
+    rotateControl:true,
+    headingInteractionEnabled:true,
+    isFractionalZoomEnabled:true,
     backgroundColor:'#0d1014',  // Dark bg prevents white flash before tiles load
     restriction:{
       // Israel + ~150 km buffer in all directions (1° lat ≈ 111 km, 1° lng ≈ 94 km at 32°N).
@@ -4179,23 +4185,79 @@ function _navClearTurnByTurn(){
   _ttSteps = [];
   _ttCurStep = 0;
   _ttTrackHook = null;
+  _ttMinimized = false;
   window._ttOnOwnFix = null;
+  window._ttLastPt = null;
   if(_ttHud && _ttHud.parentNode){ _ttHud.parentNode.removeChild(_ttHud); _ttHud = null; }
+}
+let _ttMinimized = false;
+function _toggleTtHud(){ _ttMinimized = !_ttMinimized; _renderTtHud(window._ttLastPt); }
+function _ttShowBanner(title, sub, durationMs){
+  // Inline banner inside the HUD (used for speed-camera alerts and any
+  // other transient heads-up). Auto-clears after `durationMs`. Doesn't
+  // interrupt the turn-by-turn rendering — it just layers above it.
+  if(!_ttHud) return;
+  let banner = _ttHud.querySelector('.tt-banner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.className = 'tt-banner';
+    banner.style.cssText = 'margin-top:8px;padding:8px 10px;background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.5);border-radius:8px;font-size:12px;font-weight:700;color:#ffd54a;line-height:1.3';
+    _ttHud.appendChild(banner);
+  }
+  banner.innerHTML = '<div style="font-weight:900">'+escHtml(title)+'</div>'+(sub?'<div style="font-size:11px;opacity:0.85;margin-top:2px">'+escHtml(sub)+'</div>':'');
+  clearTimeout(banner._timer);
+  banner._timer = setTimeout(()=>{ try { banner.remove(); } catch(_){} }, durationMs || 5000);
 }
 function _renderTtHud(curPt){
   if(!_ttSteps.length) return;
+  if(curPt) window._ttLastPt = curPt;
   if(!_ttHud){
     _ttHud = document.createElement('div');
     _ttHud.id = 'nav-tt-hud';
-    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;padding:12px 16px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);min-width:240px;max-width:360px;cursor:pointer;font-size:13px;line-height:1.35;user-select:none';
-    _ttHud.onclick = ()=>{ _navClearTurnByTurn(); };
-    _ttHud.title = 'לחץ לסגור ניווט';
+    _ttHud.style.cssText = 'position:absolute;top:10px;inset-inline-start:10px;z-index:500;background:rgba(13,16,20,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1.5px solid #1a8c2e;border-radius:10px;color:#fff;font-family:var(--font);box-shadow:0 6px 24px rgba(0,0,0,0.55);font-size:13px;line-height:1.35;user-select:none;transition:all 0.25s ease';
     const mapHost = document.getElementById('map') || document.getElementById('gmap') || document.body;
     (mapHost.parentElement || mapHost).appendChild(_ttHud);
   }
   const step = _ttSteps[_ttCurStep];
+  // MINIMIZED: a small rounded pill showing only the icon + distance.
+  if(_ttMinimized){
+    _ttHud.style.padding = '0';
+    _ttHud.style.minWidth = '0';
+    _ttHud.style.maxWidth = 'none';
+    _ttHud.style.cursor = 'pointer';
+    let icon = '🧭', distTxt = '...';
+    if(step){
+      const manIcon = {
+        'turn-left':'⬅️','turn-slight-left':'↖️','turn-sharp-left':'⬅️',
+        'turn-right':'➡️','turn-slight-right':'↗️','turn-sharp-right':'➡️',
+        'straight':'⬆️','ramp-left':'↖️','ramp-right':'↗️',
+        'merge':'🔀','fork-left':'↖️','fork-right':'↗️',
+        'roundabout-left':'🔄','roundabout-right':'🔄',
+        'uturn-left':'↩️','uturn-right':'↪️',
+      };
+      icon = manIcon[step.maneuver] || '⬆️';
+      distTxt = step.distanceText || '';
+      if(curPt){
+        const dm = _haversineMeters(curPt, {lat: step.loc.lat(), lng: step.loc.lng()});
+        distTxt = dm < 1000 ? (Math.round(dm)+'מ') : ((dm/1000).toFixed(1)+'ק״מ');
+      }
+    }
+    _ttHud.innerHTML =
+      '<div style="display:flex;align-items:center;gap:6px;padding:8px 12px" title="לחץ להרחיב">' +
+        '<span style="font-size:20px;line-height:1">'+icon+'</span>' +
+        '<span style="font-size:13px;font-weight:900;color:#3dff52">'+distTxt+'</span>' +
+      '</div>';
+    _ttHud.onclick = (e)=>{ e.stopPropagation(); _toggleTtHud(); };
+    return;
+  }
+  // EXPANDED: full HUD with header bar (minimize + close buttons).
+  _ttHud.style.padding = '0';
+  _ttHud.style.minWidth = '240px';
+  _ttHud.style.maxWidth = '360px';
+  _ttHud.style.cursor = 'default';
+  _ttHud.onclick = null;
   if(!step){
-    _ttHud.innerHTML = '<div style="font-size:15px;font-weight:900;color:#3dff52">🏁 הגעת ליעד</div>';
+    _ttHud.innerHTML = '<div style="padding:12px 16px;font-size:15px;font-weight:900;color:#3dff52">🏁 הגעת ליעד</div>';
     setTimeout(()=>_navClearTurnByTurn(), 6000);
     return;
   }
@@ -4214,12 +4276,24 @@ function _renderTtHud(curPt){
     distTxt = dm < 1000 ? (Math.round(dm)+' מ׳') : ((dm/1000).toFixed(1)+' ק״מ');
   }
   _ttHud.innerHTML =
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
-      + '<span style="font-size:28px;line-height:1">'+icon+'</span>'
-      + '<span style="font-size:18px;font-weight:900;color:#3dff52">'+distTxt+'</span>'
-    + '</div>'
-    + '<div style="font-size:12px;color:#c2d6e2">'+(step.instructionHtml||'')+'</div>'
-    + '<div style="font-size:10px;color:#7290a4;margin-top:6px">שלב '+(_ttCurStep+1)+' מתוך '+_ttSteps.length+' · לחץ לסגור</div>';
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px 4px 10px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+      '<span style="font-size:10px;color:#7290a4;font-weight:700">שלב '+(_ttCurStep+1)+' / '+_ttSteps.length+'</span>' +
+      '<span style="display:flex;gap:4px">' +
+        '<button type="button" class="tt-min-btn" title="מזער" style="background:transparent;border:none;color:#a8b8c8;font-size:14px;cursor:pointer;width:28px;height:28px;border-radius:6px;line-height:1">—</button>' +
+        '<button type="button" class="tt-close-btn" title="סגור ניווט" style="background:transparent;border:none;color:#a8b8c8;font-size:14px;cursor:pointer;width:28px;height:28px;border-radius:6px;line-height:1">✕</button>' +
+      '</span>' +
+    '</div>' +
+    '<div style="padding:10px 14px">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">' +
+        '<span style="font-size:28px;line-height:1">'+icon+'</span>' +
+        '<span style="font-size:18px;font-weight:900;color:#3dff52">'+distTxt+'</span>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#c2d6e2">'+(step.instructionHtml||'')+'</div>' +
+    '</div>';
+  const minB = _ttHud.querySelector('.tt-min-btn');
+  const cloB = _ttHud.querySelector('.tt-close-btn');
+  if(minB) minB.onclick = (e)=>{ e.stopPropagation(); _toggleTtHud(); };
+  if(cloB) cloB.onclick = (e)=>{ e.stopPropagation(); _navClearTurnByTurn(); };
 }
 // Great-circle distance (Haversine) in meters — no external service.
 function _haversineMeters(a, b){
@@ -4245,6 +4319,132 @@ function _bearingDeg(a, b){
   let brng = toDeg(Math.atan2(y, x));
   if(brng < 0) brng += 360;
   return brng;
+}
+
+// ── Speed cameras (Israel) ─────────────────────────────────────────────
+// Coarse list of known fixed speed/red-light camera locations across
+// main urban and intercity arteries. Not exhaustive — meant as a safety
+// net so the operator gets a soft heads-up a few hundred meters before
+// a camera. Coords are WGS-84 decimal. Supplement/edit as needed; the
+// check tolerates incomplete metadata (name/limit optional).
+const _SPEED_CAMERAS = [
+  // ── Route 1 (Tel Aviv ↔ Jerusalem)
+  {lat:31.90980,lng:34.97000,name:'כביש 1 · שער הגיא',limit:90},
+  {lat:31.80000,lng:35.03500,name:'כביש 1 · מחלף שורש',limit:90},
+  {lat:31.78900,lng:35.10100,name:'כביש 1 · מוצא',limit:80},
+  {lat:32.01600,lng:34.83200,name:'כביש 1 · מחלף שפירים',limit:90},
+  // ── Ayalon (Highway 20)
+  {lat:32.08500,lng:34.79100,name:'איילון דרום · רוקח',limit:90},
+  {lat:32.07100,lng:34.79200,name:'איילון דרום · הלכה',limit:90},
+  {lat:32.05900,lng:34.78600,name:'איילון דרום · לה-גוארדיה',limit:90},
+  {lat:32.04000,lng:34.78000,name:'איילון דרום · מסובים',limit:90},
+  {lat:32.10700,lng:34.80900,name:'איילון צפון · גלילות',limit:90},
+  // ── Route 2 (Coastal)
+  {lat:32.28700,lng:34.87600,name:'כביש 2 · שער הכניסה לחדרה',limit:110},
+  {lat:32.42800,lng:34.91300,name:'כביש 2 · מחלף זיכרון',limit:110},
+  {lat:32.56000,lng:34.94800,name:'כביש 2 · פוריידיס',limit:110},
+  {lat:32.16200,lng:34.81700,name:'כביש 2 · נתניה דרום',limit:100},
+  // ── Route 4 (Geha)
+  {lat:32.04800,lng:34.85100,name:'כביש 4 · מחלף קוממיות',limit:90},
+  {lat:32.09200,lng:34.84400,name:'כביש 4 · מחלף ההסתדרות',limit:90},
+  {lat:32.16300,lng:34.84200,name:'כביש 4 · מחלף רעננה דרום',limit:90},
+  // ── Route 6 (Trans-Israel)
+  {lat:32.15500,lng:34.98300,name:'כביש 6 · מחלף אייל',limit:110},
+  {lat:32.26700,lng:35.00900,name:'כביש 6 · מחלף עין תות',limit:110},
+  {lat:31.91200,lng:34.91600,name:'כביש 6 · מחלף שורק',limit:110},
+  {lat:31.76900,lng:34.87400,name:'כביש 6 · מחלף קסטינה',limit:110},
+  // ── Route 5 (Nablus / Ariel)
+  {lat:32.11100,lng:35.02000,name:'כביש 5 · מחלף קוסטור',limit:90},
+  // ── Route 431
+  {lat:31.95300,lng:34.85100,name:'כביש 431 · מחלף מודיעין',limit:110},
+  {lat:31.92000,lng:34.81300,name:'כביש 431 · מחלף בית חשמונאי',limit:110},
+  // ── Route 40 (Negev)
+  {lat:31.25000,lng:34.79800,name:'כביש 40 · צומת פלוגות',limit:90},
+  {lat:31.02500,lng:34.84500,name:'כביש 40 · מחלף שוקת',limit:90},
+  // ── Tel Aviv — urban 50–60 km/h
+  {lat:32.08420,lng:34.77890,name:'ת"א · אבן גבירול / ארלוזורוב',limit:50},
+  {lat:32.07700,lng:34.77400,name:"ת\"א · קינג ג'ורג'",limit:50},
+  {lat:32.08800,lng:34.78100,name:'ת"א · נמיר / רוקח',limit:60},
+  {lat:32.05700,lng:34.77900,name:'ת"א · החשמונאים / יהודה הלוי',limit:50},
+  {lat:32.08900,lng:34.79600,name:'ת"א · נמיר / פינקס',limit:60},
+  // ── Haifa
+  {lat:32.80900,lng:34.99000,name:'חיפה · שדרות בן גוריון',limit:50},
+  {lat:32.82400,lng:34.97200,name:'חיפה · חוף הכרמל · דרך סטלה מאריס',limit:60},
+  // ── Jerusalem
+  {lat:31.77700,lng:35.20700,name:'ירושלים · דרך בגין / יפו',limit:60},
+  {lat:31.78300,lng:35.21900,name:'ירושלים · שדרות הנשיא',limit:50},
+  {lat:31.76800,lng:35.22500,name:'ירושלים · דרך חברון · קטמון',limit:50},
+  // ── Rishon LeZion / Bat Yam
+  {lat:31.99200,lng:34.77200,name:'ראשון לציון · דרך משה דיין',limit:60},
+  {lat:32.01800,lng:34.75000,name:'בת ים · שדרות בן גוריון',limit:50},
+  // ── Herzliya / Ramat HaSharon
+  {lat:32.16500,lng:34.84300,name:'הרצליה · ויצמן',limit:60},
+  // ── Netanya
+  {lat:32.33400,lng:34.86400,name:'נתניה · שדרות נורדאו',limit:50},
+  // ── Ashdod / Ashkelon
+  {lat:31.80300,lng:34.64200,name:'אשדוד · שדרות מנחם בגין',limit:60},
+  {lat:31.66700,lng:34.57600,name:'אשקלון · שדרות בן גוריון',limit:60},
+  // ── Beer Sheva
+  {lat:31.25800,lng:34.79800,name:'ב"ש · שדרות רגר',limit:50},
+];
+// Per-camera cooldown so we don't beep every fix while still approaching.
+const _SPEED_CAM_ALERTED = new Map(); // key "lat|lng" → timestamp
+// Plays a soft "bip" via Web Audio — a short 800 Hz sine tone. Not alarming,
+// just a cue that something is worth looking at in the HUD.
+function _speedCamBeep(){
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!window._beepCtx) window._beepCtx = new AC();
+    const ctx = window._beepCtx;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 880;
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.03);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.24);
+  } catch(_){}
+}
+// On each own-fix, find the nearest camera ≤ 500 m and "ahead" relative
+// to current heading. Fires a soft beep + banner via the HUD.
+function _speedCamCheck(lat, lng, heading){
+  if(!_SPEED_CAMERAS || !_SPEED_CAMERAS.length) return;
+  let best = null;
+  for(const c of _SPEED_CAMERAS){
+    const d = _haversineMeters({lat,lng}, c);
+    if(d > 500) continue; // too far
+    // If we know the heading, only alert for cameras ahead (within ±55°
+    // of travel direction) — avoids beeping for cameras we're driving
+    // away from on the opposite lane.
+    if(typeof heading === 'number'){
+      const bearingToCam = _bearingDeg({lat,lng}, c);
+      let diff = Math.abs(bearingToCam - heading);
+      if(diff > 180) diff = 360 - diff;
+      if(diff > 55) continue;
+    }
+    if(!best || d < best.d) best = { cam:c, d };
+  }
+  if(!best) return;
+  const key = best.cam.lat + '|' + best.cam.lng;
+  const now = Date.now();
+  const last = _SPEED_CAM_ALERTED.get(key) || 0;
+  // Re-alert every 2 min per camera at most (handles circling / traffic jams).
+  if(now - last < 120*1000) return;
+  _SPEED_CAM_ALERTED.set(key, now);
+  _speedCamBeep();
+  const m = Math.round(best.d / 10) * 10; // round to nearest 10 m
+  const label = best.cam.name || 'מצלמה';
+  const lim = best.cam.limit ? ' · מגבלה '+best.cam.limit+' קמ"ש' : '';
+  if(typeof _ttShowBanner === 'function'){
+    _ttShowBanner('📷 מצלמת מהירות בעוד ' + m + ' מ׳', label + lim, 6000);
+  } else {
+    showToast({icon:'📷', title:'מצלמת מהירות בעוד '+m+' מ׳', sub:label+lim, type:'warn', duration:6000});
+  }
 }
 
 // ── Area A/B avoidance — coarse polygons derived from the West Bank
@@ -4354,8 +4554,9 @@ function _navStopLiveMode(){
   _navLiveActive = false;
   window._navOnOwnFix = null;
   window._navRoutePath = null;
-  // Restore the default north-up orientation on the map.
+  // Restore the default north-up orientation on the map (native + CSS fallback).
   try { if(window.map && typeof window.map.setHeading === 'function') window.map.setHeading(0); } catch(_){}
+  if(typeof _navClearCssRotation === 'function') _navClearCssRotation();
 }
 // Called on every own-GPS fix while navigation is live. Does three things:
 //   1. Rotate the map so the heading direction is "up" (if user opted in).
@@ -4371,9 +4572,18 @@ function _navHandleLiveFix(lat, lng){
   const recalc = document.getElementById('nav-auto-recalc')?.checked !== false;
   // Rotation — align map so travel direction is up. Needs two recent
   // fixes to compute a bearing; we cache the previous one.
-  if(rotate && typeof window._navPrevFix === 'object' && window._navPrevFix){
-    const h = _bearingDeg(window._navPrevFix, {lat, lng});
-    try { if(typeof window.map.setHeading === 'function') window.map.setHeading(h); } catch(_){}
+  let heading = null;
+  if(rotate && window._navPrevFix){
+    heading = _bearingDeg(window._navPrevFix, {lat, lng});
+    // Native rotation — works on satellite/hybrid and on vector maps
+    // (requires mapId). Silent no-op on legacy roadmap tiles.
+    try { if(typeof window.map.setHeading === 'function') window.map.setHeading(heading); } catch(_){}
+    // CSS-transform fallback — rotates the #gmap container so roadmap
+    // users also get heading-aligned navigation. Our UI buttons live
+    // outside #gmap (in #right-panel), so they stay upright. Markers
+    // and route polyline are inside #gmap and rotate with it, which
+    // is the correct look (a "heading-up" compass view).
+    _navApplyCssRotation(-heading);
   }
   window._navPrevFix = {lat, lng};
   // Auto-zoom based on speed (if we know it). Fallback to zoom 17.
@@ -4381,18 +4591,20 @@ function _navHandleLiveFix(lat, lng){
     const z = window.map.getZoom();
     if(z < 16) window.map.setZoom(17);
   } catch(_){}
-  // Off-route detection
+  // Off-route detection — tightened for faster response:
+  //   • deviation threshold: 60 → 50 m
+  //   • sustained fixes required: 3 → 2
+  //   • throttle between recalcs: 20 → 8 s
   if(recalc && window._navRoutePath && window._navRoutePath.length){
     const dist = _distanceToPath({lat,lng}, window._navRoutePath);
-    if(dist > 60){
+    if(dist > 50){
       window._navOffRouteCount = (window._navOffRouteCount||0) + 1;
-      // Sustained deviation (3 consecutive fixes) → recalc
-      if(window._navOffRouteCount >= 3){
+      if(window._navOffRouteCount >= 2){
         const now = Date.now();
-        if(now - (window._navLastRecalcAt||0) > 20*1000){
+        if(now - (window._navLastRecalcAt||0) > 8*1000){
           window._navLastRecalcAt = now;
           window._navOffRouteCount = 0;
-          showToast({icon:'🔄', title:'סטית מהמסלול — מחשב מחדש', type:'info', duration:3500});
+          showToast({icon:'🔄', title:'סטית מהמסלול — מחשב מחדש', type:'info', duration:2500});
           calcNavRoute({lat, lng}, true);
         }
       }
@@ -4400,6 +4612,31 @@ function _navHandleLiveFix(lat, lng){
       window._navOffRouteCount = 0;
     }
   }
+  // Speed-camera proximity check — alert once per camera as we approach.
+  if(typeof _speedCamCheck === 'function'){
+    _speedCamCheck(lat, lng, heading);
+  }
+}
+
+// ── CSS-transform rotation fallback ─────────────────────────────────────
+// Google Maps JS silently no-ops map.setHeading() on legacy roadmap
+// rendering (no mapId). We keep the roadmap working during heading-up
+// navigation by rotating the #gmap element itself. Smoothly interpolates
+// in CSS via the transition property.
+function _navApplyCssRotation(deg){
+  const el = document.getElementById('gmap');
+  if(!el) return;
+  if(!el._cssRotInit){
+    el.style.transformOrigin = '50% 50%';
+    el.style.transition = 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)';
+    el._cssRotInit = true;
+  }
+  el.style.transform = 'rotate('+deg+'deg)';
+}
+function _navClearCssRotation(){
+  const el = document.getElementById('gmap');
+  if(!el) return;
+  el.style.transform = '';
 }
 function _distanceToPath(pt, path){
   // Returns the minimum distance from pt to any segment of path.
