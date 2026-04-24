@@ -15,15 +15,12 @@
   .mapbox:last-child{border-right:none}
   .mapbox > .map{position:absolute;inset:0;background:#202830}
   .mapbox > .cap{position:absolute;top:6px;left:6px;right:6px;background:rgba(0,0,0,0.65);color:#fff;padding:4px 8px;font-size:11px;border-radius:4px;z-index:5;font-weight:700}
-  .status{padding:3px 8px;border-radius:4px;font-weight:700;display:inline-block;margin:2px 4px 2px 0;font-size:12px}
-  .s-ok{background:#1a5a22;color:#3dff52}
-  .s-fail{background:#5a1a1a;color:#ff6060}
-  .s-pending{background:#3a3a1a;color:#ffc107}
   button{background:#1a8c2e;color:white;border:none;border-radius:4px;padding:6px 12px;font-weight:700;cursor:pointer;margin:4px 2px;font-family:inherit;font-size:12px}
-  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+  .log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0d12;border:1px solid #1c2430;border-radius:4px;padding:6px 10px;margin-top:8px;max-height:250px;overflow:auto;white-space:pre-wrap;word-break:break-all}
   .log-err{color:#ff6060}
   .log-ok{color:#3dff52}
   .log-info{color:#8fb3d9}
+  .log-warn{color:#ffc107}
 </style>
 </head>
 <body>
@@ -32,24 +29,21 @@
     <div><b>Map ID:</b> <code>5075a944af766b257648230b</code></div>
     <div><b>API Key:</b> <code>AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo</code></div>
     <div><b>Domain:</b> <code id="dom"></code></div>
-    <div style="margin-top:8px" id="status">
-      <span class="status s-pending">⏳ מחכה ל-Google Maps API...</span>
-    </div>
     <div style="margin-top:6px">
-      <button onclick="testRotate()">🔄 סובב 90° (mapId)</button>
-      <button onclick="resetView()">↩️ אפס</button>
+      <button onclick="inspectB()">🔍 בדוק סטטוס מפה B</button>
+      <button onclick="testRotate()">🔄 סובב 90°</button>
+      <button onclick="location.reload()">↻ רענן</button>
     </div>
     <div class="log" id="log"></div>
   </div>
   <div class="maps">
-    <div class="mapbox"><div class="cap">WITHOUT mapId (בדיקת API Key)</div><div class="map" id="map-nomapid"></div></div>
-    <div class="mapbox"><div class="cap">WITH mapId (בדיקת Vector)</div><div class="map" id="map-withmapid"></div></div>
+    <div class="mapbox"><div class="cap">WITHOUT mapId</div><div class="map" id="map-nomapid"></div></div>
+    <div class="mapbox"><div class="cap">WITH mapId + renderingType:VECTOR</div><div class="map" id="map-withmapid"></div></div>
   </div>
 </div>
 <script>
 let mapA, mapB;
 const log = document.getElementById('log');
-const status = document.getElementById('status');
 document.getElementById('dom').textContent = location.hostname + location.pathname;
 
 function logLine(msg, cls){
@@ -63,7 +57,6 @@ function logLine(msg, cls){
 
 window.gm_authFailure = () => {
   logLine('❌ gm_authFailure — ה-API Key נדחה', 'log-err');
-  status.innerHTML = '<span class="status s-fail">❌ API Key נדחה</span>';
 };
 window.addEventListener('error', e => {
   if (e.filename && e.filename.includes('maps.googleapis.com')){
@@ -71,18 +64,27 @@ window.addEventListener('error', e => {
   }
 });
 
-setTimeout(() => {
-  if (!mapA && !mapB) {
-    logLine('⚠️ Maps API לא נטען תוך 15 שניות', 'log-err');
-    status.innerHTML = '<span class="status s-fail">❌ Timeout</span>';
+// Intercept fetch to spot tile failures
+const _origFetch = window.fetch;
+window.fetch = function(url, ...rest){
+  const u = String(url);
+  if (u.includes('googleapis.com') && (u.includes('tile') || u.includes('maptile') || u.includes('2mm'))){
+    return _origFetch.apply(this, arguments).then(r => {
+      if (!r.ok) logLine('tile fetch ' + r.status + ': ' + u.slice(0, 120), 'log-err');
+      return r;
+    }).catch(e => {
+      logLine('tile fetch FAIL: ' + e.message, 'log-err');
+      throw e;
+    });
   }
-}, 15000);
+  return _origFetch.apply(this, arguments);
+};
 
 function onMaps(){
-  logLine('✅ Google Maps API נטען', 'log-ok');
-  // ── Map A: NO mapId (tests if API key works at all)
+  logLine('✅ Google Maps API נטען, version = ' + (google.maps.version || '?'), 'log-ok');
+  logLine('RenderingType enum: VECTOR=' + google.maps.RenderingType?.VECTOR + ', RASTER=' + google.maps.RenderingType?.RASTER);
+  // Map A: no mapId
   try {
-    logLine('מפה A: יוצר ללא mapId...');
     mapA = new google.maps.Map(document.getElementById('map-nomapid'), {
       center: { lat: 32.0667, lng: 34.7818 },
       zoom: 13,
@@ -90,80 +92,92 @@ function onMaps(){
       disableDefaultUI: true,
     });
     google.maps.event.addListenerOnce(mapA, 'tilesloaded', () => {
-      logLine('✅ A: tilesloaded (ללא mapId — API Key תקין)', 'log-ok');
+      logLine('✅ A: tilesloaded', 'log-ok');
     });
   } catch(e){
-    logLine('❌ A: כשל ביצירה: ' + e.message, 'log-err');
+    logLine('❌ A: ' + e.message, 'log-err');
   }
-  // ── Map B: WITH mapId (tests if Map ID + Vector works)
+  // Map B: with mapId + forced VECTOR
   try {
-    logLine('מפה B: יוצר עם mapId=5075a944af766b257648230b...');
-    mapB = new google.maps.Map(document.getElementById('map-withmapid'), {
+    const opts = {
       center: { lat: 32.0667, lng: 34.7818 },
       zoom: 13,
       mapId: '5075a944af766b257648230b',
-      rotateControl: true,
-      headingInteractionEnabled: true,
       gestureHandling: 'greedy',
       disableDefaultUI: true,
-    });
-    google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => {
-      logLine('✅ B: tilesloaded (Map ID עובד!)', 'log-ok');
-      let rt = 'לא ידוע';
+      rotateControl: true,
+      headingInteractionEnabled: true,
+    };
+    if (google.maps.RenderingType) {
+      opts.renderingType = google.maps.RenderingType.VECTOR;
+    }
+    if (google.maps.ColorScheme) {
+      opts.colorScheme = google.maps.ColorScheme.LIGHT;
+    }
+    logLine('מפה B: new google.maps.Map(...) עם opts:');
+    logLine(JSON.stringify(Object.keys(opts)));
+    mapB = new google.maps.Map(document.getElementById('map-withmapid'), opts);
+    logLine('✅ B: נוצרה', 'log-ok');
+
+    // Check rendering type immediately
+    setTimeout(() => {
       try {
-        if (google.maps.RenderingType && typeof mapB.getRenderingType === 'function') {
-          const r = mapB.getRenderingType();
-          if (r === google.maps.RenderingType.VECTOR) rt = 'VECTOR ✅';
-          else if (r === google.maps.RenderingType.RASTER) rt = 'RASTER ❌';
-          else rt = 'UNKNOWN';
-        }
+        const rt = mapB.getRenderingType && mapB.getRenderingType();
+        logLine('B.getRenderingType() [2s]: ' + rt + ' (VECTOR=2, RASTER=1)');
+      } catch(e){ logLine('getRenderingType err: ' + e.message, 'log-err'); }
+    }, 2000);
+
+    google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => {
+      logLine('✅ B: tilesloaded', 'log-ok');
+      try {
+        const r = mapB.getRenderingType();
+        const rn = r === google.maps.RenderingType.VECTOR ? 'VECTOR' : (r === google.maps.RenderingType.RASTER ? 'RASTER' : String(r));
+        logLine('B Rendering = ' + rn, rn === 'VECTOR' ? 'log-ok' : 'log-err');
       } catch(e){}
-      logLine('B: Rendering = ' + rt, rt.includes('VECTOR')?'log-ok':'log-err');
-      status.innerHTML = '<span class="status s-ok">מפות נטענו</span>' +
-        '<span class="status ' + (rt.includes('VECTOR')?'s-ok':'s-fail') + '">B: ' + rt + '</span>';
     });
-    google.maps.event.addListener(mapB, 'heading_changed', () => {
-      const h = Math.round(mapB.getHeading() || 0);
-      logLine('B heading: ' + h + '°', 'log-ok');
+    google.maps.event.addListener(mapB, 'renderingtype_changed', () => {
+      const r = mapB.getRenderingType();
+      logLine('B renderingtype_changed → ' + r, 'log-warn');
+    });
+    google.maps.event.addListenerOnce(mapB, 'idle', () => {
+      logLine('B: idle event fired', 'log-info');
     });
   } catch(e){
-    logLine('❌ B: כשל ביצירה: ' + e.message, 'log-err');
+    logLine('❌ B: ' + e.message, 'log-err');
   }
-  // Also monitor if only one of them loads
-  setTimeout(() => {
-    const aL = mapA && mapA.__loaded;
-    const bL = mapB && mapB.__loaded;
-    // We don't actually set __loaded, but if tilesloaded never fired for one,
-    // that's already logged. Add explicit timeout diagnostic:
-  }, 8000);
-  // After 8s, if B hasn't loaded, log it
-  setTimeout(() => {
-    const check = () => {
-      const aTxt = 'A: ' + (document.querySelector('#map-nomapid canvas, #map-nomapid img, #map-nomapid .gm-style') ? 'יש תוכן' : 'ריק');
-      const bTxt = 'B: ' + (document.querySelector('#map-withmapid canvas, #map-withmapid img, #map-withmapid .gm-style') ? 'יש תוכן' : 'ריק');
-      logLine('בדיקה אחרי 10ש׳: ' + aTxt + ' | ' + bTxt, 'log-info');
-    };
-    setTimeout(check, 10000);
-  }, 1000);
+}
+
+function inspectB(){
+  if (!mapB) { logLine('אין mapB', 'log-err'); return; }
+  const el = document.getElementById('map-withmapid');
+  const childs = el.children.length;
+  const canvases = el.querySelectorAll('canvas').length;
+  const imgs = el.querySelectorAll('img').length;
+  const divs = el.querySelectorAll('div').length;
+  logLine('B DOM: children=' + childs + ' canvases=' + canvases + ' imgs=' + imgs + ' divs=' + divs);
+  try {
+    logLine('B center: ' + mapB.getCenter().toString() + ' zoom: ' + mapB.getZoom());
+    logLine('B mapTypeId: ' + mapB.getMapTypeId());
+    logLine('B renderingType: ' + (mapB.getRenderingType && mapB.getRenderingType()));
+  } catch(e){ logLine('inspect err: ' + e.message, 'log-err'); }
 }
 
 function testRotate(){
-  if (!mapB) { logLine('אין מפה B', 'log-err'); return; }
+  if (!mapB) return;
   const cur = mapB.getHeading() || 0;
-  try { mapB.setHeading(cur + 90); } catch(e){ logLine('setHeading err: ' + e.message, 'log-err'); }
+  try { mapB.setHeading(cur + 90); } catch(e){ logLine('setHeading: ' + e.message, 'log-err'); }
   setTimeout(() => {
     const after = Math.round(mapB.getHeading() || 0);
-    if (Math.abs(after - (cur + 90)) < 5) logLine('✅ סיבוב הצליח → ' + after + '°', 'log-ok');
-    else logLine('❌ הסיבוב לא עבד. actual=' + after + '°', 'log-err');
+    logLine('סיבוב: cur=' + cur + ' → after=' + after + (Math.abs(after - (cur + 90)) < 5 ? ' ✅' : ' ❌'), Math.abs(after - (cur + 90)) < 5 ? 'log-ok' : 'log-err');
   }, 700);
 }
-function resetView(){ if (mapB) { mapB.setHeading(0); mapB.setTilt(0); } }
 
+// Load Maps — force weekly version + beta to ensure vector support
 const s = document.createElement('script');
-s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps&loading=async';
+s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps&v=weekly&loading=async';
 s.async = true; s.defer = true;
-s.onerror = () => { logLine('❌ כשל בטעינת סקריפט', 'log-err'); };
-logLine('טוען maps API...');
+s.onerror = () => logLine('❌ כשל בטעינת סקריפט', 'log-err');
+logLine('טוען v=weekly ...');
 document.head.appendChild(s);
 </script>
 </body>
