@@ -55,20 +55,34 @@ function logLine(msg, cls){
 }
 
 // ── WebGL capability check ─────────────────────────────────────────────
+// FIX: use SEPARATE canvases for webgl vs webgl2. Calling getContext
+// with a different type on the same canvas always returns null after
+// the first call — the previous version reported "WebGL1 only" on
+// every device because of this bug.
 function checkWebGL(){
-  const c = document.createElement('canvas');
-  let gl = null;
+  const c2 = document.createElement('canvas');
   let gl2 = null;
-  try { gl = c.getContext('webgl') || c.getContext('experimental-webgl'); } catch(_){}
-  try { gl2 = c.getContext('webgl2'); } catch(_){}
+  try { gl2 = c2.getContext('webgl2'); } catch(_){}
+  const c1 = document.createElement('canvas');
+  let gl1 = null;
+  try { gl1 = c1.getContext('webgl') || c1.getContext('experimental-webgl'); } catch(_){}
   const out = document.getElementById('webgl-status');
   let status = '';
   if (gl2) {
-    const vendor = gl2.getParameter(gl2.VENDOR);
-    const renderer = gl2.getParameter(gl2.RENDERER);
+    let vendor = '?', renderer = '?';
+    try {
+      const dbg = gl2.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) {
+        vendor = gl2.getParameter(dbg.UNMASKED_VENDOR_WEBGL);
+        renderer = gl2.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+      } else {
+        vendor = gl2.getParameter(gl2.VENDOR);
+        renderer = gl2.getParameter(gl2.RENDERER);
+      }
+    } catch(_){}
     status = '<span style="color:#3dff52">✅ WebGL2 תומך</span> · ' + vendor + ' · ' + renderer;
     logLine('WebGL2 OK: ' + vendor + ' / ' + renderer, 'log-ok');
-  } else if (gl) {
+  } else if (gl1) {
     status = '<span style="color:#ffc107">⚠️ WebGL1 בלבד (Vector דורש WebGL2)</span>';
     logLine('WebGL1 only — Vector requires WebGL2!', 'log-warn');
   } else {

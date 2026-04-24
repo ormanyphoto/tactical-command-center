@@ -2421,19 +2421,33 @@ function onGoogleMapsReady(){
   // says — otherwise users on WebGL1-only browsers get a blank black
   // map. The fallback is raster roadmap + inline styles + auto-switch
   // to hybrid for rotation during navigation.
-  // Map type — default to RASTER so the map always loads instantly for
-  // every operator on every device. Vector rendering (with its Waze-
-  // style tile rotation) is strictly opt-in: users who want it set
-  // localStorage.tac_map_id to their own Cloud Console vector Map ID.
-  // We do NOT apply any mapId by default because:
-  //  • Vector requires WebGL2; older GPUs and many mobile WebViews
-  //    advertise WebGL2 but render nothing → 10 s black screen.
-  //  • Raster works everywhere. Rotation during navigation still
-  //    works by auto-switching to hybrid, which is raster + rotatable.
-  //  • Map-tile quota for vector ≠ raster; raster is the safer default.
-  const _customMapId = (() => {
-    try { return localStorage.getItem('tac_map_id') || ''; } catch(_){ return ''; }
+  // Vector map — enables Waze-style tile rotation with labels staying
+  // upright. Gated on a real WebGL2 probe (separate canvas — calling
+  // getContext with a different type on the same canvas always returns
+  // null after the first call, so earlier versions falsely reported
+  // WebGL1-only on every device).
+  const TCC_DEFAULT_MAP_ID = '5075a944af766b257648230b';
+  const _hasWebGL2 = (() => {
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl2');
+      return !!gl;
+    } catch(_){ return false; }
   })();
+  // Sticky failure flag: if a previous load detected the vector
+  // renderer silently failing (8s timeout below), store the timestamp
+  // and skip vector for 24 h. Auto-clears via ?purge=1.
+  const _mapIdBlocked = (() => {
+    try {
+      const v = Number(localStorage.getItem('tac_mapid_blocked') || 0);
+      return v > 0 && (Date.now() - v) < 24*60*60*1000;
+    } catch(_){ return false; }
+  })();
+  const _useVector = _hasWebGL2 && !_mapIdBlocked;
+  console.log('[map] WebGL2:', _hasWebGL2, 'blocked:', _mapIdBlocked, 'useVector:', _useVector);
+  const _customMapId = _useVector
+    ? (localStorage.getItem('tac_map_id') || TCC_DEFAULT_MAP_ID)
+    : '';
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
@@ -2487,22 +2501,23 @@ function onGoogleMapsReady(){
     ];
     map=new google.maps.Map(mapEl, _mapOpts);
   }
-  // Blank-map safety net: if the operator manually opted into vector
-  // (by setting localStorage.tac_map_id) but the vector renderer
-  // silently fails, auto-reload the page without it after 8 s. For
-  // the default raster path this block is a no-op.
+  // Blank-map safety net: if WebGL2 is advertised but Google's vector
+  // renderer silently fails (broken driver / WebView quirk), no
+  // tilesloaded event arrives. After 5 s we mark vector as blocked
+  // for 24 h and reload without the mapId so the user gets raster
+  // fast instead of staring at a blank map.
   if(_mapOpts.mapId){
     let _tilesOk = false;
     google.maps.event.addListenerOnce(map, 'tilesloaded', () => { _tilesOk = true; });
     setTimeout(() => {
       if(_tilesOk) return;
-      console.warn('[map] vector map silently failed — removing tac_map_id and reloading.');
-      try { localStorage.removeItem('tac_map_id'); } catch(_){}
+      console.warn('[map] vector map silently failed — blocking mapId for 24 h and reloading.');
+      try { localStorage.setItem('tac_mapid_blocked', String(Date.now())); } catch(_){}
       if(!sessionStorage.getItem('tac_mapid_reloaded')){
         sessionStorage.setItem('tac_mapid_reloaded', '1');
         location.reload();
       }
-    }, 8000);
+    }, 5000);
   }
 
   // On map ready: immediately pull GPS and center on the user.
