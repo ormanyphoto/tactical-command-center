@@ -2410,15 +2410,12 @@ function onGoogleMapsReady(){
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
-  // Vector map ID — enables proper rotation on the roadmap view where
-  // only tiles rotate and labels stay upright (Waze-style). This is a
-  // real Cloud Console Map ID created for the tactical-command-center
-  // project, configured for JavaScript + Vector rendering. Operators
-  // can override with their own Map ID via localStorage.tac_map_id if
-  // they want a different style; otherwise the default vector ID below
-  // is used.
-  const TCC_DEFAULT_MAP_ID = '5075a944af766b257648230b';
-  const _customMapId = localStorage.getItem('tac_map_id') || TCC_DEFAULT_MAP_ID;
+  // Vector map ID — required for proper rotation on the roadmap view.
+  // Only applied if the operator has explicitly configured one via
+  // localStorage.tac_map_id. Without it we fall back to raster map
+  // with inline styles and auto-switch to hybrid during navigation
+  // (where rotation works natively without any mapId).
+  const _customMapId = localStorage.getItem('tac_map_id') || '';
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
@@ -2444,12 +2441,34 @@ function onGoogleMapsReady(){
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
   };
-  // Pass the vector mapId. With a mapId, Google hosts styling in the
-  // Cloud Console — inline `styles` would be ignored anyway, so we
-  // don't set them. POI hiding / dark theme / etc. should be configured
-  // on the Map ID itself in Cloud Console → Map Styles.
-  _mapOpts.mapId = _customMapId;
-  map=new google.maps.Map(mapEl, _mapOpts);
+  // Only pass mapId if the operator explicitly configured one (via
+  // localStorage.tac_map_id). With a valid mapId, styling moves to the
+  // Cloud Console and inline `styles` are ignored. Without one, keep
+  // the inline POI-hiding styles and rely on satellite/hybrid for
+  // rotation during navigation.
+  if(_customMapId){
+    _mapOpts.mapId = _customMapId;
+  } else {
+    _mapOpts.styles = [
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+    ];
+  }
+  try {
+    map=new google.maps.Map(mapEl, _mapOpts);
+  } catch(e){
+    console.warn('[map] init failed with options, retrying without mapId:', e && e.message);
+    delete _mapOpts.mapId;
+    _mapOpts.styles = [
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+    ];
+    map=new google.maps.Map(mapEl, _mapOpts);
+  }
 
   // On map ready: immediately pull GPS and center on the user.
   // getCurrentPosition is faster than waitPosition for the initial fix.

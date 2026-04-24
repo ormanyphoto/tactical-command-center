@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>בדיקת Map ID — TCC</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Arial;background:#0d1014;color:#e8eff5}
+  #info{position:fixed;top:0;left:0;right:0;z-index:10;background:rgba(13,16,20,0.95);padding:10px 14px;border-bottom:2px solid #1a8c2e;font-size:13px;line-height:1.5}
+  #info b{color:#3dff52}
+  #info code{background:#1c2430;padding:1px 5px;border-radius:3px;font-size:12px;color:#29c5f6}
+  #map{position:absolute;top:92px;bottom:0;left:0;right:0}
+  .status{padding:3px 8px;border-radius:4px;font-weight:700;display:inline-block;margin:2px 4px 2px 0}
+  .s-ok{background:#1a5a22;color:#3dff52}
+  .s-fail{background:#5a1a1a;color:#ff6060}
+  .s-pending{background:#3a3a1a;color:#ffc107}
+  button{background:#1a8c2e;color:white;border:none;border-radius:4px;padding:6px 12px;font-weight:700;cursor:pointer;margin:4px 2px;font-family:inherit;font-size:12px}
+</style>
+</head>
+<body>
+<div id="info">
+  <div><b>בדיקת Map ID:</b> <code>5075a944af766b257648230b</code></div>
+  <div id="status">⏳ טוען מפה...</div>
+  <div style="margin-top:6px">
+    <button onclick="testRotate()">🔄 נסה לסובב 90°</button>
+    <button onclick="testTilt()">⛰️ נסה Tilt 45°</button>
+    <button onclick="resetView()">↩️ אפס</button>
+  </div>
+  <div style="font-size:11px;color:#8fa5b8;margin-top:4px">כדי שהסיבוב יעבוד, ה-Map ID חייב להיות <b>Vector</b>. אם זה Raster, הכפתורים פה יעשו no-op.</div>
+</div>
+<div id="map"></div>
+<script>
+let map;
+function onMaps(){
+  const statusEl = document.getElementById('status');
+  try {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 32.0667, lng: 34.7818 },
+      zoom: 14,
+      mapId: '5075a944af766b257648230b',
+      rotateControl: true,
+      headingInteractionEnabled: true,
+      gestureHandling: 'greedy',
+      disableDefaultUI: false,
+      tilt: 0,
+    });
+    google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+      // Inspect the map's renderingType to verify it's VECTOR.
+      let rt = 'לא ידוע';
+      try {
+        if (google.maps.RenderingType) {
+          const r = map.getRenderingType ? map.getRenderingType() : null;
+          if (r === google.maps.RenderingType.VECTOR) rt = 'VECTOR ✅';
+          else if (r === google.maps.RenderingType.RASTER) rt = 'RASTER ❌ (לא יסתובב)';
+          else rt = String(r || 'לא ידוע');
+        }
+      } catch(e){ rt = 'שגיאה: ' + e.message; }
+      statusEl.innerHTML =
+        '<span class="status s-ok">מפה נטענה</span>' +
+        '<span class="status ' + (rt.includes('VECTOR')?'s-ok':'s-fail') + '">Rendering: ' + rt + '</span>' +
+        '<div style="font-size:11px;color:#8fa5b8;margin-top:4px">נסה שתי אצבעות לסובב (Shift+drag במחשב).</div>';
+    });
+    google.maps.event.addListener(map, 'heading_changed', () => {
+      const h = map.getHeading() || 0;
+      statusEl.querySelector('.status.s-ok')?.insertAdjacentHTML('afterend',
+        '<span class="status s-ok">סיבוב: ' + Math.round(h) + '°</span>');
+      // Remove old heading pills to avoid spam
+      const pills = statusEl.querySelectorAll('.status.s-ok');
+      if (pills.length > 3) pills[1].remove();
+    });
+  } catch(e){
+    statusEl.innerHTML = '<span class="status s-fail">כשל בטעינה: ' + e.message + '</span>';
+  }
+}
+function testRotate(){
+  if (!map) return;
+  const cur = map.getHeading() || 0;
+  try { map.setHeading(cur + 90); } catch(e){ alert('setHeading failed: ' + e.message); }
+  setTimeout(() => {
+    const after = map.getHeading() || 0;
+    if (Math.round(after) === Math.round(cur)){
+      alert('❌ הסיבוב לא עבד. ה-Map ID כנראה Raster — צריך לשנות ל-Vector ב-Cloud Console.');
+    }
+  }, 500);
+}
+function testTilt(){
+  if (!map) return;
+  try { map.setTilt(45); } catch(e){ alert('setTilt failed: ' + e.message); }
+}
+function resetView(){
+  if (!map) return;
+  map.setHeading(0); map.setTilt(0);
+}
+// Maps script
+const s = document.createElement('script');
+s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps';
+s.async = true; s.defer = true;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
