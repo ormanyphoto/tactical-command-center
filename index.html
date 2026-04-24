@@ -10791,10 +10791,17 @@ function getSelectedSkills(){
 }
 
 function buildRolesSelect(id,selected){
+  // If the person's current role isn't in the default ALL_ROLES list
+  // (it was customized earlier), prepend it as an option so the
+  // dropdown can actually select it — otherwise the <select> falls
+  // back to the empty first option and the role silently gets wiped
+  // the next time someone hits Save on their profile.
+  const options = ALL_ROLES.slice();
+  if(selected && !options.includes(selected)) options.unshift(selected);
   return `<div style="display:flex;gap:5px;align-items:stretch">
     <select id="${id}" style="flex:1;background:var(--panel3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--texthi);font-size:13px;font-family:var(--font);outline:none;transition:all 0.12s" onchange="onRoleSelectChange(this)">
       <option value="">— בחר תפקיד —</option>
-      ${ALL_ROLES.map(r=>`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('')}
+      ${options.map(r=>`<option value="${r}" ${r===selected?'selected':''}>${r}</option>`).join('')}
       <option value="__custom__">✏️ הקלד תפקיד אחר...</option>
     </select>
     <button type="button" onclick="openManageRolesModal()" title="נהל תפקידים" style="background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--text2);cursor:pointer;font-size:14px;flex-shrink:0;transition:all 0.12s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">⚙️</button>
@@ -11189,7 +11196,12 @@ function editPersonModal(id){
     p.phone=document.getElementById('ep-phone').value;
     p.email=document.getElementById('ep-email').value;
     p.unit=document.getElementById('ep-unit').value;
-    p.role=getRoleValue('ep-role');
+    // Preserve existing role if the select couldn't represent it
+    // (e.g. the role was customized before we added the
+    // "keep custom in dropdown" fix). Only overwrite when the
+    // dropdown actually returned a value.
+    const _newRole = getRoleValue('ep-role');
+    if(_newRole) p.role = _newRole;
     p.callsign=document.getElementById('ep-callsign').value;
     const dobVal=(document.getElementById('ep-dob')||{}).value||'';
     p.dob=dobVal||null; // ISO YYYY-MM-DD or null
