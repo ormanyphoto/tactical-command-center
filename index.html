@@ -2410,14 +2410,15 @@ function onGoogleMapsReady(){
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
-  // Vector map ID — required for proper rotation where only the tile
-  // content rotates and labels/markers stay upright (Waze-style), on
-  // the roadmap view. Without a mapId the map renders as legacy raster
-  // tiles and setHeading() silently no-ops. The user can override with
-  // their own Cloud Console Map ID via localStorage.tac_map_id.
+  // Vector map ID — required for proper rotation on the roadmap view
+  // (Waze-style: tiles rotate, labels stay upright). Only effective if
+  // the operator configured a real Cloud Console Map ID. DEMO_MAP_ID
+  // was tried earlier but doesn't reliably enable vector rendering,
+  // so without a real ID we fall back to raster and rely on auto-
+  // switching to hybrid view during navigation (where rotation works
+  // natively on any map).
   const _customMapId = localStorage.getItem('tac_map_id') || '';
-  const _effectiveMapId = _customMapId || 'DEMO_MAP_ID';
-  map=new google.maps.Map(mapEl,{
+  const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
     minZoom:8,
@@ -2427,10 +2428,9 @@ function onGoogleMapsReady(){
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
-    // Vector rendering + rotation gestures — two-finger twist on touch
-    // rotates the map content while labels stay upright, just like any
-    // nav app.
-    mapId: _effectiveMapId,
+    // Rotation gestures — two-finger twist on touch. Works natively on
+    // satellite/hybrid (always) and on roadmap only when a vector Map
+    // ID is configured.
     rotateControl:true,
     headingInteractionEnabled:true,
     isFractionalZoomEnabled:true,
@@ -2442,14 +2442,22 @@ function onGoogleMapsReady(){
       strictBounds:true
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
-    // Hide POI icons and transit markers — keep only roads, buildings, addresses
-    styles:[
+  };
+  // Only pass mapId if the operator configured a real one. With a valid
+  // mapId, Google hosts styling in the Cloud Console — styles here are
+  // ignored. Without a mapId, keep the inline styles so POI icons stay
+  // hidden on roadmap.
+  if(_customMapId){
+    _mapOpts.mapId = _customMapId;
+  } else {
+    _mapOpts.styles = [
       {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
       {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
       {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
       {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
-    ],
-  });
+    ];
+  }
+  map=new google.maps.Map(mapEl, _mapOpts);
 
   // On map ready: immediately pull GPS and center on the user.
   // getCurrentPosition is faster than waitPosition for the initial fix.
@@ -4535,6 +4543,24 @@ function navSwapOriginDestination(){
 let _navLiveActive = false;
 function _navStartLiveMode(route){
   _navLiveActive = true;
+  // If the user has "rotate map with heading" enabled and we're on
+  // legacy roadmap tiles (no vector Map ID configured), auto-switch
+  // to hybrid view so rotation actually works. Rotation of raster
+  // roadmap tiles is not supported by Google Maps JS API. Satellite
+  // and hybrid are raster too but contain no text, so rotating them
+  // is visually fine. We remember the original type to restore on stop.
+  try {
+    const rotOn = document.getElementById('nav-rotate-map')?.checked !== false;
+    const hasMapId = !!(localStorage.getItem('tac_map_id') || '');
+    if(rotOn && !hasMapId && window.map && typeof window.map.getMapTypeId === 'function'){
+      const cur = window.map.getMapTypeId();
+      if(cur === 'roadmap' || cur === 'terrain'){
+        window._navPrevMapType = cur;
+        try { window.map.setMapTypeId('hybrid'); } catch(_){}
+        showToast({icon:'🛰️', title:'עברנו לתצוגת לוויין', sub:'כדי שהסיבוב עובד; לחזרה: כפתור תצוגה 🏘', type:'info', duration:4500});
+      }
+    }
+  } catch(_){}
   // Follow-Me is forced ON while navigating — the operator always wants
   // the map to track them. It's still togglable from the map-tools panel
   // if they insist on panning around manually.
@@ -4565,6 +4591,11 @@ function _navStopLiveMode(){
   // Restore the default north-up orientation on the map (native + CSS fallback).
   try { if(window.map && typeof window.map.setHeading === 'function') window.map.setHeading(0); } catch(_){}
   if(typeof _navClearCssRotation === 'function') _navClearCssRotation();
+  // Restore the map type if we auto-switched to hybrid on start.
+  if(window._navPrevMapType && window.map && typeof window.map.setMapTypeId === 'function'){
+    try { window.map.setMapTypeId(window._navPrevMapType); } catch(_){}
+    window._navPrevMapType = null;
+  }
 }
 // Called on every own-GPS fix while navigation is live. Does three things:
 //   1. Rotate the map so the heading direction is "up" (if user opted in).
