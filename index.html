@@ -3961,7 +3961,6 @@ async function calcNavRoute(originOverride, isRecalc){
   // Route options — read from the checkboxes in the nav panel
   const avoidTolls    = !!document.getElementById('nav-avoid-tolls')?.checked;
   const avoidHighways = !!document.getElementById('nav-avoid-highways')?.checked;
-  const avoidFerries  = !!document.getElementById('nav-avoid-ferries')?.checked;
   const avoidABZones  = document.getElementById('nav-avoid-ab-zones')?.checked !== false;
   if(!isRecalc) showToast({icon:'🔄',title:'מחשב מסלול...',type:'info',duration:3000});
   // Try fetching alternative routes so that if the top pick intersects an
@@ -3969,7 +3968,7 @@ async function calcNavRoute(originOverride, isRecalc){
   _dirService.route({
     origin, destination,
     travelMode: google.maps.TravelMode[mode], language:'he', region:'IL',
-    avoidTolls, avoidHighways, avoidFerries,
+    avoidTolls, avoidHighways,
     provideRouteAlternatives: avoidABZones,
   }, (result, status) => {
     if(status !== 'OK'){
@@ -5997,7 +5996,6 @@ function _saveNavPanelState(){
     picker:  sel ? sel.value : '',
     avoidTolls:    cb('nav-avoid-tolls'),
     avoidHighways: cb('nav-avoid-highways'),
-    avoidFerries:  cb('nav-avoid-ferries'),
     avoidABZones:  cb('nav-avoid-ab-zones'),
     rotateMap:     cb('nav-rotate-map'),
     autoRecalc:    cb('nav-auto-recalc'),
@@ -6030,7 +6028,6 @@ function _restoreNavPanelState(){
   const setCb = (id, v) => { const el = document.getElementById(id); if(el && typeof v === 'boolean') el.checked = v; };
   setCb('nav-avoid-tolls',    s.avoidTolls);
   setCb('nav-avoid-highways', s.avoidHighways);
-  setCb('nav-avoid-ferries',  s.avoidFerries);
   setCb('nav-avoid-ab-zones', s.avoidABZones);
   setCb('nav-rotate-map',     s.rotateMap);
   setCb('nav-auto-recalc',    s.autoRecalc);
@@ -6077,18 +6074,17 @@ function renderNavigationP(c){
   <div class="form-g"><label>אמצעי תחבורה</label><select id="nav-mode"><option value="DRIVING">🚗 נסיעה</option><option value="WALKING">🚶 הליכה</option></select></div>
   <div class="form-g">
     <label style="margin-bottom:4px;display:block">אפשרויות מסלול</label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px">
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-tolls" style="accent-color:var(--accent)">🛣️ ללא אגרה</label>
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-highways" style="accent-color:var(--accent)">🚧 ללא מהירים</label>
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nav-avoid-ferries" style="accent-color:var(--accent)">⛴️ ללא מעבורות</label>
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="סינון מסלול שעובר דרך שטחי A ו-B (הגבלת חוק)"><input type="checkbox" id="nav-avoid-ab-zones" style="accent-color:var(--accent)" checked>⚠️ ללא שטחי A/B</label>
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px">
+      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap"><input type="checkbox" id="nav-avoid-tolls" style="accent-color:var(--accent);flex-shrink:0"><span>🛣️ ללא כבישי אגרה</span></label>
+      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)"><input type="checkbox" id="nav-avoid-highways" style="accent-color:var(--accent);flex-shrink:0"><span>🚧 ללא כבישים מהירים</span></label>
+      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)" title="סינון מסלול שעובר דרך שטחי A ו-B (הגבלת חוק)"><input type="checkbox" id="nav-avoid-ab-zones" style="accent-color:var(--accent);flex-shrink:0" checked><span>⚠️ ללא שטחי A ו-B</span></label>
     </div>
   </div>
   <div class="form-g">
     <label style="margin-bottom:4px;display:block">ניווט חי</label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 10px">
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="המפה תסתובב עם כיוון הנסיעה במקום צפון למעלה"><input type="checkbox" id="nav-rotate-map" style="accent-color:var(--accent)" checked>🧭 סיבוב מפה לפי כיוון</label>
-      <label class="nav-opt" style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer" title="חישוב מסלול חליפי אוטומטית אם סטית מהדרך"><input type="checkbox" id="nav-auto-recalc" style="accent-color:var(--accent)" checked>🔄 חישוב חוזר בסטייה</label>
+    <div style="display:flex;flex-direction:column;gap:2px;background:var(--panel2);border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px">
+      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap" title="המפה תסתובב עם כיוון הנסיעה במקום צפון למעלה"><input type="checkbox" id="nav-rotate-map" style="accent-color:var(--accent);flex-shrink:0" checked><span>🧭 סיבוב מפה לפי כיוון הנסיעה</span></label>
+      <label class="nav-opt" style="font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;white-space:nowrap;border-top:1px solid var(--border)" title="חישוב מסלול חליפי אוטומטית אם סטית מהדרך"><input type="checkbox" id="nav-auto-recalc" style="accent-color:var(--accent);flex-shrink:0" checked><span>🔄 חישוב מחדש בסטייה מהמסלול</span></label>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-bottom:10px">
@@ -6140,7 +6136,7 @@ function renderNavigationP(c){
   // Persist state whenever the user changes any form field so the
   // snapshot is fresh the next time the panel renders.
   ['nav-from','nav-to','nav-mode','nav-picker',
-   'nav-avoid-tolls','nav-avoid-highways','nav-avoid-ferries','nav-avoid-ab-zones',
+   'nav-avoid-tolls','nav-avoid-highways','nav-avoid-ab-zones',
    'nav-rotate-map','nav-auto-recalc'].forEach(id => {
     const el = document.getElementById(id);
     if(!el || el._navSaveBound) return;
