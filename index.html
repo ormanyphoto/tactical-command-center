@@ -2410,14 +2410,15 @@ function onGoogleMapsReady(){
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
-  // Vector map ID — required for proper rotation on the roadmap view
-  // (Waze-style: tiles rotate, labels stay upright). Only effective if
-  // the operator configured a real Cloud Console Map ID. DEMO_MAP_ID
-  // was tried earlier but doesn't reliably enable vector rendering,
-  // so without a real ID we fall back to raster and rely on auto-
-  // switching to hybrid view during navigation (where rotation works
-  // natively on any map).
-  const _customMapId = localStorage.getItem('tac_map_id') || '';
+  // Vector map ID — enables proper rotation on the roadmap view where
+  // only tiles rotate and labels stay upright (Waze-style). This is a
+  // real Cloud Console Map ID created for the tactical-command-center
+  // project, configured for JavaScript + Vector rendering. Operators
+  // can override with their own Map ID via localStorage.tac_map_id if
+  // they want a different style; otherwise the default vector ID below
+  // is used.
+  const TCC_DEFAULT_MAP_ID = '5075a944af766b257648230b';
+  const _customMapId = localStorage.getItem('tac_map_id') || TCC_DEFAULT_MAP_ID;
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
@@ -2443,20 +2444,11 @@ function onGoogleMapsReady(){
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
   };
-  // Only pass mapId if the operator configured a real one. With a valid
-  // mapId, Google hosts styling in the Cloud Console — styles here are
-  // ignored. Without a mapId, keep the inline styles so POI icons stay
-  // hidden on roadmap.
-  if(_customMapId){
-    _mapOpts.mapId = _customMapId;
-  } else {
-    _mapOpts.styles = [
-      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
-      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
-      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
-    ];
-  }
+  // Pass the vector mapId. With a mapId, Google hosts styling in the
+  // Cloud Console — inline `styles` would be ignored anyway, so we
+  // don't set them. POI hiding / dark theme / etc. should be configured
+  // on the Map ID itself in Cloud Console → Map Styles.
+  _mapOpts.mapId = _customMapId;
   map=new google.maps.Map(mapEl, _mapOpts);
 
   // On map ready: immediately pull GPS and center on the user.
@@ -4549,15 +4541,19 @@ function _navStartLiveMode(route){
   // roadmap tiles is not supported by Google Maps JS API. Satellite
   // and hybrid are raster too but contain no text, so rotating them
   // is visually fine. We remember the original type to restore on stop.
+  // With the default TCC vector Map ID active, roadmap tiles rotate
+  // correctly (tiles move, labels stay upright), so no auto-switch to
+  // hybrid is needed. Kept as a safety net only when the map was init
+  // without any mapId (e.g. older cached install) — skipped otherwise.
   try {
     const rotOn = document.getElementById('nav-rotate-map')?.checked !== false;
-    const hasMapId = !!(localStorage.getItem('tac_map_id') || '');
+    const hasMapId = !!(window.map && window.map.get && window.map.get('mapId'));
     if(rotOn && !hasMapId && window.map && typeof window.map.getMapTypeId === 'function'){
       const cur = window.map.getMapTypeId();
       if(cur === 'roadmap' || cur === 'terrain'){
         window._navPrevMapType = cur;
         try { window.map.setMapTypeId('hybrid'); } catch(_){}
-        showToast({icon:'🛰️', title:'עברנו לתצוגת לוויין', sub:'כדי שהסיבוב עובד; לחזרה: כפתור תצוגה 🏘', type:'info', duration:4500});
+        showToast({icon:'🛰️', title:'עברנו לתצוגת לוויין', sub:'כדי שהסיבוב עובד', type:'info', duration:3500});
       }
     }
   } catch(_){}
