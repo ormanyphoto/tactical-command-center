@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6.18.2-' + '2026042421';
+const CACHE = 'tac-debug-touch-' + '2026042422';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install

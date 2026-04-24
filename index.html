@@ -2473,6 +2473,64 @@ function onGoogleMapsReady(){
       {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
     ];
   }
+  // ══════════════════════════════════════════════════════════════════
+  // [DEBUG map-touch-events branch] Touch gesture instrumentation
+  // ──────────────────────────────────────────────────────────────────
+  // Logs every touch event that hits #gmap and its ancestors up to
+  // <body>, plus the same events on `window` (capture phase). Shows:
+  //   • event type (touchstart / touchmove / touchend / touchcancel)
+  //   • where it hit (element tag + id + class)
+  //   • phase (capture / bubble / target)
+  //   • number of touches (2 = two-finger gesture = rotate/zoom)
+  //   • whether preventDefault / stopPropagation were called elsewhere
+  //     (we track via "defaultPrevented" on the event object)
+  // If 2-finger touches reach #gmap but rotation doesn't happen → Google
+  // Maps isn't responding. If they never reach #gmap → something upstream
+  // is swallowing them (a bubble-up CSS overlay, a parent element with
+  // pointer-events, a passive touch-action, etc.).
+  (function _installTouchDiag(){
+    const el = mapEl || document.getElementById('gmap');
+    if(!el) return;
+    const d = (tag, color) => (ev) => {
+      try {
+        const t = ev.target;
+        const path = [];
+        let n = t;
+        while(n && n !== document.body && path.length < 6){
+          path.push((n.tagName||'?').toLowerCase() + (n.id?('#'+n.id):'') + (n.className&&typeof n.className==='string'?('.'+n.className.split(' ').slice(0,2).join('.')):''));
+          n = n.parentElement;
+        }
+        const fingers = ev.touches ? ev.touches.length : 0;
+        const changed = ev.changedTouches ? ev.changedTouches.length : 0;
+        console.log(
+          '%c[TOUCH '+tag+']'+' %c'+ev.type+' fingers='+fingers+' changed='+changed+' defaultPrevented='+ev.defaultPrevented,
+          'color:'+color+';font-weight:bold',
+          'color:#ccc',
+          '\n  path: '+path.reverse().join(' > '),
+          '\n  event:', ev
+        );
+      } catch(e){ console.warn('[TOUCH '+tag+']', e); }
+    };
+    ['touchstart','touchmove','touchend','touchcancel'].forEach(t=>{
+      // On #gmap in CAPTURE phase — fires before any child handler
+      el.addEventListener(t, d('#gmap CAPTURE', '#3dff52'), { capture: true, passive: true });
+      // On #gmap in BUBBLE phase — fires after children handled it
+      el.addEventListener(t, d('#gmap BUBBLE',  '#29c5f6'), { capture: false, passive: true });
+      // On WINDOW in capture — earliest the page can see a gesture
+      window.addEventListener(t, d('window CAP',  '#ffc107'), { capture: true, passive: true });
+    });
+    // Also log touch-action CSS values up the DOM tree at load time
+    // so we can spot any parent that disabled gestures.
+    let n = el;
+    while(n && n !== document.body){
+      const ta = getComputedStyle(n).touchAction;
+      if(ta && ta !== 'auto') console.log('[TOUCH cfg] touch-action on', n.tagName + (n.id?'#'+n.id:''), '=', ta);
+      n = n.parentElement;
+    }
+    console.log('%c[TOUCH diag] installed — pinch/rotate the map with two fingers now','color:#3dff52;font-weight:bold;font-size:14px');
+  })();
+  // END DEBUG INSTRUMENTATION
+  // ══════════════════════════════════════════════════════════════════
   try {
     map=new google.maps.Map(mapEl, _mapOpts);
   } catch(e){
