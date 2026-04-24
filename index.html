@@ -443,6 +443,7 @@ body.day .btn-pri{background:rgba(26,140,46,0.08)}
 /* Equipment actions column: uniform button size + small gap between buttons */
 .eq-actions{display:inline-flex;gap:6px;align-items:center}
 .eq-actions .act-btn{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.eq-actions .act-btn svg{width:15px;height:15px;display:block;stroke:currentColor}
 /* Drag-and-drop visual feedback for equipment rows/cards */
 .eq-drag-row{cursor:grab}
 .eq-drag-row:active{cursor:grabbing}
@@ -15350,7 +15351,7 @@ function _renderEquipment(c){
                   +'</div>'
                 +'</div>'
                 +'<div class="eq-actions" style="width:100%;justify-content:flex-end">'
-                  +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+                  +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></button>'
                   +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
                   +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
                 +'</div>'
@@ -15397,7 +15398,7 @@ function _renderEquipment(c){
               +'<td><div class="eq-actions">'
               +'<button class="act-btn" onclick="moveEqItem(\''+it.id+'\',-1)" title="הזז למעלה">▲</button>'
               +'<button class="act-btn" onclick="moveEqItem(\''+it.id+'\',1)" title="הזז למטה">▼</button>'
-              +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות">⇄</button>'
+              +'<button class="act-btn" onclick="assignEquipmentModal(\''+it.id+'\')" title="חלק לאיש צוות"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></button>'
               +'<button class="act-btn" onclick="editEquipmentItemModal(\''+it.id+'\')" title="ערוך פריט">✏</button>'
               +'<button class="act-btn del" onclick="delEquipment(\''+it.id+'\')" title="מחק">✕</button>'
               +'</div></td>'
