@@ -14218,8 +14218,15 @@ function toggleAddressLayer(){
       // Wrap X so world tiles work; return empty for out-of-bounds Y
       tileX = ((tileX % n) + n) % n;
       if(tileY < 0 || tileY >= n) return div;
-      const sub = ['a','b','c'][Math.abs(tileX + tileY) % 3];
-      const url = 'https://'+sub+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      // Tile provider: CartoDB Voyager (same OSM data, styled, CDN-backed,
+      // no User-Agent restrictions). OSM's own tile server blocks generic
+      // mobile UAs per their foundation policy, which silently broke the
+      // "כתובות ומבנים" layer on phone/tablet. CartoDB's subdomains are
+      // a/b/c/d — spreading requests across four reduces per-host load.
+      const sub = ['a','b','c','d'][Math.abs(tileX + tileY) % 4];
+      const url = 'https://'+sub+'.basemaps.cartocdn.com/rastertiles/voyager/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
+      // Fallback to OSM if CartoDB 4xx/5xxs (wired up below via onerror).
+      const fallbackUrl = 'https://'+['a','b','c'][Math.abs(tileX + tileY) % 3]+'.tile.openstreetmap.org/'+tileZoom+'/'+tileX+'/'+tileY+'.png';
       // Retry helper — attempts the same URL once more after 2s
       function _retryTile(imgEl, retryUrl){
         if(imgEl._retried) return;
@@ -14237,9 +14244,10 @@ function toggleAddressLayer(){
         img.onerror = function(){
           // Hide broken image icon immediately to prevent ugly placeholders on mobile
           img.style.display = 'none';
+          // First retry: try the OSM fallback (if CartoDB had a hiccup)
           if(!img._retried){
             img._retried = true;
-            setTimeout(()=>{ img.style.display = 'block'; img.src = url + '?r=1'; }, 2000);
+            setTimeout(()=>{ img.style.display = 'block'; img.src = fallbackUrl; }, 800);
             return;
           }
           // Only toast when a SIGNIFICANT share of tiles fail — a single
@@ -14275,10 +14283,10 @@ function toggleAddressLayer(){
           div.style.imageRendering = factor >= 4 ? 'pixelated' : 'auto';
         };
         probe.onerror = function(){
-          // Retry once after 2s
+          // Retry once with the OSM fallback URL (if CartoDB hiccupped)
           if(!probe._retried){
             probe._retried = true;
-            setTimeout(()=>{ probe.src = url + '?r=1'; }, 2000);
+            setTimeout(()=>{ probe.src = fallbackUrl; }, 800);
           }
         };
         probe.src = url;
