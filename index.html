@@ -289,7 +289,25 @@ body.day .map-ov-btn.map-ov-locate:hover{color:#fff}
 .mp-btn-label{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:right}
 .mp-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:4px}
 
+#map-wrap,
+#gmap{
+  touch-action:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+  user-select:none;
+}
 #map-wrap{flex:1;position:relative;overflow:hidden}
+/* Overlay containers sitting on top of the map must be transparent to
+   pointer events so two-finger rotate / pinch gestures that land on
+   them fall through to Google Maps. Interactive children inside each
+   container re-enable pointer-events:auto. */
+#search-wrap{pointer-events:none}
+#search-wrap > #search-input,
+#search-wrap > #search-results,
+#search-wrap > #search-results .sr-item{pointer-events:auto}
+#map-zoom-overlay{pointer-events:none}
+#map-zoom-overlay > .map-ov-btn,
+#map-zoom-overlay > button{pointer-events:auto}
 #gmap{position:absolute;inset:0;width:100%;height:100%;transform:none!important}
 #statusbar{position:absolute;bottom:0;left:0;right:0;height:22px;background:rgba(7,9,10,0.88);backdrop-filter:blur(4px);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:10px;font-weight:600;color:var(--text3);z-index:200;direction:rtl;border-top:1px solid var(--border)}
 body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--border2)}
@@ -2422,57 +2440,45 @@ function onGoogleMapsReady(){
   // says — otherwise users on WebGL1-only browsers get a blank black
   // map. The fallback is raster roadmap + inline styles + auto-switch
   // to hybrid for rotation during navigation.
-  // Map type — RASTER only. We tried Google Maps JS Vector (with
-  // valid mapId + confirmed WebGL2) and it silently failed to render
-  // on multiple devices including a flagship Galaxy S26 Ultra. Google
-  // Maps JS Vector is not a reliable enough foundation for this app,
-  // so we stay on raster and never attempt vector automatically.
-  // If a specific device is known to work, an operator can opt in
-  // with localStorage.tac_map_id — but that's a per-device choice,
-  // not a default.
-  const _customMapId = (() => {
-    try { return localStorage.getItem('tac_map_id') || ''; } catch(_){ return ''; }
+  // Vector Map ID (default) — enables Waze-style tile rotation where
+  // only the tiles rotate and labels stay upright. Requires WebGL2
+  // which is supported on every modern desktop browser and modern
+  // mobile/tablet (iPhone 11+, Galaxy S9+, etc.).
+  // Operator can override per-device via localStorage.tac_map_id.
+  // POI hiding + dark theme previously done via inline `styles` is
+  // now configured in the Cloud Console on this mapId; see notes in
+  // the summary about what needs to be re-applied there.
+  const mapId = (() => {
+    try { return localStorage.getItem('tac_map_id') || '5075a944af766b257648230b'; }
+    catch(_){ return '5075a944af766b257648230b'; }
   })();
   const _mapOpts = {
+    mapId: mapId,                                         // vector rendering + rotation
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
     minZoom:8,
     maxZoom:20,
     mapTypeId:'roadmap',
-    disableDefaultUI:true,
+    disableDefaultUI:true,                                // kept — we render our own controls
     gestureHandling:'greedy',
     clickableIcons:false,
     tilt:0,
-    // Rotation gestures — two-finger twist on touch. Works natively on
-    // satellite/hybrid (always) and on roadmap only when a vector Map
-    // ID is configured.
+    heading:0,
     rotateControl:true,
     headingInteractionEnabled:true,
     isFractionalZoomEnabled:true,
     backgroundColor:'#0d1014',  // Dark bg prevents white flash before tiles load
     restriction:{
       // Israel + ~150 km buffer in all directions (1° lat ≈ 111 km, 1° lng ≈ 94 km at 32°N).
-      // Original tight bounds: north 33.5 / south 29.3 / west 34.2 / east 35.9.
       latLngBounds:{north:34.85, south:27.95, west:32.6, east:37.5},
       strictBounds:true
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
+    // NOTE: inline `styles` (POI hiding, transit hiding) REMOVED because
+    // it conflicts with mapId — Google Maps logs a warning and ignores
+    // them. These need to be applied to the Map Style associated with
+    // the mapId in Cloud Console. See summary for the exact rules.
   };
-  // Only pass mapId if the operator explicitly configured one (via
-  // localStorage.tac_map_id). With a valid mapId, styling moves to the
-  // Cloud Console and inline `styles` are ignored. Without one, keep
-  // the inline POI-hiding styles and rely on satellite/hybrid for
-  // rotation during navigation.
-  if(_customMapId){
-    _mapOpts.mapId = _customMapId;
-  } else {
-    _mapOpts.styles = [
-      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
-      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
-      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
-      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
-    ];
-  }
   // ══════════════════════════════════════════════════════════════════
   // [DEBUG map-touch-events branch] Touch gesture instrumentation
   // ──────────────────────────────────────────────────────────────────
