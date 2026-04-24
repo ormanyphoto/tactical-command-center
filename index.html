@@ -2410,12 +2410,29 @@ function onGoogleMapsReady(){
   const mapEl=document.getElementById('gmap');
   // Ensure the map container is visible before initialising
   if(mapEl){mapEl.style.display='block';mapEl.style.position='absolute';mapEl.style.inset='0';mapEl.style.width='100%';mapEl.style.height='100%';}
-  // Vector map ID — required for proper rotation on the roadmap view.
-  // Only applied if the operator has explicitly configured one via
-  // localStorage.tac_map_id. Without it we fall back to raster map
-  // with inline styles and auto-switch to hybrid during navigation
-  // (where rotation works natively without any mapId).
-  const _customMapId = localStorage.getItem('tac_map_id') || '';
+  // Vector map ID — enables proper rotation on the roadmap view where
+  // only tiles rotate and labels stay upright. Requires BOTH:
+  //  1. A real Cloud Console Map ID (default here or overridden via
+  //     localStorage.tac_map_id)
+  //  2. WebGL2 support in the browser — Google's vector renderer will
+  //     silently fail to draw any tiles if only WebGL1 is available,
+  //     leaving the map blank.
+  // We probe WebGL2 up front; if it isn't supported we skip the mapId
+  // entirely and fall back to raster roadmap + inline styles + auto-
+  // switch-to-hybrid during navigation. That path has no rotation on
+  // roadmap but at least the map works.
+  const TCC_DEFAULT_MAP_ID = '5075a944af766b257648230b';
+  const _hasWebGL2 = (() => {
+    try {
+      const c = document.createElement('canvas');
+      return !!c.getContext('webgl2');
+    } catch(_){ return false; }
+  })();
+  if(!_hasWebGL2){
+    console.warn('[map] WebGL2 not available — falling back to raster map (rotation on roadmap disabled). Enable hardware acceleration in the browser to get vector tiles.');
+  }
+  const _customMapId = localStorage.getItem('tac_map_id') ||
+                       (_hasWebGL2 ? TCC_DEFAULT_MAP_ID : '');
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
