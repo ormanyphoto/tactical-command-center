@@ -5037,26 +5037,66 @@ function setTheme(m){
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
     // Vector path (mapId present) — colorScheme is read-only after init.
-    // Setting it via setOptions silently fails; FOLLOW_SYSTEM only follows
-    // OS-level prefers-color-scheme (CSS color-scheme can't override it).
-    // The only reliable way to switch is to recreate the map with the new
-    // colorScheme. We do that via a quick page reload — saved theme has
-    // already been written to localStorage above so init picks it up.
+    // Recreate the Map IN-PLACE with the new colorScheme (no page reload,
+    // no logout). Markers are re-attached via the existing rerenderMarkers
+    // / plot* helpers which read from the live data sources.
     const hasMapId = !!map.get('mapId');
     if (hasMapId) {
       try { document.documentElement.style.colorScheme = (m === 'night') ? 'dark' : 'light'; } catch(_){}
-      // Reload only if the current map color scheme actually differs from
-      // the requested one — first-load setTheme calls (DOMContentLoaded +
-      // synchronous) come in with the value already matching, so no reload.
       try {
         const currentScheme = (map.get('colorScheme') || '').toString().toUpperCase();
         const wantedScheme  = (m === 'night') ? 'DARK' : 'LIGHT';
         if (currentScheme && currentScheme !== wantedScheme && currentScheme !== 'FOLLOW_SYSTEM') {
-          // Defer slightly so the body class / button icons paint first
-          setTimeout(() => location.reload(), 120);
-          return;
+          // Save view state
+          const _center = map.getCenter();
+          const _zoom = map.getZoom();
+          const _heading = map.getHeading() || 0;
+          const _tilt = map.getTilt() || 0;
+          const _mapId = map.get('mapId');
+          const _div = map.getDiv();
+          // Detach listeners + drop the old instance
+          try { google.maps.event.clearInstanceListeners(map); } catch(_){}
+          // Create a fresh map with the new colorScheme. Match the original
+          // option set so behaviour is identical apart from theme.
+          const _newOpts = {
+            mapId: _mapId,
+            colorScheme: wantedScheme,
+            center: _center, zoom: _zoom,
+            heading: _heading, tilt: _tilt,
+            minZoom: 8, maxZoom: 20,
+            disableDefaultUI: true,
+            gestureHandling: 'greedy',
+            clickableIcons: false,
+            rotateControl: true,
+            headingInteractionEnabled: true,
+            isFractionalZoomEnabled: true,
+            backgroundColor: '#0d1014',
+          };
+          window.map = new google.maps.Map(_div, _newOpts);
+          // Re-attach compass heading listener (the click handler lives on
+          // the DOM button so it survives).
+          try {
+            const _csvg = document.getElementById('compass-svg');
+            if (_csvg) {
+              const _upd = () => {
+                const h = (window.map && window.map.getHeading()) || 0;
+                _csvg.style.transform = 'rotate(' + (-(((h%360)+360)%360)) + 'deg)';
+              };
+              window.map.addListener('heading_changed', _upd);
+              _upd();
+            }
+          } catch(_){}
+          // Re-plot everything that lived on the old map
+          google.maps.event.addListenerOnce(window.map, 'idle', () => {
+            try { if (typeof plotMissions === 'function') plotMissions(); } catch(_){}
+            try { if (typeof plotUnits === 'function') plotUnits(); } catch(_){}
+            try { if (typeof plotGFs === 'function') plotGFs(); } catch(_){}
+            try { if (typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers(); } catch(_){}
+            try { if (typeof _triggerMapResize === 'function') _triggerMapResize(); } catch(_){}
+          });
+          return;   // skip the legacy raster `setOptions({styles})` path
         }
-      } catch(_){}
+      } catch(e){ console.warn('[theme] map recreate failed:', e && e.message); }
     } else {
       // POIs/transit are intentionally visible — see _poiHide comment at init.
       const _ph=window._poiHide||[];
