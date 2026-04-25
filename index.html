@@ -9536,15 +9536,24 @@ async function cleanOrphanLocations(){
     const sig = sigOf(uid, d);
     (groups[sig] = groups[sig] || []).push({ uid, d, ts: d.ts || 0 });
   });
+  // FRESH_KEEP_MS — within this window, treat both entries as "actively
+  // publishing" and KEEP both (don't delete an active session). Anything
+  // older than the winner by this much is a duplicate from a now-idle
+  // device and gets removed.
+  const FRESH_KEEP_MS = 90 * 1000;   // 90 seconds
   const orphans = [];
   Object.values(groups).forEach(arr => {
     if (arr.length < 2) return;                 // single entry — never an orphan
     arr.sort((a,b) => b.ts - a.ts);             // newest first
     const winner = arr[0];
     arr.slice(1).forEach(loser => {
-      // Only delete losers that are also stale (> 30 min) — avoids racing
-      // with a device that's actively publishing.
-      if (now - loser.ts > STALE_MS) {
+      const lag = winner.ts - loser.ts;
+      // Loser is a duplicate if EITHER:
+      //   - it's stale by absolute time (>30 min old), OR
+      //   - the winner is publishing much fresher than it is (>90s lag),
+      //     meaning the loser is from an old session that's no longer
+      //     actively reporting.
+      if (now - loser.ts > STALE_MS || lag > FRESH_KEEP_MS) {
         orphans.push({
           uid: loser.uid,
           name: loser.d.name || '?',
