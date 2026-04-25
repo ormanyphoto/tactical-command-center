@@ -2536,13 +2536,14 @@ function onGoogleMapsReady(){
     // NO mapTypeControlOptions (each tested as a StaticMap-fallback trigger).
     _mapOpts.mapId = mapId;
     // colorScheme is read-only after instantiation — we MUST set it here
-    // to match the user's saved theme. The setTheme() runtime toggle
-    // triggers a page reload to pick up the new value.
+    // to match the user's saved theme. setTheme() at runtime recreates
+    // the map in-place with the new colorScheme.
     try {
       const _theme = localStorage.getItem('tac-v5-theme') || 'night';
       _mapOpts.colorScheme = (_theme === 'night') ? 'DARK' : 'LIGHT';
+      window._currentMapScheme = _mapOpts.colorScheme;   // own bookkeeping
       document.documentElement.style.colorScheme = (_theme === 'night') ? 'dark' : 'light';
-    } catch(_){ _mapOpts.colorScheme = 'DARK'; }
+    } catch(_){ _mapOpts.colorScheme = 'DARK'; window._currentMapScheme = 'DARK'; }
   } else {
     // Raster path — full option set + inline POI/transit hiding styles.
     _mapOpts.mapTypeId = 'roadmap';
@@ -5044,9 +5045,11 @@ function setTheme(m){
     if (hasMapId) {
       try { document.documentElement.style.colorScheme = (m === 'night') ? 'dark' : 'light'; } catch(_){}
       try {
-        const currentScheme = (map.get('colorScheme') || '').toString().toUpperCase();
+        // Track scheme ourselves — map.get('colorScheme') is unreliable
+        // after recreation. Default to 'DARK' to match init-time fallback.
+        const currentScheme = (window._currentMapScheme || 'DARK').toString().toUpperCase();
         const wantedScheme  = (m === 'night') ? 'DARK' : 'LIGHT';
-        if (currentScheme && currentScheme !== wantedScheme && currentScheme !== 'FOLLOW_SYSTEM') {
+        if (currentScheme !== wantedScheme) {
           // Save view state
           const _center = map.getCenter();
           const _zoom = map.getZoom();
@@ -5073,6 +5076,7 @@ function setTheme(m){
             backgroundColor: '#0d1014',
           };
           window.map = new google.maps.Map(_div, _newOpts);
+          window._currentMapScheme = wantedScheme;
           // Re-attach compass heading listener (the click handler lives on
           // the DOM button so it survives).
           try {
