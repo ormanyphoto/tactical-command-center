@@ -19521,6 +19521,30 @@ const FIELD = {
 // every SW registration and every cache, then reloads to a clean URL.
 // Also accepts hash #purge for cases where query strings are stripped
 // by native app routing.
+// ── No-SW debug mode ────────────────────────────────────────────────────
+// ?nosw=1 — unregister every Service Worker and wipe Cache Storage at
+// boot, BEFORE any other code runs. Used during diagnostic sessions
+// (paired with ?debug=1 / Eruda) so the SW can't reload-loop while
+// inspecting the page on a phone. Synchronous async fire-and-forget —
+// we don't await so app boot doesn't pause.
+(function noSWIfRequested(){
+  try {
+    if(new URLSearchParams(location.search).get('nosw') !== '1') return;
+    if(navigator.serviceWorker){
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+        console.log('[nosw] unregistered', regs.length, 'service workers');
+      }).catch(()=>{});
+    }
+    if(window.caches){
+      caches.keys().then(keys => {
+        keys.forEach(k => caches.delete(k));
+        console.log('[nosw] deleted', keys.length, 'caches');
+      }).catch(()=>{});
+    }
+  } catch(_){}
+})();
+
 (function nukeIfRequested(){
   try {
     const qs = new URLSearchParams(location.search);
@@ -19584,7 +19608,12 @@ const FIELD = {
   } catch(_){}
   // Register service worker — updateViaCache:'none' so sw.js is always fetched
   // fresh from network. No forced page reloads here — they caused re-login loops.
-  if('serviceWorker' in navigator){
+  // Skip registration entirely when ?nosw=1 is in the URL (debug only) so the
+  // SW can't reload-loop while we're inspecting the page with Eruda.
+  const _noSW = (() => { try { return new URLSearchParams(location.search).get('nosw') === '1'; } catch(_){ return false; } })();
+  if(_noSW){
+    console.log('[sw] registration skipped (?nosw=1)');
+  } else if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
       .then(reg => {
         // Force an update check every time the tab becomes visible (user
@@ -19607,9 +19636,14 @@ const FIELD = {
     // claim → reload cycle wipes the on-device Eruda console immediately
     // after it appears, making debugging impossible.
     let _swReloading = false;
-    const _isDebug = (() => { try { return new URLSearchParams(location.search).get('debug') === '1'; } catch(_){ return false; } })();
     const _swReload = () => {
-      if(_isDebug){ console.log('[sw] auto-reload skipped (debug=1)'); return; }
+      try {
+        const p = new URLSearchParams(location.search);
+        if(p.get('debug') === '1' || p.get('nosw') === '1' || p.get('purge') === '1'){
+          console.log('[sw] auto-reload skipped (debug/nosw/purge flag)');
+          return;
+        }
+      } catch(_){}
       if(_swReloading) return;
       _swReloading = true;
       window.location.reload();
