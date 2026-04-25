@@ -296,6 +296,15 @@ body.day .map-ov-btn.map-ov-locate:hover{color:#fff}
   -webkit-touch-callout:none;
   user-select:none;
 }
+/* Google Maps injects an inner DIV inside .gm-style with
+   inline `touch-action: pan-x pan-y` which intercepts the second-finger
+   movement of a two-finger gesture before Maps' rotation handler can
+   process it. Force `none` on every descendant of the map container
+   so the gesture reaches Google's event handler intact. */
+#map-wrap *,
+#gmap *{
+  touch-action:none !important;
+}
 #map-wrap{flex:1;position:relative;overflow:hidden}
 /* Overlay containers sitting on top of the map must be transparent to
    pointer events so two-finger rotate / pinch gestures that land on
