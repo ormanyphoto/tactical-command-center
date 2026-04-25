@@ -2535,6 +2535,12 @@ function onGoogleMapsReady(){
     // Vector path — bare-minimum extra options. NO mapTypeId, NO restriction,
     // NO mapTypeControlOptions (each tested as a StaticMap-fallback trigger).
     _mapOpts.mapId = mapId;
+    // Match the Cloud Console day/night style to the user's saved theme.
+    // colorScheme is a vector-only option; ignored without a mapId.
+    try {
+      const _theme = localStorage.getItem('tac-v5-theme') || 'night';
+      _mapOpts.colorScheme = (_theme === 'night') ? 'DARK' : 'LIGHT';
+    } catch(_){ _mapOpts.colorScheme = 'DARK'; }
   } else {
     // Raster path — full option set + inline POI/transit hiding styles.
     _mapOpts.mapTypeId = 'roadmap';
@@ -5028,16 +5034,29 @@ function setTheme(m){
   // having to hook into setTheme directly.
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
-    // POIs/transit are intentionally visible — see _poiHide comment at init.
-    const _ph=window._poiHide||[];
-    map.setOptions({styles:m==='night'?[...(window._nightStyle||[]),..._ph]:[
-      {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
-      {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
-      {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
-      {featureType:'all',elementType:'labels.text',stylers:[{visibility:'on'}]},
-      {featureType:'administrative',elementType:'all',stylers:[{visibility:'on'}]},
-      ..._ph
-    ]});
+    // Vector path (mapId present) uses Cloud Console day/night styles wired
+    // to the Map ID. Switch via `colorScheme` — `styles` is ignored when a
+    // mapId is set. Raster fallback (no mapId) still uses inline `styles`.
+    const hasMapId = !!map.get('mapId');
+    if (hasMapId) {
+      try {
+        const target = (m === 'night')
+          ? (google.maps.ColorScheme ? google.maps.ColorScheme.DARK  : 'DARK')
+          : (google.maps.ColorScheme ? google.maps.ColorScheme.LIGHT : 'LIGHT');
+        map.setOptions({ colorScheme: target });
+      } catch(e){ console.warn('[theme] colorScheme set failed:', e && e.message); }
+    } else {
+      // POIs/transit are intentionally visible — see _poiHide comment at init.
+      const _ph=window._poiHide||[];
+      map.setOptions({styles:m==='night'?[...(window._nightStyle||[]),..._ph]:[
+        {featureType:'landscape.man_made',elementType:'geometry.fill',stylers:[{color:'#e8e4df'}]},
+        {featureType:'landscape.man_made',elementType:'geometry.stroke',stylers:[{color:'#c0b8b0'}]},
+        {featureType:'landscape.man_made',elementType:'labels',stylers:[{visibility:'on'}]},
+        {featureType:'all',elementType:'labels.text',stylers:[{visibility:'on'}]},
+        {featureType:'administrative',elementType:'all',stylers:[{visibility:'on'}]},
+        ..._ph
+      ]});
+    }
     google.maps.event.trigger(map,'resize');
     // Re-plot missions so InfoWindow colours switch with the theme
     if(typeof plotMissions==='function') setTimeout(plotMissions, 80);
@@ -9411,6 +9430,87 @@ function completeRangeSession(sid){
 
 // boAnalytics is now merged into boOverview — see redirect above
 
+// Admin tool: scan tac_locs for entries older than 30 min that share an
+// identity (personId/name) with a fresher entry, list them, ask for
+// confirmation, then DELETE each from Firebase. Removes the duplicate
+// "connected 205 min ago" markers caused by uuid drift / old test devices.
+async function cleanOrphanLocations(){
+  if(typeof showToast==='function') showToast({icon:'🔍',title:'סורק מיקומים יתומים…',type:'info',duration:2000});
+  let raw;
+  try {
+    const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs.json?_='+Date.now(), {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    raw = await r.json();
+  } catch(e){
+    alert('שגיאה בקריאת tac_locs: ' + (e.message||e));
+    return;
+  }
+  if(!raw){ alert('אין נתונים ב-tac_locs.'); return; }
+  const STALE_MS = 30*60*1000;
+  const now = Date.now();
+  const norm = s => (s||'').toString().trim().toLowerCase();
+  const digits = s => (s||'').toString().replace(/\D+/g,'');
+  // Build identity sig from PERSONNEL when possible, else fall back to name from the loc payload itself.
+  const PL = (typeof PERSONNEL !== 'undefined' && Array.isArray(PERSONNEL)) ? PERSONNEL : [];
+  const sigOf = (uid, d) => {
+    const pid = d.personId || uid;
+    const p = PL.find(pp => pp && pp.id === pid);
+    if (p) {
+      const em = norm(p.email);
+      const ph = digits(p.phone);
+      if (em) return 'em:' + em;
+      if (ph.length >= 7) return 'ph:' + ph;
+    }
+    if (d.name) return 'nm:' + norm(d.name);
+    return 'id:' + pid;
+  };
+  // Group by sig, keep newest per group; everything else is an orphan candidate.
+  const groups = {};
+  Object.entries(raw).forEach(([uid, d]) => {
+    if(!d || !d.lat || !d.lng) return;
+    const sig = sigOf(uid, d);
+    (groups[sig] = groups[sig] || []).push({ uid, d, ts: d.ts || 0 });
+  });
+  const orphans = [];
+  Object.values(groups).forEach(arr => {
+    if (arr.length < 2) return;                 // single entry — never an orphan
+    arr.sort((a,b) => b.ts - a.ts);             // newest first
+    const winner = arr[0];
+    arr.slice(1).forEach(loser => {
+      // Only delete losers that are also stale (> 30 min) — avoids racing
+      // with a device that's actively publishing.
+      if (now - loser.ts > STALE_MS) {
+        orphans.push({
+          uid: loser.uid,
+          name: loser.d.name || '?',
+          ageMin: Math.round((now - loser.ts) / 60000),
+          personId: loser.d.personId || ''
+        });
+      }
+    });
+  });
+  if(!orphans.length){
+    alert('לא נמצאו מיקומים יתומים. ✅');
+    return;
+  }
+  const summary = orphans.map(o =>
+    '• ' + o.name + ' (personId=' + o.personId + ', age=' + o.ageMin + ' min)'
+  ).join('\n');
+  if(!confirm('נמצאו ' + orphans.length + ' רשומות יתומות:\n\n' + summary + '\n\nלמחוק את כולן?')){
+    return;
+  }
+  let ok = 0, fail = 0;
+  for(const o of orphans){
+    try {
+      const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/' + o.uid + '.json', {method:'DELETE'});
+      if(r.ok) ok++; else fail++;
+    } catch(_){ fail++; }
+  }
+  if(typeof showToast==='function'){
+    showToast({icon: fail ? '⚠️' : '✅', title: 'נמחקו ' + ok + ' רשומות', sub: fail ? (fail+' נכשלו') : 'המפה תתעדכן תוך 5 שניות', type: fail ? 'warn' : 'success', duration: 4000});
+  }
+}
+
 function boSettings(c){
   var isNight=document.body.classList.contains('night');
   var fbCfg=JSON.parse(localStorage.getItem('tac_fb_cfg')||'{}');
@@ -9474,7 +9574,18 @@ function boSettings(c){
       +'</div>'
       +'</div>';
   }
-  c.innerHTML= brandSectionHtml +
+  // Admin-only: cleanup of stale tac_locs entries (orphan markers from
+  // earlier test/uuid drift that show up as "connected N min ago" duplicates).
+  var cleanupSectionHtml = '';
+  if (_isAdmin) {
+    cleanupSectionHtml =
+      '<div class="bo-section"><div class="bo-hd">🧹 תחזוקה (מנהל מערכת)</div>'
+      +'<div class="config-row"><div><div class="config-lbl">נקה מיקומים יתומים</div>'
+      +'<div class="config-desc">מסיר רשומות tac_locs ישנות (>30 דקות) שנשארו מבדיקות / מ-uuid drift וגורמות ל-markers כפולים</div></div>'
+      +'<button class="act-btn" onclick="cleanOrphanLocations()">🗑 נקה</button></div>'
+      +'</div>';
+  }
+  c.innerHTML= brandSectionHtml + cleanupSectionHtml +
     '<div class="bo-section"><div class="bo-hd">💾 גיבוי ושחזור</div>'
     +'<div class="config-row"><div><div class="config-lbl">גיבוי מלא</div><div class="config-desc">הורדת כל הנתונים לקובץ JSON</div></div>'
     +'<button class="act-btn" onclick="exportFullBackup()">⬇️ הורד גיבוי</button></div>'
