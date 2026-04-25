@@ -2539,11 +2539,8 @@ function onGoogleMapsReady(){
   //   - mapTypeControlOptions (UI is hidden anyway)
   // Operator can override per-device via localStorage.tac_map_id ('' = raster).
   const mapId = (() => {
-    try {
-      const v = localStorage.getItem('tac_map_id');
-      // null = never set → use vector default; '' = explicitly disabled → raster
-      return v === null ? '5075a944af766b257648230b' : v;
-    } catch(_){ return '5075a944af766b257648230b'; }
+    try { return localStorage.getItem('tac_map_id') || ''; }
+    catch(_){ return ''; }
   })();
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
