@@ -956,123 +956,13 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 }
 </style>
 
-<!-- GOOGLE MAPS ERROR CAPTURING — must run BEFORE Maps SDK loads -->
+<!-- Lightweight Google Maps auth-failure handler (no overlay/alert in prod) -->
 <script>
-// Catch auth failures
 window.gm_authFailure = function() {
-  const msg = 'GOOGLE MAPS AUTH FAILURE - API key invalid, Map ID unauthorized, or billing issue';
-  console.error('[GMAPS]', msg);
-  try { alert(msg); } catch(_){}
-};
-
-// Capture all console.error matching Maps-related keywords
-window._gmapsErrors = [];
-const _origError = console.error;
-console.error = function(...args) {
-  const msg = args.join(' ').substring(0, 500);
-  if (msg.includes('Google Maps') || msg.includes('mapId') ||
-      msg.includes('Map ID') || msg.includes('InvalidKey') ||
-      msg.includes('RefererNotAllowed') || msg.includes('Billing') ||
-      msg.includes('vector') || msg.includes('Vector') ||
-      msg.includes('UnauthorizedMapId')) {
-    window._gmapsErrors.push({
-      time: new Date().toISOString(),
-      msg: msg
-    });
-    // Bright overlay so user sees it without opening console
-    try {
-      const div = document.createElement('div');
-      div.style.cssText = 'position:fixed;top:60px;left:5px;right:5px;background:#ff0040;color:white;padding:8px;z-index:99999;font:11px monospace;border-radius:4px;border:2px solid yellow;max-height:200px;overflow:auto;direction:ltr;text-align:left;';
-      div.textContent = '[GMAPS ERROR ' + new Date().toLocaleTimeString() + '] ' + msg;
-      if (document.body) {
-        document.body.appendChild(div);
-        setTimeout(() => div.remove(), 30000);
-      }
-    } catch(_){}
-  }
-  return _origError.apply(console, args);
+  console.error('[GMAPS] auth failure — API key invalid, Map ID unauthorized, or billing issue');
 };
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
-<!-- ERUDA DEBUG (temporary) — load only when ?debug=1 is in URL -->
-<script>
-  if (new URLSearchParams(location.search).get('debug') === '1') {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.onload = () => window.eruda && eruda.init();
-    document.head.appendChild(s);
-
-    // DIAG floating button — dumps map + touch-action diagnostics
-    window.addEventListener('load', () => {
-      const btn = document.createElement('button');
-      btn.textContent = 'DIAG';
-      btn.style.cssText = 'position:fixed;bottom:90px;left:8px;z-index:99999;background:#1a8c2e;color:#fff;border:none;border-radius:6px;padding:8px 14px;font:700 13px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      btn.onclick = () => {
-        const info = {};
-        try {
-          if (window.map) {
-            const opts = {
-              mapId: map.get('mapId'),
-              renderingType: map.getRenderingType && map.getRenderingType(),
-              heading: map.getHeading(),
-              tilt: map.getTilt(),
-              gestureHandling: map.get('gestureHandling'),
-              rotateControl: map.get('rotateControl'),
-              isFractionalZoomEnabled: map.get('isFractionalZoomEnabled'),
-              draggable: map.get('draggable'),
-              zoom: map.getZoom(),
-              controlSize: map.get('controlSize'),
-              headingInteractionEnabled: map.get('headingInteractionEnabled'),
-              tiltInteractionEnabled: map.get('tiltInteractionEnabled')
-            };
-            info['map options'] = JSON.stringify(opts, null, 2);
-          } else {
-            info['map options'] = 'window.map MISSING';
-          }
-        } catch(e){ info['map options ERR'] = e.message; }
-
-        const wrap = document.getElementById('map-wrap');
-        const gmap = document.getElementById('gmap');
-        const gmStyle = document.querySelector('.gm-style');
-        const canvas = document.querySelector('#map-wrap canvas');
-
-        info['#map-wrap touch-action'] = wrap ? getComputedStyle(wrap).touchAction : 'NOT FOUND';
-        info['#gmap touch-action'] = gmap ? getComputedStyle(gmap).touchAction : 'NOT FOUND';
-        info['.gm-style touch-action'] = gmStyle ? getComputedStyle(gmStyle).touchAction : 'NOT FOUND';
-        info['canvas touch-action'] = canvas ? getComputedStyle(canvas).touchAction : 'NOT FOUND';
-
-        // Walk children of .gm-style — find any with restrictive touch-action
-        if (gmStyle) {
-          const restrictive = [];
-          gmStyle.querySelectorAll('*').forEach(el => {
-            const ta = getComputedStyle(el).touchAction;
-            if (ta && ta !== 'none' && ta !== 'auto') {
-              restrictive.push((el.tagName || '?') + '#' + (el.id||'') + '.' + (el.className||'').toString().slice(0,40) + ' → ' + ta);
-            }
-          });
-          info['.gm-style children with restrictive touch-action'] = restrictive.length ? restrictive.slice(0,15).join('\n') : '(none)';
-        }
-
-        // Captured Google Maps errors
-        const errs = window._gmapsErrors || [];
-        info['gmaps errors count'] = errs.length;
-        if (errs.length > 0) {
-          info['gmaps last error'] = errs[errs.length - 1].msg.substring(0, 300);
-          info['gmaps all errors'] = errs.map(e => e.time.substring(11,19) + ' ' + e.msg.substring(0,150)).join('\n').substring(0, 800);
-        }
-
-        // Show in Eruda console
-        console.group('=== DIAG ' + new Date().toLocaleTimeString('he-IL') + ' ===');
-        Object.keys(info).forEach(k => console.log(k + ':\n' + info[k]));
-        console.groupEnd();
-        // Also show in alert summary so user can screenshot
-        const summary = Object.keys(info).map(k => k + ': ' + String(info[k]).slice(0, 200)).join('\n\n');
-        if (window.eruda) eruda.show('console');
-      };
-      document.body.appendChild(btn);
-    });
-  }
-</script>
 </head>
 <body class="night">
 
