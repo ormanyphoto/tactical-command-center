@@ -308,6 +308,8 @@ body.day .map-ov-btn.map-ov-locate:hover{color:#fff}
 #map-zoom-overlay{pointer-events:none}
 #map-zoom-overlay > .map-ov-btn,
 #map-zoom-overlay > button{pointer-events:auto}
+#map-reset-north{display:flex;align-items:center;justify-content:center;padding:0}
+#map-reset-north #compass-svg{width:24px;height:24px;display:block}
 #gmap{position:absolute;inset:0;width:100%;height:100%;transform:none!important}
 #statusbar{position:absolute;bottom:0;left:0;right:0;height:22px;background:rgba(7,9,10,0.88);backdrop-filter:blur(4px);display:flex;align-items:center;gap:14px;padding:0 12px;font-size:10px;font-weight:600;color:var(--text3);z-index:200;direction:rtl;border-top:1px solid var(--border)}
 body.day #statusbar{background:rgba(240,244,248,0.9);border-top-color:var(--border2)}
@@ -946,28 +948,6 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 </style>
 
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
-<!-- ERUDA DEBUG — להסיר אחרי גמר האבחון -->
-<script>
-  // טען Eruda רק כאשר יש פרמטר ?debug=1 ב-URL
-  if (new URLSearchParams(location.search).get('debug') === '1') {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.onload = () => {
-      try {
-        eruda.init();
-        // Force the entry button to a high z-index so it doesn't get
-        // hidden behind app overlays, and force-show in case some app
-        // CSS resets it.
-        const btn = document.querySelector('.eruda-entry-btn');
-        if(btn){ btn.style.zIndex = '2147483647'; btn.style.opacity = '1'; }
-        console.log('[Eruda] ready');
-      } catch(e){ console.error('[Eruda] init failed', e); }
-    };
-    s.onerror = () => console.error('[Eruda] script load failed');
-    document.head.appendChild(s);
-  }
-</script>
-<!-- END ERUDA DEBUG -->
 </head>
 <body class="night">
 
@@ -1311,6 +1291,15 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         <button onclick="mapZoom(1)" title="הגדל" class="map-ov-btn">＋</button>
         <button onclick="mapZoom(-1)" title="הקטן" class="map-ov-btn">－</button>
         <button onclick="locateMe()" title="מרכז עלי" class="map-ov-btn map-ov-locate"><svg viewBox="0 0 297 297" width="20" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="display:block"><path fill="currentColor" d="M148.5,0C66.653,0,0.067,66.616,0.067,148.499C0.067,230.383,66.653,297,148.5,297s148.433-66.617,148.433-148.501C296.933,66.616,230.347,0,148.5,0z M158.597,276.411v-61.274c0-5.575-4.521-10.097-10.097-10.097s-10.097,4.521-10.097,10.097v61.274c-62.68-4.908-112.845-55.102-117.747-117.814h61.207c5.575,0,10.097-4.521,10.097-10.097s-4.522-10.097-10.097-10.097H20.656C25.558,75.69,75.723,25.497,138.403,20.589v61.274c0,5.575,4.521,10.097,10.097,10.097s10.097-4.521,10.097-10.097V20.589c62.681,4.908,112.846,55.102,117.747,117.814h-61.207c-5.575,0-10.097,4.521-10.097,10.097s4.521,10.097,10.097,10.097h61.207C271.441,221.31,221.276,271.503,158.597,276.411z"/><circle cx="148.5" cy="148.5" r="14" fill="currentColor"/></svg></button>
+        <!-- Compass — always visible. SVG arrow rotates with map heading via JS. -->
+        <button class="map-ov-btn map-ov-compass" id="map-reset-north" title="אפס כיוון לצפון" aria-label="אפס כיוון לצפון">
+          <svg viewBox="0 0 32 32" width="24" height="24" id="compass-svg" style="transition:transform 0.15s ease-out;display:block">
+            <circle cx="16" cy="16" r="15" fill="#fff" stroke="#333" stroke-width="1"/>
+            <path d="M16 4 L11 18 L16 15 L21 18 Z" fill="#ff0040"/>
+            <path d="M16 28 L11 14 L16 17 L21 14 Z" fill="#888"/>
+            <text x="16" y="9" text-anchor="middle" font-size="5" font-weight="bold" fill="#000">N</text>
+          </svg>
+        </button>
       </div>
       <!-- Emergency notification button + SOS button bottom-right -->
       <button id="map-emergency-btn" onclick="openNotifModal()" style="display:none">📢 הודעת חירום</button>
@@ -2501,64 +2490,6 @@ function onGoogleMapsReady(){
     // them. These need to be applied to the Map Style associated with
     // the mapId in Cloud Console. See summary for the exact rules.
   };
-  // ══════════════════════════════════════════════════════════════════
-  // [DEBUG map-touch-events branch] Touch gesture instrumentation
-  // ──────────────────────────────────────────────────────────────────
-  // Logs every touch event that hits #gmap and its ancestors up to
-  // <body>, plus the same events on `window` (capture phase). Shows:
-  //   • event type (touchstart / touchmove / touchend / touchcancel)
-  //   • where it hit (element tag + id + class)
-  //   • phase (capture / bubble / target)
-  //   • number of touches (2 = two-finger gesture = rotate/zoom)
-  //   • whether preventDefault / stopPropagation were called elsewhere
-  //     (we track via "defaultPrevented" on the event object)
-  // If 2-finger touches reach #gmap but rotation doesn't happen → Google
-  // Maps isn't responding. If they never reach #gmap → something upstream
-  // is swallowing them (a bubble-up CSS overlay, a parent element with
-  // pointer-events, a passive touch-action, etc.).
-  (function _installTouchDiag(){
-    const el = mapEl || document.getElementById('gmap');
-    if(!el) return;
-    const d = (tag, color) => (ev) => {
-      try {
-        const t = ev.target;
-        const path = [];
-        let n = t;
-        while(n && n !== document.body && path.length < 6){
-          path.push((n.tagName||'?').toLowerCase() + (n.id?('#'+n.id):'') + (n.className&&typeof n.className==='string'?('.'+n.className.split(' ').slice(0,2).join('.')):''));
-          n = n.parentElement;
-        }
-        const fingers = ev.touches ? ev.touches.length : 0;
-        const changed = ev.changedTouches ? ev.changedTouches.length : 0;
-        console.log(
-          '%c[TOUCH '+tag+']'+' %c'+ev.type+' fingers='+fingers+' changed='+changed+' defaultPrevented='+ev.defaultPrevented,
-          'color:'+color+';font-weight:bold',
-          'color:#ccc',
-          '\n  path: '+path.reverse().join(' > '),
-          '\n  event:', ev
-        );
-      } catch(e){ console.warn('[TOUCH '+tag+']', e); }
-    };
-    ['touchstart','touchmove','touchend','touchcancel'].forEach(t=>{
-      // On #gmap in CAPTURE phase — fires before any child handler
-      el.addEventListener(t, d('#gmap CAPTURE', '#3dff52'), { capture: true, passive: true });
-      // On #gmap in BUBBLE phase — fires after children handled it
-      el.addEventListener(t, d('#gmap BUBBLE',  '#29c5f6'), { capture: false, passive: true });
-      // On WINDOW in capture — earliest the page can see a gesture
-      window.addEventListener(t, d('window CAP',  '#ffc107'), { capture: true, passive: true });
-    });
-    // Also log touch-action CSS values up the DOM tree at load time
-    // so we can spot any parent that disabled gestures.
-    let n = el;
-    while(n && n !== document.body){
-      const ta = getComputedStyle(n).touchAction;
-      if(ta && ta !== 'auto') console.log('[TOUCH cfg] touch-action on', n.tagName + (n.id?'#'+n.id:''), '=', ta);
-      n = n.parentElement;
-    }
-    console.log('%c[TOUCH diag] installed — pinch/rotate the map with two fingers now','color:#3dff52;font-weight:bold;font-size:14px');
-  })();
-  // END DEBUG INSTRUMENTATION
-  // ══════════════════════════════════════════════════════════════════
   try {
     map=new google.maps.Map(mapEl, _mapOpts);
   } catch(e){
@@ -2572,25 +2503,6 @@ function onGoogleMapsReady(){
     ];
     map=new google.maps.Map(mapEl, _mapOpts);
   }
-  // Blank-map safety net: if WebGL2 is advertised but Google's vector
-  // renderer silently fails (broken driver / WebView quirk), no
-  // tilesloaded event arrives. After 5 s we mark vector as blocked
-  // for 24 h and reload without the mapId so the user gets raster
-  // fast instead of staring at a blank map.
-  if(_mapOpts.mapId){
-    let _tilesOk = false;
-    google.maps.event.addListenerOnce(map, 'tilesloaded', () => { _tilesOk = true; });
-    setTimeout(() => {
-      if(_tilesOk) return;
-      console.warn('[map] vector map silently failed — blocking mapId for 24 h and reloading.');
-      try { localStorage.setItem('tac_mapid_blocked', String(Date.now())); } catch(_){}
-      if(!sessionStorage.getItem('tac_mapid_reloaded')){
-        sessionStorage.setItem('tac_mapid_reloaded', '1');
-        location.reload();
-      }
-    }, 5000);
-  }
-
   // On map ready: immediately pull GPS and center on the user.
   // getCurrentPosition is faster than waitPosition for the initial fix.
   google.maps.event.addListenerOnce(map, 'idle', () => {
@@ -2777,6 +2689,45 @@ function onGoogleMapsReady(){
     const el=document.getElementById('s-coord');
     if(el)el.textContent=e.latLng.lat().toFixed(4)+'°צ '+e.latLng.lng().toFixed(4)+'°מ';
   });
+
+  // ── Compass: rotates with map heading, click resets to north ────────
+  // The compass arrow is a static SVG; we counter-rotate it via CSS so it
+  // always points to true north (i.e. when heading=0 the red arrow is up;
+  // when heading=90° the red arrow visually rotates to point left). Click
+  // animates heading + tilt back to zero with an ease-out cubic.
+  (function setupCompass(){
+    const compassSvg = document.getElementById('compass-svg');
+    const resetBtn   = document.getElementById('map-reset-north');
+    if(!compassSvg || !resetBtn) return;
+    function updateCompass(){
+      const h = (window.map && map.getHeading()) || 0;
+      const normalized = ((h % 360) + 360) % 360;
+      compassSvg.style.transform = 'rotate(' + (-normalized) + 'deg)';
+    }
+    map.addListener('heading_changed', updateCompass);
+    updateCompass();
+    resetBtn.addEventListener('click', () => {
+      const start     = map.getHeading() || 0;
+      const startTilt = map.getTilt()    || 0;
+      // Choose the shorter rotation arc so we don't spin the long way.
+      let diff = -start;
+      if(diff > 180)  diff -= 360;
+      if(diff < -180) diff += 360;
+      const duration = 400;
+      const startTime = performance.now();
+      function animate(now){
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        try {
+          map.setHeading(start + diff * eased);
+          map.setTilt(startTilt * (1 - eased));
+        } catch(_){}
+        if(t < 1) requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+    });
+  })();
 
   // Trigger resize so map fills container correctly after init
   // Uses multiple passes — critical for mobile where #app may have been display:none during init
@@ -19565,6 +19516,8 @@ const FIELD = {
       // blank map: saved Cloud Console Map ID and the "mapId is
       // broken, never use it again" sticky flag.
       try { localStorage.removeItem('tac_map_id'); } catch(_){}
+      // Legacy keys from earlier debug iterations — removed once at
+      // first purge so they don't keep lingering in localStorage.
       try { localStorage.removeItem('tac_mapid_blocked'); } catch(_){}
       try { sessionStorage.removeItem('tac_mapid_reloaded'); } catch(_){}
       // Clean the URL and hard-reload. location.replace avoids a back-
@@ -19639,8 +19592,8 @@ const FIELD = {
     const _swReload = () => {
       try {
         const p = new URLSearchParams(location.search);
-        if(p.get('debug') === '1' || p.get('nosw') === '1' || p.get('purge') === '1'){
-          console.log('[sw] auto-reload skipped (debug/nosw/purge flag)');
+        if(p.get('nosw') === '1' || p.get('purge') === '1'){
+          console.log('[sw] auto-reload skipped (nosw/purge flag)');
           return;
         }
       } catch(_){}
