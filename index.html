@@ -947,7 +947,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
 }
 </style>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady" async defer></script>
 <!-- ERUDA DEBUG (temporary) — load only when ?debug=1 is in URL -->
 <script>
   if (new URLSearchParams(location.search).get('debug') === '1') {
@@ -1319,7 +1319,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
         }
         function _appendMapsScript(tag){
           var s=document.createElement('script');
-          s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
+          s.src='https://maps.googleapis.com/maps/api/js?key=AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E&libraries=places,geometry,geocoding,visualization&language=he&region=IL&callback=onGoogleMapsReady&v=weekly';
           s.onerror=function(){
             var ml=document.getElementById('map-loading');
             if(ml){ml.querySelector('span').textContent='שגיאה בטעינת המפה — רענן את הדף';ml.style.display='flex';}
@@ -1556,7 +1556,7 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
  * Created by: Or Many  |  050-3404444
  * © All rights reserved — unauthorized use is prohibited.
  * ============================================================ */
-const GKEY='AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo';
+const GKEY='AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E';
 const SCOLORS={urgent:'#ff3333',active:'#3dff52',pending:'#ffc107',completed:'#29c5f6',briefing:'#b06cf0',draft:'#5a7a90',debrief:'#ff7a1a'};
 const MICONS={arrest:'🚨',surveillance:'👁️',escort:'🛡️',traffic:'🚧',rescue:'🏥',default:'◉'};
 const TCOLORS={אדום:'#ff3333',כחול:'#29c5f6',ירוק:'#3dff52',צהוב:'#ffc107',אלפא:'#a8e800',רפואה:'#ff4aaa',מבצע:'#b06cf0',K9:'#ff7a1a','יחידה-5':'#9ab8c8'};
@@ -14287,7 +14287,7 @@ function takeMapSnapshot(){
   // Device pixel size, capped at Static API limit (640 per side for free tier; 1280 with scale=2)
   const w = Math.min(640, Math.round(Math.min(window.innerWidth || 640, 1280) / 2));
   const h = Math.min(640, Math.round(Math.min(window.innerHeight || 640, 1280) / 2));
-  const key = 'AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo';
+  const key = 'AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E';
   // Add live personnel as red markers (up to 20 to keep URL under ~2000 chars)
   const markerParts = [];
   try{
