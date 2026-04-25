@@ -2538,9 +2538,15 @@ function onGoogleMapsReady(){
   //   - mapTypeId (conflicts with mapId style)
   //   - mapTypeControlOptions (UI is hidden anyway)
   // Operator can override per-device via localStorage.tac_map_id ('' = raster).
+  // 2026-04-25: NEW Map ID created from scratch in Cloud Console after the
+  // previous one (5075a944af766b257648230b) kept hitting StaticMapService
+  // fallback even with bare-minimum options. New ID: 5075a944af766b25877c1695.
+  // Set localStorage.tac_map_id='' to force raster.
   const mapId = (() => {
-    try { return localStorage.getItem('tac_map_id') || ''; }
-    catch(_){ return ''; }
+    try {
+      const v = localStorage.getItem('tac_map_id');
+      return v === null ? '5075a944af766b25877c1695' : v;
+    } catch(_){ return '5075a944af766b25877c1695'; }
   })();
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
