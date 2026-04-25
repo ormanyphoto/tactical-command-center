@@ -2535,12 +2535,17 @@ function onGoogleMapsReady(){
     // Vector path — bare-minimum extra options. NO mapTypeId, NO restriction,
     // NO mapTypeControlOptions (each tested as a StaticMap-fallback trigger).
     _mapOpts.mapId = mapId;
-    // Match the Cloud Console day/night style to the user's saved theme.
-    // colorScheme is a vector-only option; ignored without a mapId.
+    // colorScheme is read-only AFTER instantiation, so we can't change it
+    // via setOptions. Instead set FOLLOW_SYSTEM here and toggle the
+    // browser-level color scheme at runtime via document.documentElement
+    // .style.colorScheme — Maps reads `prefers-color-scheme: dark` and
+    // re-renders accordingly. This makes the in-app theme button drive
+    // the map without recreating it.
+    _mapOpts.colorScheme = 'FOLLOW_SYSTEM';
     try {
       const _theme = localStorage.getItem('tac-v5-theme') || 'night';
-      _mapOpts.colorScheme = (_theme === 'night') ? 'DARK' : 'LIGHT';
-    } catch(_){ _mapOpts.colorScheme = 'DARK'; }
+      document.documentElement.style.colorScheme = (_theme === 'night') ? 'dark' : 'light';
+    } catch(_){}
   } else {
     // Raster path — full option set + inline POI/transit hiding styles.
     _mapOpts.mapTypeId = 'roadmap';
@@ -5034,17 +5039,17 @@ function setTheme(m){
   // having to hook into setTheme directly.
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
-    // Vector path (mapId present) uses Cloud Console day/night styles wired
-    // to the Map ID. Switch via `colorScheme` — `styles` is ignored when a
-    // mapId is set. Raster fallback (no mapId) still uses inline `styles`.
+    // Vector path (mapId present) — colorScheme is read-only after init,
+    // so toggle the browser-level color scheme instead. The map is
+    // instantiated with colorScheme: FOLLOW_SYSTEM, which makes it
+    // listen to `prefers-color-scheme: dark` and switch between the
+    // Light/Dark styles wired to the Map ID in Cloud Console.
+    // Raster fallback (no mapId) still uses inline `styles`.
     const hasMapId = !!map.get('mapId');
     if (hasMapId) {
       try {
-        const target = (m === 'night')
-          ? (google.maps.ColorScheme ? google.maps.ColorScheme.DARK  : 'DARK')
-          : (google.maps.ColorScheme ? google.maps.ColorScheme.LIGHT : 'LIGHT');
-        map.setOptions({ colorScheme: target });
-      } catch(e){ console.warn('[theme] colorScheme set failed:', e && e.message); }
+        document.documentElement.style.colorScheme = (m === 'night') ? 'dark' : 'light';
+      } catch(e){ console.warn('[theme] colorScheme toggle failed:', e && e.message); }
     } else {
       // POIs/transit are intentionally visible — see _poiHide comment at init.
       const _ph=window._poiHide||[];
