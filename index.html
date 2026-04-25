@@ -2465,15 +2465,15 @@ function onGoogleMapsReady(){
   // which is supported on every modern desktop browser and modern
   // mobile/tablet (iPhone 11+, Galaxy S9+, etc.).
   // Operator can override per-device via localStorage.tac_map_id.
-  // POI hiding + dark theme previously done via inline `styles` is
-  // now configured in the Cloud Console on this mapId; see notes in
-  // the summary about what needs to be re-applied there.
+  // 2026-04-25: Default DISABLED (raster mode) because StaticMapService
+  // fallback was firing across all devices — vector rendering needs more
+  // Cloud Console work before we re-enable. Set localStorage.tac_map_id
+  // to the published mapId to opt back in for testing.
   const mapId = (() => {
-    try { return localStorage.getItem('tac_map_id') || '5075a944af766b257648230b'; }
-    catch(_){ return '5075a944af766b257648230b'; }
+    try { return localStorage.getItem('tac_map_id') || ''; }
+    catch(_){ return ''; }
   })();
   const _mapOpts = {
-    mapId: mapId,                                         // vector rendering + rotation
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
     minZoom:8,
@@ -2494,11 +2494,18 @@ function onGoogleMapsReady(){
       strictBounds:true
     },
     mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
-    // NOTE: inline `styles` (POI hiding, transit hiding) REMOVED because
-    // it conflicts with mapId — Google Maps logs a warning and ignores
-    // them. These need to be applied to the Map Style associated with
-    // the mapId in Cloud Console. See summary for the exact rules.
   };
+  if (mapId) {
+    _mapOpts.mapId = mapId;                               // vector rendering + rotation (opt-in)
+  } else {
+    // Raster default — apply POI/transit hiding inline (incompatible with mapId)
+    _mapOpts.styles = [
+      {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
+      {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
+      {featureType:'transit',elementType:'labels.icon',stylers:[{visibility:'off'}]},
+      {featureType:'transit.station',elementType:'labels',stylers:[{visibility:'off'}]},
+    ];
+  }
   try {
     map=new google.maps.Map(mapEl, _mapOpts);
   } catch(e){
