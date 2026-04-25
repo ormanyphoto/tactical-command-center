@@ -955,6 +955,68 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
     s.src = 'https://cdn.jsdelivr.net/npm/eruda';
     s.onload = () => window.eruda && eruda.init();
     document.head.appendChild(s);
+
+    // DIAG floating button — dumps map + touch-action diagnostics
+    window.addEventListener('load', () => {
+      const btn = document.createElement('button');
+      btn.textContent = 'DIAG';
+      btn.style.cssText = 'position:fixed;bottom:90px;left:8px;z-index:99999;background:#1a8c2e;color:#fff;border:none;border-radius:6px;padding:8px 14px;font:700 13px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.5)';
+      btn.onclick = () => {
+        const info = {};
+        try {
+          if (window.map) {
+            const opts = {
+              mapId: map.get('mapId'),
+              renderingType: map.getRenderingType && map.getRenderingType(),
+              heading: map.getHeading(),
+              tilt: map.getTilt(),
+              gestureHandling: map.get('gestureHandling'),
+              rotateControl: map.get('rotateControl'),
+              isFractionalZoomEnabled: map.get('isFractionalZoomEnabled'),
+              draggable: map.get('draggable'),
+              zoom: map.getZoom(),
+              controlSize: map.get('controlSize'),
+              headingInteractionEnabled: map.get('headingInteractionEnabled'),
+              tiltInteractionEnabled: map.get('tiltInteractionEnabled')
+            };
+            info['map options'] = JSON.stringify(opts, null, 2);
+          } else {
+            info['map options'] = 'window.map MISSING';
+          }
+        } catch(e){ info['map options ERR'] = e.message; }
+
+        const wrap = document.getElementById('map-wrap');
+        const gmap = document.getElementById('gmap');
+        const gmStyle = document.querySelector('.gm-style');
+        const canvas = document.querySelector('#map-wrap canvas');
+
+        info['#map-wrap touch-action'] = wrap ? getComputedStyle(wrap).touchAction : 'NOT FOUND';
+        info['#gmap touch-action'] = gmap ? getComputedStyle(gmap).touchAction : 'NOT FOUND';
+        info['.gm-style touch-action'] = gmStyle ? getComputedStyle(gmStyle).touchAction : 'NOT FOUND';
+        info['canvas touch-action'] = canvas ? getComputedStyle(canvas).touchAction : 'NOT FOUND';
+
+        // Walk children of .gm-style — find any with restrictive touch-action
+        if (gmStyle) {
+          const restrictive = [];
+          gmStyle.querySelectorAll('*').forEach(el => {
+            const ta = getComputedStyle(el).touchAction;
+            if (ta && ta !== 'none' && ta !== 'auto') {
+              restrictive.push((el.tagName || '?') + '#' + (el.id||'') + '.' + (el.className||'').toString().slice(0,40) + ' → ' + ta);
+            }
+          });
+          info['.gm-style children with restrictive touch-action'] = restrictive.length ? restrictive.slice(0,15).join('\n') : '(none)';
+        }
+
+        // Show in Eruda console
+        console.group('=== DIAG ' + new Date().toLocaleTimeString('he-IL') + ' ===');
+        Object.keys(info).forEach(k => console.log(k + ':\n' + info[k]));
+        console.groupEnd();
+        // Also show in alert summary so user can screenshot
+        const summary = Object.keys(info).map(k => k + ': ' + String(info[k]).slice(0, 200)).join('\n\n');
+        if (window.eruda) eruda.show('console');
+      };
+      document.body.appendChild(btn);
+    });
   }
 </script>
 </head>
