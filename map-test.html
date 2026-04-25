@@ -26,7 +26,7 @@
 <body>
 <div id="wrap">
   <div id="info">
-    <div><b>Map ID:</b> <code>5075a944af766b257648230b</code></div>
+    <div><b>Map ID:</b> <code>5075a944af766b25877c1695</code></div>
     <div id="webgl-status" style="margin-top:4px"></div>
     <div style="margin-top:6px">
       <button onclick="createAsRaster()">🔁 צור B כ-RASTER</button>
@@ -118,7 +118,7 @@ function onMaps(){
     mapB = new google.maps.Map(document.getElementById('map-withmapid'), {
       center: { lat: 32.0667, lng: 34.7818 },
       zoom: 13,
-      mapId: '5075a944af766b257648230b',
+      mapId: '5075a944af766b25877c1695',
       disableDefaultUI: true,
     });
     google.maps.event.addListenerOnce(mapB, 'tilesloaded', () => {
@@ -175,7 +175,7 @@ function inspectB(){
 }
 
 const s = document.createElement('script');
-s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCdyxA1sTQxJdvFPeyRJ5wtdRehQ2EEtjo&libraries=geometry&language=he&region=IL&callback=onMaps&v=weekly&loading=async';
+s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyCwh4z4eKevoprQ-vLDs6VOJowQuclSb-E&libraries=geometry&language=he&region=IL&callback=onMaps&v=weekly&loading=async';
 s.async = true; s.defer = true;
 s.onerror = () => logLine('❌ script load err', 'log-err');
 document.head.appendChild(s);

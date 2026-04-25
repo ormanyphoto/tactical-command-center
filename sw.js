@@ -1,4 +1,4 @@
-// Service Worker — מערכת מבצעים v6.8.55 + Instant Push via Firebase SSE
+// Service Worker — מערכת מבצעים v6.20.0 + Instant Push via Firebase SSE
 importScripts('firebase-app-compat.js');
 importScripts('firebase-messaging-compat.js');
 
@@ -271,7 +271,7 @@ self.addEventListener('push', event => {
 // ══════════════════════════════════════════════════
 //  Cache shell
 // ══════════════════════════════════════════════════
-const CACHE = 'tac-v6.18.2-' + '2026042421';
+const CACHE = 'tac-debug-touch-' + '2026042513';
 // Auto-detect base path: /tactical-command-center/ on GitHub Pages, / on Firebase Hosting
 const BASE  = self.registration ? new URL(self.registration.scope).pathname : (self.location.pathname.includes('/tactical-command-center') ? '/tactical-command-center/' : '/');
 // Full offline shell — all critical assets pre-cached on install
@@ -322,6 +322,16 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
+  // Hard pass-through for Google Maps + blob: — the SW must NOT intercept
+  // these. Vector rendering creates Web Workers from blob: URLs and the
+  // Maps SDK fetches scripts/tiles/fonts from googleapis.com / gstatic.com.
+  // Even a transparent `respondWith(fetch(...))` can break vector worker
+  // registration. Returning early lets the browser handle them natively.
+  if (url.startsWith('blob:') ||
+      url.includes('googleapis.com') ||
+      url.includes('gstatic.com')) {
+    return;
+  }
   // Pass-through: third-party tile / map / media providers. These are
   // the ones that break when the SW tries to cache or fall back to
   // index.html:
@@ -357,8 +367,9 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-  if(url.includes('googleapis.com') || url.includes('gstatic.com') ||
-     url.includes('firebaseio.com')  || url.includes('fonts.')){
+  // googleapis.com + gstatic.com handled by the early pass-through above.
+  // Keep firebaseio.com + fonts.* on the cached-network-first path.
+  if(url.includes('firebaseio.com') || url.includes('fonts.')){
     e.respondWith(fetch(e.request).catch(()=> caches.match(e.request)));
     return;
   }
