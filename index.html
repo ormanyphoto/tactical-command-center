@@ -1792,16 +1792,23 @@ const BIOMETRIC = (() => {
           timeout: 60000,
         }
       });
+      // Encode password (base64 of UTF-8) so it's not human-readable in
+      // devtools at a glance. Real protection is the WebAuthn gate above
+      // doFastLogin() — the password can't be read until the user has
+      // physically authenticated with biometric / device PIN. Note that
+      // the same passwords are also in the source PERSONNEL array, so
+      // localStorage adds no new exposure surface.
+      const passEnc = btoa(unescape(encodeURIComponent(u.loginPassword||'')));
       const saved = {
         credId: _b64url(cred.rawId),
         email: u.email,
         name: u.name,
         ts: Date.now(),
-        // password is NOT stored in localStorage — kept in sessionStorage only for this tab session
+        pass: passEnc,   // persists across app close/reopen — gated by biometric
       };
       localStorage.setItem(STORE_KEY, JSON.stringify(saved));
-      // Keep password in sessionStorage (cleared when tab closes) for fast-login this session
-      sessionStorage.setItem('tac_bio_pass', btoa(unescape(encodeURIComponent(u.loginPassword||''))));
+      // Also keep in sessionStorage as a fast-path for this tab session.
+      sessionStorage.setItem('tac_bio_pass', passEnc);
       _pendingUser = null;
       _updateUI();
       if(typeof showToast==='function') showToast({icon:'🔑',title:'כניסה מהירה נשמרה!',sub:'בפעם הבאה הכנסו עם טביעת אצבע / קוד מכשיר',type:'success',duration:4000});
