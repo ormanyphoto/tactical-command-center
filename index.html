@@ -17929,11 +17929,21 @@ const SYNC = (() => {
     } catch(e){ console.warn('[native-bg-auth] cache failed:', e && e.message); }
   }
 
-  // Deduplicate locations by personId — keep only the most recent entry per person
+  // Deduplicate locations by personId — keep only the most recent entry per person.
+  // Two-pass dedup so stale `tac_locs` entries from earlier test/uuid drift
+  // don't render duplicate markers for the same physical person:
+  //   pass 1: group by personId — picks the newest per personId
+  //   pass 2: resolve personId → PERSONNEL email/phone signature, then keep
+  //           only the newest entry across personIds that resolve to the
+  //           same human. Final marker key uses the canonical (winning)
+  //           personId so _liveMarkers keying stays stable.
   // "Visible mode" means entries stay until user toggles off OR they're very old (24h)
   function _dedupeByPerson(data){
     const STALE_MS = 24*60*60*1000; // 24 hours
     const now = Date.now();
+    const norm = s => (s||'').toString().trim().toLowerCase();
+    const digits = s => (s||'').toString().replace(/\D+/g,'');
+    // pass 1
     const byPerson = {};
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
@@ -17947,9 +17957,27 @@ const SYNC = (() => {
         byPerson[key] = {key, d, ts};
       }
     });
+    // pass 2 — resolve to PERSONNEL identity (email/phone), prefer newest
+    const PL = (typeof PERSONNEL !== 'undefined' && Array.isArray(PERSONNEL)) ? PERSONNEL : [];
+    const byHuman = {};                       // signature -> {key, d, ts}
+    Object.values(byPerson).forEach(x => {
+      // Resolve this personId to a stable identity signature
+      const p = PL.find(pp => pp && pp.id === x.key);
+      let sig;
+      if (p) {
+        const em = norm(p.email);
+        const ph = digits(p.phone);
+        sig = em ? 'em:'+em : (ph.length >= 7 ? 'ph:'+ph : 'id:'+x.key);
+      } else {
+        sig = 'id:'+x.key;
+      }
+      if (!byHuman[sig] || x.ts > byHuman[sig].ts) {
+        byHuman[sig] = x;
+      }
+    });
     // Return keyed by personId (or uid fallback) — matches _liveMarkers keying
     const result = {};
-    Object.values(byPerson).forEach(x => { result[x.key] = x.d; });
+    Object.values(byHuman).forEach(x => { result[x.key] = x.d; });
     return result;
   }
 
