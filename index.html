@@ -2542,11 +2542,21 @@ function onGoogleMapsReady(){
   // previous one (5075a944af766b257648230b) kept hitting StaticMapService
   // fallback even with bare-minimum options. New ID: 5075a944af766b25877c1695.
   // Set localStorage.tac_map_id='' to force raster.
+  // Self-healing: nuke any stale tac_map_id (e.g. the old broken ID from
+  // before the Cloud project key fix) so devices that cached the old value
+  // get the correct new one without manual intervention.
+  const CORRECT_MAP_ID = '5075a944af766b25877c1695';
   const mapId = (() => {
     try {
-      const v = localStorage.getItem('tac_map_id');
-      return v === null ? '5075a944af766b25877c1695' : v;
-    } catch(_){ return '5075a944af766b25877c1695'; }
+      const stored = localStorage.getItem('tac_map_id');
+      if (stored && stored !== CORRECT_MAP_ID && stored !== '') {
+        console.warn('[MAP] removing stale tac_map_id:', stored);
+        localStorage.removeItem('tac_map_id');
+        return CORRECT_MAP_ID;
+      }
+      // null = never set → vector default; '' = explicitly raster; match → vector
+      return stored === null ? CORRECT_MAP_ID : stored;
+    } catch(_){ return CORRECT_MAP_ID; }
   })();
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
