@@ -952,7 +952,18 @@ body.day #modal-wrap{background:rgba(0,30,60,0.4)}
   if (new URLSearchParams(location.search).get('debug') === '1') {
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.onload = () => eruda.init();
+    s.onload = () => {
+      try {
+        eruda.init();
+        // Force the entry button to a high z-index so it doesn't get
+        // hidden behind app overlays, and force-show in case some app
+        // CSS resets it.
+        const btn = document.querySelector('.eruda-entry-btn');
+        if(btn){ btn.style.zIndex = '2147483647'; btn.style.opacity = '1'; }
+        console.log('[Eruda] ready');
+      } catch(e){ console.error('[Eruda] init failed', e); }
+    };
+    s.onerror = () => console.error('[Eruda] script load failed');
     document.head.appendChild(s);
   }
 </script>
@@ -19592,8 +19603,17 @@ const FIELD = {
       })
       .catch(()=>{});
     // When a new SW activates and claims this client, reload once to get fresh HTML
+    // Skip auto-reload when debug=1 is in the URL — otherwise the SW
+    // claim → reload cycle wipes the on-device Eruda console immediately
+    // after it appears, making debugging impossible.
     let _swReloading = false;
-    const _swReload = () => { if (!_swReloading) { _swReloading = true; window.location.reload(); } };
+    const _isDebug = (() => { try { return new URLSearchParams(location.search).get('debug') === '1'; } catch(_){ return false; } })();
+    const _swReload = () => {
+      if(_isDebug){ console.log('[sw] auto-reload skipped (debug=1)'); return; }
+      if(_swReloading) return;
+      _swReloading = true;
+      window.location.reload();
+    };
     navigator.serviceWorker.addEventListener('controllerchange', _swReload);
     navigator.serviceWorker.addEventListener('message', e => {
       if (e.data && e.data.type === 'SW_UPDATED') _swReload();
