@@ -10408,7 +10408,71 @@ function loadPersonnelFromStorage(){
     _dedupeTeamsByName();
   }catch(e){}
 }
+
+// ── PERSONNEL DEDUP ─────────────────────────────────────────────
+// Defensive: removes duplicate personnel entries that crept in when
+// the same person was re-synced under different IDs (e.g. uuid drift,
+// imports, multi-device race). Matching is by id, then case-insensitive
+// trimmed email, then digits-only phone. Within a duplicate group the
+// entry that has `loginPassword` set (i.e. the hardcoded original) wins;
+// if none has one, the first occurrence wins. Other data is merged from
+// later entries in case they have newer fields. Returns true if any
+// dupes were removed.
+function _dedupePersonnel(){
+  if(!Array.isArray(PERSONNEL) || PERSONNEL.length < 2) return false;
+  const norm = s => (s||'').toString().trim().toLowerCase();
+  const digits = s => (s||'').toString().replace(/\D+/g,'');
+  // Build groups keyed by every identifier the entry exposes
+  const keyToGroup = new Map();   // identifier-string → groupIndex
+  const groups = [];              // array of arrays of personnel objects
+  PERSONNEL.forEach(p => {
+    if(!p) return;
+    const keys = [];
+    if(p.id)    keys.push('id:'+p.id);
+    if(p.email) keys.push('em:'+norm(p.email));
+    const ph = digits(p.phone);
+    if(ph && ph.length >= 7) keys.push('ph:'+ph);
+    let gi = -1;
+    for(const k of keys){ if(keyToGroup.has(k)){ gi = keyToGroup.get(k); break; } }
+    if(gi === -1){ gi = groups.length; groups.push([]); }
+    groups[gi].push(p);
+    for(const k of keys) keyToGroup.set(k, gi);
+  });
+  if(groups.length === PERSONNEL.length) return false; // no dupes
+  const merged = groups.map(group => {
+    if(group.length === 1) return group[0];
+    // Pick winner: prefer one with loginPassword (= hardcoded original),
+    // else first occurrence.
+    let winner = group.find(p => p.loginPassword) || group[0];
+    // Merge later entries' non-empty fields onto winner WITHOUT replacing
+    // its id (keeps hardcoded ID stable).
+    const winnerId = winner.id;
+    const winnerPhoto = winner.photo;
+    const winnerPwd   = winner.loginPassword;
+    group.forEach(p => {
+      if(p === winner) return;
+      Object.entries(p).forEach(([k,v])=>{
+        if(k==='id' || k==='photo' || k==='loginPassword') return;
+        if(v !== undefined && v !== null && v !== ''){
+          const cur = winner[k];
+          if(cur === undefined || cur === null || cur === '') winner[k] = v;
+        }
+      });
+    });
+    winner.id = winnerId;
+    if(winnerPhoto) winner.photo = winnerPhoto;
+    if(winnerPwd)   winner.loginPassword = winnerPwd;
+    return winner;
+  });
+  const before = PERSONNEL.length, after = merged.length;
+  PERSONNEL.splice(0, PERSONNEL.length, ...merged);
+  console.log('[PERSONNEL DEDUP] removed', before - after, 'duplicate(s);', after, 'remain');
+  try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
+  return true;
+}
+
 loadPersonnelFromStorage();
+_dedupePersonnel();   // run once at startup to clean any historical drift
 
 // ── AUTH MIGRATIONS ─────────────────────────────────────────────
 // Critical role/permission upgrades that must override any stale
@@ -14420,14 +14484,25 @@ setTimeout(_fallbackLoadLocations, 3000);
     if(!Array.isArray(list) || !list.length) return;
     if(typeof PERSONNEL === 'undefined') return;
     let changed = false;
+    const norm = s => (s||'').toString().trim().toLowerCase();
+    const digits = s => (s||'').toString().replace(/\D+/g,'');
     list.forEach(sp => {
       if(!sp || !sp.id) return;
-      const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+      // Match by id, then email (case-insensitive), then phone (digits-only, 7+ chars)
+      // — prevents duplicates when the same person is re-synced under a different ID.
+      const remoteEm = norm(sp.email);
+      const remotePh = digits(sp.phone);
+      const idx = PERSONNEL.findIndex(p =>
+        p.id === sp.id
+        || (remoteEm && norm(p.email) === remoteEm)
+        || (remotePh.length >= 7 && digits(p.phone) === remotePh)
+      );
       if(idx > -1){
         const existing = PERSONNEL[idx];
         const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
-        const photo = existing.photo, pwd = existing.loginPassword;
+        const photo = existing.photo, pwd = existing.loginPassword, keepId = existing.id;
         Object.assign(existing, sp);
+        existing.id = keepId;   // never overwrite the local stable id
         if(photo) existing.photo = photo;
         if(pwd)   existing.loginPassword = pwd;
         const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
@@ -14438,6 +14513,7 @@ setTimeout(_fallbackLoadLocations, 3000);
       }
     });
     if(!changed){ console.log('[PERSONNEL SYNC] standalone poll — no changes'); return; }
+    if(typeof _dedupePersonnel === 'function') _dedupePersonnel();
     console.log('[PERSONNEL SYNC] standalone poll — applied changes');
     try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
     const rp = document.getElementById('rp-body');
@@ -18009,14 +18085,23 @@ const SYNC = (() => {
       const applyPersonnelSnapshot = (list) => {
         if(!Array.isArray(list) || !list.length) return;
         let changed = false;
+        const norm = s => (s||'').toString().trim().toLowerCase();
+        const digits = s => (s||'').toString().replace(/\D+/g,'');
         list.forEach(sp => {
           if(!sp || !sp.id) return;
-          const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+          const remoteEm = norm(sp.email);
+          const remotePh = digits(sp.phone);
+          const idx = PERSONNEL.findIndex(p =>
+            p.id === sp.id
+            || (remoteEm && norm(p.email) === remoteEm)
+            || (remotePh.length >= 7 && digits(p.phone) === remotePh)
+          );
           if(idx > -1){
             const existing = PERSONNEL[idx];
             const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
-            const photo = existing.photo, pwd = existing.loginPassword;
+            const photo = existing.photo, pwd = existing.loginPassword, keepId = existing.id;
             Object.assign(existing, sp);
+            existing.id = keepId;
             if(photo) existing.photo = photo;
             if(pwd)   existing.loginPassword = pwd;
             const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
@@ -18027,6 +18112,7 @@ const SYNC = (() => {
           }
         });
         if(!changed) return;
+        if(typeof _dedupePersonnel === 'function') _dedupePersonnel();
         console.log('[PERSONNEL SYNC] REST poll applied changes');
         try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
         const rp = document.getElementById('rp-body');
@@ -18063,18 +18149,29 @@ const SYNC = (() => {
         const list = Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
         console.log('[PERSONNEL SYNC] subscriber fired, ' + list.length + ' rows');
         if(!list.length) return;
-        // Merge remote → local PERSONNEL.
+        // Merge remote → local PERSONNEL. Match by id, then email,
+        // then phone — keeps duplicates from accreting when the same
+        // person resyncs under a different uuid from another device.
         let changed = false;
+        const norm = s => (s||'').toString().trim().toLowerCase();
+        const digits = s => (s||'').toString().replace(/\D+/g,'');
         list.forEach(sp=>{
           if(!sp || !sp.id) return;
-          const idx = PERSONNEL.findIndex(p=>p.id===sp.id);
+          const remoteEm = norm(sp.email);
+          const remotePh = digits(sp.phone);
+          const idx = PERSONNEL.findIndex(p =>
+            p.id === sp.id
+            || (remoteEm && norm(p.email) === remoteEm)
+            || (remotePh.length >= 7 && digits(p.phone) === remotePh)
+          );
           if(idx>-1){
             const existing = PERSONNEL[idx];
-            const photo = existing.photo, pwd = existing.loginPassword;
+            const photo = existing.photo, pwd = existing.loginPassword, keepId = existing.id;
             // Skip the assign if nothing changed, so a passive echo of
             // our own write doesn't trigger a re-render flicker.
             const snapshot = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
             Object.assign(existing, sp);
+            existing.id = keepId;
             if(photo) existing.photo = photo;
             if(pwd)   existing.loginPassword = pwd;
             const after = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
@@ -18084,6 +18181,7 @@ const SYNC = (() => {
             changed = true;
           }
         });
+        if(changed && typeof _dedupePersonnel === 'function') _dedupePersonnel();
         try{ localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); }catch(e){}
         // If any PERSONNEL field actually changed, repaint any currently-
         // visible surface that reads PERSONNEL. Without this, roles /
@@ -18712,15 +18810,27 @@ const SYNC = (() => {
       const list = Array.isArray(data) ? data : Object.values(data);
       if(!list.length) return;
       let changed = false;
+      const norm = s => (s||'').toString().trim().toLowerCase();
+      const digits = s => (s||'').toString().replace(/\D+/g,'');
       list.forEach(sp => {
         if(!sp || !sp.id) return;
-        const idx = PERSONNEL.findIndex(p => p.id === sp.id);
+        // Match by id, then email, then phone — keeps duplicates from accreting
+        // when the same person resyncs under a different uuid from another device.
+        const remoteEm = norm(sp.email);
+        const remotePh = digits(sp.phone);
+        const idx = PERSONNEL.findIndex(p =>
+          p.id === sp.id
+          || (remoteEm && norm(p.email) === remoteEm)
+          || (remotePh.length >= 7 && digits(p.phone) === remotePh)
+        );
         if(idx > -1){
-          // Merge remote → local, but PRESERVE local photo and loginPassword
+          // Merge remote → local, but PRESERVE local id, photo and loginPassword
           const existing = PERSONNEL[idx];
+          const keepId = existing.id;
           const photo = existing.photo;
           const pwd   = existing.loginPassword;
           Object.assign(existing, sp);
+          existing.id = keepId;
           if(photo) existing.photo = photo;
           if(pwd)   existing.loginPassword = pwd;
           changed = true;
@@ -18738,6 +18848,7 @@ const SYNC = (() => {
         if(p && url && p.photo !== url){ p.photo = url; changed = true; delete pending[pid]; }
       });
       if(!changed) return;
+      if(typeof _dedupePersonnel === 'function') _dedupePersonnel();
       try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
       // Re-render personnel panel if currently open
       const rpBody = document.getElementById('rp-body');
