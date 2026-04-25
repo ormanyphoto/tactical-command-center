@@ -9495,6 +9495,67 @@ function completeRangeSession(sid){
 
 // boAnalytics is now merged into boOverview — see redirect above
 
+// Admin: nuke ALL tac_locs entries that match the current logged-in user
+// (by personId + email + name). The current device's publisher will
+// re-publish within ~10s, leaving exactly one entry. Use after multi-
+// device login bursts during testing.
+async function deleteAllMyLocations(){
+  const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+  if(!u){ alert('לא מחובר.'); return; }
+  if(typeof showToast==='function') showToast({icon:'🔍',title:'מחפש את הרשומות שלך…',type:'info',duration:1800});
+  let raw;
+  try {
+    const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs.json?_='+Date.now(), {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    raw = await r.json();
+  } catch(e){
+    alert('שגיאה בקריאת tac_locs: ' + (e.message||e));
+    return;
+  }
+  if(!raw){ alert('אין נתונים ב-tac_locs.'); return; }
+  const norm = s => (s||'').toString().trim().toLowerCase();
+  const myEm = norm(u.email);
+  const myName = norm(u.name);
+  const myPid = u.id;
+  const targets = [];
+  Object.entries(raw).forEach(([uid, d])=>{
+    if(!d) return;
+    const matches =
+      (myPid && d.personId === myPid) ||
+      (myEm && d.email && norm(d.email) === myEm) ||
+      (myName && d.name && norm(d.name) === myName);
+    if(matches) targets.push({uid, ageMin: Math.round((Date.now()-(d.ts||0))/60000)});
+  });
+  if(!targets.length){ alert('לא נמצאו רשומות שלך.'); return; }
+  if(!confirm('למחוק ' + targets.length + ' רשומות שלך מ-tac_locs?\n\nהמכשיר הנוכחי יפרסם מחדש תוך 10 שניות.')) return;
+  let ok=0, fail=0;
+  for(const t of targets){
+    try {
+      const r2 = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/'+encodeURIComponent(t.uid)+'.json', {method:'DELETE'});
+      if(r2.ok) ok++; else fail++;
+    } catch(_){ fail++; }
+  }
+  if(typeof showToast==='function') showToast({icon: fail?'⚠️':'✅', title:'נמחקו '+ok+' רשומות', sub: fail?(fail+' נכשלו'):'המפה תתעדכן תוך 10 שניות', type: fail?'warn':'success', duration:4000});
+}
+
+// Per-marker action: delete a single tac_locs/<uid> entry from Firebase.
+// Called from the "🚫 נתק את המכשיר הזה" button inside live-marker
+// InfoWindows so the operator can kill a specific stale session by
+// clicking it on the map.
+window._disconnectLocEntry = async function(uidEncoded, name){
+  if(!uidEncoded) return;
+  const uid = decodeURIComponent(uidEncoded);
+  if(!confirm('לנתק את המכשיר של "' + (name||'?') + '"?\n\nהרשומה תימחק מהענן וה-marker ייעלם תוך 5-10 שניות. אם המכשיר עדיין פעיל הוא יפרסם שוב במחזור הבא.')) return;
+  try{
+    const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/' + encodeURIComponent(uid) + '.json', {method:'DELETE'});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    if(typeof showToast==='function') showToast({icon:'🚫',title:'המכשיר נותק',sub:'ה-marker ייעלם בקרוב',type:'success',duration:3500});
+    if(typeof closeAllInfoWindows==='function') closeAllInfoWindows();
+  } catch(e){
+    if(typeof showToast==='function') showToast({icon:'⚠️',title:'מחיקה נכשלה',sub:e.message||'',type:'warn',duration:4000});
+  }
+};
+
 // Admin tool: scan tac_locs for entries older than 30 min that share an
 // identity (personId/name) with a fresher entry, list them, ask for
 // confirmation, then DELETE each from Firebase. Removes the duplicate
@@ -9655,8 +9716,11 @@ function boSettings(c){
     cleanupSectionHtml =
       '<div class="bo-section"><div class="bo-hd">🧹 תחזוקה (מנהל מערכת)</div>'
       +'<div class="config-row"><div><div class="config-lbl">נקה מיקומים יתומים</div>'
-      +'<div class="config-desc">מסיר רשומות tac_locs ישנות (>30 דקות) שנשארו מבדיקות / מ-uuid drift וגורמות ל-markers כפולים</div></div>'
+      +'<div class="config-desc">מסיר רשומות tac_locs ישנות / lag>90s שגורמות ל-markers כפולים</div></div>'
       +'<button class="act-btn" onclick="cleanOrphanLocations()">🗑 נקה</button></div>'
+      +'<div class="config-row"><div><div class="config-lbl">מחק את כל המיקומים שלי</div>'
+      +'<div class="config-desc">מוחק את כל הרשומות שלי ב-tac_locs (גם פעילות). המכשיר הנוכחי יפרסם מחדש תוך שניות. שימושי לאחר התחברות מכמה מכשירים בבדיקות.</div></div>'
+      +'<button class="act-btn" onclick="deleteAllMyLocations()" style="background:#ff7a1a;color:#fff">🚫 נתק כפילויות</button></div>'
       +'</div>';
   }
   c.innerHTML= brandSectionHtml + cleanupSectionHtml +
@@ -18864,6 +18928,14 @@ const SYNC = (() => {
           const _status = escHtml(d.status || 'פעיל');
           const _acc    = escHtml(String(d.acc == null ? '--' : d.acc));
           const _spd    = escHtml(String(d.spd == null ? 0  : d.spd));
+          // "Disconnect this device" button — visible to anyone, but most
+          // useful for clearing your own duplicate sessions left over from
+          // testing. Deletes only the specific tac_locs/<uid> entry.
+          const _safeUid = encodeURIComponent(uid);
+          const disconnectBtn =
+            `<button onclick="window._disconnectLocEntry('${_safeUid}','${escHtml(d.name||'').replace(/'/g,'')}')" `
+            +`style="margin-top:8px;width:100%;background:#ff7a1a;color:#fff;border:none;border-radius:6px;padding:8px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">`
+            +`🚫 נתק את המכשיר הזה</button>`;
           const iw=new google.maps.InfoWindow({content:
             `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:220px;background:${bgColorIW};color:${textColor};border-radius:8px">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${ph}<div>
@@ -18873,7 +18945,9 @@ const SYNC = (() => {
                 <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${_status}</span>
                 <span style="color:${labelColor};font-weight:600">📡 דיוק</span><span style="color:${textColor};font-weight:700">${_acc} מ'</span>
                 <span style="color:${labelColor};font-weight:600">⚡ מהירות</span><span style="color:${textColor};font-weight:700">${_spd} קמ"ש</span>
-                <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${escHtml(ageStr)}</span></div></div>`
+                <span style="color:${labelColor};font-weight:600">🕐 עדכון</span><span style="color:${textColor};font-weight:700">לפני ${escHtml(ageStr)}</span></div>
+              ${disconnectBtn}
+              </div>`
           });
           iw.open(window.map, _liveMarkers[markerKey]);
           window._infoWindows.push(iw);
