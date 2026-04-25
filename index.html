@@ -5090,12 +5090,21 @@ function setTheme(m){
               _upd();
             }
           } catch(_){}
-          // Re-plot everything that lived on the old map
+          // Re-plot everything that lived on the old map. Also wipe the
+          // existing static markers/circles/polylines registry — those
+          // are still bound to the dead map and need fresh instances.
+          try {
+            Object.keys(_markers||{}).forEach(k => { try { _markers[k].setMap(null); } catch(_){} delete _markers[k]; });
+            Object.keys(_circles||{}).forEach(k => { try { _circles[k].setMap(null); } catch(_){} delete _circles[k]; });
+            Object.keys(_polylines||{}).forEach(k => { try { _polylines[k].setMap(null); } catch(_){} delete _polylines[k]; });
+          } catch(_){}
           google.maps.event.addListenerOnce(window.map, 'idle', () => {
             try { if (typeof plotMissions === 'function') plotMissions(); } catch(_){}
             try { if (typeof plotUnits === 'function') plotUnits(); } catch(_){}
             try { if (typeof plotGFs === 'function') plotGFs(); } catch(_){}
-            try { if (typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers(); } catch(_){}
+            // hardReset=true so SYNC wipes its private _liveMarkers (avatars)
+            // before rebuilding against the new map.
+            try { if (typeof SYNC !== 'undefined' && SYNC.rerenderMarkers) SYNC.rerenderMarkers(true); } catch(_){}
             try { if (typeof _triggerMapResize === 'function') _triggerMapResize(); } catch(_){}
           });
           return;   // skip the legacy raster `setOptions({styles})` path
@@ -18452,10 +18461,21 @@ const SYNC = (() => {
   setInterval(_cleanupStaleLocations, 5*60*1000);
   setTimeout(_cleanupStaleLocations, 30*1000);
 
-  function rerenderMarkers(){
+  function rerenderMarkers(hardReset){
     if(!window.map || !window._googleReady){
-      setTimeout(rerenderMarkers, 1200);
+      setTimeout(()=>rerenderMarkers(hardReset), 1200);
       return;
+    }
+    // Hard reset = called after window.map was replaced (e.g. theme toggle
+    // recreates the Map for colorScheme switch). Existing markers are bound
+    // to the dead map instance — _updateLiveMarker would then early-out
+    // ("already exists") and only setPosition(), leaving them invisible.
+    // Wipe the registry so each marker is built fresh against the new map.
+    if(hardReset){
+      Object.keys(_liveMarkers).forEach(k => {
+        try { if(_liveMarkers[k]) _liveMarkers[k].setMap(null); } catch(_){}
+        delete _liveMarkers[k];
+      });
     }
     const data = _dedupeByPerson(window._pendingLocData || {});
     Object.entries(data).forEach(([uid,d])=>{
