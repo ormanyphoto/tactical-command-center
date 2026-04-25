@@ -2527,20 +2527,29 @@ function onGoogleMapsReady(){
   // which is supported on every modern desktop browser and modern
   // mobile/tablet (iPhone 11+, Galaxy S9+, etc.).
   // Operator can override per-device via localStorage.tac_map_id.
-  // 2026-04-25: Default DISABLED (raster mode) because StaticMapService
-  // fallback was firing across all devices — vector rendering needs more
-  // Cloud Console work before we re-enable. Set localStorage.tac_map_id
-  // to the published mapId to opt back in for testing.
+  // 2026-04-25: Vector mapId re-enabled by default after isolating the
+  // StaticMap fallback to extra options we were passing. The standalone
+  // map-test.html with bare options (center/zoom/mapId/disableDefaultUI)
+  // renders full vector tiles with rotation. To avoid the fallback we
+  // now SPLIT options into two sets: bare-minimum when mapId is in use,
+  // full set (with restriction, mapTypeId, mapTypeControlOptions) for
+  // raster fallback. Suspect options removed from vector path:
+  //   - restriction + strictBounds (conflicts with vector camera)
+  //   - mapTypeId (conflicts with mapId style)
+  //   - mapTypeControlOptions (UI is hidden anyway)
+  // Operator can override per-device via localStorage.tac_map_id ('' = raster).
   const mapId = (() => {
-    try { return localStorage.getItem('tac_map_id') || ''; }
-    catch(_){ return ''; }
+    try {
+      const v = localStorage.getItem('tac_map_id');
+      // null = never set → use vector default; '' = explicitly disabled → raster
+      return v === null ? '5075a944af766b257648230b' : v;
+    } catch(_){ return '5075a944af766b257648230b'; }
   })();
   const _mapOpts = {
     center:{lat:32.0667,lng:34.7818},
     zoom:13,  // Start wider for faster initial tile load, then zoom in after location
     minZoom:8,
     maxZoom:20,
-    mapTypeId:'roadmap',
     disableDefaultUI:true,                                // kept — we render our own controls
     gestureHandling:'greedy',
     clickableIcons:false,
@@ -2550,17 +2559,20 @@ function onGoogleMapsReady(){
     headingInteractionEnabled:true,
     isFractionalZoomEnabled:true,
     backgroundColor:'#0d1014',  // Dark bg prevents white flash before tiles load
-    restriction:{
+  };
+  if (mapId) {
+    // Vector path — bare-minimum extra options. NO mapTypeId, NO restriction,
+    // NO mapTypeControlOptions (each tested as a StaticMap-fallback trigger).
+    _mapOpts.mapId = mapId;
+  } else {
+    // Raster path — full option set + inline POI/transit hiding styles.
+    _mapOpts.mapTypeId = 'roadmap';
+    _mapOpts.restriction = {
       // Israel + ~150 km buffer in all directions (1° lat ≈ 111 km, 1° lng ≈ 94 km at 32°N).
       latLngBounds:{north:34.85, south:27.95, west:32.6, east:37.5},
       strictBounds:true
-    },
-    mapTypeControlOptions:{mapTypeIds:['roadmap','satellite','hybrid','terrain']},
-  };
-  if (mapId) {
-    _mapOpts.mapId = mapId;                               // vector rendering + rotation (opt-in)
-  } else {
-    // Raster default — apply POI/transit hiding inline (incompatible with mapId)
+    };
+    _mapOpts.mapTypeControlOptions = {mapTypeIds:['roadmap','satellite','hybrid','terrain']};
     _mapOpts.styles = [
       {featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]},
       {featureType:'poi',elementType:'geometry',stylers:[{visibility:'off'}]},
