@@ -1722,10 +1722,17 @@ let TEAMS=[
 // ══════════════════════════════════════════════════════════════════════════════
 const BIOMETRIC = (() => {
   const STORE_KEY = 'tac_bio_cred';
-  // RP ID must match the origin exactly
-  const RP_ID = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? location.hostname
-    : 'ormanyphoto.github.io';
+  // RP ID must be a registrable suffix of (or equal to) the current
+  // hostname. Use location.hostname directly so the same code works on
+  // every deploy target without a hardcoded list:
+  //   - localhost / 127.0.0.1            (dev)
+  //   - tactical-command-center.web.app  (Firebase Hosting prod)
+  //   - tactical-command-center.firebaseapp.com (Firebase alt)
+  //   - tactical-command-center--<channel>.web.app (preview channels)
+  // Credentials are bound to the exact hostname they were registered
+  // on, so a user that previously registered on a different host will
+  // need to re-register once on the new host.
+  const RP_ID = location.hostname;
   const RP_NAME = 'מערכת מבצעים';
   let _pendingUser = null;
 
