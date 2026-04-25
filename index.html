@@ -2535,17 +2535,14 @@ function onGoogleMapsReady(){
     // Vector path — bare-minimum extra options. NO mapTypeId, NO restriction,
     // NO mapTypeControlOptions (each tested as a StaticMap-fallback trigger).
     _mapOpts.mapId = mapId;
-    // colorScheme is read-only AFTER instantiation, so we can't change it
-    // via setOptions. Instead set FOLLOW_SYSTEM here and toggle the
-    // browser-level color scheme at runtime via document.documentElement
-    // .style.colorScheme — Maps reads `prefers-color-scheme: dark` and
-    // re-renders accordingly. This makes the in-app theme button drive
-    // the map without recreating it.
-    _mapOpts.colorScheme = 'FOLLOW_SYSTEM';
+    // colorScheme is read-only after instantiation — we MUST set it here
+    // to match the user's saved theme. The setTheme() runtime toggle
+    // triggers a page reload to pick up the new value.
     try {
       const _theme = localStorage.getItem('tac-v5-theme') || 'night';
+      _mapOpts.colorScheme = (_theme === 'night') ? 'DARK' : 'LIGHT';
       document.documentElement.style.colorScheme = (_theme === 'night') ? 'dark' : 'light';
-    } catch(_){}
+    } catch(_){ _mapOpts.colorScheme = 'DARK'; }
   } else {
     // Raster path — full option set + inline POI/transit hiding styles.
     _mapOpts.mapTypeId = 'roadmap';
@@ -5039,17 +5036,27 @@ function setTheme(m){
   // having to hook into setTheme directly.
   try { window.dispatchEvent(new CustomEvent('tcc-theme-change',{detail:m})); } catch(_){}
   if(map&&window._googleReady){
-    // Vector path (mapId present) — colorScheme is read-only after init,
-    // so toggle the browser-level color scheme instead. The map is
-    // instantiated with colorScheme: FOLLOW_SYSTEM, which makes it
-    // listen to `prefers-color-scheme: dark` and switch between the
-    // Light/Dark styles wired to the Map ID in Cloud Console.
-    // Raster fallback (no mapId) still uses inline `styles`.
+    // Vector path (mapId present) — colorScheme is read-only after init.
+    // Setting it via setOptions silently fails; FOLLOW_SYSTEM only follows
+    // OS-level prefers-color-scheme (CSS color-scheme can't override it).
+    // The only reliable way to switch is to recreate the map with the new
+    // colorScheme. We do that via a quick page reload — saved theme has
+    // already been written to localStorage above so init picks it up.
     const hasMapId = !!map.get('mapId');
     if (hasMapId) {
+      try { document.documentElement.style.colorScheme = (m === 'night') ? 'dark' : 'light'; } catch(_){}
+      // Reload only if the current map color scheme actually differs from
+      // the requested one — first-load setTheme calls (DOMContentLoaded +
+      // synchronous) come in with the value already matching, so no reload.
       try {
-        document.documentElement.style.colorScheme = (m === 'night') ? 'dark' : 'light';
-      } catch(e){ console.warn('[theme] colorScheme toggle failed:', e && e.message); }
+        const currentScheme = (map.get('colorScheme') || '').toString().toUpperCase();
+        const wantedScheme  = (m === 'night') ? 'DARK' : 'LIGHT';
+        if (currentScheme && currentScheme !== wantedScheme && currentScheme !== 'FOLLOW_SYSTEM') {
+          // Defer slightly so the body class / button icons paint first
+          setTimeout(() => location.reload(), 120);
+          return;
+        }
+      } catch(_){}
     } else {
       // POIs/transit are intentionally visible — see _poiHide comment at init.
       const _ph=window._poiHide||[];
