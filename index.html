@@ -6422,7 +6422,17 @@ function _resetToGPS(){
     try { window.map.panTo({lat: window._preManualLat, lng: window._preManualLng}); } catch(_){}
     window._lastLat = window._preManualLat;
     window._lastLng = window._preManualLng;
+  } else {
+    // No real GPS fix saved before the manual override — clear the cached
+    // manual coords so startPublishing's iOS cold-start seed doesn't
+    // re-pin the user to the manual spot via tac_locs. The marker stays
+    // absent for a few seconds until CoreLocation / watchPosition
+    // delivers a real fix; better than reappearing at the wrong place.
+    window._lastLat = null;
+    window._lastLng = null;
   }
+  window._preManualLat = null;
+  window._preManualLng = null;
   showToast({icon:'🔄',title:'חזרה למיקום GPS',sub:'המערכת תעדכן לפי GPS',type:'info'});
 }
 
