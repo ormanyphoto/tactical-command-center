@@ -11600,6 +11600,8 @@ function openAddPersonModal(){
         </select>
       </div>
       <div class="form-g"><label>אות קריאה</label><input type="text" id="ap-callsign" placeholder="שם-מספר"/></div>
+      <div class="form-g"><label>דרגה</label><input type="text" id="ap-rank" placeholder="סמל / רס״ר / פקד..."/></div>
+      <div class="form-g"><label>סימון טקטי</label><input type="text" id="ap-tacmark" placeholder="ק / ל / מ / *..."/></div>
       <div class="form-g"><label>זמינות</label>
         <select id="ap-avail"><option value="true">זמין</option><option value="false">לא זמין</option></select>
       </div>
@@ -11634,6 +11636,8 @@ function openAddPersonModal(){
       unit:document.getElementById('ap-unit').value,
       role:getRoleValue('ap-role'),
       callsign:document.getElementById('ap-callsign').value,
+      rank:(document.getElementById('ap-rank')||{}).value||'',
+      tacticalMark:(document.getElementById('ap-tacmark')||{}).value||'',
       vehiclePlate:document.getElementById('ap-vplate').value,
       vehicleType:document.getElementById('ap-vtype').value,
       vehiclePoliceApproved:document.getElementById('ap-vpolice').checked,
@@ -11725,6 +11729,8 @@ function editPersonModal(id){
         </select>
       </div>
       <div class="form-g"><label>אות קריאה</label><input type="text" id="ep-callsign" value="${p.callsign||''}"/></div>
+      <div class="form-g"><label>דרגה</label><input type="text" id="ep-rank" value="${(p.rank||'').replace(/"/g,'&quot;')}" placeholder="סמל / רס״ר / פקד..."/></div>
+      <div class="form-g"><label>סימון טקטי</label><input type="text" id="ep-tacmark" value="${(p.tacticalMark||'').replace(/"/g,'&quot;')}" placeholder="ק / ל / מ / *..."/></div>
       <div class="form-g"><label>זמינות</label>
         <select id="ep-avail">
           <option value="true" ${p.available?'selected':''}>זמין</option>
@@ -11879,6 +11885,8 @@ function editPersonModal(id){
     const _newRole = getRoleValue('ep-role');
     if(_newRole) p.role = _newRole;
     p.callsign=document.getElementById('ep-callsign').value;
+    p.rank=(document.getElementById('ep-rank')||{}).value||'';
+    p.tacticalMark=(document.getElementById('ep-tacmark')||{}).value||'';
     const dobVal=(document.getElementById('ep-dob')||{}).value||'';
     p.dob=dobVal||null; // ISO YYYY-MM-DD or null
     p.vehiclePlate=document.getElementById('ep-vplate').value;
