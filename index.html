@@ -11600,7 +11600,7 @@ function openAddPersonModal(){
         </select>
       </div>
       <div class="form-g"><label>אות קריאה</label><input type="text" id="ap-callsign" placeholder="שם-מספר"/></div>
-      <div class="form-g"><label>דרגה</label><input type="text" id="ap-rank" placeholder="סמל / רס״ר / פקד..."/></div>
+      <div class="form-g"><label>דרגה</label>${_buildRankSelect('ap-rank','')}</div>
       <div class="form-g"><label>סימון טקטי</label><input type="text" id="ap-tacmark" placeholder="ק / ל / מ / *..."/></div>
       <div class="form-g"><label>זמינות</label>
         <select id="ap-avail"><option value="true">זמין</option><option value="false">לא זמין</option></select>
@@ -11729,7 +11729,7 @@ function editPersonModal(id){
         </select>
       </div>
       <div class="form-g"><label>אות קריאה</label><input type="text" id="ep-callsign" value="${p.callsign||''}"/></div>
-      <div class="form-g"><label>דרגה</label><input type="text" id="ep-rank" value="${(p.rank||'').replace(/"/g,'&quot;')}" placeholder="סמל / רס״ר / פקד..."/></div>
+      <div class="form-g"><label>דרגה</label>${_buildRankSelect('ep-rank',p.rank||'')}</div>
       <div class="form-g"><label>סימון טקטי</label><input type="text" id="ep-tacmark" value="${(p.tacticalMark||'').replace(/"/g,'&quot;')}" placeholder="ק / ל / מ / *..."/></div>
       <div class="form-g"><label>זמינות</label>
         <select id="ep-avail">
@@ -16049,6 +16049,39 @@ function _toggleEqType(t){
   if(!ser||!qty)return;
   ser.style.display = t==='serial' ? '' : 'none';
   qty.style.display = t==='bulk' ? '' : 'none';
+}
+// Israeli police rank list, grouped by tier. Used by the new-person and
+// edit-person modals to render a <select> in place of a free-text rank
+// input. Free text is still preserved on save (PERSONNEL[i].rank stores
+// the chosen string verbatim) so any older record with a non-listed rank
+// stays valid - the select just won't have it preselected.
+const POLICE_RANKS = [
+  { group: 'שוטרים', items: ['שוטר','רב־שוטר (רש"ט)','סמל שני (סמ"ש)','סמל ראשון (סמ"ר)','רב־סמל (רס"ל)'] },
+  { group: 'נגדים',  items: ['רב־סמל ראשון (רס"ר)','רב־סמל מתקדם (רס"ם)','רב־סמל בכיר (רס"ב)','רב־נגד (רנ"ג)'] },
+  { group: 'קצונה',  items: ['מפקח־משנה (ממ"ש)','מפקח','פקד','רב־פקד (רפ"ק)','ניצב־משנה (נצ"מ)','תת־ניצב (תנ"צ)','ניצב','רב־ניצב (רנ"צ)'] }
+];
+// Build a <select> for rank, with optgroup labels and an empty option.
+// If the current value isn't in the list (legacy data), it's appended
+// as an extra option so existing values aren't dropped on save.
+function _buildRankSelect(id, current){
+  const cur = (current||'').trim();
+  let html = '<select id="'+id+'" style="width:100%">'
+    + '<option value=""'+(cur===''?' selected':'')+'>— לא הוגדר —</option>';
+  let foundCurrent = false;
+  POLICE_RANKS.forEach(g => {
+    html += '<optgroup label="'+escHtml(g.group)+'">';
+    g.items.forEach(r => {
+      const sel = (r === cur) ? ' selected' : '';
+      if(sel) foundCurrent = true;
+      html += '<option value="'+escHtml(r)+'"'+sel+'>'+escHtml(r)+'</option>';
+    });
+    html += '</optgroup>';
+  });
+  if(cur && !foundCurrent){
+    html += '<optgroup label="ערך מותאם"><option value="'+escHtml(cur)+'" selected>'+escHtml(cur)+'</option></optgroup>';
+  }
+  html += '</select>';
+  return html;
 }
 // Read the persisted set of collapsed warehouse categories from localStorage.
 // Categories are stored as a JSON array of strings; missing/corrupt → empty.
