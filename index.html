@@ -10879,42 +10879,6 @@ _dedupePersonnel();   // run once at startup to clean any historical drift
       done.v590_p17931_clear_placed = true;
     }
 
-    // v591_p17931_force_reset — v590 only acted when _placed===true at boot,
-    // but on devices where the cloud sync had already overwritten local
-    // state with _placed=false, the migration was marked done without
-    // actually clearing lat/lng OR pushing a clean record to Firebase.
-    // Force-reset under a new key so devices already past v590 still get
-    // the cloud cleanup.
-    if(!done.v591_p17931_force_reset){
-      const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
-      if(p){
-        p._placed = false;
-        p.lat = null;
-        p.lng = null;
-        try {
-          if(typeof _markers !== 'undefined'){
-            ['u_pers_'+p.id, 'u_pers_pers_'+p.id].forEach(k=>{
-              if(_markers[k]){ try { _markers[k].setMap(null); } catch(_){} delete _markers[k]; }
-            });
-          }
-          if(typeof trackMks !== 'undefined' && trackMks['pers_'+p.id]){
-            try { trackMks['pers_'+p.id].setMap(null); } catch(_){}
-            delete trackMks['pers_'+p.id];
-          }
-        } catch(_){}
-        changed = true;
-        // Defer cloud write until Firebase SDK is ready.
-        try {
-          const _doCloudClean = () => {
-            try { if(typeof saveToCloud === 'function') saveToCloud(); } catch(_){}
-          };
-          if(document.readyState === 'complete') setTimeout(_doCloudClean, 2000);
-          else window.addEventListener('load', () => setTimeout(_doCloudClean, 2000), {once:true});
-        } catch(_){}
-      }
-      done.v591_p17931_force_reset = true;
-    }
-
     if(changed){
       try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
     }
