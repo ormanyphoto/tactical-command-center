@@ -17824,9 +17824,19 @@ const SYNC = (() => {
     if(_watchId !== null){ navigator.geolocation.clearWatch(_watchId); _watchId = null; }
     if('geolocation' in navigator){
       _watchId = navigator.geolocation.watchPosition(pos=>{
+        // Reject very-stale cached positions. iOS Safari sometimes returns
+        // a week-old GPS fix from its cache (ignoring our maximumAge). If
+        // the position's own timestamp is more than 5 min behind now, it's
+        // not a real new fix — discard, let the IP-cascade fallback below
+        // publish a fresh location instead.
+        if (pos.timestamp && (Date.now() - pos.timestamp) > 5 * 60 * 1000) {
+          console.warn('[GEO] discarding stale cached position from', new Date(pos.timestamp).toLocaleString());
+          return;
+        }
         // Always cache last known position for SOS fallback
         window._lastLat = pos.coords.latitude;
         window._lastLng = pos.coords.longitude;
+        window._lastFixTs = Date.now();   // track freshness for the IP fallback below
         // If user has explicitly turned privacy OFF, don't publish or render.
         if(window._locPrivacyOn===false) return;
         const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
@@ -17915,11 +17925,57 @@ const SYNC = (() => {
     if(_publishTimer) clearInterval(_publishTimer);
     _doPublish();
     _publishTimer = setInterval(_doPublish, 8000);
+
+    // ── IP-CASCADE FALLBACK ────────────────────────────────────────
+    // For devices where watchPosition consistently fails (WiFi-only iPad
+    // without GPS chip, browsers blocking geolocation, indoor with no
+    // signal): every 60 s, if we don't have a fresh real GPS fix in the
+    // last 2 min, run the GPS→WiFi→IP cascade and publish whatever it
+    // returns. Without this, such devices simply stop publishing entirely
+    // after the first watchPosition error and disappear from teammates'
+    // maps until they go outdoors.
+    if (window._ipFallbackTimer) clearInterval(window._ipFallbackTimer);
+    window._ipFallbackTimer = setInterval(() => {
+      if (window._locPrivacyOn === false) return;
+      const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+      if (u && _hiddenPersons[u.id]) return;
+      const lastFix = window._lastFixTs || 0;
+      if (Date.now() - lastFix < 2 * 60 * 1000) return;   // got a fresh real fix recently
+      if (typeof _locateOnce !== 'function') return;
+      _locateOnce(
+        (pos, source) => {
+          // Don't overwrite a real GPS fix that arrived during this call.
+          if (window._lastFixTs && Date.now() - window._lastFixTs < 30 * 1000) return;
+          window._lastLat = pos.coords.latitude;
+          window._lastLng = pos.coords.longitude;
+          const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
+          if (!u2) return;
+          const payload = {
+            name: u2.name, role: u2.role, status: _myProfile.status || 'active',
+            color: u2.color || '#29c5f6',
+            personId: u2.id, platform: _detectPlatform(),
+            lat: pos.coords.latitude, lng: pos.coords.longitude,
+            acc: Math.round(pos.coords.accuracy || 5000),
+            hdg: 0, spd: 0,
+            ts: Date.now(), uid: _myUid,
+            src: source   // 'GPS' | 'WiFi' | 'IP' so consumers can see fix quality
+          };
+          if (_db) { try { _db.ref('tac_locs/'+_myUid).set(payload); } catch(_){} }
+          fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/'+_myUid+'.json',
+            { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }
+          ).catch(()=>{});
+          if (window.map && window._googleReady) _updateLiveMarker(_myUid, payload, true);
+          console.log('[GEO] periodic IP-cascade publish via', source, '→', pos.coords.latitude.toFixed(4), pos.coords.longitude.toFixed(4));
+        },
+        () => { /* all methods failed — try again next tick */ }
+      );
+    }, 60 * 1000);
   }
 
   function stopPublishing(){
     _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
+    if(window._ipFallbackTimer){ clearInterval(window._ipFallbackTimer); window._ipFallbackTimer=null; }
     // Stop GPS watch so we don't re-publish
     if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
     // On iOS the shim intentionally no longer auto-stops Core Location on
