@@ -10681,7 +10681,50 @@ function loadPersonnelFromStorage(){
 // if none has one, the first occurrence wins. Other data is merged from
 // later entries in case they have newer fields. Returns true if any
 // dupes were removed.
+// Defensive: a record is "garbage" if its name is empty or matches a
+// known placeholder string (form labels that somehow leaked into save
+// payloads). Keeps phantom rows like "שם מלא" from re-appearing on
+// every sync and getting re-added when the operator deletes them.
+const _PLACEHOLDER_NAMES = new Set(['שם מלא', 'שם', 'name', 'שם ושם משפחה', 'שם פרטי']);
+function _isGarbagePersonnel(p){
+  if(!p) return true;
+  const n = (p.name||'').toString().trim();
+  if(!n) return true;
+  if(_PLACEHOLDER_NAMES.has(n)) return true;
+  return false;
+}
+
+// Drop garbage rows from local PERSONNEL AND from Firebase tac_personnel_sync
+// so the next poll doesn't re-import them. Async — fire and forget.
+async function _purgeGarbagePersonnel(){
+  if(!Array.isArray(PERSONNEL)) return;
+  const garbage = PERSONNEL.filter(_isGarbagePersonnel);
+  if(!garbage.length) return;
+  const garbageIds = new Set(garbage.map(g => g && g.id).filter(Boolean));
+  const remaining = PERSONNEL.filter(p => !_isGarbagePersonnel(p));
+  PERSONNEL.splice(0, PERSONNEL.length, ...remaining);
+  try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
+  console.log('[PERSONNEL PURGE] removed', garbage.length, 'garbage row(s):', garbage.map(g=>g&&g.name).join(', '));
+  // Also strip them from Firebase so they don't come back via sync.
+  try {
+    const r = await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json?_='+Date.now(), {cache:'no-store'});
+    if(!r.ok) return;
+    const cloud = await r.json();
+    if(!cloud) return;
+    const list = Array.isArray(cloud) ? cloud : Object.values(cloud);
+    const cleaned = list.filter(sp => sp && !_isGarbagePersonnel(sp));
+    if(cleaned.length === list.length) return;
+    await fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_personnel_sync.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(cleaned)
+    });
+    console.log('[PERSONNEL PURGE] cleaned', list.length - cleaned.length, 'from Firebase tac_personnel_sync');
+  } catch(e){ console.warn('[PERSONNEL PURGE] firebase scrub failed:', e && e.message); }
+}
+
 function _dedupePersonnel(){
+  // First pass: drop placeholder/empty-name rows and keep them out of cloud.
+  _purgeGarbagePersonnel();
   if(!Array.isArray(PERSONNEL) || PERSONNEL.length < 2) return false;
   const norm = s => (s||'').toString().trim().toLowerCase();
   const digits = s => (s||'').toString().replace(/\D+/g,'');
