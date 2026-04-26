@@ -10823,6 +10823,36 @@ _dedupePersonnel();   // run once at startup to clean any historical drift
       done.v580_chapak_mehozi = true;
     }
 
+    // v590_p17931_clear_placed — P17931 is a regular logged-in user who
+    // publishes live to tac_locs like everyone else. An older session set
+    // `_placed=true` for him (via placePersonAt → "📍 כתובת" or drag), which
+    // saveToCloud persisted, so plotUnits keeps replotting him at the static
+    // PERSONNEL seed coords (32.0667, 34.7818) on every boot — masking his
+    // live position. Clear the static placement once so the live publisher
+    // becomes the single source of truth.
+    if(!done.v590_p17931_clear_placed){
+      const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
+      if(p && p._placed === true){
+        p._placed = false;
+        p.lat = null;
+        p.lng = null;
+        try {
+          if(typeof _markers !== 'undefined'){
+            ['u_pers_'+p.id, 'u_pers_pers_'+p.id].forEach(k=>{
+              if(_markers[k]){ try { _markers[k].setMap(null); } catch(_){} delete _markers[k]; }
+            });
+          }
+          if(typeof trackMks !== 'undefined' && trackMks['pers_'+p.id]){
+            try { trackMks['pers_'+p.id].setMap(null); } catch(_){}
+            delete trackMks['pers_'+p.id];
+          }
+        } catch(_){}
+        changed = true;
+        try { if(typeof saveToCloud === 'function') saveToCloud(); } catch(_){}
+      }
+      done.v590_p17931_clear_placed = true;
+    }
+
     if(changed){
       try { localStorage.setItem('tac_personnel', JSON.stringify(PERSONNEL)); } catch(_){}
     }
