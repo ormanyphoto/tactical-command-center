@@ -17926,69 +17926,20 @@ const SYNC = (() => {
     _doPublish();
     _publishTimer = setInterval(_doPublish, 8000);
 
-    // ── IP-CASCADE FALLBACK ────────────────────────────────────────
-    // For devices where watchPosition consistently fails (WiFi-only iPad
-    // without GPS chip, browsers blocking geolocation, indoor with no
-    // signal): every 60 s, if we don't have a fresh real GPS fix in the
-    // last 2 min, run the GPS→WiFi→IP cascade and publish whatever it
-    // returns. Without this, such devices simply stop publishing entirely
-    // after the first watchPosition error and disappear from teammates'
-    // maps until they go outdoors.
-    //
-    // CRITICAL: only enable this on PURE web (browser / Mobile Safari).
-    // Inside native Android WebView (window.Android present) the
-    // foreground service publishes real GPS from Kotlin — running the
-    // JS fallback in parallel would publish IP coords under a different
-    // uid, the per-person dedup picks the newest, and the user's marker
-    // jumps to the ISP location even though the native side is still
-    // delivering accurate GPS. Same risk inside iOS native (Swift
-    // BackgroundPublisher), so gate on _detectPlatform() === 'web'.
-    if (window._ipFallbackTimer) clearInterval(window._ipFallbackTimer);
-    const _platformForFallback = (typeof _detectPlatform === 'function') ? _detectPlatform() : 'web';
-    if (_platformForFallback !== 'web') {
-      console.log('[GEO] IP fallback disabled — native publisher (' + _platformForFallback + ') handles location');
-      return;
-    }
-    window._ipFallbackTimer = setInterval(() => {
-      if (window._locPrivacyOn === false) return;
-      const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-      if (u && _hiddenPersons[u.id]) return;
-      const lastFix = window._lastFixTs || 0;
-      if (Date.now() - lastFix < 2 * 60 * 1000) return;   // got a fresh real fix recently
-      if (typeof _locateOnce !== 'function') return;
-      _locateOnce(
-        (pos, source) => {
-          // Don't overwrite a real GPS fix that arrived during this call.
-          if (window._lastFixTs && Date.now() - window._lastFixTs < 30 * 1000) return;
-          window._lastLat = pos.coords.latitude;
-          window._lastLng = pos.coords.longitude;
-          const u2 = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
-          if (!u2) return;
-          const payload = {
-            name: u2.name, role: u2.role, status: _myProfile.status || 'active',
-            color: u2.color || '#29c5f6',
-            personId: u2.id, platform: _detectPlatform(),
-            lat: pos.coords.latitude, lng: pos.coords.longitude,
-            acc: Math.round(pos.coords.accuracy || 5000),
-            hdg: 0, spd: 0,
-            ts: Date.now(), uid: _myUid,
-            src: source   // 'GPS' | 'WiFi' | 'IP' so consumers can see fix quality
-          };
-          if (_db) { try { _db.ref('tac_locs/'+_myUid).set(payload); } catch(_){} }
-          fetch('https://tactical-command-center-default-rtdb.firebaseio.com/tac_locs/'+_myUid+'.json',
-            { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }
-          ).catch(()=>{});
-          if (window.map && window._googleReady) _updateLiveMarker(_myUid, payload, true);
-          console.log('[GEO] periodic IP-cascade publish via', source, '→', pos.coords.latitude.toFixed(4), pos.coords.longitude.toFixed(4));
-        },
-        () => { /* all methods failed — try again next tick */ }
-      );
-    }, 60 * 1000);
+    // (Periodic IP-cascade fallback removed — it caused real-GPS publishes
+    // from native Android/iOS services to be visually clobbered by 5 km-
+    // accuracy IP entries that jumped between cities each cycle. Devices
+    // without working GPS now simply don't appear on the map until they
+    // get a real fix. To enable a temporary IP publish for a stuck WiFi-
+    // only iPad, run the manual `_locateOnce → PUT tac_locs` snippet
+    // documented in the admin runbook.)
   }
 
   function stopPublishing(){
     _firstPosFix = false;
     if(_publishTimer){ clearInterval(_publishTimer); _publishTimer=null; }
+    // (Legacy: also clear the periodic IP fallback timer if any older
+    // build still has it scheduled in this tab.)
     if(window._ipFallbackTimer){ clearInterval(window._ipFallbackTimer); window._ipFallbackTimer=null; }
     // Stop GPS watch so we don't re-publish
     if(_watchId !== null){ try{ navigator.geolocation.clearWatch(_watchId); }catch(e){} _watchId = null; }
