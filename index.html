@@ -17934,7 +17934,21 @@ const SYNC = (() => {
     // returns. Without this, such devices simply stop publishing entirely
     // after the first watchPosition error and disappear from teammates'
     // maps until they go outdoors.
+    //
+    // CRITICAL: only enable this on PURE web (browser / Mobile Safari).
+    // Inside native Android WebView (window.Android present) the
+    // foreground service publishes real GPS from Kotlin — running the
+    // JS fallback in parallel would publish IP coords under a different
+    // uid, the per-person dedup picks the newest, and the user's marker
+    // jumps to the ISP location even though the native side is still
+    // delivering accurate GPS. Same risk inside iOS native (Swift
+    // BackgroundPublisher), so gate on _detectPlatform() === 'web'.
     if (window._ipFallbackTimer) clearInterval(window._ipFallbackTimer);
+    const _platformForFallback = (typeof _detectPlatform === 'function') ? _detectPlatform() : 'web';
+    if (_platformForFallback !== 'web') {
+      console.log('[GEO] IP fallback disabled — native publisher (' + _platformForFallback + ') handles location');
+      return;
+    }
     window._ipFallbackTimer = setInterval(() => {
       if (window._locPrivacyOn === false) return;
       const u = (typeof AUTH!=='undefined') ? AUTH.getUser() : null;
