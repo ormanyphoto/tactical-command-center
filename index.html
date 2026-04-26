@@ -17657,6 +17657,25 @@ const SYNC = (() => {
     } catch(_){}
   })(0);
   let _liveMarkers = {}, _publishTimer = null, _connected = false, _firstPosFix = false;
+
+  // Tag every published location with its source platform so consumers can
+  // distinguish web/desktop publishers from native mobile apps.
+  //   - 'ios':     iOS native WebView (window.webkit.messageHandlers exists,
+  //                no window.Android bridge)
+  //   - 'android': Android native WebView (window.Android bridge exists)
+  //   - 'web':     plain browser (no native bridge)
+  // Native iOS publishes from BackgroundPublisher.swift (also tagged 'ios');
+  // native Android publishes from TacticalForegroundService.kt (tagged
+  // 'android'). When the WebView itself publishes from JS, we still mark it
+  // as the host platform so the InfoWindow shows the right icon.
+  function _detectPlatform(){
+    try {
+      if (window.Android) return 'android';
+      if (window.webkit && window.webkit.messageHandlers) return 'ios';
+      if (window._runningInNativeApp) return 'ios';   // legacy iOS flag
+    } catch(_){}
+    return 'web';
+  }
   let _myProfile = { name:'אנונימי', role:'שדה', status:'active' };
   // Cross-device privacy: Firebase-synced { personId: true } set. When a user
   // turns off location on ANY device, all devices skip rendering that personId
@@ -17758,6 +17777,7 @@ const SYNC = (() => {
           status: _myProfile.status || 'active',
           color: u0 ? (u0.color||'#29c5f6') : '#29c5f6',
           personId: pid0 || '',
+          platform: _detectPlatform(),
           lat: window._lastLat, lng: window._lastLng,
           acc: 0, hdg: 0, spd: 0,
           ts: Date.now(), uid: _myUid
@@ -17800,6 +17820,7 @@ const SYNC = (() => {
           status:   _myProfile.status,
           color:    u ? (u.color||'#29c5f6') : '#29c5f6',
           personId: u ? (u.id||'') : '',
+          platform: _detectPlatform(),
           lat: pos.coords.latitude, lng: pos.coords.longitude,
           acc: Math.round(pos.coords.accuracy),
           hdg: Math.round(pos.coords.heading||0),
@@ -18979,11 +19000,23 @@ const SYNC = (() => {
             `<button onclick="window._disconnectLocEntry('${_safeUid}','${escHtml(d.name||'').replace(/'/g,'')}')" `
             +`style="margin-top:8px;width:100%;background:#ff7a1a;color:#fff;border:none;border-radius:6px;padding:8px 10px;font-family:Heebo,sans-serif;font-weight:700;font-size:12px;cursor:pointer">`
             +`🚫 נתק את המכשיר הזה</button>`;
+          // Platform badge — small icon + label inferred from d.platform
+          // (set by web/iOS/android publishers). Older entries without
+          // the field show '?' so we don't lie about source.
+          const _plat = (d.platform||'').toString().toLowerCase();
+          const platMap = {
+            ios:     {icon:'📱', label:'iPhone',  bg:'#0a84ff'},
+            android: {icon:'🤖', label:'Android', bg:'#3ddc84'},
+            web:     {icon:'💻', label:'דפדפן',   bg:'#8e8e93'}
+          };
+          const platInfo = platMap[_plat] || {icon:'❓', label:'לא ידוע', bg:'#6c6c70'};
+          const platBadge = `<span style="display:inline-block;background:${platInfo.bg};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-right:6px">${platInfo.icon} ${platInfo.label}</span>`;
           const iw=new google.maps.InfoWindow({content:
             `<div style="font-family:Heebo,sans-serif;direction:rtl;padding:10px 12px;min-width:220px;background:${bgColorIW};color:${textColor};border-radius:8px">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">${ph}<div>
                 <div style="font-size:15px;font-weight:800;color:${ringColor}">${_name}${reallyIsMe?' <span style="color:#ffd700;font-size:11px">👑 אני</span>':''}</div>
-                <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${_role}</div></div></div>
+                <div style="font-size:11px;color:${roleColor};margin-top:2px;font-weight:600">${_role}</div>
+                <div style="margin-top:4px">${platBadge}</div></div></div>
               <div style="background:${boxBg};border-radius:8px;padding:9px 12px;font-size:12px;display:grid;grid-template-columns:auto 1fr;gap:5px 12px">
                 <span style="color:${labelColor};font-weight:600">סטטוס</span><span style="color:${ringColor};font-weight:800">${_status}</span>
                 <span style="color:${labelColor};font-weight:600">📡 דיוק</span><span style="color:${textColor};font-weight:700">${_acc} מ'</span>

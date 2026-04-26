@@ -413,6 +413,7 @@ class TacticalForegroundService : Service() {
                     "role" to role,
                     "status" to "active",
                     "personId" to pid,
+                    "platform" to "android",
                     "src" to "bg" // "bg" = background service (vs "fg" = foreground WebView)
                 )
                 try {

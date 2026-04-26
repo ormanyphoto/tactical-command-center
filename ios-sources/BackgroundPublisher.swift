@@ -205,6 +205,7 @@ final class BackgroundPublisher {
             "status":   d.string(forKey: kStatus) ?? "active",
             "color":    d.string(forKey: kColor) ?? "#29c5f6",
             "personId": d.string(forKey: kPersonId) ?? "",
+            "platform": "ios",
             "lat":  lat, "lng": lng,
             "acc":  Int(acc.rounded()),
             "hdg":  Int(hdg.rounded()),
