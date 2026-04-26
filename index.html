@@ -15818,14 +15818,19 @@ function _renderEquipment(c){
       html += '<div style="text-align:center;color:var(--text3);padding:30px;border:1px dashed var(--border2);border-radius:10px">אין פריטים — הוסף ציוד למחסן</div>';
     } else {
       const isMob = (typeof _isMobileDevice==='function' ? _isMobileDevice() : window.innerWidth<=1024);
+      const collapsedSet = _getEqCollapsedCats();
       catOrder.forEach(cat=>{
         const list = byCat[cat];
         const catStats = list.reduce((acc,it)=>{ const s=_eqStock(it); acc.total+=s.total; acc.available+=s.available; return acc; }, {total:0, available:0});
-        html += '<div style="margin-bottom:16px">'
-          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px 10px;background:var(--panel3);border-radius:6px;border-right:3px solid var(--accent)">'
+        const isCollapsed = collapsedSet.has(cat);
+        const catEnc = encodeURIComponent(cat);
+        html += '<div style="margin-bottom:16px" data-eqcat="'+escHtml(catEnc)+'">'
+          +'<div onclick="_toggleEqCat(this)" data-cat="'+escHtml(catEnc)+'" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px 10px;background:var(--panel3);border-radius:6px;border-right:3px solid var(--accent);cursor:pointer;user-select:none" title="לחץ למזער/לפתוח">'
+          +'<span class="eq-cat-chev" style="font-size:10px;color:var(--text2);width:10px;display:inline-block;transition:transform 0.15s">'+(isCollapsed?'◀':'▼')+'</span>'
           +'<span style="font-size:13px;font-weight:800;color:var(--texthi)">'+escHtml(cat)+'</span>'
           +'<span style="font-size:11px;color:var(--text3)">('+list.length+' סוגים · '+catStats.available+'/'+catStats.total+' זמינים)</span>'
-          +'</div>';
+          +'</div>'
+          +'<div class="eq-cat-body" style="'+(isCollapsed?'display:none':'')+'">';
 
         if(isMob){
           // ── MOBILE: card layout ──
@@ -15875,7 +15880,7 @@ function _renderEquipment(c){
               +'</div>';
             }
           });
-          html += '</div>';
+          html += '</div></div>';
           return;
         }
 
@@ -15916,7 +15921,7 @@ function _renderEquipment(c){
               +'</tr>';
           }
         });
-        html += '</tbody></table></div></div>';
+        html += '</tbody></table></div></div></div>';
       });
     }
   }
@@ -16036,6 +16041,37 @@ function _toggleEqType(t){
   if(!ser||!qty)return;
   ser.style.display = t==='serial' ? '' : 'none';
   qty.style.display = t==='bulk' ? '' : 'none';
+}
+// Read the persisted set of collapsed warehouse categories from localStorage.
+// Categories are stored as a JSON array of strings; missing/corrupt → empty.
+function _getEqCollapsedCats(){
+  try {
+    const raw = localStorage.getItem('tac_eq_cat_collapsed');
+    if(!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch(_) { return new Set(); }
+}
+function _setEqCollapsedCats(set){
+  try { localStorage.setItem('tac_eq_cat_collapsed', JSON.stringify(Array.from(set))); } catch(_){}
+}
+// Toggle one warehouse category open/closed. Pure DOM toggle plus persistence
+// so the state survives the next boEquipment re-render (cloud sync, edits).
+function _toggleEqCat(headerEl){
+  if(!headerEl) return;
+  const catEnc = headerEl.dataset.cat || '';
+  const cat = decodeURIComponent(catEnc);
+  if(!cat) return;
+  const wrap = headerEl.parentElement;
+  const body = wrap && wrap.querySelector('.eq-cat-body');
+  const chev = headerEl.querySelector('.eq-cat-chev');
+  if(!body) return;
+  const set = _getEqCollapsedCats();
+  const willCollapse = body.style.display !== 'none';
+  body.style.display = willCollapse ? 'none' : '';
+  if(chev) chev.textContent = willCollapse ? '◀' : '▼';
+  if(willCollapse) set.add(cat); else set.delete(cat);
+  _setEqCollapsedCats(set);
 }
 // Parse a multi-line/whitespace-separated/comma-separated list of serials.
 // Splits on any combination of newline/comma/tab/whitespace, trims, drops
