@@ -3705,20 +3705,39 @@ function _ipLocate(onSuccess, onFail){
     if(onFail) onFail();
     return;
   }
-  fetch('https://ipwho.is/')
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.success && d.latitude && d.longitude){
+  // Try multiple IP-geolocation providers in cascade. ipwho.is started
+  // returning 403 (rate limit / API change); fall back to ipapi.co and
+  // geolocation-db.com so the cascade survives a single provider going
+  // dark. Each provider has its own free tier with no auth.
+  const providers = [
+    { url: 'https://ipapi.co/json/',          lat: d => d.latitude,  lng: d => d.longitude, ok: d => !d.error },
+    { url: 'https://ipwho.is/',               lat: d => d.latitude,  lng: d => d.longitude, ok: d => d.success },
+    { url: 'https://geolocation-db.com/json/', lat: d => d.latitude,  lng: d => d.longitude, ok: d => d.latitude && d.longitude },
+  ];
+  const tryNext = (i) => {
+    if (i >= providers.length) { if(onFail) onFail(); return; }
+    const p = providers[i];
+    fetch(p.url)
+      .then(r => r.ok ? r.json() : Promise.reject('HTTP '+r.status))
+      .then(d => {
+        if (!p.ok(d)) throw new Error('provider rejected response');
+        const lat = p.lat(d), lng = p.lng(d);
+        if (typeof lat !== 'number' || typeof lng !== 'number') throw new Error('no coords');
         // Sanity: clamp to Israel bounds (29–33.5 lat, 34–36 lng).
-        // If the IP server returned something outside, drop it.
-        if(d.latitude < 29 || d.latitude > 33.5 || d.longitude < 34 || d.longitude > 36){
-          console.warn('[GEO] IP returned out-of-Israel coords, ignoring:', d.latitude, d.longitude);
-          if(onFail) onFail();
+        if (lat < 29 || lat > 33.5 || lng < 34 || lng > 36) {
+          console.warn('[GEO] IP provider', p.url, 'returned out-of-Israel coords, ignoring:', lat, lng);
+          tryNext(i + 1);
           return;
         }
-        onSuccess({coords:{latitude:d.latitude,longitude:d.longitude,accuracy:5000,speed:0,heading:0}}, 'IP');
-      } else { onFail&&onFail(); }
-    }).catch(()=>{ onFail&&onFail(); });
+        console.log('[GEO] IP fix from', p.url.replace(/^https?:\/\//,'').replace(/\/.*/,''), '→', lat.toFixed(4), lng.toFixed(4));
+        onSuccess({coords:{latitude:lat,longitude:lng,accuracy:5000,speed:0,heading:0}}, 'IP');
+      })
+      .catch(e => {
+        console.warn('[GEO] IP provider', p.url, 'failed:', e && (e.message||e));
+        tryNext(i + 1);
+      });
+  };
+  tryNext(0);
 }
 
 function _wifiLocate(onSuccess, onFail){
