@@ -4334,6 +4334,13 @@ function _navArmTurnByTurn(leg){
           strokeColor: '#ffffff',
           strokeWeight: 2,
           rotation: heading,
+          // Lock the arrow to the map (world space), not the canvas. With
+          // the vector map rotating in nav mode, the default flat:false
+          // keeps arrows canvas-aligned — so as the road tilts beneath
+          // them they fall out of sync with the route. flat:true rotates
+          // the icon with the map so the arrow always points along the
+          // road regardless of the current heading.
+          flat: true,
         }
       });
       _ttArrows.push(m);
