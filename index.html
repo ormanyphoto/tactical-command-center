@@ -17886,7 +17886,11 @@ const SYNC = (() => {
         // Now we just log and let watchPosition retry automatically. The
         // user must explicitly toggle off if they want to hide themselves.
         console.warn('[GEO] watchPosition error', err && err.code, err && err.message);
-      }, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
+      }, {
+        enableHighAccuracy:true,
+        maximumAge:30000,   // accept up to 30s old fix — keeps WiFi-only iPads/laptops publishing
+        timeout:30000       // give iOS Safari WiFi-positioning enough time (was 15s, often timed out)
+      });
     }
     // Keep setInterval as fallback
     if(_publishTimer) clearInterval(_publishTimer);
