@@ -10641,6 +10641,14 @@ function savePersonnelToStorage(){
         const c = Object.assign({}, p);
         delete c.photo;
         delete c.loginPassword;
+        // Live publishers (anyone with an email logs in and publishes their
+        // own position to tac_locs) must never sync _placed/lat/lng through
+        // tac_personnel_sync — those fields are local UI state for tactical
+        // pins of off-account people. Letting them ride along on the array
+        // sync caused P17931 to stay frozen at the static seed coords on
+        // every boot because Object.assign in applyPersonnelSnapshot kept
+        // re-introducing _placed=true after the local cleanup ran.
+        if(c.email){ delete c._placed; delete c.lat; delete c.lng; }
         return _stripUndef(c);
       });
       // Dual-write: SDK for instant push to listeners + REST PUT as a
@@ -10832,23 +10840,41 @@ _dedupePersonnel();   // run once at startup to clean any historical drift
     // becomes the single source of truth.
     if(!done.v590_p17931_clear_placed){
       const p = PERSONNEL.find(x => x.id === 'P17931' || (x.email||'').toLowerCase() === 'yakamtlv@gmail.com');
-      if(p && p._placed === true){
+      if(p){
+        // Always force the clean state — even if local already shows
+        // _placed=false, the cloud copy might still hold _placed=true
+        // from a prior session. Local cleanup + saveToCloud propagates
+        // the clean record (with the new strip-on-write guard) so
+        // tac_personnel_sync stops re-poisoning every device.
+        const wasPlaced = p._placed === true;
         p._placed = false;
         p.lat = null;
         p.lng = null;
-        try {
-          if(typeof _markers !== 'undefined'){
-            ['u_pers_'+p.id, 'u_pers_pers_'+p.id].forEach(k=>{
-              if(_markers[k]){ try { _markers[k].setMap(null); } catch(_){} delete _markers[k]; }
-            });
-          }
-          if(typeof trackMks !== 'undefined' && trackMks['pers_'+p.id]){
-            try { trackMks['pers_'+p.id].setMap(null); } catch(_){}
-            delete trackMks['pers_'+p.id];
-          }
-        } catch(_){}
+        if(wasPlaced){
+          try {
+            if(typeof _markers !== 'undefined'){
+              ['u_pers_'+p.id, 'u_pers_pers_'+p.id].forEach(k=>{
+                if(_markers[k]){ try { _markers[k].setMap(null); } catch(_){} delete _markers[k]; }
+              });
+            }
+            if(typeof trackMks !== 'undefined' && trackMks['pers_'+p.id]){
+              try { trackMks['pers_'+p.id].setMap(null); } catch(_){}
+              delete trackMks['pers_'+p.id];
+            }
+          } catch(_){}
+        }
         changed = true;
-        try { if(typeof saveToCloud === 'function') saveToCloud(); } catch(_){}
+        // Defer the cloud write until window.load so window._db is ready.
+        // Running saveToCloud at script-eval time on a fresh boot can
+        // hit a half-initialized SDK and silently fail, leaving cloud
+        // bad. window.load fires after Firebase init.
+        try {
+          const _doCloudClean = () => {
+            try { if(typeof saveToCloud === 'function') saveToCloud(); } catch(_){}
+          };
+          if(document.readyState === 'complete') setTimeout(_doCloudClean, 2000);
+          else window.addEventListener('load', () => setTimeout(_doCloudClean, 2000), {once:true});
+        } catch(_){}
       }
       done.v590_p17931_clear_placed = true;
     }
@@ -14856,6 +14882,12 @@ setTimeout(_fallbackLoadLocations, 3000);
         const existing = PERSONNEL[idx];
         const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
         const photo = existing.photo, pwd = existing.loginPassword, keepId = existing.id;
+        // Defense in depth: even if a stale tac_personnel_sync snapshot in
+        // Firebase still carries _placed/lat/lng for a live publisher,
+        // strip them before the merge so the local map can't get pinned
+        // back to a static spot. tac_locs is the only source of truth for
+        // anyone with an email account.
+        if(sp.email){ delete sp._placed; delete sp.lat; delete sp.lng; }
         Object.assign(existing, sp);
         existing.id = keepId;   // never overwrite the local stable id
         if(photo) existing.photo = photo;
@@ -18590,6 +18622,7 @@ const SYNC = (() => {
             const existing = PERSONNEL[idx];
             const before = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
             const photo = existing.photo, pwd = existing.loginPassword, keepId = existing.id;
+            if(sp.email){ delete sp._placed; delete sp.lat; delete sp.lng; }
             Object.assign(existing, sp);
             existing.id = keepId;
             if(photo) existing.photo = photo;
@@ -18660,6 +18693,7 @@ const SYNC = (() => {
             // Skip the assign if nothing changed, so a passive echo of
             // our own write doesn't trigger a re-render flicker.
             const snapshot = JSON.stringify({name:existing.name,role:existing.role,unit:existing.unit,skills:existing.skills,available:existing.available,phone:existing.phone,email:existing.email,callsign:existing.callsign});
+            if(sp.email){ delete sp._placed; delete sp.lat; delete sp.lng; }
             Object.assign(existing, sp);
             existing.id = keepId;
             if(photo) existing.photo = photo;
