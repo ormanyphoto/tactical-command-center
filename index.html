@@ -15946,9 +15946,9 @@ function addEquipmentModal(){
         </label>
       </div>
       <div id="eq-serial-wrap">
-        <label style="font-size:11px;color:var(--text3)">מספר סריאלי</label>
-        <input type="text" id="eq-serial" placeholder="SN-12345" style="font-family:monospace"/>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px">פריט אחד עם מספר סידורי ייחודי (לדוג׳ מכשיר קשר)</div>
+        <label style="font-size:11px;color:var(--text3)">מספר סריאלי (אחד או רבים — שורה למספר)</label>
+        <textarea id="eq-serials" rows="4" placeholder="SN-12345&#10;או הדבק כמה מספרים, שורה לכל אחד" style="font-family:monospace;width:100%;resize:vertical;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-size:13px;direction:ltr;text-align:left" oninput="_updateSerialCount()"></textarea>
+        <div id="eq-serials-count" style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5">פריט אחד עם מספר סידורי ייחודי, או רשימה של מספרים — כל אחד יישמר כפריט נפרד</div>
       </div>
       <div id="eq-qty-wrap" style="display:none">
         <label style="font-size:11px;color:var(--text3)">כמות במלאי</label>
@@ -15961,25 +15961,73 @@ function addEquipmentModal(){
     const name = document.getElementById('eq-name').value.trim();
     if(!name) return;
     const type = (document.querySelector('input[name="eq-type"]:checked')||{}).value || 'serial';
-    const base = {
-      id:'eq_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
-      name,
-      category: document.getElementById('eq-cat').value,
-      notes: document.getElementById('eq-notes').value
-    };
+    const category = document.getElementById('eq-cat').value;
+    const notes = document.getElementById('eq-notes').value;
     if(type === 'bulk'){
       const qty = Math.max(1, parseInt(document.getElementById('eq-qty').value)||1);
-      EQUIPMENT_ITEMS.push(Object.assign(base,{ bulk:true, quantity:qty, assignments:[] }));
+      EQUIPMENT_ITEMS.push({
+        id:'eq_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+        name, category, notes,
+        bulk:true, quantity:qty, assignments:[]
+      });
       auditLog('ציוד בכמות נוסף: '+name+' ('+qty+' יח׳)','info','');
-    } else {
-      EQUIPMENT_ITEMS.push(Object.assign(base,{
-        serial: document.getElementById('eq-serial').value,
-        holder:'', holderId:'', holderName:'', takenAt:null
-      }));
-      auditLog('פריט ציוד נוסף: '+name,'info','');
+      _saveEquipment();
+      boEquipment(document.getElementById('bo-inner'));
+      return;
     }
+    // Serialized — supports a single SN or a multi-line list. Empty input
+    // is allowed (creates one item with empty serial) to preserve the
+    // legacy "log first, set serial later" flow.
+    const raw = (document.getElementById('eq-serials')||{}).value || '';
+    const parsed = _parseSerialList(raw);
+    if(parsed.unique.length === 0){
+      // No serials given — single item with empty serial (legacy behavior).
+      EQUIPMENT_ITEMS.push({
+        id:'eq_'+Date.now()+'_'+Math.random().toString(36).slice(2,5),
+        name, category, notes,
+        serial:'', holder:'', holderId:'', holderName:'', takenAt:null
+      });
+      auditLog('פריט ציוד נוסף: '+name,'info','');
+      _saveEquipment();
+      boEquipment(document.getElementById('bo-inner'));
+      return;
+    }
+    // Filter out any serial that already exists in inventory (any item type).
+    const existingSerials = new Set(
+      EQUIPMENT_ITEMS.filter(e=>e && e.serial).map(e=>String(e.serial).trim())
+    );
+    const toAdd = parsed.unique.filter(sn => !existingSerials.has(sn));
+    const skipped = parsed.unique.filter(sn => existingSerials.has(sn));
+    if(toAdd.length === 0){
+      showToast({icon:'⚠️',title:'כל הסריאלים כבר קיימים',sub:'לא נוסף שום פריט',type:'warn',duration:4500});
+      return;
+    }
+    const ts = Date.now();
+    toAdd.forEach((sn, i) => {
+      EQUIPMENT_ITEMS.push({
+        id:'eq_'+ts+'_'+i+'_'+Math.random().toString(36).slice(2,5),
+        name, category, notes,
+        serial: sn, holder:'', holderId:'', holderName:'', takenAt:null
+      });
+    });
+    let auditMsg = toAdd.length === 1
+      ? 'פריט ציוד נוסף: '+name+' (SN '+toAdd[0]+')'
+      : toAdd.length+' '+name+' נוספו (סריאלים)';
+    if(parsed.dupesInInput.length) auditMsg += ' — '+parsed.dupesInInput.length+' כפילויות בקלט סוננו';
+    if(skipped.length) auditMsg += ' — '+skipped.length+' כבר קיימים, דולגו';
+    auditLog(auditMsg, 'info', '');
     _saveEquipment();
     boEquipment(document.getElementById('bo-inner'));
+    let toastSub = '';
+    if(parsed.dupesInInput.length) toastSub += parsed.dupesInInput.length+' כפילויות בקלט. ';
+    if(skipped.length) toastSub += skipped.length+' כבר היו במלאי. ';
+    showToast({
+      icon:'✓',
+      title: toAdd.length === 1 ? 'נוסף פריט אחד' : 'נוספו '+toAdd.length+' פריטים',
+      sub: toastSub.trim() || ('קטגוריה: '+(category||'—')),
+      type:'success',
+      duration: 4000
+    });
   };
   document.getElementById('modal-wrap').style.display='flex';
 }
@@ -15988,6 +16036,44 @@ function _toggleEqType(t){
   if(!ser||!qty)return;
   ser.style.display = t==='serial' ? '' : 'none';
   qty.style.display = t==='bulk' ? '' : 'none';
+}
+// Parse a multi-line/whitespace-separated/comma-separated list of serials.
+// Splits on any combination of newline/comma/tab/whitespace, trims, drops
+// empty tokens, dedupes. Returns { unique: [...], dupesInInput: [...] }.
+function _parseSerialList(text){
+  if(!text) return { unique: [], dupesInInput: [] };
+  const tokens = String(text).split(/[\r\n,;\t]+/).map(s=>s.trim()).filter(Boolean);
+  const seen = new Set();
+  const unique = [];
+  const dupesInInput = [];
+  tokens.forEach(t => {
+    if(seen.has(t)) dupesInInput.push(t);
+    else { seen.add(t); unique.push(t); }
+  });
+  return { unique, dupesInInput };
+}
+// Live-update the count display under the serials textarea. Called on input.
+function _updateSerialCount(){
+  const ta = document.getElementById('eq-serials');
+  const out = document.getElementById('eq-serials-count');
+  if(!ta || !out) return;
+  const parsed = _parseSerialList(ta.value);
+  if(parsed.unique.length === 0){
+    out.style.color = 'var(--text3)';
+    out.textContent = 'פריט אחד עם מספר סידורי ייחודי, או רשימה של מספרים — כל אחד יישמר כפריט נפרד';
+    return;
+  }
+  const existingSerials = new Set(
+    (typeof EQUIPMENT_ITEMS !== 'undefined' ? EQUIPMENT_ITEMS : [])
+      .filter(e=>e && e.serial).map(e=>String(e.serial).trim())
+  );
+  const collisions = parsed.unique.filter(sn => existingSerials.has(sn));
+  const toAdd = parsed.unique.length - collisions.length;
+  let msg = toAdd + ' פריטים יווצרו';
+  if(parsed.dupesInInput.length) msg += ' · ' + parsed.dupesInInput.length + ' כפילויות בקלט יסוננו';
+  if(collisions.length) msg += ' · ' + collisions.length + ' כבר במלאי, ידולגו';
+  out.style.color = (toAdd > 0) ? 'var(--accent)' : 'var(--warn)';
+  out.textContent = msg;
 }
 
 // ── Manage custom equipment categories ──
