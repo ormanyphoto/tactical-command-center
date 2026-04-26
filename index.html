@@ -18349,7 +18349,34 @@ const SYNC = (() => {
     const now = Date.now();
     const norm = s => (s||'').toString().trim().toLowerCase();
     const digits = s => (s||'').toString().replace(/\D+/g,'');
-    // pass 1
+    // Quality score — pick the BEST entry per identity, not just the freshest.
+    // Without this, an unstable IP-cascade publish (5 km accuracy, jumping
+    // between Tel Aviv and the Negev each cycle) would beat a real GPS fix
+    // simply because its `ts` is fresher. Native UUIDs (Android service /
+    // iOS BackgroundPublisher) and GPS/WiFi sources score MUCH higher than
+    // webview u_xxx publishes that fall back to IP geolocation.
+    const isUUID = uid => /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(uid);
+    const qualityScore = (uid, d) => {
+      let s = 0;
+      if (isUUID(uid)) s += 1000;          // native publisher (Android/iOS service)
+      if (d.src === 'GPS') s += 500;
+      else if (d.src === 'WiFi') s += 300;
+      else if (d.src === 'IP') s += 50;
+      else if (!d.src) s += 200;           // no src = legacy native (still better than IP)
+      if (typeof d.acc === 'number') {
+        if (d.acc < 50) s += 100;
+        else if (d.acc < 500) s += 50;
+        else if (d.acc < 2000) s += 10;
+      }
+      // Heavily penalise very-old entries even if higher-quality. A 1h-old
+      // GPS fix is still better than a 30s-old IP fix at the wrong city,
+      // but a 12h-old GPS fix is not.
+      const age = now - (d.ts||0);
+      if (age > 30 * 60 * 1000) s -= 200;  // > 30 min
+      if (age > 2 * 60 * 60 * 1000) s -= 500; // > 2 h
+      return s;
+    };
+    // pass 1 — group by personId, pick the highest-quality entry per personId
     const byPerson = {};
     Object.entries(data||{}).forEach(([uid, d])=>{
       if(!d || !d.lat || !d.lng) return;
@@ -18358,14 +18385,14 @@ const SYNC = (() => {
       const key = d.personId || uid;
       // Cross-device privacy — skip any person flagged as hidden in Firebase
       if(_hiddenPersons[key]) return;
-      const ts = d.ts || 0;
-      if(!byPerson[key] || ts > byPerson[key].ts){
-        byPerson[key] = {key, d, ts};
+      const score = qualityScore(uid, d);
+      if(!byPerson[key] || score > byPerson[key].score){
+        byPerson[key] = {key, d, ts: d.ts || 0, score};
       }
     });
-    // pass 2 — resolve to PERSONNEL identity (email/phone), prefer newest
+    // pass 2 — resolve to PERSONNEL identity (email/phone), prefer highest quality
     const PL = (typeof PERSONNEL !== 'undefined' && Array.isArray(PERSONNEL)) ? PERSONNEL : [];
-    const byHuman = {};                       // signature -> {key, d, ts}
+    const byHuman = {};                       // signature -> {key, d, ts, score}
     Object.values(byPerson).forEach(x => {
       // Resolve this personId to a stable identity signature
       const p = PL.find(pp => pp && pp.id === x.key);
@@ -18377,7 +18404,7 @@ const SYNC = (() => {
       } else {
         sig = 'id:'+x.key;
       }
-      if (!byHuman[sig] || x.ts > byHuman[sig].ts) {
+      if (!byHuman[sig] || x.score > byHuman[sig].score) {
         byHuman[sig] = x;
       }
     });
